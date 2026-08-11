@@ -62,9 +62,25 @@ jobs:
       - name: Verify R2 endpoints
         shell: bash
         run: |
-          echo "Active model:"
-          curl --fail --silent --show-error "$WORKER_BASE_URL/api/model/active" | head -c 220
+          rm -f /tmp/active-model.json /tmp/crypto-snapshot.json
+
+          curl --fail --silent --show-error \
+            -o /tmp/active-model.json \
+            "$WORKER_BASE_URL/api/model/active"
+
+          curl --fail --silent --show-error \
+            -o /tmp/crypto-snapshot.json \
+            "$WORKER_BASE_URL/api/snapshot?market=crypto"
+
+          test -s /tmp/active-model.json || (echo "Active model response is empty" && exit 1)
+          test -s /tmp/crypto-snapshot.json || (echo "Crypto snapshot response is empty" && exit 1)
+
+          echo "✅ Active probability model is readable from R2"
+          echo -n "Preview: "
+          head -c 220 /tmp/active-model.json
           echo
-          echo "Crypto snapshot:"
-          curl --fail --silent --show-error "$WORKER_BASE_URL/api/snapshot?market=crypto" | head -c 220
+
+          echo "✅ Crypto snapshot is readable from R2"
+          echo -n "Preview: "
+          head -c 220 /tmp/crypto-snapshot.json
           echo

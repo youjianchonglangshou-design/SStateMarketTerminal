@@ -1,9 +1,5 @@
 {
-  "app": "SStateMarketTerminal",
-  "version": "TERMINAL v0.1.0｜HEADLESS-STAGE1",
-  "stage": 1,
-  "streamlit": false,
-  "runtime_source_of_truth": "Cloudflare R2",
-  "analysis_runtime": "GitHub Actions + Python",
-  "frontend": "GitHub Pages HTML + CSS + JavaScript"
+  "app_version": "TERMINAL v0.1.2｜R2-LIVE",
+  "stage": "R2-LIVE",
+  "worker_url": "https://white-meadow-16bc.youjianchonglangshou.workers.dev"
 }

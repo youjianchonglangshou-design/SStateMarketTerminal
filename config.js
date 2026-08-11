@@ -1,8 +1,6 @@
 window.SSTATE_CONFIG = {
-  // 部署 Cloudflare Worker 後只要改這一行，例如：
-  // workerUrl: "https://sstate-market-terminal.your-subdomain.workers.dev"
-  workerUrl: "",
+  workerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev",
   defaultMarket: "crypto",
   pollIntervalMs: 4000,
-  appVersion: "TERMINAL v0.1.0｜HEADLESS-STAGE1"
+  appVersion: "TERMINAL v0.1.2｜R2-LIVE"
 };

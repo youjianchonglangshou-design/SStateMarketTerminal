@@ -1,0 +1,70 @@
+name: Seed Cloudflare R2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    env:
+      WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+      WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate secrets
+        shell: bash
+        run: |
+          test -n "$WORKER_BASE_URL" || (echo "WORKER_BASE_URL missing" && exit 1)
+          test -n "$WORKER_CALLBACK_TOKEN" || (echo "WORKER_CALLBACK_TOKEN missing" && exit 1)
+
+      - name: Seed active probability model
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            -X PUT \
+            -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary "@engine/models/probability_model.json" \
+            "$WORKER_BASE_URL/api/internal/model/active"
+
+      - name: Seed crypto snapshot
+        shell: bash
+        run: |
+          RUN_ID="seed_crypto_${GITHUB_RUN_ID}"
+          curl --fail --silent --show-error \
+            -X PUT \
+            -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary "@data/bootstrap/snapshot_ai.json" \
+            "$WORKER_BASE_URL/api/internal/snapshot?market=crypto&run_id=$RUN_ID"
+
+      - name: Seed US stock snapshot if present
+        shell: bash
+        run: |
+          if [ -s "data/bootstrap/snapshot_us_stock_ai.json" ]; then
+            RUN_ID="seed_us_stock_${GITHUB_RUN_ID}"
+            curl --fail --silent --show-error \
+              -X PUT \
+              -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data-binary "@data/bootstrap/snapshot_us_stock_ai.json" \
+              "$WORKER_BASE_URL/api/internal/snapshot?market=us-stock&run_id=$RUN_ID"
+          else
+            echo "No US stock bootstrap yet; skipped."
+          fi
+
+      - name: Verify R2 endpoints
+        shell: bash
+        run: |
+          echo "Active model:"
+          curl --fail --silent --show-error "$WORKER_BASE_URL/api/model/active" | head -c 220
+          echo
+          echo "Crypto snapshot:"
+          curl --fail --silent --show-error "$WORKER_BASE_URL/api/snapshot?market=crypto" | head -c 220
+          echo

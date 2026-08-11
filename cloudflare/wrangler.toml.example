@@ -1,0 +1,16 @@
+name = "sstate-market-terminal"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+[vars]
+GITHUB_REPOSITORY = "youjianchonglangshou-design/SStateMarketTerminal"
+GITHUB_BRANCH = "main"
+ALLOWED_ORIGIN = "https://youjianchonglangshou-design.github.io"
+
+[[r2_buckets]]
+binding = "JSON_BUCKET"
+bucket_name = "sstate-market-data"
+
+# Secrets (do not put values in this file):
+# npx wrangler secret put GITHUB_TOKEN
+# npx wrangler secret put CALLBACK_TOKEN

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#1e293b">
+  <title>SStateMarketTerminal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="title-row">
+          <h1>Heikin-Ashi Ladder Pattern Scoring Engine</h1>
+          <span id="version-chip" class="chip cyan"></span>
+          <span class="chip purple">S-state AI Terminal</span>
+        </div>
+        <div id="system-caption" class="caption">載入最後一次分析資料...</div>
+      </div>
+      <div class="actions">
+        <select id="market-select" aria-label="市場">
+          <option value="crypto">加密貨幣</option>
+          <option value="us-stock">美股代幣</option>
+        </select>
+        <button id="run-button" class="primary">⚡ 完整分析</button>
+        <button id="download-button">⬇ JSON</button>
+      </div>
+    </header>
+
+    <section id="run-panel" class="run-panel hidden">
+      <div class="run-line">
+        <strong id="run-title">分析準備中</strong>
+        <span id="run-percent">0%</span>
+      </div>
+      <div class="progress"><div id="run-bar"></div></div>
+      <div id="run-detail" class="caption"></div>
+    </section>
+
+    <section class="scan-head">
+      <div>
+        <h2>📈 快速狀態掃描｜S0 → S0.5 → S1 → S2 → S3</h2>
+        <div id="snapshot-meta" class="caption"></div>
+      </div>
+      <div id="state-filters" class="filters"></div>
+    </section>
+
+    <section id="summary-strip" class="summary-strip"></section>
+    <section id="cards" class="cards"></section>
+
+    <section id="empty-state" class="empty hidden">
+      <h3>尚無可顯示資料</h3>
+      <p>網站預設只讀取最後一次成功結果。設定 Worker 後，選擇市場並按「完整分析」才會重新抓取 Pionex 並執行 Python 引擎。</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

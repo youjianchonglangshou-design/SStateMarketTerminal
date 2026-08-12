@@ -28,6 +28,30 @@
       </div>
     </header>
 
+    <section id="model-battle" class="model-battle">
+      <div class="battle-head">
+        <div>
+          <div class="battle-title">🧬 模型競爭｜Champion vs Challenger</div>
+          <div id="battle-caption" class="caption">載入模型競爭狀態...</div>
+        </div>
+        <div id="battle-decision" class="battle-decision waiting">WAITING</div>
+      </div>
+      <div class="battle-grid">
+        <div class="battle-card champion">
+          <div class="battle-role">🏆 ACTIVE / CHAMPION</div>
+          <div id="champion-id" class="battle-model-id">—</div>
+          <div id="champion-meta" class="caption">目前完整分析使用中的模型</div>
+        </div>
+        <div class="battle-vs">VS</div>
+        <div class="battle-card challenger">
+          <div class="battle-role">🥊 CHALLENGER / SHADOW</div>
+          <div id="challenger-id" class="battle-model-id">—</div>
+          <div id="challenger-meta" class="caption">等待未來 OOS settlement</div>
+        </div>
+      </div>
+      <div id="battle-metrics" class="battle-metrics"></div>
+    </section>
+
     <section id="run-panel" class="run-panel hidden">
       <div class="run-line">
         <strong id="run-title">分析準備中</strong>

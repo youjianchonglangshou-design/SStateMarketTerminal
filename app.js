@@ -3,13 +3,15 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null };
 
   const $ = (id) => document.getElementById(id);
   const els = {
     version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), run: $("run-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
-    snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast")
+    snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
+    battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
+    challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics")
   };
   els.version.textContent = cfg.appVersion || "TERMINAL v0.1.0";
   els.market.value = state.market;
@@ -31,6 +33,106 @@
     const res = await fetch(url, { cache: "no-store", ...options });
     if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(()=>res.statusText)}`);
     return res.json();
+  }
+
+
+  async function fetchOptionalJson(url) {
+    try { return await fetchJson(url); } catch (_) { return null; }
+  }
+
+  function shortId(v) {
+    const s = String(v || "");
+    return s ? (s.length > 20 ? `${s.slice(0,20)}…` : s) : "—";
+  }
+
+  function ageText(iso) {
+    if (!iso) return "—";
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(ms) || ms < 0) return "—";
+    const hours = ms / 3600000;
+    if (hours < 1) return `${Math.max(0, Math.floor(hours * 60))} 分鐘`;
+    if (hours < 48) return `${hours.toFixed(1)} 小時`;
+    return `${(hours / 24).toFixed(1)} 天`;
+  }
+
+  function decisionZh(decision) {
+    return ({
+      WAITING_EVIDENCE: "等待證據",
+      HOLD: "繼續觀察",
+      PROMOTE: "可晉級",
+      REJECT: "淘汰",
+      SHADOW_EVALUATION: "影子評估中"
+    })[decision] || decision || "等待評估";
+  }
+
+  function fmtMetric(v, digits=4) {
+    return Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : "—";
+  }
+
+  async function loadModelBattle() {
+    if (!workerUrl) return renderModelBattle();
+    const [champion, challenger, evaluation] = await Promise.all([
+      fetchOptionalJson(`${workerUrl}/api/model/active?t=${Date.now()}`),
+      fetchOptionalJson(`${workerUrl}/api/model/challenger/current?t=${Date.now()}`),
+      fetchOptionalJson(`${workerUrl}/api/model/evaluation/latest?t=${Date.now()}`)
+    ]);
+    state.champion = champion;
+    state.challenger = challenger;
+    state.evaluation = evaluation;
+    renderModelBattle();
+  }
+
+  function renderModelBattle() {
+    const c = state.champion || {};
+    const h = state.challenger || {};
+    const e = state.evaluation || null;
+
+    els.championId.textContent = shortId(c.model_id);
+    els.championMeta.textContent = c.model_id
+      ? `目前完整分析使用中｜訓練案例 ${Number(c.training?.cases_count || c.training?.case_count || 0).toLocaleString() || "—"}`
+      : "尚未讀到 Active 模型";
+
+    els.challengerId.textContent = shortId(h.model_id);
+    els.challengerMeta.textContent = h.model_id
+      ? `${decisionZh(h.status)}｜已進場 ${ageText(h.assigned_at || h.generated_at)}｜至少 72H 後才可通過年齡門檻`
+      : "目前沒有 Challenger";
+
+    let decision = h.status || "WAITING_EVIDENCE";
+    if (e?.challenger_model_id === h.model_id && e?.decision) decision = e.decision;
+    els.battleDecision.textContent = decisionZh(decision);
+    els.battleDecision.className = `battle-decision ${String(decision).toLowerCase().replace(/_/g,"-")}`;
+
+    if (!h.model_id) {
+      els.battleCaption.textContent = "Active 模型正常；目前尚未指派 Challenger。";
+      els.battleMetrics.innerHTML = "";
+      return;
+    }
+
+    const generated = h.assigned_at || h.generated_at;
+    els.battleCaption.textContent =
+      `Active ${shortId(c.model_id)}｜Challenger ${shortId(h.model_id)}｜Shadow 起點 ${generated ? new Date(generated).toLocaleString("zh-TW",{hour12:false}) : "—"}`;
+
+    if (!e || e.challenger_model_id !== h.model_id) {
+      els.battleMetrics.innerHTML = [
+        ["OOS 已結算案例","等待第一批 72H settlement"],
+        ["最低證據","180 cases / 50 symbols"],
+        ["最早可判定","Challenger 年齡 ≥ 72H"],
+        ["目前動作","Active 不變，Challenger 只做 Shadow"]
+      ].map(([k,v])=>`<div class="battle-metric"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join("");
+      return;
+    }
+
+    const active = e.active || {};
+    const challenger = e.challenger || {};
+    const pBetter = Number(e.bootstrap_probability_challenger_brier_better);
+    els.battleMetrics.innerHTML = [
+      ["OOS cases", Number(e.paired_oos_cases || 0).toLocaleString()],
+      ["OOS symbols", Number(e.paired_oos_symbols || 0).toLocaleString()],
+      ["Champion Brier", fmtMetric(active.multiclass_brier)],
+      ["Challenger Brier", fmtMetric(challenger.multiclass_brier)],
+      ["Challenger 較佳信心", Number.isFinite(pBetter) ? pct(pBetter,1) : "—"],
+      ["Decision", decisionZh(e.decision)]
+    ].map(([k,v])=>`<div class="battle-metric"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join("");
   }
 
   async function loadSnapshot() {
@@ -157,7 +259,7 @@
     try{
       const s=await fetchJson(`${workerUrl}/api/analysis/status?run_id=${encodeURIComponent(state.runId)}&t=${Date.now()}`);
       const p=Number(s.percent||0); setRunUi(true,p,s.status==='SUCCESS'?'分析完成':s.status==='FAILED'?'分析失敗':'完整分析執行中',`${s.current_symbol||''} ${s.completed??''}/${s.total??''} ${s.message||''}`.trim());
-      if(s.status==='SUCCESS'){els.run.disabled=false;state.runId='';await loadSnapshot();showToast('完整分析完成，畫面已切換到 R2 最新資料。',7000);return}
+      if(s.status==='SUCCESS'){els.run.disabled=false;state.runId='';await Promise.all([loadSnapshot(),loadModelBattle()]);showToast('完整分析完成，畫面已切換到 R2 最新資料。',7000);return}
       if(s.status==='FAILED'){els.run.disabled=false;state.runId='';showToast(`分析失敗：${s.message||'請查看 GitHub Actions'}`,9000);return}
     }catch(err){setRunUi(true,0,'等待 GitHub Actions 回報',err.message)}
     state.pollTimer=setTimeout(pollRun,pollInterval);
@@ -171,5 +273,5 @@
 
   els.market.addEventListener('change',async()=>{state.market=els.market.value;localStorage.setItem('sstate-market',state.market);state.filter='ALL';await loadSnapshot()});
   els.run.addEventListener('click',startFullAnalysis); els.download.addEventListener('click',downloadCurrentJson);
-  loadSnapshot();
+  Promise.all([loadSnapshot(), loadModelBattle()]);
 })();

@@ -11,7 +11,7 @@
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
     battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
-    challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics")
+    challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress")
   };
   els.version.textContent = cfg.appVersion || "TERMINAL v0.1.0";
   els.market.value = state.market;
@@ -82,6 +82,46 @@
     renderModelBattle();
   }
 
+
+  function progressPct(value, target) {
+    const v = Math.max(0, Number(value) || 0);
+    const t = Math.max(1, Number(target) || 1);
+    return Math.max(0, Math.min(100, (v / t) * 100));
+  }
+
+  function shadowAgeHours(iso) {
+    if (!iso) return 0;
+    const ts = new Date(iso).getTime();
+    if (!Number.isFinite(ts)) return 0;
+    return Math.max(0, (Date.now() - ts) / 3600000);
+  }
+
+  function countdown72Text(iso) {
+    const age = shadowAgeHours(iso);
+    const remain = Math.max(0, 72 - age);
+    if (remain <= 0) return "72H 年齡門檻已達成";
+    const d = Math.floor(remain / 24);
+    const h = Math.floor(remain % 24);
+    const m = Math.floor((remain * 60) % 60);
+    if (d > 0) return `還差 ${d}天 ${h}小時 ${m}分`;
+    if (h > 0) return `還差 ${h}小時 ${m}分`;
+    return `還差 ${m}分`;
+  }
+
+  function progressRow(label, valueText, pctValue, tone="cyan") {
+    const pctSafe = Math.max(0, Math.min(100, Number(pctValue) || 0));
+    return `
+      <div class="shadow-progress-row">
+        <div class="shadow-progress-head">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(valueText)}</strong>
+        </div>
+        <div class="shadow-progress-track">
+          <div class="shadow-progress-fill ${tone}" style="width:${pctSafe.toFixed(1)}%"></div>
+        </div>
+      </div>`;
+  }
+
   function renderModelBattle() {
     const c = state.champion || {};
     const h = state.challenger || {};
@@ -105,6 +145,7 @@
     if (!h.model_id) {
       els.battleCaption.textContent = "Active 模型正常；目前尚未指派 Challenger。";
       els.battleMetrics.innerHTML = "";
+      els.battleProgress.innerHTML = "";
       return;
     }
 
@@ -113,26 +154,42 @@
       `Active ${shortId(c.model_id)}｜Challenger ${shortId(h.model_id)}｜Shadow 起點 ${generated ? new Date(generated).toLocaleString("zh-TW",{hour12:false}) : "—"}`;
 
     if (!e || e.challenger_model_id !== h.model_id) {
+      const assigned = h.assigned_at || h.generated_at;
+      const ageH = shadowAgeHours(assigned);
       els.battleMetrics.innerHTML = [
         ["OOS 已結算案例","等待第一批 72H settlement"],
         ["最低證據","180 cases / 50 symbols"],
         ["最早可判定","Challenger 年齡 ≥ 72H"],
         ["目前動作","Active 不變，Challenger 只做 Shadow"]
       ].map(([k,v])=>`<div class="battle-metric"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join("");
+      els.battleProgress.innerHTML =
+        progressRow("72H Shadow 年齡", `${ageH.toFixed(1)}H / 72H｜${countdown72Text(assigned)}`, progressPct(ageH,72), "cyan") +
+        progressRow("OOS settled cases", "0 / 180", 0, "yellow") +
+        progressRow("OOS symbols", "0 / 50", 0, "purple");
       return;
     }
 
     const active = e.active || {};
     const challenger = e.challenger || {};
     const pBetter = Number(e.bootstrap_probability_challenger_brier_better);
+    const oosCases = Number(e.paired_oos_cases || 0);
+    const oosSymbols = Number(e.paired_oos_symbols || 0);
+    const assigned = h.assigned_at || h.generated_at;
+    const ageH = shadowAgeHours(assigned);
+
     els.battleMetrics.innerHTML = [
-      ["OOS cases", Number(e.paired_oos_cases || 0).toLocaleString()],
-      ["OOS symbols", Number(e.paired_oos_symbols || 0).toLocaleString()],
+      ["OOS cases", oosCases.toLocaleString()],
+      ["OOS symbols", oosSymbols.toLocaleString()],
       ["Champion Brier", fmtMetric(active.multiclass_brier)],
       ["Challenger Brier", fmtMetric(challenger.multiclass_brier)],
       ["Challenger 較佳信心", Number.isFinite(pBetter) ? pct(pBetter,1) : "—"],
       ["Decision", decisionZh(e.decision)]
     ].map(([k,v])=>`<div class="battle-metric"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join("");
+
+    els.battleProgress.innerHTML =
+      progressRow("72H Shadow 年齡", `${ageH.toFixed(1)}H / 72H｜${countdown72Text(assigned)}`, progressPct(ageH,72), "cyan") +
+      progressRow("OOS settled cases", `${oosCases.toLocaleString()} / 180`, progressPct(oosCases,180), "yellow") +
+      progressRow("OOS symbols", `${oosSymbols.toLocaleString()} / 50`, progressPct(oosSymbols,50), "purple");
   }
 
   async function loadSnapshot() {

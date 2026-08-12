@@ -1,10 +1,9 @@
 {
-  "app_version": "TERMINAL v0.1.3｜SHADOW-EVAL",
-  "stage": "SHADOW-EVAL",
-  "worker_url": "https://white-meadow-16bc.youjianchonglangshou.workers.dev",
+  "app_version": "TERMINAL v0.1.4｜SHADOW-PROGRESS",
+  "stage": "SHADOW-PROGRESS",
   "features": [
-    "Champion vs Challenger status panel",
-    "Shadow evaluation age",
-    "OOS evaluation metrics when available"
+    "72H shadow age countdown and progress",
+    "OOS settled cases 180 target progress",
+    "OOS symbols 50 target progress"
   ]
 }

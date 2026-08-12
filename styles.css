@@ -23,3 +23,14 @@
 .battle-metric{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border:1px solid #334155;border-radius:8px;background:#0f172a66;min-width:0}
 .battle-metric span{font-size:9px;color:#94a3b8}
 .battle-metric strong{font-size:10px;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.battle-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.shadow-progress-row{padding:7px 9px;border:1px solid #334155;border-radius:9px;background:#0f172a66}
+.shadow-progress-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:9px;color:#94a3b8;margin-bottom:5px}
+.shadow-progress-head strong{color:#e2e8f0;font-size:9px;white-space:nowrap}
+.shadow-progress-track{height:7px;border-radius:999px;background:#0b1220;border:1px solid #334155;overflow:hidden}
+.shadow-progress-fill{height:100%;border-radius:999px;transition:width .35s ease}
+.shadow-progress-fill.cyan{background:linear-gradient(90deg,#0891b2,#22d3ee)}
+.shadow-progress-fill.yellow{background:linear-gradient(90deg,#ca8a04,#facc15)}
+.shadow-progress-fill.purple{background:linear-gradient(90deg,#7e22ce,#c084fc)}
+@media(max-width:900px){.battle-progress{grid-template-columns:1fr}}

@@ -72,6 +72,18 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/model/candidate/latest") {
         return await objectResponse(env, "models/candidates/latest.json", origin, false, "candidate_latest.json");
       }
+      if (request.method === "GET" && url.pathname === "/api/model/challenger/current") {
+        return await objectResponse(env, "models/challenger/current.json", origin, false, "challenger_current.json");
+      }
+      if (request.method === "GET" && url.pathname === "/api/model/challenger/model") {
+        const manifestObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+        if (!manifestObj) return json({ error: "challenger_not_assigned" }, 404, origin);
+        const manifest = JSON.parse(await manifestObj.text());
+        return await objectResponse(env, manifest.candidate_key, origin, false, "challenger_probability_model.json");
+      }
+      if (request.method === "GET" && url.pathname === "/api/model/evaluation/latest") {
+        return await objectResponse(env, "models/evaluations/latest.json", origin, false, "champion_challenger_evaluation.json");
+      }
       if (request.method === "GET" && url.pathname === "/api/learning/status") {
         return await objectResponse(env, "learning/latest/status.json", origin, false, "learning_status.json");
       }
@@ -111,7 +123,8 @@ export default {
           note: "Candidate only. Active model is not replaced until a later out-of-sample promotion gate approves it."
         };
         await env.JSON_BUCKET.put("models/candidates/latest.json", JSON.stringify(manifest, null, 2), metadata);
-        return json({ ok: true, model_id: modelId, key, manifest_key: "models/candidates/latest.json" }, 200, origin);
+        const challenger = await ensureChallenger(env, manifest);
+        return json({ ok: true, model_id: modelId, key, manifest_key: "models/candidates/latest.json", challenger }, 200, origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/learning/report") {
         requireInternal(request, env);
@@ -128,6 +141,50 @@ export default {
         const key = `models/candidates/${modelId}/learning_meta.json`;
         await env.JSON_BUCKET.put(key, text, { httpMetadata: { contentType: "application/json; charset=utf-8" } });
         return json({ ok: true, key }, 200, origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/internal/model/challenger/ensure") {
+        requireInternal(request, env);
+        const result = await ensureChallenger(env, null);
+        return json({ ok: true, challenger: result }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/model/evaluation") {
+        requireInternal(request, env);
+        const modelId = safeModelId(url.searchParams.get("model_id"));
+        const bodyText = await request.text();
+        const evaluation = JSON.parse(bodyText);
+        if (String(evaluation?.challenger_model_id || "") !== modelId) throw httpError(400, "evaluation challenger_model_id mismatch");
+        const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
+        const key = `models/candidates/${modelId}/evaluation.json`;
+        const latest = { ...evaluation, evaluation_key: key };
+        await Promise.all([
+          env.JSON_BUCKET.put(key, JSON.stringify(latest, null, 2), metadata),
+          env.JSON_BUCKET.put("models/evaluations/latest.json", JSON.stringify(latest, null, 2), metadata),
+        ]);
+        const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+        if (currentObj) {
+          const current = JSON.parse(await currentObj.text());
+          if (current.model_id === modelId) {
+            current.latest_evaluation_key = key;
+            current.latest_decision = evaluation.decision || null;
+            current.latest_evaluated_at = evaluation.evaluated_at || new Date().toISOString();
+            await env.JSON_BUCKET.put("models/challenger/current.json", JSON.stringify(current, null, 2), metadata);
+          }
+        }
+        return json({ ok: true, key, decision: evaluation.decision || null }, 200, origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/internal/model/promote") {
+        requireInternal(request, env);
+        const body = await request.json();
+        const modelId = safeModelId(body.model_id);
+        const result = await promoteChallenger(env, modelId);
+        return json({ ok: true, ...result }, 200, origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/internal/model/reject") {
+        requireInternal(request, env);
+        const body = await request.json();
+        const modelId = safeModelId(body.model_id);
+        const result = await rejectChallenger(env, modelId);
+        return json({ ok: true, ...result }, 200, origin);
       }
       return json({ error: "not_found" }, 404, origin);
     } catch (error) {
@@ -226,6 +283,105 @@ async function dispatchDailyLearning(env, source = "cron") {
     env.JSON_BUCKET.put(`learning/runs/${runId}/status.json`, JSON.stringify(queued, null, 2), metadata),
   ]);
   return { ok: true, ...queued };
+}
+
+async function ensureChallenger(env, suppliedLatest = null) {
+  const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
+  const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+  if (currentObj) return JSON.parse(await currentObj.text());
+
+  let latest = suppliedLatest;
+  if (!latest) {
+    const latestObj = await env.JSON_BUCKET.get("models/candidates/latest.json");
+    if (!latestObj) return null;
+    latest = JSON.parse(await latestObj.text());
+  }
+  const modelId = safeModelId(latest.model_id);
+  const challenger = {
+    model_id: modelId,
+    candidate_key: latest.candidate_key || `models/candidates/${modelId}/probability_model.json`,
+    generated_at: latest.generated_at || null,
+    assigned_at: new Date().toISOString(),
+    status: "SHADOW_EVALUATION",
+    policy: "Evaluate only future settled OOS cases after challenger generated_at; active model remains unchanged until promotion gate passes."
+  };
+  await Promise.all([
+    env.JSON_BUCKET.put("models/challenger/current.json", JSON.stringify(challenger, null, 2), metadata),
+    env.JSON_BUCKET.put(`models/candidates/${modelId}/status.json`, JSON.stringify(challenger, null, 2), metadata),
+  ]);
+  return challenger;
+}
+
+async function promoteChallenger(env, modelId) {
+  const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
+  const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+  if (!currentObj) throw httpError(409, "no current challenger");
+  const current = JSON.parse(await currentObj.text());
+  if (current.model_id !== modelId) throw httpError(409, "requested model is not current challenger");
+
+  const evalObj = await env.JSON_BUCKET.get(`models/candidates/${modelId}/evaluation.json`);
+  if (!evalObj) throw httpError(409, "challenger evaluation missing");
+  const evaluation = JSON.parse(await evalObj.text());
+  if (evaluation.decision !== "PROMOTE") throw httpError(409, `evaluation decision is ${evaluation.decision}, not PROMOTE`);
+
+  const candidateObj = await env.JSON_BUCKET.get(current.candidate_key);
+  if (!candidateObj) throw httpError(404, "challenger model object missing");
+  const candidateText = await candidateObj.text();
+  const candidate = JSON.parse(candidateText);
+
+  const activeObj = await env.JSON_BUCKET.get("models/active/probability_model.json");
+  let oldModelId = null;
+  if (activeObj) {
+    const activeText = await activeObj.text();
+    const active = JSON.parse(activeText);
+    oldModelId = safeModelId(active.model_id);
+    await env.JSON_BUCKET.put(`models/archive/${oldModelId}/probability_model.json`, activeText, metadata);
+  }
+
+  const promotedAt = new Date().toISOString();
+  const activeManifest = {
+    model_id: modelId,
+    previous_model_id: oldModelId,
+    promoted_at: promotedAt,
+    source_candidate_key: current.candidate_key,
+    evaluation_key: `models/candidates/${modelId}/evaluation.json`,
+    status: "ACTIVE_CHAMPION"
+  };
+  const candidateStatus = { ...current, status: "PROMOTED", promoted_at: promotedAt, previous_model_id: oldModelId };
+  await Promise.all([
+    env.JSON_BUCKET.put("models/active/probability_model.json", candidateText, metadata),
+    env.JSON_BUCKET.put("models/active/manifest.json", JSON.stringify(activeManifest, null, 2), metadata),
+    env.JSON_BUCKET.put(`models/candidates/${modelId}/status.json`, JSON.stringify(candidateStatus, null, 2), metadata),
+  ]);
+  await env.JSON_BUCKET.delete("models/challenger/current.json");
+  await assignLatestIfDifferent(env, modelId);
+  return { promoted_model_id: modelId, previous_model_id: oldModelId, active_manifest: activeManifest };
+}
+
+async function rejectChallenger(env, modelId) {
+  const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
+  const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+  if (!currentObj) throw httpError(409, "no current challenger");
+  const current = JSON.parse(await currentObj.text());
+  if (current.model_id !== modelId) throw httpError(409, "requested model is not current challenger");
+  const evalObj = await env.JSON_BUCKET.get(`models/candidates/${modelId}/evaluation.json`);
+  if (!evalObj) throw httpError(409, "challenger evaluation missing");
+  const evaluation = JSON.parse(await evalObj.text());
+  if (evaluation.decision !== "REJECT") throw httpError(409, `evaluation decision is ${evaluation.decision}, not REJECT`);
+  const rejectedAt = new Date().toISOString();
+  const status = { ...current, status: "REJECTED", rejected_at: rejectedAt, evaluation_key: `models/candidates/${modelId}/evaluation.json` };
+  await env.JSON_BUCKET.put(`models/candidates/${modelId}/status.json`, JSON.stringify(status, null, 2), metadata);
+  await env.JSON_BUCKET.delete("models/challenger/current.json");
+  await assignLatestIfDifferent(env, modelId);
+  return { rejected_model_id: modelId };
+}
+
+async function assignLatestIfDifferent(env, excludedModelId) {
+  const latestObj = await env.JSON_BUCKET.get("models/candidates/latest.json");
+  if (!latestObj) return null;
+  const latest = JSON.parse(await latestObj.text());
+  if (!latest?.model_id || latest.model_id === excludedModelId) return null;
+  return await ensureChallenger(env, latest);
 }
 
 async function objectResponse(env, key, origin, download, filename) {

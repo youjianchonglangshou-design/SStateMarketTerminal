@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null };
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -102,6 +102,33 @@
 
   async function fetchOptionalJson(url) {
     try { return await fetchJson(url); } catch (_) { return null; }
+  }
+
+  async function loadMarketStatuses() {
+    clearTimeout(state.marketStatusTimer);
+    const requestedMarket = state.market;
+
+    if (requestedMarket !== "us-stock" || !workerUrl) {
+      state.marketStatuses = {};
+      state.marketStatusCheckedAt = "";
+      if (requestedMarket === state.market) renderCards();
+      return;
+    }
+
+    try {
+      const payload = await fetchJson(`${workerUrl}/api/market/status?market=us-stock&t=${Date.now()}`);
+      if (state.market !== requestedMarket) return;
+      state.marketStatuses = payload?.statuses || {};
+      state.marketStatusCheckedAt = payload?.checked_at || "";
+      renderCards();
+    } catch (_) {
+      // Do not invent an open/closed state when Pionex cannot be reached.
+      if (state.market === requestedMarket) renderCards();
+    }
+
+    if (state.market === "us-stock") {
+      state.marketStatusTimer = setTimeout(loadMarketStatuses, 60_000);
+    }
   }
 
   function shortId(v) {
@@ -272,6 +299,7 @@
       }
     }
     renderAll(source);
+    loadMarketStatuses();
   }
 
   function renderAll(source) {
@@ -355,6 +383,29 @@
   function bwHuman(v){return ({EXPANDING:'布林擴張',CONTRACTING:'布林收縮',FLAT:'布林平穩'})[v]||'布林未知'}
   function ageHuman(v){return ({'1':'1根4H','2_3':'2-3根4H','4_6':'4-6根4H','7_PLUS':'7+根4H'})[v]||'—'}
 
+  function renderMarketStatusBadge(r) {
+    if (state.market !== "us-stock") return "";
+    const apiSymbol = String(r?.api_symbol || "").trim();
+    const status = String(state.marketStatuses?.[apiSymbol] || "").toUpperCase();
+    if (!status) return "";
+
+    const checked = state.marketStatusCheckedAt
+      ? new Date(state.marketStatusCheckedAt).toLocaleTimeString("zh-TW", {hour12:false, hour:"2-digit", minute:"2-digit"})
+      : "";
+
+    if (status === "TRADING") {
+      return `<div class="market-session-badge trading" title="Pionex 即時狀態${checked ? `｜${checked}` : ""}">
+        <i></i><span>交易中</span>
+      </div>`;
+    }
+    if (status === "OFFLINE") {
+      return `<div class="market-session-badge offline" title="Pionex 即時狀態${checked ? `｜${checked}` : ""}">
+        <i></i><span>休市</span>
+      </div>`;
+    }
+    return "";
+  }
+
   function renderCard(r) {
     const opp=r.opportunity_long||{}, s=recordState(r), mid=opp.midline||{}, sectors=(r.sectors||[]).join(' · ')||'未分類';
     const move=Number(r.bb_pct||0); const moveClass=move>=0?'up':'down';
@@ -363,7 +414,7 @@
     return `<article class="card">
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
-      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderChartQuickStats(r)}</div>
+      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderChartQuickStats(r)}</div>
     </article>`;
   }
 

@@ -257,3 +257,64 @@
     height:13px;
   }
 }
+
+
+/* v0.1.10 — Pionex real-time RWA/PERP market session badge */
+.market-session-badge{
+  position:absolute;
+  z-index:10;
+  top:9px;
+  left:51px;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  height:20px;
+  padding:0 8px;
+  border-radius:999px;
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:.25px;
+  pointer-events:none;
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
+}
+.market-session-badge i{
+  width:7px;
+  height:7px;
+  flex:0 0 7px;
+  border-radius:50%;
+}
+.market-session-badge.trading{
+  color:#86efac;
+  border:1px solid rgba(34,197,94,.58);
+  background:rgba(5,46,22,.70);
+  box-shadow:0 0 9px rgba(34,197,94,.10);
+}
+.market-session-badge.trading i{
+  background:#22c55e;
+  box-shadow:0 0 5px rgba(34,197,94,.88),0 0 11px rgba(34,197,94,.32);
+  animation:market-live-breathe 2.1s ease-in-out infinite;
+}
+.market-session-badge.offline{
+  color:#94a3b8;
+  border:1px solid rgba(100,116,139,.46);
+  background:rgba(15,23,42,.72);
+  box-shadow:none;
+}
+.market-session-badge.offline i{
+  background:#64748b;
+  box-shadow:0 0 0 1px rgba(148,163,184,.16);
+}
+@keyframes market-live-breathe{
+  0%,100%{opacity:.72;transform:scale(.88)}
+  50%{opacity:1;transform:scale(1.13)}
+}
+@media(max-width:650px){
+  .market-session-badge{
+    top:8px;
+    left:46px;
+    height:19px;
+    padding:0 7px;
+    font-size:8px;
+  }
+}

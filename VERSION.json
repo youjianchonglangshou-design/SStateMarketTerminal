@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.10｜PIONEX-MARKET-STATUS",
-  "stage": "PIONEX-MARKET-STATUS",
+  "app_version": "TERMINAL v0.1.11｜MARKET-STATUS-FIX",
+  "stage": "MARKET-STATUS-FIX",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",
@@ -13,6 +13,9 @@
     "Card ordering priority: S3 > S0.5 > S1 > S2 > S0 > OTHER",
     "US-stock/RWA cards show live Pionex PERP TRADING or OFFLINE status",
     "Market status refreshes every 60 seconds without requiring Full Analysis",
-    "Green trading badge has a subtle breathing live indicator; offline badge stays muted"
+    "Green trading badge has a subtle breathing live indicator; offline badge stays muted",
+    "Replace high-weight common/symbols status calls with one PERP tickers request",
+    "US-stock badge is based on ticker freshness (<=5 minutes = TRADING)",
+    "Last known status is served if Pionex temporarily returns HTTP 429"
   ]
 }

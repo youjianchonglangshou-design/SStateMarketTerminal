@@ -336,3 +336,11 @@
   0%,100%{opacity:.48;transform:scale(.85)}
   50%{opacity:1;transform:scale(1.10)}
 }
+
+.market-session-badge.closed{
+  color:#94a3b8;border:1px solid rgba(100,116,139,.42);
+  background:rgba(15,23,42,.78);box-shadow:none;
+}
+.market-session-badge.closed i{
+  background:#64748b;box-shadow:0 0 0 1px rgba(148,163,184,.12);
+}

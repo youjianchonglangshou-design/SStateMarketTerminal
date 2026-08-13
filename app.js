@@ -152,6 +152,11 @@
     clearTimeout(state.marketStatusTimer);
     if (state.market !== "us-stock") return;
 
+    if (!usCoreSessionState().open) {
+      loadMarketStatuses();
+      return;
+    }
+
     const now = Date.now();
     const startedAt = Number(state.marketStatusStartedAt || now);
 
@@ -249,6 +254,37 @@
     ws.addEventListener("error", () => {});
   }
 
+
+  const US_MARKET_2026_FULL_HOLIDAYS = new Set([
+    "2026-01-01","2026-01-19","2026-02-16","2026-04-03","2026-05-25",
+    "2026-06-19","2026-07-03","2026-09-07","2026-11-26","2026-12-25"
+  ]);
+  const US_MARKET_2026_EARLY_CLOSE = new Set(["2026-11-27","2026-12-24"]);
+
+  function newYorkClockParts(date=new Date()) {
+    const parts = new Intl.DateTimeFormat("en-US",{
+      timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit",
+      weekday:"short", hour:"2-digit", minute:"2-digit", hour12:false
+    }).formatToParts(date);
+    const get=t=>parts.find(p=>p.type===t)?.value||"";
+    const year=get("year"), month=get("month"), day=get("day");
+    const hour=Number(get("hour")), minute=Number(get("minute"));
+    return {
+      year,month,day,weekday:get("weekday"),hour,minute,
+      ymd:`${year}-${month}-${day}`, minuteOfDay:hour*60+minute
+    };
+  }
+
+  function usCoreSessionState(date=new Date()) {
+    const ny=newYorkClockParts(date);
+    if (ny.weekday==="Sat" || ny.weekday==="Sun") return {open:false,label:"休市",reason:"WEEKEND",ny};
+    if (US_MARKET_2026_FULL_HOLIDAYS.has(ny.ymd)) return {open:false,label:"休市",reason:"HOLIDAY",ny};
+    const openAt=9*60+30;
+    const closeAt=US_MARKET_2026_EARLY_CLOSE.has(ny.ymd) ? 13*60 : 16*60;
+    const open=ny.minuteOfDay>=openAt && ny.minuteOfDay<closeAt;
+    return {open,label:open?"交易時段":"休市",reason:open?"CORE_SESSION":"OUTSIDE_CORE_SESSION",ny};
+  }
+
   async function loadMarketStatuses() {
     stopMarketStatusSockets(true);
     const requestedMarket = state.market;
@@ -259,6 +295,18 @@
     }
 
     const rows = Array.isArray(state.snapshot?.records) ? state.snapshot.records : [];
+    const session = usCoreSessionState();
+
+    if (!session.open) {
+      const symbols = [...new Set(rows.map(r=>String(r?.api_symbol||"").trim()).filter(Boolean))];
+      state.marketStatusCheckedAt = new Date().toISOString();
+      for (const symbol of symbols) state.marketStatuses[symbol] = "CLOSED";
+      renderCards();
+      state.marketStatusTimer = setTimeout(()=> {
+        if (state.market==="us-stock") loadMarketStatuses();
+      }, 30000);
+      return;
+    }
     const symbols = [...new Set(
       rows.map(r => String(r?.api_symbol || "").trim()).filter(Boolean)
     )];
@@ -560,6 +608,16 @@
     if (status === "OFFLINE") {
       return `<div class="market-session-badge offline" title="Pionex WebSocket｜近期未偵測到訂單簿變化${checked ? `｜${checked}` : ""}">
         <i></i><span>價格靜止</span>
+      </div>`;
+    }
+    if (status === "CLOSED") {
+      const session = usCoreSessionState();
+      const ny = session?.ny || {};
+      const nyTime = Number.isFinite(ny.hour) && Number.isFinite(ny.minute)
+        ? `${String(ny.hour).padStart(2,"0")}:${String(ny.minute).padStart(2,"0")} ET`
+        : "";
+      return `<div class="market-session-badge closed" title="美股核心交易時段外${nyTime ? `｜紐約 ${nyTime}` : ""}">
+        <i></i><span>休市</span>
       </div>`;
     }
     if (status === "WATCHING") {

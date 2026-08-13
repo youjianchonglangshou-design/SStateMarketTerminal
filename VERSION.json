@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.12｜DIRECT-WS-ACTIVITY",
-  "stage": "DIRECT-WS-ACTIVITY",
+  "app_version": "TERMINAL v0.1.13｜US-SESSION-GATE",
+  "stage": "US-SESSION-GATE",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",

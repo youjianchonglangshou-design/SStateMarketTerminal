@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.14｜PIONEX-NATIVE-STATUS",
-  "stage": "PIONEX-NATIVE-STATUS",
+  "app_version": "TERMINAL v0.1.15｜PIONEX-TRADE-TIME",
+  "stage": "PIONEX-TRADE-TIME",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",
@@ -25,6 +25,12 @@
     "Remove global NYSE session gate for Pionex RWA contracts",
     "Browser directly queries Pionex PERP common/symbols status=ALL",
     "Per-contract TRADING/OFFLINE is the primary source of truth",
-    "Pionex WebSocket order-book activity remains automatic fallback"
+    "Pionex WebSocket order-book activity remains automatic fallback",
+    "Pionex RWA status is derived from future_markets contract tags",
+    "trade_time_7_24 renders as 7×24",
+    "trade_time_5_7 / 5_24 / delayed-open rules are evaluated from market_customized trade_time_config",
+    "R2 caches Pionex trade rules for 6 hours; one cache object is overwritten",
+    "Embedded Pionex rule seed prevents blank status if the internal web API is temporarily unavailable",
+    "Previous WebSocket activity guessing is no longer used for market-open/closed state"
   ]
 }

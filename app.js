@@ -252,91 +252,43 @@
 
 
   async function loadMarketStatuses() {
-    stopMarketStatusSockets(true);
-    const requestedMarket = state.market;
+    clearTimeout(state.marketStatusTimer);
 
-    if (requestedMarket !== "us-stock") {
+    if (state.market !== "us-stock") {
+      state.marketStatuses = {};
       state.marketStatusSource = "";
+      state.marketStatusCheckedAt = "";
       renderCards();
       return;
     }
 
-    const rows = Array.isArray(state.snapshot?.records) ? state.snapshot.records : [];
-    const symbols = [...new Set(
-      rows.map(r => String(r?.api_symbol || "").trim()).filter(Boolean)
-    )];
-
-    if (!symbols.length) {
+    if (!workerUrl) {
+      state.marketStatuses = {};
+      state.marketStatusSource = "NO_WORKER";
       renderCards();
       return;
     }
 
-    // First choice: Pionex's own current contract status.
-    // Official endpoint returns each PERP with status=TRADING/OFFLINE.
     try {
-      const response = await fetch(
-        "https://api.pionex.com/api/v1/common/symbols?type=PERP&status=ALL",
-        { method:"GET", cache:"no-store", headers:{ "Accept":"application/json" } }
+      const payload = await fetchJson(
+        `${workerUrl}/api/market/status?market=us-stock&t=${Date.now()}`
       );
 
-      if (!response.ok) throw new Error(`Pionex symbols ${response.status}`);
-
-      const payload = await response.json();
-      const list = Array.isArray(payload?.data?.symbols) ? payload.data.symbols : [];
-      const wanted = new Set(symbols);
-      let matched = 0;
-
-      state.marketStatuses = {};
-      for (const row of list) {
-        const symbol = String(row?.symbol || "").trim();
-        if (!wanted.has(symbol)) continue;
-
-        const status = String(row?.status || "").toUpperCase();
-        if (status === "TRADING" || status === "OFFLINE") {
-          state.marketStatuses[symbol] = status;
-          matched += 1;
-        }
-      }
-
-      if (matched > 0) {
-        state.marketStatusSource = "PIONEX_REST";
-        state.marketStatusCheckedAt = new Date().toISOString();
+      state.marketStatuses = payload?.statuses || {};
+      state.marketStatusSource = payload?.source || "PIONEX_TRADE_RULES";
+      state.marketStatusCheckedAt = payload?.checked_at || new Date().toISOString();
+      renderCards();
+    } catch (error) {
+      // Preserve the last good Pionex state instead of inventing a market state.
+      if (!Object.keys(state.marketStatuses || {}).length) {
+        state.marketStatusSource = "ERROR";
         renderCards();
-
-        // One public request per minute, from the user's browser IP.
-        state.marketStatusTimer = setTimeout(() => {
-          if (state.market === "us-stock") loadMarketStatuses();
-        }, 60_000);
-        return;
       }
-
-      throw new Error("Pionex symbols returned no matching RWA statuses");
-    } catch (_) {
-      // Browser CORS / temporary rate limit fallback:
-      // use Pionex public WebSocket and infer actual order-book activity.
     }
 
-    state.marketStatusSource = "PIONEX_WS";
-    state.marketStatusStartedAt = Date.now();
-    state.marketStatusCheckedAt = new Date().toISOString();
-
-    for (const symbol of symbols) {
-      state.marketStatuses[symbol] = "WATCHING";
-      state.marketActivity[symbol] = {
-        firstMessageAt: 0,
-        lastChangeAt: 0,
-        lastSignature: "",
-        changeCount: 0,
-      };
-    }
-    renderCards();
-
-    const chunkSize = 20;
-    for (let i = 0; i < symbols.length; i += chunkSize) {
-      openPionexActivitySocket(symbols.slice(i, i + chunkSize));
-    }
-
-    sweepMarketActivity();
+    state.marketStatusTimer = setTimeout(() => {
+      if (state.market === "us-stock") loadMarketStatuses();
+    }, 30_000);
   }
 
   function shortId(v) {
@@ -593,40 +545,53 @@
 
   function renderMarketStatusBadge(r) {
     if (state.market !== "us-stock") return "";
-    const apiSymbol = String(r?.api_symbol || "").trim();
-    const status = String(state.marketStatuses?.[apiSymbol] || "").toUpperCase();
-    if (!status) return "";
 
-    const source = state.marketStatusSource;
+    const apiSymbol = String(r?.api_symbol || "").trim();
+    const info = state.marketStatuses?.[apiSymbol];
+    if (!info) return "";
+
+    const code = String(
+      typeof info === "string" ? info : (info.status || "")
+    ).toUpperCase();
+    const tradeTag = typeof info === "object" ? String(info.trade_tag || "") : "";
     const checked = state.marketStatusCheckedAt
-      ? new Date(state.marketStatusCheckedAt).toLocaleTimeString("zh-TW", {hour12:false, hour:"2-digit", minute:"2-digit"})
+      ? new Date(state.marketStatusCheckedAt).toLocaleTimeString(
+          "zh-TW", { hour12:false, hour:"2-digit", minute:"2-digit" }
+        )
       : "";
 
-    if (status === "TRADING") {
-      const title = source === "PIONEX_REST"
-        ? `Pionex 合約狀態：TRADING${checked ? `｜${checked}` : ""}`
-        : `Pionex WebSocket：偵測到訂單簿活動${checked ? `｜${checked}` : ""}`;
-      return `<div class="market-session-badge trading" title="${title}">
+    if (code === "ALWAYS_OPEN") {
+      return `<div class="market-session-badge trading always-open"
+        title="Pionex future_markets｜${escapeHtml(tradeTag || "trade_time_7_24")}${checked ? `｜${checked}` : ""}">
+        <i></i><span>7×24</span>
+      </div>`;
+    }
+
+    if (code === "OPEN") {
+      return `<div class="market-session-badge trading"
+        title="Pionex 交易時段規則：目前可交易${checked ? `｜${checked}` : ""}">
         <i></i><span>交易中</span>
       </div>`;
     }
 
-    if (status === "OFFLINE") {
-      const title = source === "PIONEX_REST"
-        ? `Pionex 合約狀態：OFFLINE${checked ? `｜${checked}` : ""}`
-        : `Pionex WebSocket：近期未偵測到訂單簿活動${checked ? `｜${checked}` : ""}`;
-      return `<div class="market-session-badge offline" title="${title}">
+    if (code === "CLOSED") {
+      return `<div class="market-session-badge offline"
+        title="Pionex 交易時段規則：目前休市${tradeTag ? `｜${escapeHtml(tradeTag)}` : ""}${checked ? `｜${checked}` : ""}">
         <i></i><span>休市</span>
       </div>`;
     }
 
-    if (status === "WATCHING") {
-      return `<div class="market-session-badge watching" title="Pionex REST 無法使用，改用 WebSocket 建立活動判斷">
-        <i></i><span>監測中</span>
+    if (code === "OFFLINE") {
+      return `<div class="market-session-badge offline"
+        title="Pionex 合約目前不是 TRADING${checked ? `｜${checked}` : ""}">
+        <i></i><span>停用</span>
       </div>`;
     }
 
-    return "";
+    return `<div class="market-session-badge unknown"
+      title="Pionex 交易時段規則無法判定${checked ? `｜${checked}` : ""}">
+      <i></i><span>狀態未知</span>
+    </div>`;
   }
 
   function renderCard(r) {
@@ -817,6 +782,5 @@
   setBattleExpanded(false, false);
   updateDownloadButton();
   renderVolumeProgress(0);
-  window.addEventListener("beforeunload",()=>stopMarketStatusSockets(false));
   Promise.all([loadSnapshot(), loadModelBattle()]);
 })();

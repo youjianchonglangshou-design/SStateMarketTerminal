@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false };
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -11,13 +11,16 @@
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
     battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
-    challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress")
+    challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
+    battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
   els.version.textContent = cfg.appVersion || "TERMINAL v0.1.0";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
   const marketLabel = (market) => market === "us-stock" ? "美股代幣" : "加密貨幣";
+  const marketJsonButtonLabel = (market) => market === "us-stock" ? "⬇ 美股 JSON" : "⬇ 加密 JSON";
+  const marketJsonButtonBusyLabel = (market) => market === "us-stock" ? "⏳ 美股 JSON" : "⏳ 加密 JSON";
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (v, digits=1) => Number.isFinite(Number(v)) ? `${(Number(v)*100).toFixed(digits)}%` : "—";
   const num = (v, digits=2) => Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : "—";
@@ -28,6 +31,67 @@
     if (n >= 100) return n.toFixed(2); if (n >= 10) return n.toFixed(3); if (n >= 1) return n.toFixed(4); if (n >= .01) return n.toFixed(5); if (n >= .0001) return n.toFixed(6); return n.toFixed(8);
   };
   const showToast = (message, timeout=5000) => { els.toast.textContent = message; els.toast.classList.remove("hidden"); clearTimeout(showToast.t); showToast.t=setTimeout(()=>els.toast.classList.add("hidden"), timeout); };
+
+
+  function updateDownloadButton() {
+    const busy = Boolean(state.analysisBusy);
+    els.download.disabled = busy;
+    els.download.textContent = busy ? marketJsonButtonBusyLabel(state.market) : marketJsonButtonLabel(state.market);
+    els.download.title = busy
+      ? "完整分析進行中，完成後才能下載最新 JSON"
+      : `下載 ${marketLabel(state.market)}｜${marketFilename(state.market)}`;
+  }
+
+  function setAnalysisBusy(busy) {
+    state.analysisBusy = Boolean(busy);
+    els.run.disabled = state.analysisBusy;
+    els.market.disabled = state.analysisBusy;
+    updateDownloadButton();
+  }
+
+  function setBattleExpanded(expanded, markSeen=true) {
+    state.battleExpanded = Boolean(expanded);
+    els.battle.classList.toggle("collapsed", !state.battleExpanded);
+    els.battleBody.classList.toggle("hidden", !state.battleExpanded);
+    els.battleToggle.setAttribute("aria-expanded", state.battleExpanded ? "true" : "false");
+    els.battleToggle.title = state.battleExpanded ? "收合模型競爭資訊" : "展開模型競爭資訊";
+    const arrow = els.battleToggle.querySelector(".battle-arrow");
+    if (arrow) arrow.textContent = state.battleExpanded ? "▼" : "▶";
+    if (state.battleExpanded && markSeen && state.battleSignature) {
+      localStorage.setItem("sstate-battle-seen-signature", state.battleSignature);
+      els.battleToggle.classList.remove("has-update");
+    }
+  }
+
+  function modelBattleSignature(champion, challenger, evaluation) {
+    const ageGate = shadowAgeHours(challenger?.assigned_at || challenger?.generated_at) >= 72 ? 1 : 0;
+    return JSON.stringify({
+      champion: champion?.model_id || "",
+      challenger: challenger?.model_id || "",
+      challenger_status: challenger?.status || "",
+      latest_decision: evaluation?.decision || challenger?.latest_decision || "",
+      evaluated_at: evaluation?.evaluated_at || challenger?.latest_evaluated_at || "",
+      cases: Number(evaluation?.paired_oos_cases || 0),
+      symbols: Number(evaluation?.paired_oos_symbols || 0),
+      age_gate: ageGate,
+    });
+  }
+
+  function updateBattleAttention() {
+    const signature = modelBattleSignature(state.champion, state.challenger, state.evaluation);
+    state.battleSignature = signature;
+    let seen = localStorage.getItem("sstate-battle-seen-signature");
+    if (!seen) {
+      localStorage.setItem("sstate-battle-seen-signature", signature);
+      seen = signature;
+    }
+    const changed = seen !== signature;
+    els.battleToggle.classList.toggle("has-update", changed && !state.battleExpanded);
+    if (state.battleExpanded && changed) {
+      localStorage.setItem("sstate-battle-seen-signature", signature);
+      els.battleToggle.classList.remove("has-update");
+    }
+  }
 
   async function fetchJson(url, options={}) {
     const res = await fetch(url, { cache: "no-store", ...options });
@@ -80,6 +144,7 @@
     state.challenger = challenger;
     state.evaluation = evaluation;
     renderModelBattle();
+    updateBattleAttention();
   }
 
 
@@ -227,7 +292,7 @@
   function renderFilters() {
     const counts = (state.snapshot?.breadth?.market_state) || {};
     const order = ["ALL","S3","S0.5","S1","S2","S0","OTHER"];
-    els.filters.innerHTML = order.map(k => `<button class="filter ${state.filter===k?'active':''}" data-filter="${k}">${k==='ALL'?'全部':k} ${k==='ALL'?(state.snapshot?.records?.length||0):(counts[k]||0)}</button>`).join("");
+    els.filters.innerHTML = order.map(k => `<button class="filter ${filterStateClass(k)} ${state.filter===k?'active':''}" data-filter="${k}">${k==='ALL'?'全部':k} ${k==='ALL'?(state.snapshot?.records?.length||0):(counts[k]||0)}</button>`).join("");
     els.filters.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => { state.filter=btn.dataset.filter; renderFilters(); renderCards(); }));
   }
 
@@ -251,7 +316,8 @@
     els.cards.innerHTML = rows.map(renderCard).join("");
   }
 
-  function stateClass(s){ if(s==='S0.5')return 'state-s05'; if(s==='S1')return 'state-s1'; if(s==='S2')return 'state-s2'; if(s==='S0')return 'state-s0'; return ''; }
+  function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
+  function filterStateClass(s){ return s==='ALL'?'filter-all':stateClass(s); }
   function targetLabel(s){ return s==='S0.5'?'3日內轉強':s==='S2'?'3日內轉S3':s==='S1'?'3日內上攻':'3日內續強'; }
 
   function renderProbability(r) {
@@ -302,33 +368,86 @@
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${labels}</svg>`;
   }
 
+  function renderVolumeProgress(percent) {
+    const p = Math.max(0, Math.min(100, Number(percent) || 0));
+    const total = 24;
+    const active = Math.round((p / 100) * total);
+    els.runBar.innerHTML = Array.from({length: total}, (_, i) => {
+      const on = i < active ? " active" : "";
+      const level = i < 8 ? "low" : i < 16 ? "mid" : "high";
+      return `<span class="volume-cell ${level}${on}" style="--cell:${i}"></span>`;
+    }).join("");
+  }
+
   async function startFullAnalysis() {
     if (!workerUrl) { showToast('尚未設定 Cloudflare Worker。先部署 cloudflare/worker.js，再把 URL 填到 config.js。',7000); return; }
-    els.run.disabled=true; setRunUi(true,0,'正在送出 GitHub Actions…','建立本次 run_id');
+    setAnalysisBusy(true);
+    setRunUi(true,0,'正在送出 GitHub Actions…','建立本次 run_id');
     try {
       const out=await fetchJson(`${workerUrl}/api/analysis/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({market:state.market})});
-      state.runId=out.run_id; showToast(`完整分析已啟動｜${out.run_id}`); pollRun();
-    } catch(err){ els.run.disabled=false; setRunUi(true,0,'啟動失敗',err.message); showToast(`完整分析啟動失敗：${err.message}`,8000); }
+      state.runId=out.run_id;
+      showToast(`完整分析已啟動｜${out.run_id}`);
+      pollRun();
+    } catch(err){
+      state.runId='';
+      setAnalysisBusy(false);
+      setRunUi(false,0,'','');
+      showToast(`完整分析啟動失敗：${err.message}`,8000);
+    }
   }
-  function setRunUi(show,percent,title,detail){els.runPanel.classList.toggle('hidden',!show);els.runPercent.textContent=`${percent||0}%`;els.runBar.style.width=`${Math.max(0,Math.min(100,percent||0))}%`;els.runTitle.textContent=title||'';els.runDetail.textContent=detail||''}
+
+  function setRunUi(show,percent,title,detail){
+    els.runPanel.classList.toggle('hidden',!show);
+    els.runPercent.textContent=`${Math.round(Number(percent)||0)}%`;
+    renderVolumeProgress(percent);
+    els.runTitle.textContent=title||'';
+    els.runDetail.textContent=detail||'';
+  }
+
   async function pollRun(){
     clearTimeout(state.pollTimer); if(!state.runId)return;
     try{
       const s=await fetchJson(`${workerUrl}/api/analysis/status?run_id=${encodeURIComponent(state.runId)}&t=${Date.now()}`);
-      const p=Number(s.percent||0); setRunUi(true,p,s.status==='SUCCESS'?'分析完成':s.status==='FAILED'?'分析失敗':'完整分析執行中',`${s.current_symbol||''} ${s.completed??''}/${s.total??''} ${s.message||''}`.trim());
-      if(s.status==='SUCCESS'){els.run.disabled=false;state.runId='';await Promise.all([loadSnapshot(),loadModelBattle()]);showToast('完整分析完成，畫面已切換到 R2 最新資料。',7000);return}
-      if(s.status==='FAILED'){els.run.disabled=false;state.runId='';showToast(`分析失敗：${s.message||'請查看 GitHub Actions'}`,9000);return}
+      const p=Number(s.percent||0);
+      setRunUi(true,p,s.status==='SUCCESS'?'分析完成':s.status==='FAILED'?'分析失敗':'完整分析執行中',`${s.current_symbol||''} ${s.completed??''}/${s.total??''} ${s.message||''}`.trim());
+      if(s.status==='SUCCESS'){
+        state.runId='';
+        setAnalysisBusy(false);
+        await Promise.all([loadSnapshot(),loadModelBattle()]);
+        setRunUi(false,100,'','');
+        showToast('完整分析完成，畫面已切換到 R2 最新資料。',7000);
+        return;
+      }
+      if(s.status==='FAILED'){
+        state.runId='';
+        setAnalysisBusy(false);
+        setRunUi(false,0,'','');
+        showToast(`分析失敗：${s.message||'請查看 GitHub Actions'}`,9000);
+        return;
+      }
     }catch(err){setRunUi(true,0,'等待 GitHub Actions 回報',err.message)}
     state.pollTimer=setTimeout(pollRun,pollInterval);
   }
 
   async function downloadCurrentJson(){
+    if(state.analysisBusy){ showToast('完整分析進行中，完成後才能下載最新 JSON。',5000); return; }
     if(workerUrl){try{const res=await fetch(`${workerUrl}/api/download?market=${encodeURIComponent(state.market)}&t=${Date.now()}`);if(res.ok){const blob=await res.blob();downloadBlob(blob,marketFilename(state.market));return}}catch(_){} }
     if(state.snapshot) downloadBlob(new Blob([JSON.stringify(state.snapshot,null,2)],{type:'application/json'}),marketFilename(state.market));
   }
   function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 
-  els.market.addEventListener('change',async()=>{state.market=els.market.value;localStorage.setItem('sstate-market',state.market);state.filter='ALL';await loadSnapshot()});
-  els.run.addEventListener('click',startFullAnalysis); els.download.addEventListener('click',downloadCurrentJson);
+  els.market.addEventListener('change',async()=>{
+    state.market=els.market.value;
+    localStorage.setItem('sstate-market',state.market);
+    state.filter='ALL';
+    updateDownloadButton();
+    await loadSnapshot();
+  });
+  els.run.addEventListener('click',startFullAnalysis);
+  els.download.addEventListener('click',downloadCurrentJson);
+  els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));
+  setBattleExpanded(false, false);
+  updateDownloadButton();
+  renderVolumeProgress(0);
   Promise.all([loadSnapshot(), loadModelBattle()]);
 })();

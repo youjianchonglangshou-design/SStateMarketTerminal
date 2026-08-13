@@ -24,33 +24,40 @@
           <option value="us-stock">美股代幣</option>
         </select>
         <button id="run-button" class="primary">⚡ 完整分析</button>
-        <button id="download-button">⬇ JSON</button>
+        <button id="download-button" title="下載目前選取市場的最新 JSON">⬇ 加密 JSON</button>
       </div>
     </header>
 
-    <section id="model-battle" class="model-battle">
+    <section id="model-battle" class="model-battle collapsed">
       <div class="battle-head">
-        <div>
-          <div class="battle-title">🧬 模型競爭｜Champion vs Challenger</div>
-          <div id="battle-caption" class="caption">載入模型競爭狀態...</div>
+        <div class="battle-heading-wrap">
+          <button id="battle-toggle" class="battle-toggle" type="button" aria-expanded="false" aria-controls="battle-body" title="展開模型競爭資訊">
+            <span class="battle-arrow">▶</span>
+          </button>
+          <div>
+            <div class="battle-title">🧬 模型競爭｜Champion vs Challenger</div>
+            <div id="battle-caption" class="caption">載入模型競爭狀態...</div>
+          </div>
         </div>
         <div id="battle-decision" class="battle-decision waiting">WAITING</div>
       </div>
-      <div class="battle-grid">
-        <div class="battle-card champion">
-          <div class="battle-role">🏆 ACTIVE / CHAMPION</div>
-          <div id="champion-id" class="battle-model-id">—</div>
-          <div id="champion-meta" class="caption">目前完整分析使用中的模型</div>
+      <div id="battle-body" class="battle-body hidden">
+        <div class="battle-grid">
+          <div class="battle-card champion">
+            <div class="battle-role">🏆 ACTIVE / CHAMPION</div>
+            <div id="champion-id" class="battle-model-id">—</div>
+            <div id="champion-meta" class="caption">目前完整分析使用中的模型</div>
+          </div>
+          <div class="battle-vs">VS</div>
+          <div class="battle-card challenger">
+            <div class="battle-role">🥊 CHALLENGER / SHADOW</div>
+            <div id="challenger-id" class="battle-model-id">—</div>
+            <div id="challenger-meta" class="caption">等待未來 OOS settlement</div>
+          </div>
         </div>
-        <div class="battle-vs">VS</div>
-        <div class="battle-card challenger">
-          <div class="battle-role">🥊 CHALLENGER / SHADOW</div>
-          <div id="challenger-id" class="battle-model-id">—</div>
-          <div id="challenger-meta" class="caption">等待未來 OOS settlement</div>
-        </div>
+        <div id="battle-metrics" class="battle-metrics"></div>
+        <div id="battle-progress" class="battle-progress"></div>
       </div>
-      <div id="battle-metrics" class="battle-metrics"></div>
-      <div id="battle-progress" class="battle-progress"></div>
     </section>
 
     <section id="run-panel" class="run-panel hidden">
@@ -58,7 +65,7 @@
         <strong id="run-title">分析準備中</strong>
         <span id="run-percent">0%</span>
       </div>
-      <div class="progress"><div id="run-bar"></div></div>
+      <div id="run-bar" class="volume-progress" aria-label="完整分析進度"></div>
       <div id="run-detail" class="caption"></div>
     </section>
 

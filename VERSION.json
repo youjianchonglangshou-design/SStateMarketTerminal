@@ -1,9 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.4｜SHADOW-PROGRESS",
-  "stage": "SHADOW-PROGRESS",
+  "app_version": "TERMINAL v0.1.5｜SSR-UX",
+  "stage": "SSR-UX",
   "features": [
-    "72H shadow age countdown and progress",
-    "OOS settled cases 180 target progress",
-    "OOS symbols 50 target progress"
+    "Market-aware JSON download label and analysis-time download lock",
+    "Collapsible Champion vs Challenger panel with update pulse indicator",
+    "Segmented volume-style analysis progress that disappears after completion",
+    "SSR-style S-state color hierarchy for filters and card state pills"
   ]
 }

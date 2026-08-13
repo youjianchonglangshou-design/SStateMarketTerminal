@@ -39,8 +39,7 @@
 @media(max-width:650px){.volume-progress{grid-template-columns:repeat(12,minmax(0,1fr));height:28px}.actions button#download-button{font-size:11px}}
 
 
-/* v0.1.6 — always-visible chart quick stats.
-   Deliberately no panel/pill background: scan-speed first, hover card stays unchanged. */
+/* v0.1.7 — always-visible chart quick stats with a subtle unified capsule. */
 .chart-quick-stats{
   position:absolute;
   left:44px;
@@ -55,6 +54,12 @@
   font-weight:800;
   line-height:1;
   color:#e2e8f0;
+  padding:5px 9px;
+  border:1px solid #64748b66;
+  border-radius:999px;
+  background:#0f172a8c;
+  box-shadow:0 3px 10px #02061742,inset 0 0 0 1px #ffffff05;
+  backdrop-filter:blur(3px);
   text-shadow:0 1px 3px #08111f,0 0 4px #08111f;
 }
 .chart-stat{display:inline-flex;align-items:center;gap:4px}
@@ -91,4 +96,29 @@
     font-size:9px;
   }
   .chart-stat i{width:8px;height:8px;flex-basis:8px}
+}
+
+
+/* v0.1.7 TradingView-like chart crosshair */
+.summary-strip{display:none!important}
+.chart-svg{cursor:crosshair}
+.tv-cross-line{
+  stroke:#cbd5e1;
+  stroke-width:1;
+  stroke-dasharray:7 7;
+  opacity:.76;
+  vector-effect:non-scaling-stroke;
+}
+.tv-cross-label{
+  fill:#334155;
+  stroke:#94a3b8;
+  stroke-width:.8;
+  opacity:.97;
+  vector-effect:non-scaling-stroke;
+}
+.tv-cross-label-text{
+  fill:#f8fafc;
+  font-size:9px;
+  font-weight:900;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }

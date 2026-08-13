@@ -297,13 +297,9 @@
   }
 
   function renderSummary() {
-    const counts = state.snapshot?.breadth?.market_state || {};
-    const probs = (state.snapshot?.records || []).filter(r => r.historical_probability?.["72h"]?.available).map(r => r.historical_probability["72h"]);
-    const avgSuccess = probs.length ? probs.reduce((a,x)=>a+Number(x.success_probability||0),0)/probs.length : null;
-    const avgFail = probs.length ? probs.reduce((a,x)=>a+Number(x.true_fail_probability||0),0)/probs.length : null;
-    els.summary.innerHTML = [
-      ["S3",counts.S3||0],["S0.5",counts["S0.5"]||0],["S1",counts.S1||0],["S2",counts.S2||0],["平均3日成功",avgSuccess==null?'—':pct(avgSuccess)],["平均真失敗",avgFail==null?'—':pct(avgFail)]
-    ].map(([k,v])=>`<div class="summary-item"><b>${escapeHtml(k)}</b> ${escapeHtml(v)}</div>`).join("");
+    // v0.1.7: secondary summary pills removed; the top-right S-state filter row remains.
+    els.summary.innerHTML = "";
+    els.summary.classList.add("hidden");
   }
 
   function recordState(r) { return r?.opportunity_long?.market_state_id || "OTHER"; }
@@ -314,6 +310,7 @@
     if (state.filter !== "ALL") rows = rows.filter(r => recordState(r) === state.filter);
     rows.sort((a,b) => stateRank(recordState(a))-stateRank(recordState(b)) || Number(b.historical_probability?.["72h"]?.success_probability||0)-Number(a.historical_probability?.["72h"]?.success_probability||0));
     els.cards.innerHTML = rows.map(renderCard).join("");
+    bindChartCrosshairs();
   }
 
   function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
@@ -370,6 +367,76 @@
     </article>`;
   }
 
+  function chartTinyExponent(value) {
+    const n = Math.abs(Number(value));
+    if (!Number.isFinite(n) || n <= 0 || n >= 0.001) return 0;
+    // Number of zeroes after the decimal before the first non-zero digit.
+    // Example 0.0000029045 -> 5, displayed as 0.29045e-5 (TradingView-like).
+    return Math.max(1, Math.floor(-Math.log10(n)));
+  }
+
+  function fmtChartPrice(value, exponent=0) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    if (exponent > 0) {
+      const scaled = n * Math.pow(10, exponent);
+      let s = scaled.toFixed(5).replace(/0+$/,'').replace(/\.$/,'');
+      if (!s.includes('.')) s += '.0';
+      return `${s}e-${exponent}`;
+    }
+    return fmtPrice(n);
+  }
+
+  function bindChartCrosshairs() {
+    els.cards.querySelectorAll('svg.chart-svg').forEach(svg => {
+      const L=Number(svg.dataset.l||42), R=Number(svg.dataset.r||14), T=Number(svg.dataset.t||12), B=Number(svg.dataset.b||24);
+      const W=Number(svg.dataset.w||760), H=Number(svg.dataset.h||260);
+      const min=Number(svg.dataset.min), max=Number(svg.dataset.max), count=Math.max(2,Number(svg.dataset.count||2));
+      const exponent=Number(svg.dataset.exp||0);
+      let dates=[];
+      try { dates=JSON.parse(decodeURIComponent(svg.dataset.dates||'%5B%5D')); } catch (_) {}
+      const innerW=W-L-R, innerH=H-T-B;
+      const group=svg.querySelector('.tv-crosshair');
+      const vline=svg.querySelector('.tv-cross-v');
+      const hline=svg.querySelector('.tv-cross-h');
+      const priceBox=svg.querySelector('.tv-price-box');
+      const priceText=svg.querySelector('.tv-price-text');
+      const dateBox=svg.querySelector('.tv-date-box');
+      const dateText=svg.querySelector('.tv-date-text');
+      if (!group || !vline || !hline || !priceBox || !priceText || !dateBox || !dateText) return;
+
+      const hide=()=>group.setAttribute('visibility','hidden');
+      svg.addEventListener('pointerleave', hide);
+      svg.addEventListener('pointermove', ev => {
+        const rect=svg.getBoundingClientRect();
+        if (!rect.width || !rect.height) return hide();
+        const vx=(ev.clientX-rect.left)/rect.width*W;
+        const vy=(ev.clientY-rect.top)/rect.height*H;
+        if (vx<L || vx>W-R || vy<T || vy>H-B) return hide();
+
+        const idx=Math.max(0,Math.min(count-1,Math.round((vx-L)/innerW*(count-1))));
+        const snapX=L+idx*(innerW/(count-1));
+        const price=max-((vy-T)/innerH)*(max-min);
+        const date=String(dates[idx]||'—');
+        const priceLabel=fmtChartPrice(price,exponent);
+
+        vline.setAttribute('x1',snapX); vline.setAttribute('x2',snapX);
+        hline.setAttribute('y1',vy); hline.setAttribute('y2',vy);
+
+        const pw=Math.max(48,Math.min(88,priceLabel.length*6.2+12));
+        const py=Math.max(T,Math.min(H-B-20,vy-10));
+        priceBox.setAttribute('x',1); priceBox.setAttribute('y',py); priceBox.setAttribute('width',pw);
+        priceText.setAttribute('x',1+pw/2); priceText.setAttribute('y',py+13.5); priceText.textContent=priceLabel;
+
+        const dw=Math.max(46,Math.min(78,date.length*6.2+14));
+        const dx=Math.max(L,Math.min(W-R-dw,snapX-dw/2));
+        dateBox.setAttribute('x',dx); dateBox.setAttribute('y',H-B+2); dateBox.setAttribute('width',dw);
+        dateText.setAttribute('x',dx+dw/2); dateText.setAttribute('y',H-B+15.5); dateText.textContent=date;
+        group.setAttribute('visibility','visible');
+      });
+    });
+  }
+
   function buildChartSvg(points) {
     if (!Array.isArray(points) || points.length < 2) return '<div class="caption">無30日圖表資料</div>';
     const W=760,H=260,L=42,R=14,T=12,B=24, innerW=W-L-R, innerH=H-T-B;
@@ -377,11 +444,22 @@
     let min=Math.min(...vals), max=Math.max(...vals); const pad=(max-min||1)*.08; min-=pad; max+=pad;
     const x=(i)=>L+i*(innerW/(points.length-1)); const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
     const linePath=(key)=>points.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
-    let grids=''; for(let i=0;i<4;i++){const yy=T+i*innerH/3; const val=max-i*(max-min)/3; grids+=`<line class="grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="axis-text" x="2" y="${yy+3}">${fmtPrice(val)}</text>`}
+    const refPrice=Number(points[points.length-1]?.ha_close || points[points.length-1]?.close || max);
+    const tinyExp=chartTinyExponent(refPrice);
+    let grids=''; for(let i=0;i<4;i++){const yy=T+i*innerH/3; const val=max-i*(max-min)/3; grids+=`<line class="grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="axis-text" x="2" y="${yy+3}">${escapeHtml(fmtChartPrice(val,tinyExp))}</text>`}
     let ladder=''; for(let i=0;i<points.length-1;i++){const p=points[i], q=points[i+1]; const cls=(p.ha_color==='yellow')?'ladder-yellow':'ladder-purple'; const x1=x(i),x2=x(i+1),yy=y(p.ha_close),y2=y(q.ha_close); ladder+=`<path class="${cls}" d="M${x1},${yy} H${x2} V${y2}"/>`;}
     const last=points[points.length-1], lc=last.ha_color==='yellow'?'#fde047':'#bba4e8';
     const labels=[0,Math.floor((points.length-1)/3),Math.floor((points.length-1)*2/3),points.length-1].map(i=>`<text class="axis-text" x="${x(i)-10}" y="${H-4}" transform="rotate(-35 ${x(i)-10} ${H-4})">${escapeHtml(points[i].date||'')}</text>`).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${labels}</svg>`;
+    const dates=encodeURIComponent(JSON.stringify(points.map(p=>String(p.date||''))));
+    const crosshair=`<g class="tv-crosshair" visibility="hidden" pointer-events="none">
+      <line class="tv-cross-line tv-cross-v" x1="${L}" y1="${T}" x2="${L}" y2="${H-B}"/>
+      <line class="tv-cross-line tv-cross-h" x1="${L}" y1="${T}" x2="${W-R}" y2="${T}"/>
+      <rect class="tv-cross-label tv-price-box" x="1" y="${T}" width="54" height="20" rx="3"/>
+      <text class="tv-cross-label-text tv-price-text" x="28" y="${T+13.5}" text-anchor="middle">—</text>
+      <rect class="tv-cross-label tv-date-box" x="${L}" y="${H-B+2}" width="48" height="20" rx="3"/>
+      <text class="tv-cross-label-text tv-date-text" x="${L+24}" y="${H-B+15.5}" text-anchor="middle">—</text>
+    </g>`;
+    return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-exp="${tinyExp}" data-dates="${dates}">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${labels}${crosshair}</svg>`;
   }
 
   function renderVolumeProgress(percent) {

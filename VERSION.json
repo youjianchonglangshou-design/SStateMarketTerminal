@@ -1,12 +1,12 @@
 {
-  "app_version": "TERMINAL v0.1.6｜CHART-QUICK-STATS",
-  "stage": "CHART-QUICK-STATS",
+  "app_version": "TERMINAL v0.1.7｜TV-CROSSHAIR",
+  "stage": "TV-CROSSHAIR",
   "features": [
-    "Market-aware JSON download label and analysis-time download lock",
-    "Collapsible Champion vs Challenger panel with update pulse indicator",
-    "Segmented volume-style analysis progress that disappears after completion",
-    "SSR-style S-state color hierarchy for filters and card state pills",
-    "Always-visible chart stats: fail / structural survival / matched samples / model level",
+    "TradingView-like chart crosshair with dashed X/Y guides",
+    "Crosshair date label and live Y-axis price label",
+    "Tiny-price chart axis uses zero-count exponent notation such as 0.29045e-5",
+    "Secondary summary pill row removed; top-right filters remain",
+    "Quick stats use a subtle unified capsule",
     "Existing probability hover card preserved unchanged"
   ]
 }

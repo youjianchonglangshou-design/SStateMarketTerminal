@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.8｜HUD-ENERGY",
-  "stage": "HUD-ENERGY",
+  "app_version": "TERMINAL v0.1.9｜SSR-STATE-ORDER",
+  "stage": "SSR-STATE-ORDER",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",
@@ -8,6 +8,8 @@
     "Secondary summary pill row removed; top-right filters remain",
     "Quick stats use a subtle unified capsule",
     "Existing probability hover card preserved unchanged",
-    "HUD slanted segmented analysis energy bar with subtle breathing glow"
+    "HUD slanted segmented analysis energy bar with subtle breathing glow",
+    "S-state palette: S3 yellow, S0.5 purple, S1 blue, S2 green, S0 white, OTHER dark",
+    "Card ordering priority: S3 > S0.5 > S1 > S2 > S0 > OTHER"
   ]
 }

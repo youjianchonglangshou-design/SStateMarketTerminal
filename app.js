@@ -303,7 +303,7 @@
   }
 
   function recordState(r) { return r?.opportunity_long?.market_state_id || "OTHER"; }
-  function stateRank(s){ return ({"S3":0,"S0.5":1,"S2":2,"S1":3,"S0":4,"OTHER":5})[s] ?? 9; }
+  function stateRank(s){ return ({"S3":0,"S0.5":1,"S1":2,"S2":3,"S0":4,"OTHER":5})[s] ?? 9; }
 
   function renderCards() {
     let rows = [...(state.snapshot?.records || [])];

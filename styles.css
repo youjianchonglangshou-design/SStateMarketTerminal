@@ -318,3 +318,21 @@
     font-size:8px;
   }
 }
+
+
+/* v0.1.12 — direct Pionex WebSocket activity state */
+.market-session-badge.watching{
+  color:#67e8f9;
+  border:1px solid rgba(34,211,238,.48);
+  background:rgba(8,47,73,.62);
+  box-shadow:0 0 8px rgba(34,211,238,.08);
+}
+.market-session-badge.watching i{
+  background:#22d3ee;
+  box-shadow:0 0 5px rgba(34,211,238,.65);
+  animation:market-watch-breathe 1.8s ease-in-out infinite;
+}
+@keyframes market-watch-breathe{
+  0%,100%{opacity:.48;transform:scale(.85)}
+  50%{opacity:1;transform:scale(1.10)}
+}

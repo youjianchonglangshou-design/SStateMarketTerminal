@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.11｜MARKET-STATUS-FIX",
-  "stage": "MARKET-STATUS-FIX",
+  "app_version": "TERMINAL v0.1.12｜DIRECT-WS-ACTIVITY",
+  "stage": "DIRECT-WS-ACTIVITY",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",
@@ -16,6 +16,11 @@
     "Green trading badge has a subtle breathing live indicator; offline badge stays muted",
     "Replace high-weight common/symbols status calls with one PERP tickers request",
     "US-stock badge is based on ticker freshness (<=5 minutes = TRADING)",
-    "Last known status is served if Pionex temporarily returns HTTP 429"
+    "Last known status is served if Pionex temporarily returns HTTP 429",
+    "Retire Cloudflare-to-Pionex REST market-status proxy",
+    "Browser connects directly to Pionex public futures DEPTH WebSocket",
+    "Activity classification uses actual order-book signature changes",
+    "Statuses: WATCHING / TRADING(price activity) / OFFLINE(price static)",
+    "Subscriptions throttled to 280ms intervals per connection"
   ]
 }

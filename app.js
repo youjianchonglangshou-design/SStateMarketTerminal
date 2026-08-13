@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null };
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -104,31 +104,190 @@
     try { return await fetchJson(url); } catch (_) { return null; }
   }
 
-  async function loadMarketStatuses() {
+  function stopMarketStatusSockets(clearStatuses=true) {
     clearTimeout(state.marketStatusTimer);
-    const requestedMarket = state.market;
+    clearTimeout(state.marketStatusReconnectTimer);
+    clearTimeout(state.marketStatusRenderTimer);
 
-    if (requestedMarket !== "us-stock" || !workerUrl) {
+    for (const ws of state.marketSockets || []) {
+      try {
+        ws._sstateIntentionalClose = true;
+        ws.close();
+      } catch (_) {}
+    }
+    state.marketSockets = [];
+    state.marketActivity = {};
+    state.marketStatusStartedAt = 0;
+
+    if (clearStatuses) {
       state.marketStatuses = {};
       state.marketStatusCheckedAt = "";
-      if (requestedMarket === state.market) renderCards();
+    }
+  }
+
+  function scheduleMarketStatusRender() {
+    if (state.marketStatusRenderTimer) return;
+    state.marketStatusRenderTimer = setTimeout(() => {
+      state.marketStatusRenderTimer = null;
+      if (state.market === "us-stock") renderCards();
+    }, 180);
+  }
+
+  function marketDepthSignature(data) {
+    const bids = Array.isArray(data?.bids) ? data.bids.slice(0, 3) : [];
+    const asks = Array.isArray(data?.asks) ? data.asks.slice(0, 3) : [];
+    return JSON.stringify([bids, asks]);
+  }
+
+  function markMarketStatus(symbol, status) {
+    if (!symbol) return;
+    const prev = state.marketStatuses[symbol];
+    if (prev === status) return;
+    state.marketStatuses[symbol] = status;
+    state.marketStatusCheckedAt = new Date().toISOString();
+    scheduleMarketStatusRender();
+  }
+
+  function sweepMarketActivity() {
+    clearTimeout(state.marketStatusTimer);
+    if (state.market !== "us-stock") return;
+
+    const now = Date.now();
+    const startedAt = Number(state.marketStatusStartedAt || now);
+
+    for (const [symbol, meta] of Object.entries(state.marketActivity || {})) {
+      const current = String(state.marketStatuses[symbol] || "WATCHING");
+      const firstAt = Number(meta.firstMessageAt || 0);
+      const lastChangeAt = Number(meta.lastChangeAt || 0);
+
+      if (current === "TRADING") {
+        if (lastChangeAt && now - lastChangeAt > 120_000) {
+          markMarketStatus(symbol, "OFFLINE");
+        }
+      } else if (current === "WATCHING") {
+        const basis = firstAt || startedAt;
+        if (now - basis > 60_000) {
+          markMarketStatus(symbol, "OFFLINE");
+        }
+      } else if (current === "OFFLINE") {
+        if (lastChangeAt && now - lastChangeAt <= 120_000) {
+          markMarketStatus(symbol, "TRADING");
+        }
+      }
+    }
+
+    state.marketStatusTimer = setTimeout(sweepMarketActivity, 5_000);
+  }
+
+  function scheduleMarketStatusReconnect() {
+    if (state.market !== "us-stock" || state.marketStatusReconnectTimer) return;
+    state.marketStatusReconnectTimer = setTimeout(() => {
+      state.marketStatusReconnectTimer = null;
+      if (state.market === "us-stock") loadMarketStatuses();
+    }, 4_000);
+  }
+
+  function openPionexActivitySocket(symbols) {
+    const ws = new WebSocket("wss://ws.pionex.com/wsPub");
+    state.marketSockets.push(ws);
+
+    ws.addEventListener("open", () => {
+      symbols.forEach((symbol, index) => {
+        setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN || state.market !== "us-stock") return;
+          try {
+            ws.send(JSON.stringify({
+              op: "SUBSCRIBE",
+              topic: "DEPTH",
+              symbol,
+              limit: 5
+            }));
+          } catch (_) {}
+        }, index * 280);
+      });
+    });
+
+    ws.addEventListener("message", (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch (_) { return; }
+
+      if (String(msg?.op || "").toUpperCase() === "PING") {
+        try {
+          ws.send(JSON.stringify({ op: "PONG", timestamp: Date.now() }));
+        } catch (_) {}
+        return;
+      }
+
+      if (String(msg?.topic || "").toUpperCase() !== "DEPTH") return;
+
+      const symbol = String(msg?.symbol || "").trim();
+      if (!symbol || !state.marketActivity[symbol]) return;
+
+      const signature = marketDepthSignature(msg?.data || {});
+      const now = Date.now();
+      const meta = state.marketActivity[symbol];
+
+      if (!meta.firstMessageAt) {
+        meta.firstMessageAt = now;
+        meta.lastSignature = signature;
+        markMarketStatus(symbol, "WATCHING");
+        return;
+      }
+
+      if (signature !== meta.lastSignature) {
+        meta.lastSignature = signature;
+        meta.lastChangeAt = now;
+        meta.changeCount = Number(meta.changeCount || 0) + 1;
+        markMarketStatus(symbol, "TRADING");
+      }
+    });
+
+    ws.addEventListener("close", () => {
+      if (!ws._sstateIntentionalClose) scheduleMarketStatusReconnect();
+    });
+
+    ws.addEventListener("error", () => {});
+  }
+
+  async function loadMarketStatuses() {
+    stopMarketStatusSockets(true);
+    const requestedMarket = state.market;
+
+    if (requestedMarket !== "us-stock") {
+      renderCards();
       return;
     }
 
-    try {
-      const payload = await fetchJson(`${workerUrl}/api/market/status?market=us-stock&t=${Date.now()}`);
-      if (state.market !== requestedMarket) return;
-      state.marketStatuses = payload?.statuses || {};
-      state.marketStatusCheckedAt = payload?.checked_at || "";
+    const rows = Array.isArray(state.snapshot?.records) ? state.snapshot.records : [];
+    const symbols = [...new Set(
+      rows.map(r => String(r?.api_symbol || "").trim()).filter(Boolean)
+    )];
+
+    if (!symbols.length) {
       renderCards();
-    } catch (_) {
-      // Do not invent an open/closed state when Pionex cannot be reached.
-      if (state.market === requestedMarket) renderCards();
+      return;
     }
 
-    if (state.market === "us-stock") {
-      state.marketStatusTimer = setTimeout(loadMarketStatuses, 60_000);
+    state.marketStatusStartedAt = Date.now();
+    state.marketStatusCheckedAt = new Date().toISOString();
+
+    for (const symbol of symbols) {
+      state.marketStatuses[symbol] = "WATCHING";
+      state.marketActivity[symbol] = {
+        firstMessageAt: 0,
+        lastChangeAt: 0,
+        lastSignature: "",
+        changeCount: 0,
+      };
     }
+    renderCards();
+
+    const chunkSize = 20;
+    for (let i = 0; i < symbols.length; i += chunkSize) {
+      openPionexActivitySocket(symbols.slice(i, i + chunkSize));
+    }
+
+    sweepMarketActivity();
   }
 
   function shortId(v) {
@@ -394,13 +553,18 @@
       : "";
 
     if (status === "TRADING") {
-      return `<div class="market-session-badge trading" title="Pionex 即時狀態${checked ? `｜${checked}` : ""}">
-        <i></i><span>交易中</span>
+      return `<div class="market-session-badge trading" title="Pionex WebSocket｜訂單簿價格/數量正在變動${checked ? `｜${checked}` : ""}">
+        <i></i><span>價格活動</span>
       </div>`;
     }
     if (status === "OFFLINE") {
-      return `<div class="market-session-badge offline" title="Pionex 即時狀態${checked ? `｜${checked}` : ""}">
-        <i></i><span>休市</span>
+      return `<div class="market-session-badge offline" title="Pionex WebSocket｜近期未偵測到訂單簿變化${checked ? `｜${checked}` : ""}">
+        <i></i><span>價格靜止</span>
+      </div>`;
+    }
+    if (status === "WATCHING") {
+      return `<div class="market-session-badge watching" title="正在建立 Pionex WebSocket 活動判斷">
+        <i></i><span>監測中</span>
       </div>`;
     }
     return "";
@@ -594,5 +758,6 @@
   setBattleExpanded(false, false);
   updateDownloadButton();
   renderVolumeProgress(0);
+  window.addEventListener("beforeunload",()=>stopMarketStatusSockets(false));
   Promise.all([loadSnapshot(), loadModelBattle()]);
 })();

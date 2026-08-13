@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.13｜US-SESSION-GATE",
-  "stage": "US-SESSION-GATE",
+  "app_version": "TERMINAL v0.1.14｜PIONEX-NATIVE-STATUS",
+  "stage": "PIONEX-NATIVE-STATUS",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",
@@ -21,6 +21,10 @@
     "Browser connects directly to Pionex public futures DEPTH WebSocket",
     "Activity classification uses actual order-book signature changes",
     "Statuses: WATCHING / TRADING(price activity) / OFFLINE(price static)",
-    "Subscriptions throttled to 280ms intervals per connection"
+    "Subscriptions throttled to 280ms intervals per connection",
+    "Remove global NYSE session gate for Pionex RWA contracts",
+    "Browser directly queries Pionex PERP common/symbols status=ALL",
+    "Per-contract TRADING/OFFLINE is the primary source of truth",
+    "Pionex WebSocket order-book activity remains automatic fallback"
   ]
 }

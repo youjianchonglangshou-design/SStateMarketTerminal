@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -152,11 +152,6 @@
     clearTimeout(state.marketStatusTimer);
     if (state.market !== "us-stock") return;
 
-    if (!usCoreSessionState().open) {
-      loadMarketStatuses();
-      return;
-    }
-
     const now = Date.now();
     const startedAt = Number(state.marketStatusStartedAt || now);
 
@@ -255,58 +250,18 @@
   }
 
 
-  const US_MARKET_2026_FULL_HOLIDAYS = new Set([
-    "2026-01-01","2026-01-19","2026-02-16","2026-04-03","2026-05-25",
-    "2026-06-19","2026-07-03","2026-09-07","2026-11-26","2026-12-25"
-  ]);
-  const US_MARKET_2026_EARLY_CLOSE = new Set(["2026-11-27","2026-12-24"]);
-
-  function newYorkClockParts(date=new Date()) {
-    const parts = new Intl.DateTimeFormat("en-US",{
-      timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit",
-      weekday:"short", hour:"2-digit", minute:"2-digit", hour12:false
-    }).formatToParts(date);
-    const get=t=>parts.find(p=>p.type===t)?.value||"";
-    const year=get("year"), month=get("month"), day=get("day");
-    const hour=Number(get("hour")), minute=Number(get("minute"));
-    return {
-      year,month,day,weekday:get("weekday"),hour,minute,
-      ymd:`${year}-${month}-${day}`, minuteOfDay:hour*60+minute
-    };
-  }
-
-  function usCoreSessionState(date=new Date()) {
-    const ny=newYorkClockParts(date);
-    if (ny.weekday==="Sat" || ny.weekday==="Sun") return {open:false,label:"休市",reason:"WEEKEND",ny};
-    if (US_MARKET_2026_FULL_HOLIDAYS.has(ny.ymd)) return {open:false,label:"休市",reason:"HOLIDAY",ny};
-    const openAt=9*60+30;
-    const closeAt=US_MARKET_2026_EARLY_CLOSE.has(ny.ymd) ? 13*60 : 16*60;
-    const open=ny.minuteOfDay>=openAt && ny.minuteOfDay<closeAt;
-    return {open,label:open?"交易時段":"休市",reason:open?"CORE_SESSION":"OUTSIDE_CORE_SESSION",ny};
-  }
 
   async function loadMarketStatuses() {
     stopMarketStatusSockets(true);
     const requestedMarket = state.market;
 
     if (requestedMarket !== "us-stock") {
+      state.marketStatusSource = "";
       renderCards();
       return;
     }
 
     const rows = Array.isArray(state.snapshot?.records) ? state.snapshot.records : [];
-    const session = usCoreSessionState();
-
-    if (!session.open) {
-      const symbols = [...new Set(rows.map(r=>String(r?.api_symbol||"").trim()).filter(Boolean))];
-      state.marketStatusCheckedAt = new Date().toISOString();
-      for (const symbol of symbols) state.marketStatuses[symbol] = "CLOSED";
-      renderCards();
-      state.marketStatusTimer = setTimeout(()=> {
-        if (state.market==="us-stock") loadMarketStatuses();
-      }, 30000);
-      return;
-    }
     const symbols = [...new Set(
       rows.map(r => String(r?.api_symbol || "").trim()).filter(Boolean)
     )];
@@ -316,6 +271,52 @@
       return;
     }
 
+    // First choice: Pionex's own current contract status.
+    // Official endpoint returns each PERP with status=TRADING/OFFLINE.
+    try {
+      const response = await fetch(
+        "https://api.pionex.com/api/v1/common/symbols?type=PERP&status=ALL",
+        { method:"GET", cache:"no-store", headers:{ "Accept":"application/json" } }
+      );
+
+      if (!response.ok) throw new Error(`Pionex symbols ${response.status}`);
+
+      const payload = await response.json();
+      const list = Array.isArray(payload?.data?.symbols) ? payload.data.symbols : [];
+      const wanted = new Set(symbols);
+      let matched = 0;
+
+      state.marketStatuses = {};
+      for (const row of list) {
+        const symbol = String(row?.symbol || "").trim();
+        if (!wanted.has(symbol)) continue;
+
+        const status = String(row?.status || "").toUpperCase();
+        if (status === "TRADING" || status === "OFFLINE") {
+          state.marketStatuses[symbol] = status;
+          matched += 1;
+        }
+      }
+
+      if (matched > 0) {
+        state.marketStatusSource = "PIONEX_REST";
+        state.marketStatusCheckedAt = new Date().toISOString();
+        renderCards();
+
+        // One public request per minute, from the user's browser IP.
+        state.marketStatusTimer = setTimeout(() => {
+          if (state.market === "us-stock") loadMarketStatuses();
+        }, 60_000);
+        return;
+      }
+
+      throw new Error("Pionex symbols returned no matching RWA statuses");
+    } catch (_) {
+      // Browser CORS / temporary rate limit fallback:
+      // use Pionex public WebSocket and infer actual order-book activity.
+    }
+
+    state.marketStatusSource = "PIONEX_WS";
     state.marketStatusStartedAt = Date.now();
     state.marketStatusCheckedAt = new Date().toISOString();
 
@@ -596,35 +597,35 @@
     const status = String(state.marketStatuses?.[apiSymbol] || "").toUpperCase();
     if (!status) return "";
 
+    const source = state.marketStatusSource;
     const checked = state.marketStatusCheckedAt
       ? new Date(state.marketStatusCheckedAt).toLocaleTimeString("zh-TW", {hour12:false, hour:"2-digit", minute:"2-digit"})
       : "";
 
     if (status === "TRADING") {
-      return `<div class="market-session-badge trading" title="Pionex WebSocket｜訂單簿價格/數量正在變動${checked ? `｜${checked}` : ""}">
-        <i></i><span>價格活動</span>
+      const title = source === "PIONEX_REST"
+        ? `Pionex 合約狀態：TRADING${checked ? `｜${checked}` : ""}`
+        : `Pionex WebSocket：偵測到訂單簿活動${checked ? `｜${checked}` : ""}`;
+      return `<div class="market-session-badge trading" title="${title}">
+        <i></i><span>交易中</span>
       </div>`;
     }
+
     if (status === "OFFLINE") {
-      return `<div class="market-session-badge offline" title="Pionex WebSocket｜近期未偵測到訂單簿變化${checked ? `｜${checked}` : ""}">
-        <i></i><span>價格靜止</span>
-      </div>`;
-    }
-    if (status === "CLOSED") {
-      const session = usCoreSessionState();
-      const ny = session?.ny || {};
-      const nyTime = Number.isFinite(ny.hour) && Number.isFinite(ny.minute)
-        ? `${String(ny.hour).padStart(2,"0")}:${String(ny.minute).padStart(2,"0")} ET`
-        : "";
-      return `<div class="market-session-badge closed" title="美股核心交易時段外${nyTime ? `｜紐約 ${nyTime}` : ""}">
+      const title = source === "PIONEX_REST"
+        ? `Pionex 合約狀態：OFFLINE${checked ? `｜${checked}` : ""}`
+        : `Pionex WebSocket：近期未偵測到訂單簿活動${checked ? `｜${checked}` : ""}`;
+      return `<div class="market-session-badge offline" title="${title}">
         <i></i><span>休市</span>
       </div>`;
     }
+
     if (status === "WATCHING") {
-      return `<div class="market-session-badge watching" title="正在建立 Pionex WebSocket 活動判斷">
+      return `<div class="market-session-badge watching" title="Pionex REST 無法使用，改用 WebSocket 建立活動判斷">
         <i></i><span>監測中</span>
       </div>`;
     }
+
     return "";
   }
 

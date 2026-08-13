@@ -337,6 +337,22 @@
       <div class="prob-meta">24H ${pct(hp['24h']?.success_probability,0)}｜48H ${pct(hp['48h']?.success_probability,0)}<br>${escapeHtml(featureLine)}</div>
     </div></div>`;
   }
+  function renderChartQuickStats(r) {
+    const hp = r.historical_probability || {};
+    const h72 = hp["72h"] || {};
+    if (!hp.available || !h72.available) return "";
+    const fail = pct(h72.true_fail_probability);
+    const survival = pct(h72.structural_survival_probability);
+    const samples = Number(h72.matched_samples || hp.matched_samples || 0).toLocaleString();
+    const level = h72.level || hp.model_level || "—";
+    return `<div class="chart-quick-stats" aria-label="72H historical quick stats">
+      <span class="chart-stat fail"><i></i><b>失敗</b> ${fail}</span>
+      <span class="chart-stat survival"><i></i><b>存活</b> ${survival}</span>
+      <span class="chart-stat samples"><i></i><b>樣本</b> ${samples}</span>
+      <span class="chart-stat level">L${escapeHtml(level)}</span>
+    </div>`;
+  }
+
   function midHuman(v){return ({rising:'中軌上斜',flat:'中軌平緩',flattening:'中軌走平',falling:'中軌下斜'})[v]||'中軌未知'}
   function bandHuman(v){return ({LT_025:'<0.25','025_050':'0.25-0.50','050_060':'0.50-0.60','060_075':'0.60-0.75',GE_075:'>0.75'})[v]||'?'}
   function bwHuman(v){return ({EXPANDING:'布林擴張',CONTRACTING:'布林收縮',FLAT:'布林平穩'})[v]||'布林未知'}
@@ -350,7 +366,7 @@
     return `<article class="card">
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
-      <div class="chart">${buildChartSvg(r.chart_30d||[])}</div>
+      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderChartQuickStats(r)}</div>
     </article>`;
   }
 

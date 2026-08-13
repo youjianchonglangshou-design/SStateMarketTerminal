@@ -21,6 +21,39 @@
   const marketLabel = (market) => market === "us-stock" ? "美股代幣" : "加密貨幣";
   const marketJsonButtonLabel = (market) => market === "us-stock" ? "⬇ 美股 JSON" : "⬇ 加密 JSON";
   const marketJsonButtonBusyLabel = (market) => market === "us-stock" ? "⏳ 美股 JSON" : "⏳ 加密 JSON";
+
+  // Tradeify（dx.tradeifycrypto.co）Stocks 清單 ↔ Pionex 美股代幣對照。
+  // 多數 Pionex xStock 會在原股票 ticker 後加 X；少數採特殊代碼（例如 GME→GMEX、MU→MUX、SPCX→SPCX）。
+  const TRADEIFY_PIONEX_STOCK_MAP = Object.freeze({
+    AAPLX: "AAPL",
+    AMDX: "AMD",
+    AMZNX: "AMZN",
+    ARMX: "ARM",
+    COINX: "COIN",
+    CRCLX: "CRCL",
+    CRWVX: "CRWV",
+    GMEX: "GME",
+    GOOGLX: "GOOGL",
+    HIMSX: "HIMS",
+    HOODX: "HOOD",
+    IBMX: "IBM",
+    INTCX: "INTC",
+    LITEX: "LITE",
+    METAX: "META",
+    MRVLX: "MRVL",
+    MSFTX: "MSFT",
+    MSTRX: "MSTR",
+    MUX: "MU",
+    NVDAX: "NVDA",
+    ORCLX: "ORCL",
+    PLTRX: "PLTR",
+    RKLBX: "RKLB",
+    SNDKX: "SNDK",
+    SPCX: "SPCX",
+    TSLAX: "TSLA",
+    TSMX: "TSM",
+    USARX: "USAR"
+  });
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (v, digits=1) => Number.isFinite(Number(v)) ? `${(Number(v)*100).toFixed(digits)}%` : "—";
   const num = (v, digits=2) => Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : "—";
@@ -543,6 +576,14 @@
   function bwHuman(v){return ({EXPANDING:'布林擴張',CONTRACTING:'布林收縮',FLAT:'布林平穩'})[v]||'布林未知'}
   function ageHuman(v){return ({'1':'1根4H','2_3':'2-3根4H','4_6':'4-6根4H','7_PLUS':'7+根4H'})[v]||'—'}
 
+  function renderTradeifyMatchBadge(r) {
+    if (state.market !== "us-stock") return "";
+    const pionexSymbol = String(r?.symbol || "").trim().toUpperCase();
+    const tradeifyTicker = TRADEIFY_PIONEX_STOCK_MAP[pionexSymbol];
+    if (!tradeifyTicker) return "";
+    return `<div class="tradeify-match-badge" title="Tradeify Stocks 清單已對上｜${escapeHtml(tradeifyTicker)} ↔ ${escapeHtml(pionexSymbol)}"><span>DX</span></div>`;
+  }
+
   function renderMarketStatusBadge(r) {
     if (state.market !== "us-stock") return "";
 
@@ -602,7 +643,7 @@
     return `<article class="card">
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
-      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderChartQuickStats(r)}</div>
+      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderTradeifyMatchBadge(r)}${renderChartQuickStats(r)}</div>
     </article>`;
   }
 

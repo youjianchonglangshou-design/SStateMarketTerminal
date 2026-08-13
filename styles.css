@@ -357,3 +357,44 @@
 .market-session-badge.unknown i{
   background:#475569;
 }
+
+
+/* v0.1.16 — mark Pionex stock tokens also present in Tradeify Stocks */
+.tradeify-match-badge{
+  position:absolute;
+  z-index:11;
+  top:9px;
+  right:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:25px;
+  height:20px;
+  padding:0 7px;
+  border:1px solid rgba(34,211,238,.62);
+  border-radius:999px;
+  background:rgba(8,47,73,.70);
+  color:#a5f3fc;
+  box-shadow:0 0 9px rgba(34,211,238,.10);
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:.45px;
+  line-height:1;
+  pointer-events:auto;
+  cursor:help;
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
+}
+.tradeify-match-badge span{
+  transform:translateY(.1px);
+}
+@media(max-width:650px){
+  .tradeify-match-badge{
+    top:8px;
+    right:8px;
+    height:19px;
+    min-width:23px;
+    padding:0 6px;
+    font-size:8px;
+  }
+}

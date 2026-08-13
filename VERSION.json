@@ -1,12 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.7｜TV-CROSSHAIR",
-  "stage": "TV-CROSSHAIR",
+  "app_version": "TERMINAL v0.1.8｜HUD-ENERGY",
+  "stage": "HUD-ENERGY",
   "features": [
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",
     "Tiny-price chart axis uses zero-count exponent notation such as 0.29045e-5",
     "Secondary summary pill row removed; top-right filters remain",
     "Quick stats use a subtle unified capsule",
-    "Existing probability hover card preserved unchanged"
+    "Existing probability hover card preserved unchanged",
+    "HUD slanted segmented analysis energy bar with subtle breathing glow"
   ]
 }

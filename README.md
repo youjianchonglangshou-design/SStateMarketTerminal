@@ -2,7 +2,7 @@
 
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
 
-**版本：`TERMINAL v0.1.0｜HEADLESS-STAGE1`**
+**版本：`TERMINAL v0.1.29｜GPT-OSS-GROQ-SDK`**
 
 ## 已完成的資料流
 

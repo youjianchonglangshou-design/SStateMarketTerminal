@@ -14,7 +14,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.0";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.29｜GPT-OSS-GROQ-SDK";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";

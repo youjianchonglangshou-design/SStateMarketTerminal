@@ -82,6 +82,12 @@
   border:1px solid #64748b;
   box-sizing:border-box;
 }
+.chart-stat.samples i.sample-tier-ssr{background:#facc15;border-color:#fef08a;box-shadow:0 0 10px #facc1588}
+.chart-stat.samples i.sample-tier-sr{background:#a855f7;border-color:#d8b4fe;box-shadow:0 0 10px #a855f788}
+.chart-stat.samples i.sample-tier-r{background:#3b82f6;border-color:#93c5fd;box-shadow:0 0 10px #3b82f688}
+.chart-stat.samples i.sample-tier-n{background:#22c55e;border-color:#86efac;box-shadow:0 0 10px #22c55e88}
+.chart-stat.samples i.sample-tier-c{background:#f8fafc;border-color:#cbd5e1;box-shadow:0 0 8px #ffffff55}
+.chart-stat.samples i.sample-tier-low{background:#334155;border-color:#64748b;box-shadow:none}
 .chart-stat.level{
   color:#dbeafe;
   font-weight:950;

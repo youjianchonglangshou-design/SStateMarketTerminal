@@ -555,18 +555,38 @@
       <div class="prob-meta">24H ${pct(hp['24h']?.success_probability,0)}｜48H ${pct(hp['48h']?.success_probability,0)}<br>${escapeHtml(featureLine)}</div>
     </div></div>`;
   }
+  function trainingCaseCount() {
+    return Number(state.snapshot?.batch?.probability_model?.case_count || 0);
+  }
+
+  function sampleTierInfo(matchedSamples, totalCases) {
+    const matched = Number(matchedSamples || 0);
+    const total = Number(totalCases || 0);
+    const ratio = total > 0 ? matched / total : 0;
+    if (matched >= 50 && ratio >= 0.04) return { key: 'ssr', label: 'SSR', ratio };
+    if (matched >= 50 && ratio >= 0.02) return { key: 'sr', label: 'SR', ratio };
+    if (matched >= 50 && ratio >= 0.01) return { key: 'r', label: 'R', ratio };
+    if (matched >= 50 && ratio >= 0.0025) return { key: 'n', label: 'N', ratio };
+    if (matched >= 50) return { key: 'c', label: 'C', ratio };
+    return { key: 'low', label: 'LOW', ratio };
+  }
+
   function renderChartQuickStats(r) {
     const hp = r.historical_probability || {};
     const h72 = hp["72h"] || {};
     if (!hp.available || !h72.available) return "";
     const fail = pct(h72.true_fail_probability);
     const survival = pct(h72.structural_survival_probability);
-    const samples = Number(h72.matched_samples || hp.matched_samples || 0).toLocaleString();
+    const matchedSamples = Number(h72.matched_samples || hp.matched_samples || 0);
+    const samples = matchedSamples.toLocaleString();
     const level = h72.level || hp.model_level || "—";
+    const tier = sampleTierInfo(matchedSamples, trainingCaseCount());
+    const tierRatio = Number.isFinite(tier.ratio) ? `${(tier.ratio * 100).toFixed(2)}%` : '—';
+    const tierTitle = `樣本厚度 ${tier.label}｜匹配 ${samples}｜總訓練 ${trainingCaseCount().toLocaleString()}｜占比 ${tierRatio}`;
     return `<div class="chart-quick-stats" aria-label="72H historical quick stats">
       <span class="chart-stat fail"><i></i><b>失敗</b> ${fail}</span>
       <span class="chart-stat survival"><i></i><b>存活</b> ${survival}</span>
-      <span class="chart-stat samples"><i></i><b>樣本</b> ${samples}</span>
+      <span class="chart-stat samples" title="${escapeHtml(tierTitle)}"><i class="sample-tier-${tier.key}"></i><b>樣本</b> ${samples}</span>
       <span class="chart-stat level">L${escapeHtml(level)}</span>
     </div>`;
   }

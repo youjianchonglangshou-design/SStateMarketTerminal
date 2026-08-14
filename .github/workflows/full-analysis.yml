@@ -36,8 +36,6 @@ jobs:
       MARKET: ${{ inputs.market }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: "1880226268"
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -122,39 +120,6 @@ jobs:
             --data-binary "@output/$SNAP" \
             "$WORKER_BASE_URL/api/internal/snapshot?market=$MARKET&run_id=$RUN_ID"
 
-      - name: GPT-OSS 120B | US-stock S3/S0.5/S1 research (24H cache)
-        if: ${{ success() && inputs.market == 'us-stock' }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          curl --fail --silent --show-error \
-            "$WORKER_BASE_URL/api/research/us-stock/cache" \
-            -o /tmp/us_stock_research_cache.json || echo '{"schema_version":"1.0","ttl_hours":24,"entries":{}}' > /tmp/us_stock_research_cache.json
-          python engine/us_stock_research.py \
-            --snapshot output/snapshot_us_stock_ai.json \
-            --cache /tmp/us_stock_research_cache.json \
-            --out-cache output/us_stock_research_cache.json \
-            --out-latest output/us_stock_research_latest.json
-
-      - name: Upload GPT-OSS research to R2
-        if: ${{ success() && inputs.market == 'us-stock' }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          if [ -s output/us_stock_research_cache.json ]; then
-            curl --fail --silent --show-error -X PUT \
-              -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data-binary "@output/us_stock_research_cache.json" \
-              "$WORKER_BASE_URL/api/internal/research/us-stock/cache"
-          fi
-          if [ -s output/us_stock_research_latest.json ]; then
-            curl --fail --silent --show-error -X PUT \
-              -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data-binary "@output/us_stock_research_latest.json" \
-              "$WORKER_BASE_URL/api/internal/research/us-stock/latest"
-          fi
 
 
       - name: Telegram | Manual analysis completed

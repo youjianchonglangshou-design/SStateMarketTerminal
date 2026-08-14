@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 """US-stock S-state Gemini research with a per-symbol 24-hour cache.
 
-Targets only current S3 / S0.5 / S1 records. Existing research younger than 24h
-is reused regardless of whether the prior trigger was AUTO or MANUAL.
+v0.1.22 intentionally mirrors the proven TennisRatio Gemini search pattern:
+- Gemini 2.5 Flash only (no Gemini 3 fallback)
+- generateContent + google_search grounding
+- one request at a time
+- 30~35 second cooldown between successful new searches
+- TennisRatio-style quota/error classification and early batch stop
+- only successful grounded results are written into the 24H cache
+
+Targets only current S3 / S0.5 / S1 records. Existing research younger than
+24 hours is reused regardless of whether the prior trigger was AUTO or MANUAL.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import random
 import re
 import time
 import urllib.error
@@ -18,13 +27,19 @@ from pathlib import Path
 from typing import Any
 
 TW = timezone(timedelta(hours=8))
-PRIMARY_MODEL = "gemini-2.5-flash"
-FALLBACK_MODEL = "gemini-3.6-flash"
-MODEL = PRIMARY_MODEL
-SEARCH_DELAY_SECONDS = 15
+MODEL = "gemini-2.5-flash"
 ELIGIBLE_STATES = {"S3", "S0.5", "S1"}
 CACHE_TTL = timedelta(hours=24)
 STALE_KEEP = timedelta(days=7)
+
+SEARCH_DELAY_MIN_SECONDS = 30
+SEARCH_DELAY_MAX_SECONDS = 35
+MAX_ATTEMPTS = 2
+RETRY_UNKNOWN_429_SECONDS = 90
+RETRY_503_SECONDS = 30
+RETRY_NETWORK_SECONDS = 20
+REQUEST_TIMEOUT_SECONDS = 120
+PIPELINE_VERSION = "gemini-2.5-generatecontent-search-v1"
 
 # Non-company instruments inside the Pionex RWA screen. They remain visible in
 # S-state, but are intentionally excluded from company/news/earnings research.
@@ -47,7 +62,19 @@ UNDERLYING_OVERRIDES = {
 }
 
 VERDICT_SET = {"strong_positive", "positive", "neutral", "risk", "high_risk"}
-CATEGORY_SET = {"earnings", "guidance", "company_catalyst", "analyst", "sec_capital", "regulatory_legal", "direct_industry"}
+CATEGORY_SET = {
+    "earnings", "guidance", "company_catalyst", "analyst", "sec_capital",
+    "regulatory_legal", "direct_industry"
+}
+
+
+class GeminiHTTPError(RuntimeError):
+    def __init__(self, status: int, detail: str, payload: Any = None, retry_after: int | None = None):
+        super().__init__(f"Gemini HTTP {status}: {detail}")
+        self.status = int(status)
+        self.detail = str(detail)
+        self.payload = payload
+        self.retry_after = retry_after
 
 
 def now_utc() -> datetime:
@@ -137,46 +164,8 @@ events 最多 5 條，只留真正重要的事件。
 """.strip()
 
 
-def extract_interaction_text_sources(response: dict) -> tuple[str, list[dict], list[str]]:
-    """Extract Interactions API model text, inline citations and search queries."""
-    text_parts: list[str] = []
-    sources: list[dict] = []
-    queries: list[str] = []
-    seen_urls: set[str] = set()
-
-    for step in response.get("steps") or []:
-        if not isinstance(step, dict):
-            continue
-        step_type = str(step.get("type") or "")
-        if step_type == "google_search_call":
-            args = step.get("arguments") or {}
-            for q in args.get("queries") or []:
-                q = str(q or "").strip()
-                if q and q not in queries:
-                    queries.append(q)
-        if step_type != "model_output":
-            continue
-        for block in step.get("content") or []:
-            if not isinstance(block, dict) or str(block.get("type") or "") != "text":
-                continue
-            text = str(block.get("text") or "")
-            if text.strip():
-                text_parts.append(text.strip())
-            for anno in block.get("annotations") or []:
-                if not isinstance(anno, dict):
-                    continue
-                url = str(anno.get("url") or anno.get("uri") or anno.get("source") or "").strip()
-                title = str(anno.get("title") or url or "Google Search 來源").strip()
-                if not url or url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                sources.append({"title": title or url, "url": url})
-
-    return "\n".join(text_parts).strip(), sources[:10], queries[:10]
-
-
 def parse_json_text(text: str) -> dict:
-    t = text.strip()
+    t = str(text or "").strip()
     t = re.sub(r"^```(?:json)?\s*", "", t, flags=re.I)
     t = re.sub(r"\s*```$", "", t)
     try:
@@ -185,64 +174,84 @@ def parse_json_text(text: str) -> dict:
             return obj
     except Exception:
         pass
+
     start, end = t.find("{"), t.rfind("}")
     if start >= 0 and end > start:
-        obj = json.loads(t[start:end+1])
+        obj = json.loads(t[start:end + 1])
         if isinstance(obj, dict):
             return obj
-    raise ValueError("Gemini interaction did not contain a JSON object")
+    raise ValueError("Gemini generateContent did not contain a JSON object")
 
 
-def research_schema() -> dict:
-    # Used only by the Gemini 3.x fallback, where structured output can be
-    # combined with built-in Google Search. Gemini 2.5 uses prompt JSON.
-    return {
-        "type": "object",
-        "properties": {
-            "underlying_ticker": {"type": "string"},
-            "company_name": {"type": "string"},
-            "asset_type": {"type": "string"},
-            "verdict": {"type": "string"},
-            "summary": {"type": "string"},
-            "last_earnings": {
-                "type": "object",
-                "properties": {
-                    "date": {"type": "string"},
-                    "eps": {"type": "string"},
-                    "revenue": {"type": "string"},
-                    "guidance": {"type": "string"},
-                },
-                "required": ["date", "eps", "revenue", "guidance"],
-            },
-            "next_earnings_date": {"type": "string"},
-            "events": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "category": {"type": "string"},
-                        "date": {"type": "string"},
-                        "impact": {"type": "string"},
-                        "title": {"type": "string"},
-                        "detail": {"type": "string"},
-                    },
-                    "required": ["category", "date", "impact", "title", "detail"],
-                },
-            },
-        },
-        "required": [
-            "underlying_ticker", "company_name", "asset_type", "verdict",
-            "summary", "last_earnings", "next_earnings_date", "events"
-        ],
-    }
+def extract_generate_content(response: dict) -> tuple[str, list[dict], list[str]]:
+    """Mirror TennisRatio's generateContent response parsing."""
+    text_parts: list[str] = []
+    sources: list[dict] = []
+    queries: list[str] = []
+    seen_urls: set[str] = set()
+
+    for candidate in response.get("candidates") or []:
+        if not isinstance(candidate, dict):
+            continue
+
+        content = candidate.get("content") or {}
+        for part in content.get("parts") or []:
+            if isinstance(part, dict):
+                text = str(part.get("text") or "").strip()
+                if text:
+                    text_parts.append(text)
+
+        metadata = candidate.get("groundingMetadata") or {}
+        for query in metadata.get("webSearchQueries") or []:
+            q = str(query or "").strip()
+            if q and q not in queries:
+                queries.append(q)
+
+        for chunk in metadata.get("groundingChunks") or []:
+            if not isinstance(chunk, dict):
+                continue
+            web = chunk.get("web") or {}
+            url = str(web.get("uri") or "").strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            sources.append({
+                "title": str(web.get("title") or url or "Google Search 來源").strip(),
+                "url": url,
+            })
+
+    text = "\n".join(text_parts).strip()
+    if not text:
+        block_reason = ((response.get("promptFeedback") or {}).get("blockReason"))
+        finish_reason = None
+        candidates = response.get("candidates") or []
+        if candidates and isinstance(candidates[0], dict):
+            finish_reason = candidates[0].get("finishReason")
+        if block_reason:
+            raise RuntimeError(f"Gemini 未回覆，內容被阻擋：{block_reason}")
+        if finish_reason:
+            raise RuntimeError(f"Gemini 回應中沒有可顯示文字：{finish_reason}")
+        raise RuntimeError("Gemini 回應中沒有可顯示文字")
+
+    return text, sources[:10], queries[:10]
 
 
-def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: datetime,
-                     model: str, queries: list[str] | None = None) -> dict:
+def normalize_result(
+    raw: dict,
+    row: dict,
+    sources: list[dict],
+    searched_at: datetime,
+    queries: list[str] | None = None,
+    *,
+    raw_model_text: str = "",
+    format_warning: bool = False,
+    usage: dict | None = None,
+) -> dict:
     symbol = str(row.get("symbol") or "").upper()
     verdict = str(raw.get("verdict") or "neutral").lower()
     if verdict not in VERDICT_SET:
         verdict = "neutral"
+
     events = []
     for event in (raw.get("events") or [])[:5]:
         if not isinstance(event, dict):
@@ -260,7 +269,14 @@ def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: dat
             "title": str(event.get("title") or "")[:180],
             "detail": str(event.get("detail") or "")[:320],
         })
+
     last = raw.get("last_earnings") if isinstance(raw.get("last_earnings"), dict) else {}
+    summary = str(raw.get("summary") or "").strip()
+    if not summary and format_warning:
+        summary = "Gemini 已完成 Google Search，但輸出格式不完整；保留原始摘要供人工判讀。"
+    if not summary:
+        summary = "無重大近期事件"
+
     return {
         "symbol": symbol,
         "api_symbol": row.get("api_symbol"),
@@ -271,7 +287,7 @@ def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: dat
         "company_name": str(raw.get("company_name") or "")[:160],
         "asset_type": str(raw.get("asset_type") or "other")[:40],
         "verdict": verdict,
-        "summary": str(raw.get("summary") or "無重大近期事件")[:300],
+        "summary": summary[:300],
         "last_earnings": {
             "date": last.get("date") or None,
             "eps": str(last.get("eps") or "unknown"),
@@ -282,124 +298,331 @@ def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: dat
         "events": events,
         "sources": sources[:10],
         "web_search_queries": (queries or [])[:10],
-        "model": model,
-        "api": "interactions-v1beta",
+        "model": MODEL,
+        "api": "generateContent-v1beta",
+        "search_mode": "gemini_2_5_flash_google_search",
+        "pipeline_version": PIPELINE_VERSION,
+        "format_warning": bool(format_warning),
+        "raw_model_text": str(raw_model_text or "")[:12000] if format_warning else "",
+        "usage": usage or {},
     }
 
 
-def interaction_request(api_key: str, row: dict, current_time: datetime, model: str) -> dict:
-    """Call the current Interactions API.
+def _retry_after_seconds(headers: Any) -> int | None:
+    try:
+        raw = str(headers.get("Retry-After") or "").strip()
+    except Exception:
+        raw = ""
+    if not raw:
+        return None
+    try:
+        return max(0, int(float(raw)))
+    except Exception:
+        return None
 
-    Gemini 2.5 can use Google Search and can use structured outputs separately,
-    but Google currently documents *structured outputs + built-in tools* as a
-    Gemini 3-series feature. Therefore 2.5 uses prompt-enforced JSON (same safe
-    pattern as TennisRatio); the 3.6 fallback may use response_format.
-    """
-    url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+
+def generate_content_request(api_key: str, row: dict, current_time: datetime) -> dict:
+    """Use the same API family and Google Search tool shape as TennisRatio."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
     payload: dict[str, Any] = {
-        "model": model,
-        "input": prompt_for(row, current_time),
-        "tools": [{"type": "google_search"}],
-        "store": False,
-    }
-    if model.startswith("gemini-3"):
-        payload["response_format"] = {
-            "type": "text",
-            "mime_type": "application/json",
-            "schema": research_schema(),
+        "systemInstruction": {
+            "parts": [{"text": prompt_for(row, current_time)}]
+        },
+        "contents": [{
+            "role": "user",
+            "parts": [{
+                "text": "請立即使用 Google Search 核對這個標的，依系統規則完成新聞、財報、公司事件與風險搜尋，最後只輸出指定 JSON。"
+            }]
+        }],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {
+            "maxOutputTokens": 2600
         }
+    }
+
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(url, data=data, method="POST", headers={
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key,
-    })
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def _explicit_model_unavailable(code: int, detail: str) -> bool:
-    if code != 404:
-        return False
-    lower = detail.lower()
-    return (
-        "no longer available" in lower
-        or "model not found" in lower
-        or "model is not found" in lower
-        or ("not_found" in lower and "model" in lower)
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "x-goog-api-key": api_key,
+        },
     )
 
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")
+        try:
+            payload = json.loads(body)
+        except Exception:
+            payload = {"error": {"message": body}}
+        detail = (
+            ((payload or {}).get("error") or {}).get("message")
+            if isinstance(payload, dict) and isinstance((payload or {}).get("error"), dict)
+            else body
+        )
+        raise GeminiHTTPError(
+            exc.code,
+            str(detail or body)[:2000],
+            payload,
+            _retry_after_seconds(exc.headers),
+        ) from exc
 
-def _research_from_body(body: dict, row: dict, current_time: datetime, requested_model: str) -> dict:
-    status = str(body.get("status") or "completed").lower()
-    if status not in {"completed", "success"}:
-        raise RuntimeError(f"Gemini interaction status={status}")
-    text, sources, queries = extract_interaction_text_sources(body)
-    if not text:
-        raise RuntimeError("Gemini interaction returned no model_output text")
-    raw = parse_json_text(text)
-    actual_model = str(body.get("model") or requested_model)
-    result = normalize_result(raw, row, sources, current_time, actual_model, queries)
-    # Like TennisRatio: do not call a source-less answer 'verified clear'.
-    # Search grounding should leave either citations or explicit search queries.
+
+def _flatten_strings(value: Any, output: list[str] | None = None, depth: int = 0) -> list[str]:
+    if output is None:
+        output = []
+    if depth > 8 or value is None:
+        return output
+    if isinstance(value, (str, int, float, bool)):
+        output.append(str(value))
+        return output
+    if isinstance(value, list):
+        for item in value:
+            _flatten_strings(item, output, depth + 1)
+        return output
+    if isinstance(value, dict):
+        for key, item in value.items():
+            output.append(str(key))
+            _flatten_strings(item, output, depth + 1)
+    return output
+
+
+def classify_failure(exc: Exception) -> dict:
+    """Port the TennisRatio failure buckets that matter for batch safety."""
+    status = exc.status if isinstance(exc, GeminiHTTPError) else None
+    payload = exc.payload if isinstance(exc, GeminiHTTPError) else None
+    retry_after = exc.retry_after if isinstance(exc, GeminiHTTPError) else None
+    text = " ".join(_flatten_strings(payload)) + " " + str(exc)
+    lower = text.lower()
+
+    category = "unknown_error"
+    retryable = False
+    wait_seconds = 0
+    stop_batch = True
+
+    if status == 429:
+        if re.search(r"google.?search|grounding", lower) and re.search(r"per.?day|daily|rpd|quota.?exceeded|exceeded.{0,24}quota|quota.{0,24}exceeded", lower):
+            category = "quota_search_rpd"
+        elif re.search(r"token|input.?token|output.?token", lower) and re.search(r"per.?minute|tpm", lower):
+            category = "rate_limit_tpm"
+            retryable = True
+            wait_seconds = retry_after or RETRY_UNKNOWN_429_SECONDS
+            stop_batch = False
+        elif re.search(r"request|generate.?request", lower) and re.search(r"per.?minute|rpm", lower):
+            category = "rate_limit_rpm"
+            retryable = True
+            wait_seconds = retry_after or RETRY_UNKNOWN_429_SECONDS
+            stop_batch = False
+        elif re.search(r"per.?day|daily|rpd|quota.?exceeded|exceeded.{0,24}quota|quota.{0,24}exceeded", lower):
+            category = "quota_model_rpd"
+        else:
+            category = "rate_limit_unknown_429"
+            retryable = True
+            wait_seconds = retry_after or RETRY_UNKNOWN_429_SECONDS
+            stop_batch = False
+
+    elif status in {500, 502, 503, 504}:
+        category = "service_unavailable_503" if status == 503 else "service_unavailable_5xx"
+        retryable = True
+        wait_seconds = retry_after or RETRY_503_SECONDS
+        stop_batch = False
+
+    elif status in {401, 403}:
+        category = "auth_401_403"
+
+    elif status == 404:
+        category = "model_unavailable_404"
+
+    elif status == 413:
+        category = "request_too_large_413"
+
+    elif isinstance(exc, (TimeoutError, urllib.error.URLError)):
+        category = "network_timeout"
+        retryable = True
+        wait_seconds = RETRY_NETWORK_SECONDS
+        stop_batch = False
+
+    elif isinstance(exc, ValueError):
+        category = "format_error"
+        retryable = False
+        stop_batch = False
+
+    messages = {
+        "quota_search_rpd": "Google Search Grounding 今日額度已達上限",
+        "quota_model_rpd": "Gemini 今日模型請求額度已達上限",
+        "rate_limit_tpm": "Gemini 每分鐘 Token 限制（TPM）",
+        "rate_limit_rpm": "Gemini 每分鐘請求限制（RPM）",
+        "rate_limit_unknown_429": "Gemini 暫時受到使用限制（HTTP 429）",
+        "service_unavailable_503": "Gemini 服務暫時壅塞（HTTP 503）",
+        "service_unavailable_5xx": "Gemini 上游服務暫時異常",
+        "auth_401_403": "Gemini API Key 或專案權限錯誤",
+        "model_unavailable_404": "目前 API Key 無法使用 gemini-2.5-flash",
+        "request_too_large_413": "Gemini 請求內容過大",
+        "network_timeout": "Gemini 連線逾時或網路失敗",
+        "format_error": "Gemini 已回覆但 JSON 格式不完整",
+        "unknown_error": "Gemini 未知錯誤",
+    }
+
+    return {
+        "category": category,
+        "summary": messages.get(category, messages["unknown_error"]),
+        "retryable": retryable,
+        "wait_seconds": int(wait_seconds or 0),
+        "stop_batch": stop_batch,
+        "http_status": status,
+        "technical_error": str(exc)[:1200],
+    }
+
+
+def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
+    text, sources, queries = extract_generate_content(body)
+
+    # Exactly like TennisRatio's safe pattern: a formatting miss after a real
+    # grounded search does not trigger a second search request and waste quota.
+    format_warning = False
+    try:
+        raw = parse_json_text(text)
+    except Exception:
+        raw = {
+            "underlying_ticker": underlying_hint(str(row.get("symbol") or "")),
+            "company_name": "",
+            "asset_type": "other",
+            "verdict": "neutral",
+            "summary": text[:280],
+            "last_earnings": {
+                "date": "",
+                "eps": "unknown",
+                "revenue": "unknown",
+                "guidance": "unknown",
+            },
+            "next_earnings_date": "",
+            "events": [],
+        }
+        format_warning = True
+
+    # A result is only eligible for 24H success cache if Google Search actually
+    # left grounding evidence (source URLs or explicit web search queries).
     if not sources and not queries:
         raise RuntimeError("Gemini returned text but no Google Search grounding/citations")
+
+    result = normalize_result(
+        raw,
+        row,
+        sources,
+        current_time,
+        queries,
+        raw_model_text=text,
+        format_warning=format_warning,
+        usage=body.get("usageMetadata") if isinstance(body.get("usageMetadata"), dict) else {},
+    )
+
+    if format_warning:
+        result["verification_status"] = "MANUAL_REVIEW"
+    else:
+        result["verification_status"] = "GROUNDED"
     return result
 
 
-def gemini_search(api_key: str, row: dict, current_time: datetime) -> dict:
-    """Gemini 2.5 Flash on Interactions is primary.
+def gemini_search(api_key: str, row: dict, current_time: datetime) -> tuple[dict | None, dict | None]:
+    """Return (result, failure). At most two attempts, TennisRatio-style."""
+    previous_failure: dict | None = None
 
-    Only an explicit 2.5 model-unavailable 404 switches to Gemini 3.6 Flash.
-    Transient 429/5xx/network errors are retried on the same model, so an API
-    outage cannot silently change the configured research model.
-    """
-    model = PRIMARY_MODEL
-    last_error: Exception | None = None
-
-    for attempt in range(3):
+    for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            body = interaction_request(api_key, row, current_time, model)
-            return _research_from_body(body, row, current_time, model)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:1600]
-            last_error = RuntimeError(f"Gemini HTTP {exc.code}: {detail}")
-            if _explicit_model_unavailable(exc.code, detail):
-                print(f"::warning::{PRIMARY_MODEL} unavailable on Interactions; fallback to {FALLBACK_MODEL}")
-                model = FALLBACK_MODEL
-                break
-            if exc.code not in {429, 500, 502, 503, 504}:
-                raise last_error
-            if attempt < 2:
-                time.sleep(15 * (attempt + 1))
+            body = generate_content_request(api_key, row, current_time)
+            result = response_to_result(body, row, current_time)
+            result["attempt_count"] = attempt
+            result["retry_count"] = attempt - 1
+            return result, None
         except Exception as exc:
-            last_error = exc
-            # Parsing/grounding problems are not transport failures; retrying the
-            # same grounded search wastes quota and may create duplicate news calls.
-            if isinstance(exc, (ValueError, json.JSONDecodeError)) or "grounding" in str(exc).lower():
-                raise RuntimeError(str(exc))
-            if attempt < 2:
-                time.sleep(8 * (attempt + 1))
+            failure = classify_failure(exc)
+            failure["attempt_count"] = attempt
+            failure["retry_count"] = attempt - 1
 
-    if model == FALLBACK_MODEL:
-        for attempt in range(3):
-            try:
-                body = interaction_request(api_key, row, current_time, model)
-                return _research_from_body(body, row, current_time, model)
-            except urllib.error.HTTPError as exc:
-                detail = exc.read().decode("utf-8", "replace")[:1600]
-                last_error = RuntimeError(f"Gemini HTTP {exc.code}: {detail}")
-                if exc.code not in {429, 500, 502, 503, 504}:
-                    raise last_error
-                if attempt < 2:
-                    time.sleep(15 * (attempt + 1))
-            except Exception as exc:
-                last_error = exc
-                if isinstance(exc, (ValueError, json.JSONDecodeError)) or "grounding" in str(exc).lower():
-                    raise RuntimeError(str(exc))
-                if attempt < 2:
-                    time.sleep(8 * (attempt + 1))
+            if not failure["retryable"]:
+                return None, failure
 
-    raise RuntimeError(str(last_error or "Gemini Interactions request failed"))
+            if attempt >= MAX_ATTEMPTS:
+                # TennisRatio rule: if the second transient attempt still fails,
+                # stop the whole batch rather than hammering every remaining symbol.
+                failure["stop_batch"] = True
+                failure["summary"] = f"{failure['summary']}；第二次仍失敗，本輪停止"
+                return None, failure
+
+            wait_seconds = max(1, int(failure.get("wait_seconds") or RETRY_UNKNOWN_429_SECONDS))
+            print(
+                f"::warning::{row.get('symbol')} {failure['category']} - "
+                f"等待 {wait_seconds}s 後只重試目前標的一次"
+            )
+            time.sleep(wait_seconds)
+            previous_failure = failure
+
+    return None, previous_failure or {
+        "category": "unknown_error",
+        "summary": "Gemini 未知錯誤",
+        "retryable": False,
+        "wait_seconds": 0,
+        "stop_batch": True,
+        "http_status": None,
+        "technical_error": "unknown",
+        "attempt_count": MAX_ATTEMPTS,
+        "retry_count": MAX_ATTEMPTS - 1,
+    }
+
+
+def base_item(row: dict) -> dict:
+    return {
+        "symbol": str(row.get("symbol") or "").upper(),
+        "api_symbol": row.get("api_symbol"),
+        "state": market_state(row),
+        "price": row.get("price"),
+    }
+
+
+def error_item(row: dict, failure: dict) -> dict:
+    base = base_item(row)
+    return {
+        **base,
+        "research_status": "ERROR",
+        "verdict": "neutral",
+        "summary": str(failure.get("summary") or "Gemini 搜尋失敗，本次不建立臆測內容。"),
+        "events": [],
+        "sources": [],
+        "research_error": str(failure.get("technical_error") or failure.get("summary") or "")[:800],
+        "failure_type": failure.get("category"),
+        "http_status": failure.get("http_status"),
+        "attempt_count": failure.get("attempt_count"),
+        "retry_count": failure.get("retry_count"),
+        "model": MODEL,
+        "api": "generateContent-v1beta",
+        "search_mode": "gemini_2_5_flash_google_search",
+        "pipeline_version": PIPELINE_VERSION,
+    }
+
+
+def deferred_item(row: dict, stop_failure: dict) -> dict:
+    base = base_item(row)
+    cause = str(stop_failure.get("summary") or stop_failure.get("category") or "前一筆 Gemini 錯誤")
+    return {
+        **base,
+        "research_status": "DEFERRED",
+        "verdict": "neutral",
+        "summary": "本輪 Gemini 批次已停止；此標的尚未送出搜尋，保留到下一輪。",
+        "events": [],
+        "sources": [],
+        "research_error": f"未呼叫 Gemini。停止原因：{cause}"[:800],
+        "failure_type": "batch_stopped_before_request",
+        "model": MODEL,
+        "api": "generateContent-v1beta",
+        "search_mode": "gemini_2_5_flash_google_search",
+        "pipeline_version": PIPELINE_VERSION,
+    }
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -410,11 +633,14 @@ def main() -> int:
     args = ap.parse_args()
 
     snapshot = read_json(Path(args.snapshot), {})
-    cache = read_json(Path(args.cache), {"schema_version": "1.0", "ttl_hours": 24, "entries": {}})
+    cache = read_json(
+        Path(args.cache),
+        {"schema_version": "1.0", "ttl_hours": 24, "entries": {}},
+    )
     entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
     current = now_utc()
 
-    # Keep a small stale window for fallback only; normal reuse is strictly <24h.
+    # Keep a small stale window for fallback display only; normal reuse is <24h.
     pruned = {}
     for symbol, entry in entries.items():
         stamp = parse_dt((entry or {}).get("searched_at"))
@@ -422,20 +648,57 @@ def main() -> int:
             pruned[str(symbol).upper()] = entry
     entries = pruned
 
-    rows = [r for r in (snapshot.get("records") or []) if market_state(r) in ELIGIBLE_STATES]
-    rows.sort(key=lambda r: ({"S3": 0, "S0.5": 1, "S1": 2}.get(market_state(r), 9), str(r.get("symbol") or "")))
+    rows = [
+        r for r in (snapshot.get("records") or [])
+        if market_state(r) in ELIGIBLE_STATES
+    ]
+    rows.sort(
+        key=lambda r: (
+            {"S3": 0, "S0.5": 1, "S1": 2}.get(market_state(r), 9),
+            str(r.get("symbol") or ""),
+        )
+    )
 
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    items = []
-    counts = {"new_search": 0, "cache_24h": 0, "stale_cache": 0, "error": 0, "skipped_non_company": 0}
+    items: list[dict] = []
+    counts = {
+        "new_search": 0,
+        "cache_24h": 0,
+        "stale_cache": 0,
+        "error": 0,
+        "deferred": 0,
+        "skipped_non_company": 0,
+    }
 
-    for row in rows:
+    stop_batch = False
+    stop_failure: dict | None = None
+
+    def next_needs_api(start_index: int) -> bool:
+        for later in rows[start_index:]:
+            symbol = str(later.get("symbol") or "").upper()
+            if symbol in NON_COMPANY:
+                continue
+            old = entries.get(symbol)
+            stamp = parse_dt((old or {}).get("searched_at"))
+            if old and stamp and current - stamp < CACHE_TTL:
+                continue
+            return True
+        return False
+
+    for row_index, row in enumerate(rows):
         symbol = str(row.get("symbol") or "").upper()
         state = market_state(row)
-        base = {"symbol": symbol, "api_symbol": row.get("api_symbol"), "state": state, "price": row.get("price")}
+        base = base_item(row)
 
         if symbol in NON_COMPANY:
-            items.append({**base, "research_status": "SKIPPED_NON_COMPANY", "verdict": "neutral", "summary": "非公司型商品/ETF，依設定不執行公司新聞與財報搜尋。", "events": [], "sources": []})
+            items.append({
+                **base,
+                "research_status": "SKIPPED_NON_COMPANY",
+                "verdict": "neutral",
+                "summary": "非公司型商品/ETF，依設定不執行公司新聞與財報搜尋。",
+                "events": [],
+                "sources": [],
+            })
             counts["skipped_non_company"] += 1
             continue
 
@@ -449,7 +712,33 @@ def main() -> int:
             counts["cache_24h"] += 1
             continue
 
+        if stop_batch:
+            # Do NOT keep hitting the API once TennisRatio-style batch-stop is active.
+            if old:
+                reused = dict(old)
+                reused.update(base)
+                reused["research_status"] = "STALE_CACHE"
+                reused["research_error"] = (
+                    "本輪批次已停止，沿用超過24H的舊結果；"
+                    + str((stop_failure or {}).get("summary") or "")
+                )[:800]
+                items.append(reused)
+                counts["stale_cache"] += 1
+            else:
+                items.append(deferred_item(row, stop_failure or {}))
+                counts["deferred"] += 1
+            continue
+
         if not api_key:
+            failure = {
+                "category": "configuration_error",
+                "summary": "尚未設定 GEMINI_API_KEY，未執行新聞搜尋。",
+                "technical_error": "GEMINI_API_KEY missing",
+                "http_status": None,
+                "attempt_count": 0,
+                "retry_count": 0,
+                "stop_batch": True,
+            }
             if old:
                 reused = dict(old)
                 reused.update(base)
@@ -458,65 +747,127 @@ def main() -> int:
                 items.append(reused)
                 counts["stale_cache"] += 1
             else:
-                items.append({**base, "research_status": "ERROR", "verdict": "neutral", "summary": "尚未設定 GEMINI_API_KEY，未執行新聞搜尋。", "events": [], "sources": [], "research_error": "GEMINI_API_KEY missing"})
+                items.append(error_item(row, failure))
                 counts["error"] += 1
+            stop_batch = True
+            stop_failure = failure
             continue
 
-        try:
-            result = gemini_search(api_key, row, current)
+        result, failure = gemini_search(api_key, row, current)
+
+        if result:
+            # Only grounded success enters the 24H cache.
             entries[symbol] = result
             item = dict(result)
             item.update(base)
             item["research_status"] = "NEW_SEARCH"
             items.append(item)
             counts["new_search"] += 1
-            print(f"[Gemini] {symbol} {state} -> {result.get('verdict')} ({len(result.get('sources') or [])} sources)")
-        except Exception as exc:
-            if old:
-                reused = dict(old)
-                reused.update(base)
-                reused["research_status"] = "STALE_CACHE"
-                reused["research_error"] = str(exc)[:500]
-                items.append(reused)
-                counts["stale_cache"] += 1
-            else:
-                items.append({**base, "research_status": "ERROR", "verdict": "neutral", "summary": "Gemini 搜尋失敗，本次不建立臆測內容。", "events": [], "sources": [], "research_error": str(exc)[:500]})
-                counts["error"] += 1
-            print(f"::warning::{symbol} Gemini research failed: {exc}")
+            print(
+                f"[Gemini] {symbol} {state} -> {result.get('verdict')} "
+                f"({len(result.get('sources') or [])} sources, "
+                f"{len(result.get('web_search_queries') or [])} queries)"
+            )
 
-        # Mirror the proven TennisRatio pattern: do not burst many grounded searches.
-        # With the 24H cache this normally affects only newly eligible symbols.
-        if row is not rows[-1]:
-            time.sleep(SEARCH_DELAY_SECONDS)
+            # TennisRatio proven pacing: cooldown only when another uncached
+            # symbol still needs a real API request.
+            if next_needs_api(row_index + 1):
+                cooldown = random.randint(
+                    SEARCH_DELAY_MIN_SECONDS,
+                    SEARCH_DELAY_MAX_SECONDS,
+                )
+                print(f"[Gemini] cooldown {cooldown}s before next NEW search")
+                time.sleep(cooldown)
+            continue
+
+        failure = failure or {
+            "category": "unknown_error",
+            "summary": "Gemini 搜尋失敗",
+            "technical_error": "unknown",
+            "http_status": None,
+            "attempt_count": 1,
+            "retry_count": 0,
+            "stop_batch": True,
+        }
+
+        if old:
+            reused = dict(old)
+            reused.update(base)
+            reused["research_status"] = "STALE_CACHE"
+            reused["research_error"] = str(failure.get("technical_error") or failure.get("summary") or "")[:800]
+            reused["failure_type"] = failure.get("category")
+            items.append(reused)
+            counts["stale_cache"] += 1
+        else:
+            items.append(error_item(row, failure))
+            counts["error"] += 1
+
+        print(
+            f"::warning::{symbol} Gemini research failed "
+            f"[{failure.get('category')}]: {failure.get('technical_error')}"
+        )
+
+        if failure.get("stop_batch"):
+            stop_batch = True
+            stop_failure = failure
+            print(
+                f"::warning::Gemini batch stopped after {symbol}; "
+                "remaining uncached symbols will NOT call the API this round."
+            )
 
     cache_out = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "ttl_hours": 24,
         "updated_at": iso(current),
+        "model": MODEL,
+        "api": "generateContent-v1beta",
+        "pipeline_version": PIPELINE_VERSION,
         "entries": entries,
     }
-    items_by_symbol = {str(i.get("symbol") or "").upper(): i for i in items if i.get("symbol")}
+
+    items_by_symbol = {
+        str(i.get("symbol") or "").upper(): i
+        for i in items if i.get("symbol")
+    }
     latest = {
-        "schema_version": "1.0",
-        "model": PRIMARY_MODEL,
-        "fallback_model": FALLBACK_MODEL,
-        "api": "interactions-v1beta",
+        "schema_version": "1.1",
+        "model": MODEL,
+        "api": "generateContent-v1beta",
+        "search_mode": "gemini_2_5_flash_google_search",
+        "pipeline_version": PIPELINE_VERSION,
         "generated_at": iso(current),
         "snapshot_generated_at": (snapshot.get("batch") or {}).get("generated_at_taiwan"),
         "eligible_states": ["S3", "S0.5", "S1"],
         "cache_ttl_hours": 24,
+        "search_delay_seconds": [SEARCH_DELAY_MIN_SECONDS, SEARCH_DELAY_MAX_SECONDS],
         "eligible_count": len(rows),
         "new_search_count": counts["new_search"],
         "cache_hit_count": counts["cache_24h"],
         "stale_cache_count": counts["stale_cache"],
         "error_count": counts["error"],
+        "deferred_count": counts["deferred"],
         "skipped_non_company_count": counts["skipped_non_company"],
+        "batch_stopped": stop_batch,
+        "batch_stop_failure": stop_failure,
         "items": items,
         "items_by_symbol": items_by_symbol,
     }
+
     write_json(Path(args.out_cache), cache_out)
     write_json(Path(args.out_latest), latest)
-    print(json.dumps({k: latest[k] for k in ["eligible_count", "new_search_count", "cache_hit_count", "stale_cache_count", "error_count", "skipped_non_company_count"]}, ensure_ascii=False))
+
+    print(json.dumps({
+        key: latest[key] for key in [
+            "eligible_count",
+            "new_search_count",
+            "cache_hit_count",
+            "stale_cache_count",
+            "error_count",
+            "deferred_count",
+            "skipped_non_company_count",
+            "batch_stopped",
+        ]
+    }, ensure_ascii=False))
     return 0
 
 

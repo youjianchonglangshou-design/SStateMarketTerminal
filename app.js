@@ -706,15 +706,24 @@
   }
 
   function researchStatusLabel(value) {
-    return ({NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
+    return ({NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',DEFERRED:'待下輪',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
   }
 
   function renderResearch(r) {
     if (state.market !== 'us-stock') return '';
     const info = currentResearchFor(r?.symbol);
     if (!info) return '';
-    const isError = String(info.research_status || '') === 'ERROR';
-    const [cls,label] = isError ? ['risk','⚠ 搜尋失敗'] : researchVerdictMeta(info.verdict);
+    const researchStatus = String(info.research_status || '');
+    const isError = researchStatus === 'ERROR';
+    const isDeferred = researchStatus === 'DEFERRED';
+    const isManualReview = Boolean(info.format_warning) || String(info.verification_status || '') === 'MANUAL_REVIEW';
+    const [cls,label] = isError
+      ? ['risk','⚠ 搜尋失敗']
+      : isDeferred
+        ? ['neutral','⏸ 未搜尋']
+        : isManualReview
+          ? ['neutral','ℹ 人工判讀']
+          : researchVerdictMeta(info.verdict);
     const statusLabel = researchStatusLabel(info.research_status);
     const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || String(r?.symbol || '');
     const events = Array.isArray(info.events) ? info.events.slice(0,5) : [];

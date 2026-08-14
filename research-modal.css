@@ -1,0 +1,150 @@
+/* v0.1.25 — click-to-open, top-layer research modal */
+
+/* Disable the old hover popup completely. The pill is now an explicit click target. */
+.research-wrap:hover .research-card,
+.research-wrap:focus-within .research-card{
+  opacity:0 !important;
+  visibility:hidden !important;
+  transform:none !important;
+  pointer-events:none !important;
+}
+
+.research-pill{
+  position:relative;
+  cursor:pointer !important;
+  user-select:none;
+  -webkit-user-select:none;
+  transition:transform .16s ease,filter .16s ease,box-shadow .16s ease !important;
+  animation:research-pill-breathe 2.55s ease-in-out infinite;
+  outline:none;
+}
+.research-pill:hover{
+  transform:translateY(-1px);
+  filter:brightness(1.14);
+}
+.research-pill:focus-visible{
+  box-shadow:0 0 0 2px #0f172a,0 0 0 3px #67e8f9,0 0 16px rgba(34,211,238,.34) !important;
+}
+.research-pill::after{
+  content:"";
+  position:absolute;
+  inset:-3px;
+  border:1px solid currentColor;
+  border-radius:999px;
+  opacity:0;
+  pointer-events:none;
+  animation:research-pill-halo 2.55s ease-out infinite;
+}
+@keyframes research-pill-breathe{
+  0%,100%{filter:brightness(.96);box-shadow:0 0 0 rgba(34,211,238,0)}
+  50%{filter:brightness(1.12);box-shadow:0 0 11px color-mix(in srgb,currentColor 27%,transparent)}
+}
+@keyframes research-pill-halo{
+  0%,100%{opacity:0;transform:scale(.94)}
+  45%{opacity:.28;transform:scale(1.03)}
+  75%{opacity:0;transform:scale(1.10)}
+}
+
+body.research-modal-open{
+  overflow:hidden;
+}
+body.research-modal-open .tv-crosshair{
+  visibility:hidden !important;
+}
+
+.research-modal-layer{
+  position:fixed;
+  inset:0;
+  z-index:2147483000;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:rgba(2,8,23,.64);
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
+  opacity:0;
+  transition:opacity .15s ease;
+}
+.research-modal-layer.is-open{
+  opacity:1;
+}
+
+/* This is a CLONE of the card appended directly under <body>, so it is no longer
+   trapped inside the chart/card stacking context. It is always the top UI layer. */
+.research-card.research-card-modal{
+  position:relative !important;
+  inset:auto !important;
+  right:auto !important;
+  top:auto !important;
+  left:auto !important;
+  width:min(680px,calc(100vw - 48px)) !important;
+  max-width:680px !important;
+  max-height:min(82vh,760px) !important;
+  overflow:auto !important;
+  margin:0 !important;
+  padding:16px !important;
+  border:1px solid #64748b !important;
+  border-radius:13px !important;
+  background:#0b1322 !important;
+  box-shadow:0 28px 90px rgba(0,0,0,.78),0 0 0 1px rgba(255,255,255,.03) !important;
+  opacity:1 !important;
+  visibility:visible !important;
+  transform:translateY(8px) scale(.985) !important;
+  pointer-events:auto !important;
+  z-index:1 !important;
+  text-align:left !important;
+  transition:transform .16s ease,opacity .16s ease !important;
+}
+.research-modal-layer.is-open .research-card.research-card-modal{
+  transform:none !important;
+}
+
+.research-card-modal .research-title{
+  padding-right:40px !important;
+  position:relative;
+}
+.research-modal-close{
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:3;
+  width:29px;
+  height:29px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:1px solid #475569;
+  border-radius:8px;
+  background:#111c2d;
+  color:#cbd5e1;
+  font:700 20px/1 ui-sans-serif,system-ui,sans-serif;
+  cursor:pointer;
+  transition:.14s ease;
+}
+.research-modal-close:hover,
+.research-modal-close:focus-visible{
+  border-color:#67e8f9;
+  color:#fff;
+  background:#164e63;
+  box-shadow:0 0 14px rgba(34,211,238,.22);
+  outline:none;
+}
+
+.research-card-modal::-webkit-scrollbar{width:8px}
+.research-card-modal::-webkit-scrollbar-track{background:#0f172a;border-radius:999px}
+.research-card-modal::-webkit-scrollbar-thumb{background:#475569;border-radius:999px}
+.research-card-modal::-webkit-scrollbar-thumb:hover{background:#64748b}
+
+@media(max-width:760px){
+  .research-modal-layer{padding:12px}
+  .research-card.research-card-modal{
+    width:calc(100vw - 24px) !important;
+    max-height:86vh !important;
+    padding:13px !important;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .research-pill,.research-pill::after{animation:none !important}
+  .research-modal-layer,.research-card.research-card-modal{transition:none !important}
+}

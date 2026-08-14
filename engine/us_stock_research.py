@@ -20,15 +20,14 @@ import os
 import random
 import re
 import time
-import urllib.error
-import urllib.request
+import groq
+from groq import Groq
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 TW = timezone(timedelta(hours=8))
 MODEL = "openai/gpt-oss-120b"
-GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 ELIGIBLE_STATES = {"S3", "S0.5", "S1"}
 CACHE_TTL = timedelta(hours=24)
 STALE_KEEP = timedelta(days=7)
@@ -40,7 +39,7 @@ RETRY_UNKNOWN_429_SECONDS = 90
 RETRY_503_SECONDS = 30
 RETRY_NETWORK_SECONDS = 20
 REQUEST_TIMEOUT_SECONDS = 120
-PIPELINE_VERSION = "gpt-oss-120b-groq-browser-search-v1"
+PIPELINE_VERSION = "gpt-oss-120b-groq-sdk-browser-search-v2"
 
 # Non-company instruments inside the Pionex RWA screen. They remain visible in
 # S-state, but are intentionally excluded from company/news/earnings research.
@@ -369,53 +368,73 @@ def _retry_after_seconds(headers: Any) -> int | None:
 
 
 def groq_browser_search_request(api_key: str, row: dict, current_time: datetime) -> dict:
-    """Call GPT-OSS 120B through Groq with built-in Browser Search."""
-    payload: dict[str, Any] = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": prompt_for(row, current_time)},
-            {
-                "role": "user",
-                "content": "請立即使用 Browser Search 核對這個標的，依系統規則完成新聞、財報、公司事件與風險搜尋，最後只輸出指定 JSON。",
-            },
-        ],
-        "tools": [{"type": "browser_search"}],
-        "tool_choice": "required",
-        "max_completion_tokens": 2600,
-        "stream": False,
-    }
+    """Call GPT-OSS 120B through Groq's official Python SDK with Browser Search.
 
-    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        GROQ_CHAT_COMPLETIONS_URL,
-        data=data,
-        method="POST",
-        headers={
-            "Content-Type": "application/json; charset=utf-8",
-            "Authorization": f"Bearer {api_key}",
-        },
-    )
-
+    Important: use Groq's supported SDK/httpx transport instead of urllib. The
+    prior urllib transport could be rejected by Cloudflare with Error 1010
+    (client/browser signature), even when the API key itself was valid.
+    """
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", "replace")
-        try:
-            payload = json.loads(body)
-        except Exception:
-            payload = {"error": {"message": body}}
-        detail = (
-            ((payload or {}).get("error") or {}).get("message")
-            if isinstance(payload, dict) and isinstance((payload or {}).get("error"), dict)
-            else body
+        client = Groq(
+            api_key=api_key,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=0,  # keep the existing SState retry/pacing policy in this file
         )
+        completion = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": prompt_for(row, current_time)},
+                {
+                    "role": "user",
+                    "content": "請立即使用 Browser Search 核對這個標的，依系統規則完成新聞、財報、公司事件與風險搜尋，最後只輸出指定 JSON。",
+                },
+            ],
+            tools=[{"type": "browser_search"}],
+            tool_choice="required",
+            max_completion_tokens=2600,
+            stream=False,
+        )
+        return completion.to_dict()
+
+    except groq.APIStatusError as exc:
+        status = int(getattr(exc, "status_code", 0) or 0)
+        response = getattr(exc, "response", None)
+        payload: Any = None
+        detail = str(exc)
+        retry_after = None
+
+        if response is not None:
+            try:
+                payload = response.json()
+            except Exception:
+                try:
+                    body = response.text
+                except Exception:
+                    body = str(exc)
+                payload = {"error": {"message": body}}
+            try:
+                retry_after = _retry_after_seconds(response.headers)
+            except Exception:
+                retry_after = None
+
+        if isinstance(payload, dict):
+            err = payload.get("error")
+            if isinstance(err, dict):
+                detail = str(err.get("message") or err.get("error") or detail)
+            elif err:
+                detail = str(err)
+
         raise GroqHTTPError(
-            exc.code,
-            str(detail or body)[:2000],
+            status or 500,
+            detail[:2000],
             payload,
-            _retry_after_seconds(exc.headers),
+            retry_after,
         ) from exc
+
+    except groq.APITimeoutError as exc:
+        raise TimeoutError(f"Groq request timeout: {exc}") from exc
+    except groq.APIConnectionError as exc:
+        raise ConnectionError(f"Groq connection error: {exc}") from exc
 
 
 def _flatten_strings(value: Any, output: list[str] | None = None, depth: int = 0) -> list[str]:
@@ -477,8 +496,14 @@ def classify_failure(exc: Exception) -> dict:
         wait_seconds = retry_after or RETRY_503_SECONDS
         stop_batch = False
 
-    elif status in {401, 403}:
-        category = "auth_401_403"
+    elif status == 403 and re.search(r"(?:error\s*code[:\s-]*1010|\b1010\b|browser.?signature)", lower):
+        category = "edge_signature_1010"
+
+    elif status == 401:
+        category = "auth_401"
+
+    elif status == 403:
+        category = "permission_403"
 
     elif status == 404:
         category = "model_unavailable_404"
@@ -486,7 +511,7 @@ def classify_failure(exc: Exception) -> dict:
     elif status == 413:
         category = "request_too_large_413"
 
-    elif isinstance(exc, (TimeoutError, urllib.error.URLError)):
+    elif isinstance(exc, (TimeoutError, ConnectionError)):
         category = "network_timeout"
         retryable = True
         wait_seconds = RETRY_NETWORK_SECONDS
@@ -505,7 +530,9 @@ def classify_failure(exc: Exception) -> dict:
         "rate_limit_unknown_429": "Groq GPT-OSS 暫時受到使用限制（HTTP 429）",
         "service_unavailable_503": "Groq 服務暫時壅塞（HTTP 503）",
         "service_unavailable_5xx": "Groq 上游服務暫時異常",
-        "auth_401_403": "Groq API Key 或模型權限錯誤",
+        "edge_signature_1010": "Groq/Cloudflare 阻擋舊 HTTP 客戶端簽章（Error 1010）",
+        "auth_401": "Groq API Key 驗證失敗（HTTP 401）",
+        "permission_403": "Groq 模型或專案權限不足（HTTP 403）",
         "model_unavailable_404": "目前 Groq API Key 無法使用 openai/gpt-oss-120b",
         "request_too_large_413": "GPT-OSS 請求內容過大",
         "network_timeout": "Groq 連線逾時或網路失敗",

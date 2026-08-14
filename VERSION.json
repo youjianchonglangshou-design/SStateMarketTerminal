@@ -1,7 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.17｜SAMPLE-DOT-FIX",
-  "stage": "SAMPLE-DOT-FIX",
+  "app_version": "TERMINAL v0.1.18｜AUTO-BATCH",
+  "stage": "AUTO-BATCH",
   "features": [
+    "Cloudflare Cron Auto Batch: every 4 hours at Taiwan 00:01/04:01/08:01/12:01/16:01/20:01 runs Crypto then US-stock sequentially",
+    "Taiwan 21:31 Auto Batch runs US-stock only",
+    "Website polls global Auto Batch status; Full Analysis button becomes dark ⚡🚫 and disabled while scheduled analysis is active",
+    "Manual analysis remains market-specific outside Auto Batch: selected Crypto runs only Crypto; selected US-stock runs only US-stock",
+    "Auto jobs share each market concurrency lane with manual jobs, preventing same-market overlap; queue:max prevents pending-run replacement",
+    "Auto Batch status is stored in one overwritten R2 object automation/latest/status.json with stale-lock protection",
     "Fix sample-tier denominator: use Active Champion training.cases_count and repaint cards after Champion metadata loads",
     "Sample-dot tier color is also written inline so stale CSS cache cannot hide the tier color",
     "Only the sample dot changes color by sample tier (SSR/SR/R/N/C) while the sample capsule text stays unchanged",

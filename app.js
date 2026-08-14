@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -66,20 +66,62 @@
   const showToast = (message, timeout=5000) => { els.toast.textContent = message; els.toast.classList.remove("hidden"); clearTimeout(showToast.t); showToast.t=setTimeout(()=>els.toast.classList.add("hidden"), timeout); };
 
 
+  function autoBatchTitle() {
+    const s = state.autoBatchStatus || {};
+    const phase = String(s.phase || '').toUpperCase();
+    if (phase === 'CRYPTO') return '自動排程分析進行中｜目前：加密貨幣分析｜完成後將自動分析美股代幣';
+    if (phase === 'US_STOCK') return '自動排程分析進行中｜目前：美股代幣分析';
+    if (String(s.mode || '') === 'us-stock-only') return '自動排程分析進行中｜等待美股代幣分析';
+    return '自動排程分析進行中｜等待加密貨幣分析，完成後將自動分析美股代幣';
+  }
+
+  function updateActionState() {
+    const manualBusy = Boolean(state.analysisBusy);
+    const autoBusy = Boolean(state.autoBatchBusy);
+    els.run.disabled = manualBusy || autoBusy;
+    els.run.classList.toggle('auto-batch-locked', autoBusy);
+    els.run.textContent = autoBusy ? '⚡🚫 完整分析' : '⚡ 完整分析';
+    els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : `只分析目前選取的${marketLabel(state.market)}`);
+    // Manual run keeps the selector frozen exactly as before. Auto Batch only locks execution;
+    // the user can still switch Crypto / US-stock to inspect the last completed snapshot.
+    els.market.disabled = manualBusy;
+    updateDownloadButton();
+  }
+
   function updateDownloadButton() {
-    const busy = Boolean(state.analysisBusy);
+    const busy = Boolean(state.analysisBusy || state.autoBatchBusy);
     els.download.disabled = busy;
     els.download.textContent = busy ? marketJsonButtonBusyLabel(state.market) : marketJsonButtonLabel(state.market);
     els.download.title = busy
-      ? "完整分析進行中，完成後才能下載最新 JSON"
+      ? (state.autoBatchBusy ? `${autoBatchTitle()}｜完成後才能下載最新 JSON` : '完整分析進行中，完成後才能下載最新 JSON')
       : `下載 ${marketLabel(state.market)}｜${marketFilename(state.market)}`;
   }
 
   function setAnalysisBusy(busy) {
     state.analysisBusy = Boolean(busy);
-    els.run.disabled = state.analysisBusy;
-    els.market.disabled = state.analysisBusy;
-    updateDownloadButton();
+    updateActionState();
+  }
+
+  function applyAutoBatchStatus(payload) {
+    const wasBusy = Boolean(state.autoBatchBusy);
+    state.autoBatchStatus = payload || null;
+    state.autoBatchBusy = Boolean(payload?.busy || ['QUEUED','RUNNING'].includes(String(payload?.status || '').toUpperCase()));
+    updateActionState();
+    if (wasBusy && !state.autoBatchBusy) {
+      Promise.all([loadSnapshot(), loadModelBattle()]).catch(()=>{});
+    }
+  }
+
+  async function pollAutomationStatus() {
+    clearTimeout(state.autoBatchTimer);
+    if (!workerUrl) return;
+    try {
+      const payload = await fetchJson(`${workerUrl}/api/automation/status?t=${Date.now()}`);
+      applyAutoBatchStatus(payload);
+    } catch (_) {
+      // Do not lock the UI merely because the status endpoint is temporarily unreachable.
+    }
+    state.autoBatchTimer = setTimeout(pollAutomationStatus, 5000);
   }
 
   function setBattleExpanded(expanded, markSeen=true) {
@@ -799,6 +841,7 @@
 
   async function startFullAnalysis() {
     if (!workerUrl) { showToast('尚未設定 Cloudflare Worker。先部署 cloudflare/worker.js，再把 URL 填到 config.js。',7000); return; }
+    if (state.autoBatchBusy) { showToast(autoBatchTitle(), 7000); return; }
     setAnalysisBusy(true);
     setRunUi(true,0,'正在送出 GitHub Actions…','建立本次 run_id');
     try {
@@ -848,7 +891,7 @@
   }
 
   async function downloadCurrentJson(){
-    if(state.analysisBusy){ showToast('完整分析進行中，完成後才能下載最新 JSON。',5000); return; }
+    if(state.analysisBusy || state.autoBatchBusy){ showToast(state.autoBatchBusy ? autoBatchTitle() : '完整分析進行中，完成後才能下載最新 JSON。',5000); return; }
     if(workerUrl){try{const res=await fetch(`${workerUrl}/api/download?market=${encodeURIComponent(state.market)}&t=${Date.now()}`);if(res.ok){const blob=await res.blob();downloadBlob(blob,marketFilename(state.market));return}}catch(_){} }
     if(state.snapshot) downloadBlob(new Blob([JSON.stringify(state.snapshot,null,2)],{type:'application/json'}),marketFilename(state.market));
   }
@@ -858,14 +901,15 @@
     state.market=els.market.value;
     localStorage.setItem('sstate-market',state.market);
     state.filter='ALL';
-    updateDownloadButton();
+    updateActionState();
     await loadSnapshot();
   });
   els.run.addEventListener('click',startFullAnalysis);
   els.download.addEventListener('click',downloadCurrentJson);
   els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));
   setBattleExpanded(false, false);
-  updateDownloadButton();
+  updateActionState();
   renderVolumeProgress(0);
+  pollAutomationStatus();
   Promise.all([loadSnapshot(), loadModelBattle()]);
 })();

@@ -18,7 +18,10 @@ from pathlib import Path
 from typing import Any
 
 TW = timezone(timedelta(hours=8))
-MODEL = "gemini-2.5-flash"
+PRIMARY_MODEL = "gemini-2.5-flash"
+FALLBACK_MODEL = "gemini-3.6-flash"
+MODEL = PRIMARY_MODEL
+SEARCH_DELAY_SECONDS = 15
 ELIGIBLE_STATES = {"S3", "S0.5", "S1"}
 CACHE_TTL = timedelta(hours=24)
 STALE_KEEP = timedelta(days=7)
@@ -110,7 +113,7 @@ def prompt_for(row: dict, current_time: datetime) -> str:
 3. 最近 14 天：SEC/官方申報與資本結構，包含 8-K/10-Q/10-K 重要新資訊、增資、ATM、可轉債、回購、重大稀釋。
 4. 最近 14 天：法規、訴訟、政府調查、資安、CEO/CFO重大異動、交易暫停等直接風險。
 5. 最近 90 天：最近一次財報，重點只看 EPS/Revenue beat/miss 與 guidance 上調/維持/下調。
-6. 未來 30 天：下一次已知財報日期；不知道就寫 null，不得猜。
+6. 未來 30 天：下一次已知財報日期；不知道就留空字串，不得猜。
 7. 產業事件只有「直接影響這家公司」才收。
 
 來源優先順序：公司 Investor Relations / SEC / 政府監管機關 > Reuters / Bloomberg / CNBC / WSJ 等主要財經媒體 > Nasdaq / Yahoo Finance 等整理站。
@@ -124,37 +127,52 @@ def prompt_for(row: dict, current_time: datetime) -> str:
   "asset_type": "public_company|private_company|foreign_company|other",
   "verdict": "strong_positive|positive|neutral|risk|high_risk",
   "summary": "繁體中文，最多80字",
-  "last_earnings": {{"date": null, "eps": "beat|miss|inline|unknown|not_applicable", "revenue": "beat|miss|inline|unknown|not_applicable", "guidance": "raised|maintained|lowered|unknown|not_applicable"}},
-  "next_earnings_date": null,
+  "last_earnings": {{"date": "", "eps": "beat|miss|inline|unknown|not_applicable", "revenue": "beat|miss|inline|unknown|not_applicable", "guidance": "raised|maintained|lowered|unknown|not_applicable"}},
+  "next_earnings_date": "",
   "events": [
-    {{"category":"earnings|guidance|company_catalyst|analyst|sec_capital|regulatory_legal|direct_industry", "date":"YYYY-MM-DD或null", "impact":"positive|negative|mixed|neutral", "title":"事件標題", "detail":"繁體中文，最多90字"}}
+    {{"category":"earnings|guidance|company_catalyst|analyst|sec_capital|regulatory_legal|direct_industry", "date":"YYYY-MM-DD或空字串", "impact":"positive|negative|mixed|neutral", "title":"事件標題", "detail":"繁體中文，最多90字"}}
   ]
 }}
 events 最多 5 條，只留真正重要的事件。
 """.strip()
 
 
-def extract_text_and_sources(response: dict) -> tuple[str, list[dict]]:
-    candidates = response.get("candidates") or []
-    if not candidates:
-        return "", []
-    cand = candidates[0] or {}
-    parts = ((cand.get("content") or {}).get("parts") or [])
-    text = "".join(str(p.get("text") or "") for p in parts if isinstance(p, dict))
-    gm = cand.get("groundingMetadata") or {}
-    out = []
-    seen = set()
-    for chunk in gm.get("groundingChunks") or []:
-        web = (chunk or {}).get("web") or {}
-        uri = str(web.get("uri") or "").strip()
-        title = str(web.get("title") or "").strip()
-        if not uri or uri in seen:
+def extract_interaction_text_sources(response: dict) -> tuple[str, list[dict], list[str]]:
+    """Extract Interactions API model text, inline citations and search queries."""
+    text_parts: list[str] = []
+    sources: list[dict] = []
+    queries: list[str] = []
+    seen_urls: set[str] = set()
+
+    for step in response.get("steps") or []:
+        if not isinstance(step, dict):
             continue
-        seen.add(uri)
-        out.append({"title": title or uri, "url": uri})
-        if len(out) >= 8:
-            break
-    return text, out
+        step_type = str(step.get("type") or "")
+        if step_type == "google_search_call":
+            args = step.get("arguments") or {}
+            for q in args.get("queries") or []:
+                q = str(q or "").strip()
+                if q and q not in queries:
+                    queries.append(q)
+        if step_type != "model_output":
+            continue
+        for block in step.get("content") or []:
+            if not isinstance(block, dict) or str(block.get("type") or "") != "text":
+                continue
+            text = str(block.get("text") or "")
+            if text.strip():
+                text_parts.append(text.strip())
+            for anno in block.get("annotations") or []:
+                if not isinstance(anno, dict):
+                    continue
+                url = str(anno.get("url") or anno.get("uri") or anno.get("source") or "").strip()
+                title = str(anno.get("title") or url or "Google Search 來源").strip()
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                sources.append({"title": title or url, "url": url})
+
+    return "\n".join(text_parts).strip(), sources[:10], queries[:10]
 
 
 def parse_json_text(text: str) -> dict:
@@ -172,10 +190,55 @@ def parse_json_text(text: str) -> dict:
         obj = json.loads(t[start:end+1])
         if isinstance(obj, dict):
             return obj
-    raise ValueError("Gemini response did not contain a JSON object")
+    raise ValueError("Gemini interaction did not contain a JSON object")
 
 
-def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: datetime) -> dict:
+def research_schema() -> dict:
+    # Used only by the Gemini 3.x fallback, where structured output can be
+    # combined with built-in Google Search. Gemini 2.5 uses prompt JSON.
+    return {
+        "type": "object",
+        "properties": {
+            "underlying_ticker": {"type": "string"},
+            "company_name": {"type": "string"},
+            "asset_type": {"type": "string"},
+            "verdict": {"type": "string"},
+            "summary": {"type": "string"},
+            "last_earnings": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "eps": {"type": "string"},
+                    "revenue": {"type": "string"},
+                    "guidance": {"type": "string"},
+                },
+                "required": ["date", "eps", "revenue", "guidance"],
+            },
+            "next_earnings_date": {"type": "string"},
+            "events": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "category": {"type": "string"},
+                        "date": {"type": "string"},
+                        "impact": {"type": "string"},
+                        "title": {"type": "string"},
+                        "detail": {"type": "string"},
+                    },
+                    "required": ["category", "date", "impact", "title", "detail"],
+                },
+            },
+        },
+        "required": [
+            "underlying_ticker", "company_name", "asset_type", "verdict",
+            "summary", "last_earnings", "next_earnings_date", "events"
+        ],
+    }
+
+
+def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: datetime,
+                     model: str, queries: list[str] | None = None) -> dict:
     symbol = str(row.get("symbol") or "").upper()
     verdict = str(raw.get("verdict") or "neutral").lower()
     if verdict not in VERDICT_SET:
@@ -217,42 +280,126 @@ def normalize_result(raw: dict, row: dict, sources: list[dict], searched_at: dat
         },
         "next_earnings_date": raw.get("next_earnings_date") or None,
         "events": events,
-        "sources": sources[:8],
-        "model": MODEL,
+        "sources": sources[:10],
+        "web_search_queries": (queries or [])[:10],
+        "model": model,
+        "api": "interactions-v1beta",
     }
+
+
+def interaction_request(api_key: str, row: dict, current_time: datetime, model: str) -> dict:
+    """Call the current Interactions API.
+
+    Gemini 2.5 can use Google Search and can use structured outputs separately,
+    but Google currently documents *structured outputs + built-in tools* as a
+    Gemini 3-series feature. Therefore 2.5 uses prompt-enforced JSON (same safe
+    pattern as TennisRatio); the 3.6 fallback may use response_format.
+    """
+    url = "https://generativelanguage.googleapis.com/v1beta/interactions"
+    payload: dict[str, Any] = {
+        "model": model,
+        "input": prompt_for(row, current_time),
+        "tools": [{"type": "google_search"}],
+        "store": False,
+    }
+    if model.startswith("gemini-3"):
+        payload["response_format"] = {
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": research_schema(),
+        }
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST", headers={
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    })
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _explicit_model_unavailable(code: int, detail: str) -> bool:
+    if code != 404:
+        return False
+    lower = detail.lower()
+    return (
+        "no longer available" in lower
+        or "model not found" in lower
+        or "model is not found" in lower
+        or ("not_found" in lower and "model" in lower)
+    )
+
+
+def _research_from_body(body: dict, row: dict, current_time: datetime, requested_model: str) -> dict:
+    status = str(body.get("status") or "completed").lower()
+    if status not in {"completed", "success"}:
+        raise RuntimeError(f"Gemini interaction status={status}")
+    text, sources, queries = extract_interaction_text_sources(body)
+    if not text:
+        raise RuntimeError("Gemini interaction returned no model_output text")
+    raw = parse_json_text(text)
+    actual_model = str(body.get("model") or requested_model)
+    result = normalize_result(raw, row, sources, current_time, actual_model, queries)
+    # Like TennisRatio: do not call a source-less answer 'verified clear'.
+    # Search grounding should leave either citations or explicit search queries.
+    if not sources and not queries:
+        raise RuntimeError("Gemini returned text but no Google Search grounding/citations")
+    return result
 
 
 def gemini_search(api_key: str, row: dict, current_time: datetime) -> dict:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
-    payload = {
-        "contents": [{"parts": [{"text": prompt_for(row, current_time)}]}],
-        "tools": [{"google_search": {}}],
-        "generationConfig": {"temperature": 0.15, "maxOutputTokens": 2200},
-    }
-    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    last_error = None
+    """Gemini 2.5 Flash on Interactions is primary.
+
+    Only an explicit 2.5 model-unavailable 404 switches to Gemini 3.6 Flash.
+    Transient 429/5xx/network errors are retried on the same model, so an API
+    outage cannot silently change the configured research model.
+    """
+    model = PRIMARY_MODEL
+    last_error: Exception | None = None
+
     for attempt in range(3):
-        req = urllib.request.Request(url, data=data, method="POST", headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        })
         try:
-            with urllib.request.urlopen(req, timeout=90) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-            text, sources = extract_text_and_sources(body)
-            raw = parse_json_text(text)
-            return normalize_result(raw, row, sources, current_time)
+            body = interaction_request(api_key, row, current_time, model)
+            return _research_from_body(body, row, current_time, model)
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:800]
+            detail = exc.read().decode("utf-8", "replace")[:1600]
             last_error = RuntimeError(f"Gemini HTTP {exc.code}: {detail}")
-            if exc.code not in {429, 500, 502, 503, 504}:
+            if _explicit_model_unavailable(exc.code, detail):
+                print(f"::warning::{PRIMARY_MODEL} unavailable on Interactions; fallback to {FALLBACK_MODEL}")
+                model = FALLBACK_MODEL
                 break
+            if exc.code not in {429, 500, 502, 503, 504}:
+                raise last_error
+            if attempt < 2:
+                time.sleep(15 * (attempt + 1))
         except Exception as exc:
             last_error = exc
-        if attempt < 2:
-            time.sleep(2.5 * (attempt + 1))
-    raise RuntimeError(str(last_error or "Gemini request failed"))
+            # Parsing/grounding problems are not transport failures; retrying the
+            # same grounded search wastes quota and may create duplicate news calls.
+            if isinstance(exc, (ValueError, json.JSONDecodeError)) or "grounding" in str(exc).lower():
+                raise RuntimeError(str(exc))
+            if attempt < 2:
+                time.sleep(8 * (attempt + 1))
 
+    if model == FALLBACK_MODEL:
+        for attempt in range(3):
+            try:
+                body = interaction_request(api_key, row, current_time, model)
+                return _research_from_body(body, row, current_time, model)
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", "replace")[:1600]
+                last_error = RuntimeError(f"Gemini HTTP {exc.code}: {detail}")
+                if exc.code not in {429, 500, 502, 503, 504}:
+                    raise last_error
+                if attempt < 2:
+                    time.sleep(15 * (attempt + 1))
+            except Exception as exc:
+                last_error = exc
+                if isinstance(exc, (ValueError, json.JSONDecodeError)) or "grounding" in str(exc).lower():
+                    raise RuntimeError(str(exc))
+                if attempt < 2:
+                    time.sleep(8 * (attempt + 1))
+
+    raise RuntimeError(str(last_error or "Gemini Interactions request failed"))
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -337,6 +484,11 @@ def main() -> int:
                 counts["error"] += 1
             print(f"::warning::{symbol} Gemini research failed: {exc}")
 
+        # Mirror the proven TennisRatio pattern: do not burst many grounded searches.
+        # With the 24H cache this normally affects only newly eligible symbols.
+        if row is not rows[-1]:
+            time.sleep(SEARCH_DELAY_SECONDS)
+
     cache_out = {
         "schema_version": "1.0",
         "ttl_hours": 24,
@@ -346,7 +498,9 @@ def main() -> int:
     items_by_symbol = {str(i.get("symbol") or "").upper(): i for i in items if i.get("symbol")}
     latest = {
         "schema_version": "1.0",
-        "model": MODEL,
+        "model": PRIMARY_MODEL,
+        "fallback_model": FALLBACK_MODEL,
+        "api": "interactions-v1beta",
         "generated_at": iso(current),
         "snapshot_generated_at": (snapshot.get("batch") or {}).get("generated_at_taiwan"),
         "eligible_states": ["S3", "S0.5", "S1"],

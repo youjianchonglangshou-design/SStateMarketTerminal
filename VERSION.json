@@ -1,7 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.22｜TENNIS-GEMINI-MODE",
-  "stage": "TENNIS-GEMINI-MODE",
+  "app_version": "TERMINAL v0.1.24｜RESEARCH-HUMAN-UI",
+  "stage": "RESEARCH-HUMAN-UI",
   "features": [
+    "US-stock Gemini hover card is reformatted for human reading: AI重點 / 財報財測 / 近期重大事件 / 查證來源 / metadata sections",
+    "Malformed or truncated Gemini JSON is no longer shown raw; recoverable ticker/company/verdict/summary/earnings/events are extracted into readable fields",
+    "Add mixed verdict support and human labels for beat/miss/inline and raised/maintained/lowered",
+    "Manual-review means grounded search completed but output format was imperfect; the UI explains this without exposing raw JSON",
     "US-stock Gemini research now mirrors the proven TennisRatio pipeline: gemini-2.5-flash + generateContent + google_search grounding",
     "Remove Gemini 3.x fallback completely; the configured model is fixed to gemini-2.5-flash",
     "Use the legacy generateContent endpoint that the existing TennisRatio Gemini 2.5 project already uses successfully",

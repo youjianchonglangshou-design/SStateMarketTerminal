@@ -699,45 +699,169 @@
     return ({
       strong_positive: ['strong-positive','🔥 強利多'],
       positive: ['positive','🟢 偏利多'],
-      neutral: ['neutral','⚪ 無新訊'],
+      mixed: ['mixed','🟡 多空混合'],
+      neutral: ['neutral','⚪ 無重大新訊'],
       risk: ['risk','🟠 有風險'],
       high_risk: ['high-risk','🔴 重大風險']
-    })[String(value || 'neutral')] || ['neutral','⚪ 無新訊'];
+    })[String(value || 'neutral')] || ['neutral','⚪ 無重大新訊'];
   }
 
   function researchStatusLabel(value) {
     return ({NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',DEFERRED:'待下輪',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
   }
 
+  function stripResearchCodeWrapper(value) {
+    return String(value || '')
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+  }
+
+  function parseEmbeddedResearchJson(value) {
+    const text = stripResearchCodeWrapper(value);
+    if (!text) return null;
+    const candidates = [text];
+    const first = text.indexOf('{');
+    const last = text.lastIndexOf('}');
+    if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1));
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function looseResearchString(value, key) {
+    const text = stripResearchCodeWrapper(value);
+    if (!text) return '';
+    const escaped = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const patterns = [
+      new RegExp(`["']${escaped}["']\\s*:\\s*["']([^"'\\n\\r]{1,900})["']`, 'i'),
+      new RegExp(`${escaped}\\s*:\\s*["']([^"'\\n\\r]{1,900})["']`, 'i')
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) return match[1].replace(/\\n/g, ' ').replace(/\\"/g, '"').trim();
+    }
+    return '';
+  }
+
+  function humanizeResearchInfo(info) {
+    const rawText = String(info?.raw_model_text || info?.summary || '');
+    const parsed = parseEmbeddedResearchJson(rawText);
+    const merged = parsed ? { ...info, ...parsed } : { ...info };
+
+    const looseFields = ['underlying_ticker','company_name','asset_type','verdict','summary','next_earnings_date'];
+    for (const key of looseFields) {
+      if (!merged[key] || (key === 'summary' && /^\s*[{[]/.test(String(merged[key])))) {
+        const loose = looseResearchString(rawText, key);
+        if (loose) merged[key] = loose;
+      }
+    }
+
+    if (parsed?.last_earnings && typeof parsed.last_earnings === 'object') merged.last_earnings = parsed.last_earnings;
+    if (Array.isArray(parsed?.events)) merged.events = parsed.events;
+
+    const summary = String(merged.summary || '').trim();
+    const looksLikeJson = /^\s*[{[]/.test(summary) || /["'](?:underlying_ticker|company_name|verdict|summary)["']\s*:/.test(summary);
+    if (!summary || looksLikeJson) {
+      merged.summary = info?.format_warning
+        ? 'Gemini 已完成 Google Search，但回傳格式不完整；系統已把可辨識內容整理成人類可讀欄位。'
+        : '本次沒有需要特別列出的重大近期事件。';
+    }
+
+    return merged;
+  }
+
+  function researchCategoryMeta(value) {
+    return ({
+      earnings: ['財報','📊'], guidance: ['財測','🧭'], company_catalyst: ['公司利多','⚡'],
+      analyst: ['分析師','🏦'], sec_capital: ['SEC／資本','📄'], regulatory_legal: ['法規／訴訟','⚖'],
+      direct_industry: ['產業事件','🏭']
+    })[String(value || '')] || ['近期事件','•'];
+  }
+
+  function researchImpactMeta(value) {
+    return ({
+      positive: ['positive','▲ 利多'], negative: ['negative','▼ 利空'], mixed: ['mixed','◆ 混合'], neutral: ['neutral','• 中性']
+    })[String(value || 'neutral')] || ['neutral','• 中性'];
+  }
+
+  function earningsHuman(value) {
+    return ({beat:'優於預期',miss:'低於預期',inline:'符合預期',unknown:'未知',not_applicable:'不適用'})[String(value || 'unknown')] || '未知';
+  }
+
+  function guidanceHuman(value) {
+    return ({raised:'上調',maintained:'維持',lowered:'下調',unknown:'未知',not_applicable:'不適用'})[String(value || 'unknown')] || '未知';
+  }
+
+  function researchFactHtml(label, value, tone='') {
+    const text = String(value || '—');
+    return `<div class="research-fact ${escapeHtml(tone)}"><span>${escapeHtml(label)}</span><b>${escapeHtml(text)}</b></div>`;
+  }
+
   function renderResearch(r) {
     if (state.market !== 'us-stock') return '';
-    const info = currentResearchFor(r?.symbol);
-    if (!info) return '';
+    const rawInfo = currentResearchFor(r?.symbol);
+    if (!rawInfo) return '';
+    const info = humanizeResearchInfo(rawInfo);
     const researchStatus = String(info.research_status || '');
     const isError = researchStatus === 'ERROR';
     const isDeferred = researchStatus === 'DEFERRED';
     const isManualReview = Boolean(info.format_warning) || String(info.verification_status || '') === 'MANUAL_REVIEW';
+    const [verdictCls,verdictLabel] = researchVerdictMeta(info.verdict);
     const [cls,label] = isError
       ? ['risk','⚠ 搜尋失敗']
       : isDeferred
         ? ['neutral','⏸ 未搜尋']
         : isManualReview
           ? ['neutral','ℹ 人工判讀']
-          : researchVerdictMeta(info.verdict);
+          : [verdictCls,verdictLabel];
     const statusLabel = researchStatusLabel(info.research_status);
     const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || String(r?.symbol || '');
     const events = Array.isArray(info.events) ? info.events.slice(0,5) : [];
     const sources = Array.isArray(info.sources) ? info.sources.slice(0,6) : [];
-    const eventHtml = events.length ? events.map(e => `<div class="research-event ${escapeHtml(e.impact||'neutral')}"><div><b>${escapeHtml(e.date||'—')}</b> ${escapeHtml(e.title||'')}</div><span>${escapeHtml(e.detail||'')}</span></div>`).join('') : '<div class="research-empty">沒有列入重大事件。</div>';
-    const sourceHtml = sources.length ? `<div class="research-sources"><b>來源</b>${sources.map((s,i)=>`<a href="${escapeHtml(s.url||'#')}" target="_blank" rel="noopener noreferrer">${i+1}. ${escapeHtml(s.title||'來源')}</a>`).join('')}</div>` : '<div class="research-sources muted">本次沒有可顯示的 grounding URL。</div>';
+    const last = info.last_earnings && typeof info.last_earnings === 'object' ? info.last_earnings : {};
+    const hasEarnings = Boolean(last.date || info.next_earnings_date || ['beat','miss','inline'].includes(String(last.eps)) || ['beat','miss','inline'].includes(String(last.revenue)) || ['raised','maintained','lowered'].includes(String(last.guidance)));
+
+    const eventHtml = events.length ? `<div class="research-section"><div class="research-section-title">近期重大事件 <small>${events.length} 則</small></div>${events.map(e => {
+      const [catLabel,catIcon] = researchCategoryMeta(e.category);
+      const [impactCls,impactLabel] = researchImpactMeta(e.impact);
+      return `<div class="research-event ${escapeHtml(impactCls)}">
+        <div class="research-event-head"><span class="research-category">${catIcon} ${escapeHtml(catLabel)}</span><span class="research-impact ${escapeHtml(impactCls)}">${escapeHtml(impactLabel)}</span><time>${escapeHtml(e.date||'日期未明')}</time></div>
+        <div class="research-event-title">${escapeHtml(e.title||'近期資訊')}</div>
+        ${e.detail?`<div class="research-event-detail">${escapeHtml(e.detail)}</div>`:''}
+      </div>`;
+    }).join('')}</div>` : '<div class="research-section"><div class="research-section-title">近期重大事件</div><div class="research-empty">沒有列入重大事件。</div></div>';
+
+    const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((s,i)=>`<a href="${escapeHtml(s.url||'#')}" target="_blank" rel="noopener noreferrer"><span>${i+1}</span>${escapeHtml(s.title||'來源')}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
+
+    const earningsHtml = hasEarnings ? `<div class="research-section">
+      <div class="research-section-title">財報／財測</div>
+      <div class="research-fact-grid">
+        ${researchFactHtml('最近財報', last.date || '—')}
+        ${researchFactHtml('EPS', earningsHuman(last.eps), String(last.eps||''))}
+        ${researchFactHtml('營收', earningsHuman(last.revenue), String(last.revenue||''))}
+        ${researchFactHtml('Guidance', guidanceHuman(last.guidance), String(last.guidance||''))}
+        ${researchFactHtml('下次財報', info.next_earnings_date || '—')}
+      </div>
+    </div>` : '';
+
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
     const modelLabel = String(info.model || state.usStockResearch?.model || 'gemini-2.5-flash').replace(/^models\//,'');
-    const errorHtml = info.research_error ? `<div class="research-error"><b>搜尋錯誤</b> ${escapeHtml(info.research_error)}</div>` : '';
+    const errorHtml = info.research_error ? `<div class="research-error"><b>搜尋錯誤</b><span>${escapeHtml(info.research_error)}</span></div>` : '';
+    const manualHtml = isManualReview && !isError ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>搜尋已完成；只是 Gemini 回傳格式不完整。系統已隱藏原始 JSON，改用可讀欄位呈現。</span></div>` : '';
+    const verdictHtml = (!isError && !isDeferred) ? `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>` : '';
+
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
-      <div class="research-title">${escapeHtml(title)}｜${escapeHtml(recordState(r))}</div>
-      <div class="research-summary">${escapeHtml(info.summary||'')}</div>
+      <div class="research-title"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(recordState(r))}</span></div>
+      ${verdictHtml}
+      <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary||'')}</div></div>
+      ${manualHtml}${errorHtml}${earningsHtml}${eventHtml}${sourceHtml}
       <div class="research-meta">${escapeHtml(modelLabel)} + Google Search｜${escapeHtml(searched)}</div>
-      ${errorHtml}${eventHtml}${sourceHtml}
     </div></div>`;
   }
 

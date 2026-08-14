@@ -61,7 +61,7 @@ UNDERLYING_OVERRIDES = {
     "SKHY": "SK hynix",
 }
 
-VERDICT_SET = {"strong_positive", "positive", "neutral", "risk", "high_risk"}
+VERDICT_SET = {"strong_positive", "positive", "mixed", "neutral", "risk", "high_risk"}
 CATEGORY_SET = {
     "earnings", "guidance", "company_catalyst", "analyst", "sec_capital",
     "regulatory_legal", "direct_industry"
@@ -152,7 +152,7 @@ def prompt_for(row: dict, current_time: datetime) -> str:
   "underlying_ticker": "核對後代號或名稱",
   "company_name": "公司/證券名稱",
   "asset_type": "public_company|private_company|foreign_company|other",
-  "verdict": "strong_positive|positive|neutral|risk|high_risk",
+  "verdict": "strong_positive|positive|mixed|neutral|risk|high_risk",
   "summary": "繁體中文，最多80字",
   "last_earnings": {{"date": "", "eps": "beat|miss|inline|unknown|not_applicable", "revenue": "beat|miss|inline|unknown|not_applicable", "guidance": "raised|maintained|lowered|unknown|not_applicable"}},
   "next_earnings_date": "",
@@ -479,6 +479,75 @@ def classify_failure(exc: Exception) -> dict:
     }
 
 
+def _loose_json_string(text: str, key: str) -> str:
+    """Recover a quoted top-level-ish value from a truncated Gemini JSON reply."""
+    pattern = re.compile(rf'["\']{re.escape(key)}["\']\s*:\s*["\']((?:\\.|[^"\'\\])*)["\']', re.I | re.S)
+    match = pattern.search(str(text or ""))
+    if not match:
+        return ""
+    value = match.group(1)
+    try:
+        # Decode common JSON escapes without forcing the entire malformed object to parse.
+        return json.loads('"' + value.replace('"', '\\"') + '"')
+    except Exception:
+        return value.replace('\\n', ' ').replace('\\"', '"').strip()
+
+
+def recover_loose_research_json(text: str, row: dict) -> dict:
+    """Best-effort human fields when Gemini searched successfully but JSON was truncated.
+
+    This deliberately does not invent data. It only recovers fields that are visibly
+    present in the model text so the UI can show readable content instead of raw JSON.
+    """
+    symbol = str(row.get("symbol") or "")
+    raw = {
+        "underlying_ticker": _loose_json_string(text, "underlying_ticker") or underlying_hint(symbol),
+        "company_name": _loose_json_string(text, "company_name"),
+        "asset_type": _loose_json_string(text, "asset_type") or "other",
+        "verdict": (_loose_json_string(text, "verdict") or "neutral").lower(),
+        "summary": _loose_json_string(text, "summary"),
+        "last_earnings": {
+            "date": "",
+            "eps": "unknown",
+            "revenue": "unknown",
+            "guidance": "unknown",
+        },
+        "next_earnings_date": _loose_json_string(text, "next_earnings_date"),
+        "events": [],
+    }
+
+    earnings_match = re.search(r'["\']last_earnings["\']\s*:\s*\{(?P<body>[^{}]{0,1200})', str(text or ""), re.I | re.S)
+    if earnings_match:
+        body = earnings_match.group("body")
+        for key in ("date", "eps", "revenue", "guidance"):
+            value = _loose_json_string(body, key)
+            if value:
+                raw["last_earnings"][key] = value
+
+    # Recover any complete event objects even when the outer response is truncated.
+    event_pattern = re.compile(r'\{[^{}]{0,1800}["\']category["\']\s*:\s*["\'][^"\']+["\'][^{}]{0,1800}\}', re.I | re.S)
+    for match in event_pattern.finditer(str(text or "")):
+        candidate = match.group(0)
+        try:
+            event = json.loads(candidate)
+        except Exception:
+            event = {
+                "category": _loose_json_string(candidate, "category") or "company_catalyst",
+                "date": _loose_json_string(candidate, "date"),
+                "impact": _loose_json_string(candidate, "impact") or "neutral",
+                "title": _loose_json_string(candidate, "title"),
+                "detail": _loose_json_string(candidate, "detail"),
+            }
+        if event.get("title") or event.get("detail"):
+            raw["events"].append(event)
+        if len(raw["events"]) >= 5:
+            break
+
+    if not raw["summary"]:
+        raw["summary"] = "Gemini 已完成 Google Search，但回傳格式不完整；已整理可辨識欄位供人工判讀。"
+    return raw
+
+
 def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
     text, sources, queries = extract_generate_content(body)
 
@@ -488,21 +557,7 @@ def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
     try:
         raw = parse_json_text(text)
     except Exception:
-        raw = {
-            "underlying_ticker": underlying_hint(str(row.get("symbol") or "")),
-            "company_name": "",
-            "asset_type": "other",
-            "verdict": "neutral",
-            "summary": text[:280],
-            "last_earnings": {
-                "date": "",
-                "eps": "unknown",
-                "revenue": "unknown",
-                "guidance": "unknown",
-            },
-            "next_earnings_date": "",
-            "events": [],
-        }
+        raw = recover_loose_research_json(text, row)
         format_warning = True
 
     # A result is only eligible for 24H success cache if Google Search actually

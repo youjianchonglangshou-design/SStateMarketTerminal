@@ -3,11 +3,11 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
-    version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), run: $("run-button"), download: $("download-button"),
+    version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
     battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
@@ -177,6 +177,25 @@
 
   async function fetchOptionalJson(url) {
     try { return await fetchJson(url); } catch (_) { return null; }
+  }
+
+  async function loadUsStockResearch() {
+    if (state.market !== "us-stock" || !workerUrl) {
+      state.usStockResearch = null;
+      return;
+    }
+    try {
+      state.usStockResearch = await fetchJson(`${workerUrl}/api/research/us-stock/latest?t=${Date.now()}`);
+    } catch (_) {
+      state.usStockResearch = null;
+    }
+    if (state.snapshot?.records) renderCards();
+  }
+
+  function currentResearchFor(symbol) {
+    if (state.market !== "us-stock") return null;
+    const key = String(symbol || "").trim().toUpperCase();
+    return state.usStockResearch?.items_by_symbol?.[key] || null;
   }
 
   function stopMarketStatusSockets(clearStatuses=true) {
@@ -539,6 +558,7 @@
     }
     renderAll(source);
     loadMarketStatuses();
+    loadUsStockResearch();
   }
 
   function renderAll(source) {
@@ -575,6 +595,19 @@
   function renderCards() {
     let rows = [...(state.snapshot?.records || [])];
     if (state.filter !== "ALL") rows = rows.filter(r => recordState(r) === state.filter);
+    const q = String(state.searchQuery || "").trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(r => {
+        const research = currentResearchFor(r?.symbol);
+        const haystack = [
+          r?.symbol, r?.api_symbol, recordState(r),
+          ...(Array.isArray(r?.sectors) ? r.sectors : []),
+          r?.opportunity_long?.market_state_name, r?.opportunity_long?.setup_name,
+          research?.underlying_ticker, research?.company_name, research?.summary, research?.verdict
+        ].filter(Boolean).join(" ").toLowerCase();
+        return haystack.includes(q);
+      });
+    }
     rows.sort((a,b) => stateRank(recordState(a))-stateRank(recordState(b)) || Number(b.historical_probability?.["72h"]?.success_probability||0)-Number(a.historical_probability?.["72h"]?.success_probability||0));
     els.cards.innerHTML = rows.map(renderCard).join("");
     bindChartCrosshairs();
@@ -662,6 +695,40 @@
   function bwHuman(v){return ({EXPANDING:'布林擴張',CONTRACTING:'布林收縮',FLAT:'布林平穩'})[v]||'布林未知'}
   function ageHuman(v){return ({'1':'1根4H','2_3':'2-3根4H','4_6':'4-6根4H','7_PLUS':'7+根4H'})[v]||'—'}
 
+  function researchVerdictMeta(value) {
+    return ({
+      strong_positive: ['strong-positive','🔥 強利多'],
+      positive: ['positive','🟢 偏利多'],
+      neutral: ['neutral','⚪ 無新訊'],
+      risk: ['risk','🟠 有風險'],
+      high_risk: ['high-risk','🔴 重大風險']
+    })[String(value || 'neutral')] || ['neutral','⚪ 無新訊'];
+  }
+
+  function researchStatusLabel(value) {
+    return ({NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
+  }
+
+  function renderResearch(r) {
+    if (state.market !== 'us-stock') return '';
+    const info = currentResearchFor(r?.symbol);
+    if (!info) return '';
+    const [cls,label] = researchVerdictMeta(info.verdict);
+    const statusLabel = researchStatusLabel(info.research_status);
+    const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || String(r?.symbol || '');
+    const events = Array.isArray(info.events) ? info.events.slice(0,5) : [];
+    const sources = Array.isArray(info.sources) ? info.sources.slice(0,6) : [];
+    const eventHtml = events.length ? events.map(e => `<div class="research-event ${escapeHtml(e.impact||'neutral')}"><div><b>${escapeHtml(e.date||'—')}</b> ${escapeHtml(e.title||'')}</div><span>${escapeHtml(e.detail||'')}</span></div>`).join('') : '<div class="research-empty">沒有列入重大事件。</div>';
+    const sourceHtml = sources.length ? `<div class="research-sources"><b>來源</b>${sources.map((s,i)=>`<a href="${escapeHtml(s.url||'#')}" target="_blank" rel="noopener noreferrer">${i+1}. ${escapeHtml(s.title||'來源')}</a>`).join('')}</div>` : '<div class="research-sources muted">本次沒有可顯示的 grounding URL。</div>';
+    const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
+    return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
+      <div class="research-title">${escapeHtml(title)}｜${escapeHtml(recordState(r))}</div>
+      <div class="research-summary">${escapeHtml(info.summary||'')}</div>
+      <div class="research-meta">Gemini 2.5 Flash + Google Search｜${escapeHtml(searched)}</div>
+      ${eventHtml}${sourceHtml}
+    </div></div>`;
+  }
+
   function renderTradeifyMatchBadge(r) {
     if (state.market !== "us-stock") return "";
     const pionexSymbol = String(r?.symbol || "").trim().toUpperCase();
@@ -728,7 +795,7 @@
     const lamp = (x)=> x==='green'||x==='🟢'?'<span class="g">●</span>':x==='red'||x==='🔴'?'<span class="r">●</span>':'●';
     return `<article class="card">
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
-      <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
+      <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}${renderResearch(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
       <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderTradeifyMatchBadge(r)}${renderChartQuickStats(r)}</div>
     </article>`;
   }
@@ -904,6 +971,10 @@
     updateActionState();
     await loadSnapshot();
   });
+  if (els.search) {
+    els.search.addEventListener('input', () => { state.searchQuery = els.search.value || ''; renderCards(); });
+    els.search.addEventListener('keydown', e => { if (e.key === 'Escape') { els.search.value=''; state.searchQuery=''; renderCards(); els.search.blur(); } });
+  }
   els.run.addEventListener('click',startFullAnalysis);
   els.download.addEventListener('click',downloadCurrentJson);
   els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));

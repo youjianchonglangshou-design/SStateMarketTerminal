@@ -365,6 +365,10 @@
     state.evaluation = evaluation;
     renderModelBattle();
     updateBattleAttention();
+    // Sample-tier coloring depends on Champion training case count.
+    // loadSnapshot() and loadModelBattle() run in parallel at startup, so repaint
+    // the cards once Champion metadata is available.
+    if (state.snapshot?.records) renderCards();
   }
 
 
@@ -556,7 +560,16 @@
     </div></div>`;
   }
   function trainingCaseCount() {
-    return Number(state.snapshot?.batch?.probability_model?.case_count || 0);
+    // Active/Champion API is the authoritative source for total training cases.
+    // Snapshot probability_model intentionally carries model metadata only and
+    // does not include case_count in the current schema.
+    return Number(
+      state.champion?.training?.cases_count ||
+      state.champion?.training?.case_count ||
+      state.snapshot?.batch?.probability_model?.cases_count ||
+      state.snapshot?.batch?.probability_model?.case_count ||
+      0
+    );
   }
 
   function sampleTierInfo(matchedSamples, totalCases) {
@@ -580,13 +593,24 @@
     const matchedSamples = Number(h72.matched_samples || hp.matched_samples || 0);
     const samples = matchedSamples.toLocaleString();
     const level = h72.level || hp.model_level || "—";
-    const tier = sampleTierInfo(matchedSamples, trainingCaseCount());
-    const tierRatio = Number.isFinite(tier.ratio) ? `${(tier.ratio * 100).toFixed(2)}%` : '—';
-    const tierTitle = `樣本厚度 ${tier.label}｜匹配 ${samples}｜總訓練 ${trainingCaseCount().toLocaleString()}｜占比 ${tierRatio}`;
+    const totalCases = trainingCaseCount();
+    const tier = sampleTierInfo(matchedSamples, totalCases);
+    const tierRatio = totalCases > 0 ? `${(tier.ratio * 100).toFixed(2)}%` : '—';
+    const tierTitle = totalCases > 0
+      ? `樣本厚度 ${tier.label}｜匹配 ${samples}｜總訓練 ${totalCases.toLocaleString()}｜占比 ${tierRatio}`
+      : `樣本厚度等待 Champion 資料｜匹配 ${samples}`;
+    const tierStyle = ({
+      ssr: 'background:#facc15;border-color:#fef08a;box-shadow:0 0 10px #facc1588',
+      sr:  'background:#a855f7;border-color:#d8b4fe;box-shadow:0 0 10px #a855f788',
+      r:   'background:#3b82f6;border-color:#93c5fd;box-shadow:0 0 10px #3b82f688',
+      n:   'background:#22c55e;border-color:#86efac;box-shadow:0 0 10px #22c55e88',
+      c:   'background:#f8fafc;border-color:#cbd5e1;box-shadow:0 0 8px #ffffff55',
+      low: 'background:#334155;border-color:#64748b;box-shadow:none'
+    })[tier.key] || 'background:#334155;border-color:#64748b;box-shadow:none';
     return `<div class="chart-quick-stats" aria-label="72H historical quick stats">
       <span class="chart-stat fail"><i></i><b>失敗</b> ${fail}</span>
       <span class="chart-stat survival"><i></i><b>存活</b> ${survival}</span>
-      <span class="chart-stat samples" title="${escapeHtml(tierTitle)}"><i class="sample-tier-${tier.key}"></i><b>樣本</b> ${samples}</span>
+      <span class="chart-stat samples" title="${escapeHtml(tierTitle)}"><i class="sample-tier-${tier.key}" style="${tierStyle}"></i><b>樣本</b> ${samples}</span>
       <span class="chart-stat level">L${escapeHtml(level)}</span>
     </div>`;
   }

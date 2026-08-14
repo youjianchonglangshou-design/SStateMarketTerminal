@@ -1,7 +1,9 @@
 {
-  "app_version": "TERMINAL v0.1.16｜SAMPLE-DOT-TIER",
-  "stage": "SAMPLE-DOT-TIER",
+  "app_version": "TERMINAL v0.1.17｜SAMPLE-DOT-FIX",
+  "stage": "SAMPLE-DOT-FIX",
   "features": [
+    "Fix sample-tier denominator: use Active Champion training.cases_count and repaint cards after Champion metadata loads",
+    "Sample-dot tier color is also written inline so stale CSS cache cannot hide the tier color",
     "Only the sample dot changes color by sample tier (SSR/SR/R/N/C) while the sample capsule text stays unchanged",
     "TradingView-like chart crosshair with dashed X/Y guides",
     "Crosshair date label and live Y-axis price label",

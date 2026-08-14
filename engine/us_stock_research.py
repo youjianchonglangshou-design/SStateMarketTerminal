@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""US-stock S-state Gemini research with a per-symbol 24-hour cache.
+"""US-stock S-state GPT-OSS research with a per-symbol 24-hour cache.
 
-v0.1.22 intentionally mirrors the proven TennisRatio Gemini search pattern:
-- Gemini 2.5 Flash only (no Gemini 3 fallback)
-- generateContent + google_search grounding
+Model/provider swap only:
+- OpenAI GPT-OSS 120B served by Groq
+- Groq OpenAI-compatible Chat Completions + built-in Browser Search
 - one request at a time
 - 30~35 second cooldown between successful new searches
-- TennisRatio-style quota/error classification and early batch stop
-- only successful grounded results are written into the 24H cache
+- same quota/error classification and early batch stop behavior
+- only successful searched results are written into the 24H cache
 
 Targets only current S3 / S0.5 / S1 records. Existing research younger than
 24 hours is reused regardless of whether the prior trigger was AUTO or MANUAL.
@@ -27,7 +27,8 @@ from pathlib import Path
 from typing import Any
 
 TW = timezone(timedelta(hours=8))
-MODEL = "gemini-2.5-flash"
+MODEL = "openai/gpt-oss-120b"
+GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 ELIGIBLE_STATES = {"S3", "S0.5", "S1"}
 CACHE_TTL = timedelta(hours=24)
 STALE_KEEP = timedelta(days=7)
@@ -39,7 +40,7 @@ RETRY_UNKNOWN_429_SECONDS = 90
 RETRY_503_SECONDS = 30
 RETRY_NETWORK_SECONDS = 20
 REQUEST_TIMEOUT_SECONDS = 120
-PIPELINE_VERSION = "gemini-2.5-generatecontent-search-v1"
+PIPELINE_VERSION = "gpt-oss-120b-groq-browser-search-v1"
 
 # Non-company instruments inside the Pionex RWA screen. They remain visible in
 # S-state, but are intentionally excluded from company/news/earnings research.
@@ -68,9 +69,9 @@ CATEGORY_SET = {
 }
 
 
-class GeminiHTTPError(RuntimeError):
+class GroqHTTPError(RuntimeError):
     def __init__(self, status: int, detail: str, payload: Any = None, retry_after: int | None = None):
-        super().__init__(f"Gemini HTTP {status}: {detail}")
+        super().__init__(f"Groq HTTP {status}: {detail}")
         self.status = int(status)
         self.detail = str(detail)
         self.payload = payload
@@ -132,7 +133,7 @@ def prompt_for(row: dict, current_time: datetime) -> str:
 你是美股事件風險研究員。現在台灣時間 {taipei_now}。
 
 研究目標：Pionex RWA 代號 {symbol}，目前 S-state = {state}，推定標的/代號提示 = {hint}。
-第一步必須先用 Google Search 核對 {symbol} 對應的真正公司或證券；不可因代號猜錯公司。
+第一步必須先用 Browser Search 核對 {symbol} 對應的真正公司或證券；不可因代號猜錯公司。
 
 只搜尋能影響該公司/證券的下列範圍，禁止漫無目的蒐集新聞：
 1. 最近 7 天：公司級重大 Catalyst，例如大型訂單、合約、新客戶、戰略合作、新產品、重大技術突破、政府標案、併購/資產交易。
@@ -168,6 +169,7 @@ def parse_json_text(text: str) -> dict:
     t = str(text or "").strip()
     t = re.sub(r"^```(?:json)?\s*", "", t, flags=re.I)
     t = re.sub(r"\s*```$", "", t)
+
     try:
         obj = json.loads(t)
         if isinstance(obj, dict):
@@ -175,63 +177,108 @@ def parse_json_text(text: str) -> dict:
     except Exception:
         pass
 
-    start, end = t.find("{"), t.rfind("}")
-    if start >= 0 and end > start:
-        obj = json.loads(t[start:end + 1])
+    # Browser Search may prepend browsing snippets. Scan every opening brace and
+    # keep the last complete JSON object that looks like the requested research payload.
+    decoder = json.JSONDecoder()
+    candidates: list[dict] = []
+    for idx, char in enumerate(t):
+        if char != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(t[idx:])
+        except Exception:
+            continue
         if isinstance(obj, dict):
+            candidates.append(obj)
+    for obj in reversed(candidates):
+        if any(k in obj for k in ("verdict", "summary", "events", "underlying_ticker")):
             return obj
-    raise ValueError("Gemini generateContent did not contain a JSON object")
+    if candidates:
+        return candidates[-1]
+    raise ValueError("GPT-OSS response did not contain a JSON object")
 
 
-def extract_generate_content(response: dict) -> tuple[str, list[dict], list[str]]:
-    """Mirror TennisRatio's generateContent response parsing."""
-    text_parts: list[str] = []
+def _append_unique_source(sources: list[dict], seen_urls: set[str], title: Any, url: Any) -> None:
+    clean_url = str(url or "").strip()
+    if not clean_url or clean_url in seen_urls:
+        return
+    seen_urls.add(clean_url)
+    sources.append({
+        "title": str(title or clean_url or "Browser Search 來源").strip(),
+        "url": clean_url,
+    })
+
+
+def _collect_query_values(value: Any, queries: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if str(key).lower() in {"query", "q", "search_query", "searchquery"}:
+                if isinstance(item, str):
+                    q = item.strip()
+                    if q and q not in queries:
+                        queries.append(q)
+                elif isinstance(item, list):
+                    for part in item:
+                        q = str(part or "").strip()
+                        if q and q not in queries:
+                            queries.append(q)
+            _collect_query_values(item, queries)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_query_values(item, queries)
+
+
+def extract_groq_response(response: dict) -> tuple[str, list[dict], list[str]]:
+    """Extract final text plus Browser Search evidence from Groq Chat Completions."""
+    choices = response.get("choices") or []
+    if not choices or not isinstance(choices[0], dict):
+        raise RuntimeError("GPT-OSS 回應中沒有 choices")
+
+    message = choices[0].get("message") or {}
+    text = str(message.get("content") or "").strip()
+    if not text:
+        finish_reason = choices[0].get("finish_reason")
+        if finish_reason:
+            raise RuntimeError(f"GPT-OSS 回應中沒有可顯示文字：{finish_reason}")
+        raise RuntimeError("GPT-OSS 回應中沒有可顯示文字")
+
     sources: list[dict] = []
     queries: list[str] = []
     seen_urls: set[str] = set()
 
-    for candidate in response.get("candidates") or []:
-        if not isinstance(candidate, dict):
+    executed_tools = message.get("executed_tools") or []
+    for tool in executed_tools:
+        if not isinstance(tool, dict):
             continue
+        search_results = tool.get("search_results") or {}
+        if isinstance(search_results, dict):
+            for result in search_results.get("results") or []:
+                if not isinstance(result, dict):
+                    continue
+                _append_unique_source(
+                    sources,
+                    seen_urls,
+                    result.get("title"),
+                    result.get("url"),
+                )
+        arguments = tool.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except Exception:
+                arguments = {"query": arguments}
+        _collect_query_values(arguments, queries)
 
-        content = candidate.get("content") or {}
-        for part in content.get("parts") or []:
-            if isinstance(part, dict):
-                text = str(part.get("text") or "").strip()
-                if text:
-                    text_parts.append(text)
+    # Some Groq responses expose the browser query only in reasoning text.
+    reasoning = str(message.get("reasoning") or "")
+    for match in re.finditer(r"<tool>\s*(?:browser_)?search\((.*?)\)</tool>", reasoning, re.I | re.S):
+        q = re.sub(r"\s+", " ", match.group(1)).strip(" \t\r\n\"'")
+        if q and q not in queries:
+            queries.append(q)
 
-        metadata = candidate.get("groundingMetadata") or {}
-        for query in metadata.get("webSearchQueries") or []:
-            q = str(query or "").strip()
-            if q and q not in queries:
-                queries.append(q)
-
-        for chunk in metadata.get("groundingChunks") or []:
-            if not isinstance(chunk, dict):
-                continue
-            web = chunk.get("web") or {}
-            url = str(web.get("uri") or "").strip()
-            if not url or url in seen_urls:
-                continue
-            seen_urls.add(url)
-            sources.append({
-                "title": str(web.get("title") or url or "Google Search 來源").strip(),
-                "url": url,
-            })
-
-    text = "\n".join(text_parts).strip()
-    if not text:
-        block_reason = ((response.get("promptFeedback") or {}).get("blockReason"))
-        finish_reason = None
-        candidates = response.get("candidates") or []
-        if candidates and isinstance(candidates[0], dict):
-            finish_reason = candidates[0].get("finishReason")
-        if block_reason:
-            raise RuntimeError(f"Gemini 未回覆，內容被阻擋：{block_reason}")
-        if finish_reason:
-            raise RuntimeError(f"Gemini 回應中沒有可顯示文字：{finish_reason}")
-        raise RuntimeError("Gemini 回應中沒有可顯示文字")
+    # Last-resort: preserve direct URLs if the provider embeds them in content.
+    for url in re.findall(r"https?://[^\s\]>)\"']+", text):
+        _append_unique_source(sources, seen_urls, url, url)
 
     return text, sources[:10], queries[:10]
 
@@ -273,7 +320,7 @@ def normalize_result(
     last = raw.get("last_earnings") if isinstance(raw.get("last_earnings"), dict) else {}
     summary = str(raw.get("summary") or "").strip()
     if not summary and format_warning:
-        summary = "Gemini 已完成 Google Search，但輸出格式不完整；保留原始摘要供人工判讀。"
+        summary = "GPT-OSS 已完成 Browser Search，但輸出格式不完整；保留原始摘要供人工判讀。"
     if not summary:
         summary = "無重大近期事件"
 
@@ -299,8 +346,8 @@ def normalize_result(
         "sources": sources[:10],
         "web_search_queries": (queries or [])[:10],
         "model": MODEL,
-        "api": "generateContent-v1beta",
-        "search_mode": "gemini_2_5_flash_google_search",
+        "api": "groq-chat-completions-v1",
+        "search_mode": "gpt_oss_120b_browser_search",
         "pipeline_version": PIPELINE_VERSION,
         "format_warning": bool(format_warning),
         "raw_model_text": str(raw_model_text or "")[:12000] if format_warning else "",
@@ -321,33 +368,31 @@ def _retry_after_seconds(headers: Any) -> int | None:
         return None
 
 
-def generate_content_request(api_key: str, row: dict, current_time: datetime) -> dict:
-    """Use the same API family and Google Search tool shape as TennisRatio."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
+def groq_browser_search_request(api_key: str, row: dict, current_time: datetime) -> dict:
+    """Call GPT-OSS 120B through Groq with built-in Browser Search."""
     payload: dict[str, Any] = {
-        "systemInstruction": {
-            "parts": [{"text": prompt_for(row, current_time)}]
-        },
-        "contents": [{
-            "role": "user",
-            "parts": [{
-                "text": "請立即使用 Google Search 核對這個標的，依系統規則完成新聞、財報、公司事件與風險搜尋，最後只輸出指定 JSON。"
-            }]
-        }],
-        "tools": [{"google_search": {}}],
-        "generationConfig": {
-            "maxOutputTokens": 2600
-        }
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": prompt_for(row, current_time)},
+            {
+                "role": "user",
+                "content": "請立即使用 Browser Search 核對這個標的，依系統規則完成新聞、財報、公司事件與風險搜尋，最後只輸出指定 JSON。",
+            },
+        ],
+        "tools": [{"type": "browser_search"}],
+        "tool_choice": "required",
+        "max_completion_tokens": 2600,
+        "stream": False,
     }
 
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
-        url,
+        GROQ_CHAT_COMPLETIONS_URL,
         data=data,
         method="POST",
         headers={
             "Content-Type": "application/json; charset=utf-8",
-            "x-goog-api-key": api_key,
+            "Authorization": f"Bearer {api_key}",
         },
     )
 
@@ -365,7 +410,7 @@ def generate_content_request(api_key: str, row: dict, current_time: datetime) ->
             if isinstance(payload, dict) and isinstance((payload or {}).get("error"), dict)
             else body
         )
-        raise GeminiHTTPError(
+        raise GroqHTTPError(
             exc.code,
             str(detail or body)[:2000],
             payload,
@@ -394,9 +439,9 @@ def _flatten_strings(value: Any, output: list[str] | None = None, depth: int = 0
 
 def classify_failure(exc: Exception) -> dict:
     """Port the TennisRatio failure buckets that matter for batch safety."""
-    status = exc.status if isinstance(exc, GeminiHTTPError) else None
-    payload = exc.payload if isinstance(exc, GeminiHTTPError) else None
-    retry_after = exc.retry_after if isinstance(exc, GeminiHTTPError) else None
+    status = exc.status if isinstance(exc, GroqHTTPError) else None
+    payload = exc.payload if isinstance(exc, GroqHTTPError) else None
+    retry_after = exc.retry_after if isinstance(exc, GroqHTTPError) else None
     text = " ".join(_flatten_strings(payload)) + " " + str(exc)
     lower = text.lower()
 
@@ -406,7 +451,7 @@ def classify_failure(exc: Exception) -> dict:
     stop_batch = True
 
     if status == 429:
-        if re.search(r"google.?search|grounding", lower) and re.search(r"per.?day|daily|rpd|quota.?exceeded|exceeded.{0,24}quota|quota.{0,24}exceeded", lower):
+        if re.search(r"browser.?search|search.?tool", lower) and re.search(r"per.?day|daily|rpd|quota.?exceeded|exceeded.{0,24}quota|quota.{0,24}exceeded", lower):
             category = "quota_search_rpd"
         elif re.search(r"token|input.?token|output.?token", lower) and re.search(r"per.?minute|tpm", lower):
             category = "rate_limit_tpm"
@@ -453,19 +498,19 @@ def classify_failure(exc: Exception) -> dict:
         stop_batch = False
 
     messages = {
-        "quota_search_rpd": "Google Search Grounding 今日額度已達上限",
-        "quota_model_rpd": "Gemini 今日模型請求額度已達上限",
-        "rate_limit_tpm": "Gemini 每分鐘 Token 限制（TPM）",
-        "rate_limit_rpm": "Gemini 每分鐘請求限制（RPM）",
-        "rate_limit_unknown_429": "Gemini 暫時受到使用限制（HTTP 429）",
-        "service_unavailable_503": "Gemini 服務暫時壅塞（HTTP 503）",
-        "service_unavailable_5xx": "Gemini 上游服務暫時異常",
-        "auth_401_403": "Gemini API Key 或專案權限錯誤",
-        "model_unavailable_404": "目前 API Key 無法使用 gemini-2.5-flash",
-        "request_too_large_413": "Gemini 請求內容過大",
-        "network_timeout": "Gemini 連線逾時或網路失敗",
-        "format_error": "Gemini 已回覆但 JSON 格式不完整",
-        "unknown_error": "Gemini 未知錯誤",
+        "quota_search_rpd": "Groq Browser Search 今日額度已達上限",
+        "quota_model_rpd": "GPT-OSS 今日模型請求額度已達上限",
+        "rate_limit_tpm": "Groq GPT-OSS 每分鐘 Token 限制（TPM）",
+        "rate_limit_rpm": "Groq GPT-OSS 每分鐘請求限制（RPM）",
+        "rate_limit_unknown_429": "Groq GPT-OSS 暫時受到使用限制（HTTP 429）",
+        "service_unavailable_503": "Groq 服務暫時壅塞（HTTP 503）",
+        "service_unavailable_5xx": "Groq 上游服務暫時異常",
+        "auth_401_403": "Groq API Key 或模型權限錯誤",
+        "model_unavailable_404": "目前 Groq API Key 無法使用 openai/gpt-oss-120b",
+        "request_too_large_413": "GPT-OSS 請求內容過大",
+        "network_timeout": "Groq 連線逾時或網路失敗",
+        "format_error": "GPT-OSS 已回覆但 JSON 格式不完整",
+        "unknown_error": "GPT-OSS 未知錯誤",
     }
 
     return {
@@ -480,7 +525,7 @@ def classify_failure(exc: Exception) -> dict:
 
 
 def _loose_json_string(text: str, key: str) -> str:
-    """Recover a quoted top-level-ish value from a truncated Gemini JSON reply."""
+    """Recover a quoted top-level-ish value from a truncated GPT-OSS JSON reply."""
     pattern = re.compile(rf'["\']{re.escape(key)}["\']\s*:\s*["\']((?:\\.|[^"\'\\])*)["\']', re.I | re.S)
     match = pattern.search(str(text or ""))
     if not match:
@@ -494,7 +539,7 @@ def _loose_json_string(text: str, key: str) -> str:
 
 
 def recover_loose_research_json(text: str, row: dict) -> dict:
-    """Best-effort human fields when Gemini searched successfully but JSON was truncated.
+    """Best-effort human fields when GPT-OSS searched successfully but JSON was truncated.
 
     This deliberately does not invent data. It only recovers fields that are visibly
     present in the model text so the UI can show readable content instead of raw JSON.
@@ -544,12 +589,12 @@ def recover_loose_research_json(text: str, row: dict) -> dict:
             break
 
     if not raw["summary"]:
-        raw["summary"] = "Gemini 已完成 Google Search，但回傳格式不完整；已整理可辨識欄位供人工判讀。"
+        raw["summary"] = "GPT-OSS 已完成 Browser Search，但回傳格式不完整；已整理可辨識欄位供人工判讀。"
     return raw
 
 
 def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
-    text, sources, queries = extract_generate_content(body)
+    text, sources, queries = extract_groq_response(body)
 
     # Exactly like TennisRatio's safe pattern: a formatting miss after a real
     # grounded search does not trigger a second search request and waste quota.
@@ -560,10 +605,10 @@ def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
         raw = recover_loose_research_json(text, row)
         format_warning = True
 
-    # A result is only eligible for 24H success cache if Google Search actually
-    # left grounding evidence (source URLs or explicit web search queries).
+    # A result is only eligible for 24H success cache if Browser Search actually
+    # left evidence (source URLs or explicit search queries).
     if not sources and not queries:
-        raise RuntimeError("Gemini returned text but no Google Search grounding/citations")
+        raise RuntimeError("GPT-OSS returned text but no Browser Search evidence/citations")
 
     result = normalize_result(
         raw,
@@ -573,7 +618,7 @@ def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
         queries,
         raw_model_text=text,
         format_warning=format_warning,
-        usage=body.get("usageMetadata") if isinstance(body.get("usageMetadata"), dict) else {},
+        usage=body.get("usage") if isinstance(body.get("usage"), dict) else {},
     )
 
     if format_warning:
@@ -583,13 +628,13 @@ def response_to_result(body: dict, row: dict, current_time: datetime) -> dict:
     return result
 
 
-def gemini_search(api_key: str, row: dict, current_time: datetime) -> tuple[dict | None, dict | None]:
+def gpt_oss_search(api_key: str, row: dict, current_time: datetime) -> tuple[dict | None, dict | None]:
     """Return (result, failure). At most two attempts, TennisRatio-style."""
     previous_failure: dict | None = None
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            body = generate_content_request(api_key, row, current_time)
+            body = groq_browser_search_request(api_key, row, current_time)
             result = response_to_result(body, row, current_time)
             result["attempt_count"] = attempt
             result["retry_count"] = attempt - 1
@@ -619,7 +664,7 @@ def gemini_search(api_key: str, row: dict, current_time: datetime) -> tuple[dict
 
     return None, previous_failure or {
         "category": "unknown_error",
-        "summary": "Gemini 未知錯誤",
+        "summary": "GPT-OSS 未知錯誤",
         "retryable": False,
         "wait_seconds": 0,
         "stop_batch": True,
@@ -645,7 +690,7 @@ def error_item(row: dict, failure: dict) -> dict:
         **base,
         "research_status": "ERROR",
         "verdict": "neutral",
-        "summary": str(failure.get("summary") or "Gemini 搜尋失敗，本次不建立臆測內容。"),
+        "summary": str(failure.get("summary") or "GPT-OSS 搜尋失敗，本次不建立臆測內容。"),
         "events": [],
         "sources": [],
         "research_error": str(failure.get("technical_error") or failure.get("summary") or "")[:800],
@@ -654,27 +699,27 @@ def error_item(row: dict, failure: dict) -> dict:
         "attempt_count": failure.get("attempt_count"),
         "retry_count": failure.get("retry_count"),
         "model": MODEL,
-        "api": "generateContent-v1beta",
-        "search_mode": "gemini_2_5_flash_google_search",
+        "api": "groq-chat-completions-v1",
+        "search_mode": "gpt_oss_120b_browser_search",
         "pipeline_version": PIPELINE_VERSION,
     }
 
 
 def deferred_item(row: dict, stop_failure: dict) -> dict:
     base = base_item(row)
-    cause = str(stop_failure.get("summary") or stop_failure.get("category") or "前一筆 Gemini 錯誤")
+    cause = str(stop_failure.get("summary") or stop_failure.get("category") or "前一筆 GPT-OSS 錯誤")
     return {
         **base,
         "research_status": "DEFERRED",
         "verdict": "neutral",
-        "summary": "本輪 Gemini 批次已停止；此標的尚未送出搜尋，保留到下一輪。",
+        "summary": "本輪 GPT-OSS 批次已停止；此標的尚未送出搜尋，保留到下一輪。",
         "events": [],
         "sources": [],
-        "research_error": f"未呼叫 Gemini。停止原因：{cause}"[:800],
+        "research_error": f"未呼叫 GPT-OSS。停止原因：{cause}"[:800],
         "failure_type": "batch_stopped_before_request",
         "model": MODEL,
-        "api": "generateContent-v1beta",
-        "search_mode": "gemini_2_5_flash_google_search",
+        "api": "groq-chat-completions-v1",
+        "search_mode": "gpt_oss_120b_browser_search",
         "pipeline_version": PIPELINE_VERSION,
     }
 
@@ -714,7 +759,7 @@ def main() -> int:
         )
     )
 
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
     items: list[dict] = []
     counts = {
         "new_search": 0,
@@ -787,8 +832,8 @@ def main() -> int:
         if not api_key:
             failure = {
                 "category": "configuration_error",
-                "summary": "尚未設定 GEMINI_API_KEY，未執行新聞搜尋。",
-                "technical_error": "GEMINI_API_KEY missing",
+                "summary": "尚未設定 GROQ_API_KEY，未執行新聞搜尋。",
+                "technical_error": "GROQ_API_KEY missing",
                 "http_status": None,
                 "attempt_count": 0,
                 "retry_count": 0,
@@ -798,7 +843,7 @@ def main() -> int:
                 reused = dict(old)
                 reused.update(base)
                 reused["research_status"] = "STALE_CACHE"
-                reused["research_error"] = "GEMINI_API_KEY missing"
+                reused["research_error"] = "GROQ_API_KEY missing"
                 items.append(reused)
                 counts["stale_cache"] += 1
             else:
@@ -808,7 +853,7 @@ def main() -> int:
             stop_failure = failure
             continue
 
-        result, failure = gemini_search(api_key, row, current)
+        result, failure = gpt_oss_search(api_key, row, current)
 
         if result:
             # Only grounded success enters the 24H cache.
@@ -819,7 +864,7 @@ def main() -> int:
             items.append(item)
             counts["new_search"] += 1
             print(
-                f"[Gemini] {symbol} {state} -> {result.get('verdict')} "
+                f"[GPT-OSS] {symbol} {state} -> {result.get('verdict')} "
                 f"({len(result.get('sources') or [])} sources, "
                 f"{len(result.get('web_search_queries') or [])} queries)"
             )
@@ -831,13 +876,13 @@ def main() -> int:
                     SEARCH_DELAY_MIN_SECONDS,
                     SEARCH_DELAY_MAX_SECONDS,
                 )
-                print(f"[Gemini] cooldown {cooldown}s before next NEW search")
+                print(f"[GPT-OSS] cooldown {cooldown}s before next NEW search")
                 time.sleep(cooldown)
             continue
 
         failure = failure or {
             "category": "unknown_error",
-            "summary": "Gemini 搜尋失敗",
+            "summary": "GPT-OSS 搜尋失敗",
             "technical_error": "unknown",
             "http_status": None,
             "attempt_count": 1,
@@ -858,7 +903,7 @@ def main() -> int:
             counts["error"] += 1
 
         print(
-            f"::warning::{symbol} Gemini research failed "
+            f"::warning::{symbol} GPT-OSS research failed "
             f"[{failure.get('category')}]: {failure.get('technical_error')}"
         )
 
@@ -866,7 +911,7 @@ def main() -> int:
             stop_batch = True
             stop_failure = failure
             print(
-                f"::warning::Gemini batch stopped after {symbol}; "
+                f"::warning::GPT-OSS batch stopped after {symbol}; "
                 "remaining uncached symbols will NOT call the API this round."
             )
 
@@ -875,7 +920,7 @@ def main() -> int:
         "ttl_hours": 24,
         "updated_at": iso(current),
         "model": MODEL,
-        "api": "generateContent-v1beta",
+        "api": "groq-chat-completions-v1",
         "pipeline_version": PIPELINE_VERSION,
         "entries": entries,
     }
@@ -887,8 +932,8 @@ def main() -> int:
     latest = {
         "schema_version": "1.1",
         "model": MODEL,
-        "api": "generateContent-v1beta",
-        "search_mode": "gemini_2_5_flash_google_search",
+        "api": "groq-chat-completions-v1",
+        "search_mode": "gpt_oss_120b_browser_search",
         "pipeline_version": PIPELINE_VERSION,
         "generated_at": iso(current),
         "snapshot_generated_at": (snapshot.get("batch") or {}).get("generated_at_taiwan"),

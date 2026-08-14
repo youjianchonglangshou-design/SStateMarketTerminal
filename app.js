@@ -777,7 +777,7 @@
     const looksLikeJson = /^\s*[{[]/.test(summary) || /["'](?:underlying_ticker|company_name|verdict|summary)["']\s*:/.test(summary);
     if (!summary || looksLikeJson) {
       merged.summary = info?.format_warning
-        ? 'Gemini 已完成 Google Search，但回傳格式不完整；系統已把可辨識內容整理成人類可讀欄位。'
+        ? 'GPT-OSS 已完成 Browser Search，但回傳格式不完整；系統已把可辨識內容整理成人類可讀欄位。'
         : '本次沒有需要特別列出的重大近期事件。';
     }
 
@@ -859,9 +859,9 @@
     </div>` : '';
 
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
-    const modelLabel = String(info.model || state.usStockResearch?.model || 'gemini-2.5-flash').replace(/^models\//,'');
+    const modelLabel = String(info.model || state.usStockResearch?.model || 'openai/gpt-oss-120b').replace(/^models\//,'');
     const errorHtml = info.research_error ? `<div class="research-error"><b>搜尋錯誤</b><span>${escapeHtml(info.research_error)}</span></div>` : '';
-    const manualHtml = isManualReview && !isError ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>搜尋已完成；只是 Gemini 回傳格式不完整。系統已隱藏原始 JSON，改用可讀欄位呈現。</span></div>` : '';
+    const manualHtml = isManualReview && !isError ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>搜尋已完成；只是 GPT-OSS 回傳格式不完整。系統已隱藏原始 JSON，改用可讀欄位呈現。</span></div>` : '';
     const verdictHtml = (!isError && !isDeferred) ? `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>` : '';
 
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
@@ -869,7 +869,7 @@
       ${verdictHtml}
       <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary||'')}</div></div>
       ${manualHtml}${errorHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)} + Google Search｜${escapeHtml(searched)}</div>
+      <div class="research-meta">${escapeHtml(modelLabel)} + Browser Search｜${escapeHtml(searched)}</div>
     </div></div>`;
   }
 

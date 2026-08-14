@@ -175,6 +175,8 @@ jobs:
       MODE: ${{ inputs.mode }}
       CRYPTO_RESULT: ${{ needs.crypto.result }}
       STOCK_RESULT: ${{ needs.us_stock.result }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: "1880226268"
     steps:
       - name: Finalize Auto Batch status
         shell: bash
@@ -193,3 +195,57 @@ jobs:
             -H "Content-Type: application/json" -d "$BODY" \
             "$WORKER_BASE_URL/api/internal/automation/status" || true
           [ "$SUCCESS" = "true" ]
+
+      - name: Telegram | Auto batch completed
+        if: ${{ success() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN 尚未設定，略過 Telegram 通知"
+            exit 0
+          fi
+
+          NOW=$(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M:%S')
+
+          snapshot_summary() {
+            local file="$1"
+            local label="$2"
+            local count s3 s05 s1 s2 s0 other
+            count=$(jq -r '.batch.count // (.records | length) // 0' "$file")
+            s3=$(jq -r '.breadth.market_state.S3 // 0' "$file")
+            s05=$(jq -r '.breadth.market_state["S0.5"] // 0' "$file")
+            s1=$(jq -r '.breadth.market_state.S1 // 0' "$file")
+            s2=$(jq -r '.breadth.market_state.S2 // 0' "$file")
+            s0=$(jq -r '.breadth.market_state.S0 // 0' "$file")
+            other=$(jq -r '.breadth.market_state.OTHER // 0' "$file")
+            printf '%s：%s 標的｜S3 %s｜S0.5 %s｜S1 %s｜S2 %s｜S0 %s｜OTHER %s' \
+              "$label" "$count" "$s3" "$s05" "$s1" "$s2" "$s0" "$other"
+          }
+
+          if [ "$MODE" = "pair" ]; then
+            curl --fail --silent --show-error "$WORKER_BASE_URL/api/snapshot?market=crypto" -o /tmp/tg_crypto.json
+            curl --fail --silent --show-error "$WORKER_BASE_URL/api/snapshot?market=us-stock" -o /tmp/tg_stock.json
+            CRYPTO_LINE=$(snapshot_summary /tmp/tg_crypto.json '🪙 加密貨幣')
+            STOCK_LINE=$(snapshot_summary /tmp/tg_stock.json '🇺🇸 美股代幣')
+            BATCH_LABEL='Crypto → US-stock'
+            MESSAGE=$(printf '📊 SState Market Terminal\n✅ 自動排程完整分析完成\n來源：⏰ 自動排程\n批次：%s\n時間：%s\n%s\n%s\nR2：最新資料已更新' \
+              "$BATCH_LABEL" "$NOW" "$CRYPTO_LINE" "$STOCK_LINE")
+          else
+            curl --fail --silent --show-error "$WORKER_BASE_URL/api/snapshot?market=us-stock" -o /tmp/tg_stock.json
+            STOCK_LINE=$(snapshot_summary /tmp/tg_stock.json '🇺🇸 美股代幣')
+            BATCH_LABEL='US-stock only（21:31）'
+            MESSAGE=$(printf '📊 SState Market Terminal\n✅ 自動排程完整分析完成\n來源：⏰ 自動排程\n批次：%s\n時間：%s\n%s\nR2：最新資料已更新' \
+              "$BATCH_LABEL" "$NOW" "$STOCK_LINE")
+          fi
+
+          jq -nc \
+            --arg chat_id "$TELEGRAM_CHAT_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id:$chat_id,text:$text,disable_web_page_preview:true}' \
+          | curl --fail --silent --show-error \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data-binary @- \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+

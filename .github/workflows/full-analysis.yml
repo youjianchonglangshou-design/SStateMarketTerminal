@@ -34,6 +34,8 @@ jobs:
       WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
       RUN_ID: ${{ inputs.run_id }}
       MARKET: ${{ inputs.market }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: "1880226268"
 
     steps:
       - name: Checkout
@@ -118,6 +120,52 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary "@output/$SNAP" \
             "$WORKER_BASE_URL/api/internal/snapshot?market=$MARKET&run_id=$RUN_ID"
+
+
+      - name: Telegram | Manual analysis completed
+        if: ${{ success() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN 尚未設定，略過 Telegram 通知"
+            exit 0
+          fi
+
+          SNAP="${{ steps.names.outputs.snapshot }}"
+          if [ ! -s "output/$SNAP" ]; then
+            echo "::warning::找不到 output/$SNAP，略過 Telegram 通知"
+            exit 0
+          fi
+
+          if [ "$MARKET" = "us-stock" ]; then
+            MARKET_LABEL="🇺🇸 美股代幣"
+          else
+            MARKET_LABEL="🪙 加密貨幣"
+          fi
+
+          TIME=$(jq -r '.batch.generated_at_taiwan // empty' "output/$SNAP")
+          [ -n "$TIME" ] || TIME=$(TZ=Asia/Taipei date '+%Y-%m-%d %H:%M:%S')
+          COUNT=$(jq -r '.batch.count // (.records | length) // 0' "output/$SNAP")
+          S3=$(jq -r '.breadth.market_state.S3 // 0' "output/$SNAP")
+          S05=$(jq -r '.breadth.market_state["S0.5"] // 0' "output/$SNAP")
+          S1=$(jq -r '.breadth.market_state.S1 // 0' "output/$SNAP")
+          S2=$(jq -r '.breadth.market_state.S2 // 0' "output/$SNAP")
+          S0=$(jq -r '.breadth.market_state.S0 // 0' "output/$SNAP")
+          OTHER=$(jq -r '.breadth.market_state.OTHER // 0' "output/$SNAP")
+
+          MESSAGE=$(printf '📊 SState Market Terminal\n✅ 手動完整分析完成\n來源：👤 手動\n市場：%s\n時間：%s\n分析標的：%s\n狀態：S3 %s｜S0.5 %s｜S1 %s｜S2 %s｜S0 %s｜OTHER %s\nR2：最新資料已更新' \
+            "$MARKET_LABEL" "$TIME" "$COUNT" "$S3" "$S05" "$S1" "$S2" "$S0" "$OTHER")
+
+          jq -nc \
+            --arg chat_id "$TELEGRAM_CHAT_ID" \
+            --arg text "$MESSAGE" \
+            '{chat_id:$chat_id,text:$text,disable_web_page_preview:true}' \
+          | curl --fail --silent --show-error \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data-binary @- \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
 
       - name: Upload analysis artifact
         if: always()

@@ -3,18 +3,18 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, researchRunId: "", researchPollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, researchBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
-    version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), news: $("news-analysis-button"), download: $("download-button"),
+    version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
     battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.30｜NEWS-ONLY-RUN";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.31｜ON-DEMAND-NEWS";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -85,32 +85,15 @@
 
   function updateActionState() {
     const manualBusy = Boolean(state.analysisBusy);
-    const researchBusy = Boolean(state.researchBusy);
     const autoBusy = Boolean(state.autoBatchBusy);
-    els.run.disabled = manualBusy || researchBusy || autoBusy;
+    els.run.disabled = manualBusy || autoBusy;
     els.run.classList.toggle('auto-batch-locked', autoBusy);
     els.run.textContent = autoBusy ? '⚡🚫 完整分析' : '⚡ 完整分析';
-    els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : researchBusy ? '新聞分析執行中，完成後才能啟動完整分析' : `只分析目前選取的${marketLabel(state.market)}`);
+    els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : `只分析目前選取的${marketLabel(state.market)}`);
 
-    if (els.news) {
-      const usStock = state.market === 'us-stock';
-      els.news.classList.toggle('hidden', !usStock);
-      els.news.disabled = !usStock || manualBusy || researchBusy || autoBusy;
-      els.news.textContent = researchBusy ? '📰⏳ 新聞分析' : '📰 新聞分析';
-      els.news.title = !usStock
-        ? '只在美股代幣模式提供'
-        : autoBusy
-          ? autoBatchTitle()
-          : manualBusy
-            ? '完整分析進行中，完成後才能單獨執行新聞分析'
-            : researchBusy
-              ? 'GPT-OSS 新聞分析執行中'
-              : '只讀取 R2 最新美股 snapshot，執行 GPT-OSS 新聞分析；不重抓 Pionex、不重跑 S-state 引擎；保留 24H Cache 規則';
-    }
-
-    // Full analysis / research-only run keeps the selector frozen. Auto Batch only locks execution;
-    // the user can still switch Crypto / US-stock to inspect the last completed snapshot.
-    els.market.disabled = manualBusy || researchBusy;
+    // Per-symbol Browser Search is an independent event. It never locks the
+    // market selector or the Full Analysis button.
+    els.market.disabled = manualBusy;
     updateDownloadButton();
   }
 
@@ -125,11 +108,6 @@
 
   function setAnalysisBusy(busy) {
     state.analysisBusy = Boolean(busy);
-    updateActionState();
-  }
-
-  function setResearchBusy(busy) {
-    state.researchBusy = Boolean(busy);
     updateActionState();
   }
 
@@ -218,7 +196,7 @@
     try {
       state.usStockResearch = await fetchJson(`${workerUrl}/api/research/us-stock/latest?t=${Date.now()}`);
     } catch (_) {
-      state.usStockResearch = null;
+      state.usStockResearch = { schema_version: "2.0", ttl_hours: 24, items: [], items_by_symbol: {} };
     }
     if (state.snapshot?.records) renderCards();
   }
@@ -227,6 +205,25 @@
     if (state.market !== "us-stock") return null;
     const key = String(symbol || "").trim().toUpperCase();
     return state.usStockResearch?.items_by_symbol?.[key] || null;
+  }
+
+  function researchExpiresAt(info) {
+    if (!info || typeof info !== 'object') return 0;
+    const direct = Date.parse(info.expires_at || '');
+    if (Number.isFinite(direct)) return direct;
+    const searched = Date.parse(info.searched_at || '');
+    return Number.isFinite(searched) ? searched + 24 * 60 * 60 * 1000 : 0;
+  }
+
+  function researchIsFresh(info) {
+    if (!info || typeof info !== 'object') return false;
+    if (['ERROR','DEFERRED','SKIPPED_NON_COMPANY'].includes(String(info.research_status || '').toUpperCase())) return false;
+    const expires = researchExpiresAt(info);
+    return expires > Date.now();
+  }
+
+  function researchEligible(r) {
+    return state.market === 'us-stock' && ['S3','S0.5','S1'].includes(recordState(r));
   }
 
   function stopMarketStatusSockets(clearStatuses=true) {
@@ -738,7 +735,7 @@
   }
 
   function researchStatusLabel(value) {
-    return ({NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',DEFERRED:'待下輪',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
+    return ({ON_DEMAND:'ON DEMAND',NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',DEFERRED:'待下輪',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
   }
 
   function stripResearchCodeWrapper(value) {
@@ -835,24 +832,34 @@
   }
 
   function renderResearch(r) {
-    if (state.market !== 'us-stock') return '';
-    const rawInfo = currentResearchFor(r?.symbol);
-    if (!rawInfo) return '';
+    if (!researchEligible(r)) return '';
+
+    const symbol = String(r?.symbol || '').trim().toUpperCase();
+    const rawInfo = currentResearchFor(symbol);
+    const fresh = researchIsFresh(rawInfo);
+    const busy = state.researchSymbolBusy.has(symbol);
+    const anotherBusy = state.researchSymbolBusy.size > 0 && !busy;
+    const error = String(state.researchSymbolErrors[symbol] || '');
+
+    if (!fresh) {
+      const expired = Boolean(rawInfo && researchExpiresAt(rawInfo) && researchExpiresAt(rawInfo) <= Date.now());
+      const label = busy ? '⏳ 搜尋中…' : anotherBusy ? '… 等待上一筆' : error ? '⚠ 查詢失敗・重試' : expired ? '↻ 已過24H・重新查詢' : '🔎 等待查詢';
+      const title = busy
+        ? `${symbol} 正在使用 GPT-OSS 120B + Browser Search 查詢`
+        : error
+          ? `${symbol} 前次查詢失敗：${error}｜點擊重試`
+          : expired
+            ? `${symbol} 新聞快取已超過 24 小時｜點擊重新查詢`
+            : `${symbol} 尚未查詢｜有興趣再點擊，成功後快取 24 小時`;
+      return `<button type="button" class="pill research-query-pill ${busy?'is-busy':error?'is-error':'is-waiting'}" data-research-symbol="${escapeHtml(symbol)}" title="${escapeHtml(title)}" ${(busy||anotherBusy)?'disabled':''}>${escapeHtml(label)}</button>`;
+    }
+
     const info = humanizeResearchInfo(rawInfo);
-    const researchStatus = String(info.research_status || '');
-    const isError = researchStatus === 'ERROR';
-    const isDeferred = researchStatus === 'DEFERRED';
     const isManualReview = Boolean(info.format_warning) || String(info.verification_status || '') === 'MANUAL_REVIEW';
     const [verdictCls,verdictLabel] = researchVerdictMeta(info.verdict);
-    const [cls,label] = isError
-      ? ['risk','⚠ 搜尋失敗']
-      : isDeferred
-        ? ['neutral','⏸ 未搜尋']
-        : isManualReview
-          ? ['neutral','ℹ 人工判讀']
-          : [verdictCls,verdictLabel];
+    const [cls,label] = isManualReview ? ['neutral','ℹ 人工判讀'] : [verdictCls,verdictLabel];
     const statusLabel = researchStatusLabel(info.research_status);
-    const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || String(r?.symbol || '');
+    const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || symbol;
     const events = Array.isArray(info.events) ? info.events.slice(0,5) : [];
     const sources = Array.isArray(info.sources) ? info.sources.slice(0,6) : [];
     const last = info.last_earnings && typeof info.last_earnings === 'object' ? info.last_earnings : {};
@@ -868,7 +875,7 @@
       </div>`;
     }).join('')}</div>` : '<div class="research-section"><div class="research-section-title">近期重大事件</div><div class="research-empty">沒有列入重大事件。</div></div>';
 
-    const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((s,i)=>`<a href="${escapeHtml(s.url||'#')}" target="_blank" rel="noopener noreferrer"><span>${i+1}</span>${escapeHtml(s.title||'來源')}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
+    const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((src,i)=>`<a href="${escapeHtml(src.url||'#')}" target="_blank" rel="noopener noreferrer"><span>${i+1}</span>${escapeHtml(src.title||'來源')}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
 
     const earningsHtml = hasEarnings ? `<div class="research-section">
       <div class="research-section-title">財報／財測</div>
@@ -883,16 +890,15 @@
 
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
     const modelLabel = String(info.model || state.usStockResearch?.model || 'openai/gpt-oss-120b').replace(/^models\//,'');
-    const errorHtml = info.research_error ? `<div class="research-error"><b>搜尋錯誤</b><span>${escapeHtml(info.research_error)}</span></div>` : '';
-    const manualHtml = isManualReview && !isError ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>搜尋已完成；只是 GPT-OSS 回傳格式不完整。系統已隱藏原始 JSON，改用可讀欄位呈現。</span></div>` : '';
-    const verdictHtml = (!isError && !isDeferred) ? `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>` : '';
+    const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Browser Search 已成功；結構化整理不完整時，系統保留搜尋摘要與來源，不會重新搜尋覆蓋 24H 快取。</span></div>` : '';
+    const verdictHtml = `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>`;
 
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
       <div class="research-title"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(recordState(r))}</span></div>
       ${verdictHtml}
       <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary||'')}</div></div>
-      ${manualHtml}${errorHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)} + Browser Search｜${escapeHtml(searched)}</div>
+      ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
+      <div class="research-meta">${escapeHtml(modelLabel)} + Browser Search｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
 
@@ -1091,57 +1097,40 @@
     }
   }
 
-  async function startNewsAnalysis() {
-    if (state.market !== 'us-stock') { showToast('新聞分析只提供美股代幣。',5000); return; }
-    if (!workerUrl) { showToast('尚未設定 Cloudflare Worker。',7000); return; }
-    if (state.autoBatchBusy) { showToast(autoBatchTitle(),7000); return; }
-    if (state.analysisBusy || state.researchBusy) return;
+  async function queryResearchSymbol(symbol) {
+    const key = String(symbol || '').trim().toUpperCase();
+    if (!key || state.market !== 'us-stock' || !workerUrl || state.researchSymbolBusy.has(key)) return;
+    if (state.researchSymbolBusy.size > 0) { showToast('目前已有一筆 Browser Search 查詢中，完成後再查下一筆。', 5000); return; }
 
-    setResearchBusy(true);
-    setRunUi(true,0,'正在送出新聞分析…','使用 R2 最新美股 snapshot；不重跑完整分析');
+    state.researchSymbolBusy.add(key);
+    delete state.researchSymbolErrors[key];
+    renderCards();
+    showToast(`${key}｜Browser Search 查詢中…`, 4000);
+
     try {
-      const out = await fetchJson(`${workerUrl}/api/research/us-stock/start`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({})
+      const out = await fetchJson(`${workerUrl}/api/research/us-stock/symbol`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: key })
       });
-      state.researchRunId = out.run_id;
-      showToast(`新聞分析已啟動｜${out.run_id}`);
-      pollNewsRun();
-    } catch (err) {
-      state.researchRunId='';
-      setResearchBusy(false);
-      setRunUi(false,0,'','');
-      showToast(`新聞分析啟動失敗：${err.message}`,8000);
-    }
-  }
 
-  async function pollNewsRun(){
-    clearTimeout(state.researchPollTimer);
-    if(!state.researchRunId) return;
-    try{
-      const s=await fetchJson(`${workerUrl}/api/analysis/status?run_id=${encodeURIComponent(state.researchRunId)}&t=${Date.now()}`);
-      const p=Number(s.percent||0);
-      setRunUi(true,p,s.status==='SUCCESS'?'新聞分析完成':s.status==='FAILED'?'新聞分析失敗':'新聞分析執行中',`${s.current_symbol||''} ${s.completed??''}/${s.total??''} ${s.message||''}`.trim());
-      if(s.status==='SUCCESS'){
-        state.researchRunId='';
-        setResearchBusy(false);
-        await loadUsStockResearch();
-        setRunUi(false,100,'','');
-        showToast(s.message || '新聞分析完成，已載入 R2 最新新聞資料。',7000);
-        return;
+      if (!state.usStockResearch || typeof state.usStockResearch !== 'object') {
+        state.usStockResearch = { schema_version: '2.0', ttl_hours: 24, items: [], items_by_symbol: {} };
       }
-      if(s.status==='FAILED'){
-        state.researchRunId='';
-        setResearchBusy(false);
-        setRunUi(false,0,'','');
-        showToast(`新聞分析失敗：${s.message||'請查看 GitHub Actions'}`,9000);
-        return;
-      }
-    }catch(err){
-      setRunUi(true,0,'等待新聞分析回報',err.message);
+      if (!state.usStockResearch.items_by_symbol) state.usStockResearch.items_by_symbol = {};
+      state.usStockResearch.items_by_symbol[key] = out.item;
+      state.usStockResearch.items = Object.values(state.usStockResearch.items_by_symbol);
+      state.usStockResearch.generated_at = out.generated_at || new Date().toISOString();
+      state.usStockResearch.model = out.item?.model || 'openai/gpt-oss-120b';
+      delete state.researchSymbolErrors[key];
+      showToast(out.cached ? `${key}｜沿用 24H 快取，不重新搜尋。` : `${key}｜新聞查詢完成，已寫入 R2 並固定快取 24H。`, 7000);
+    } catch (err) {
+      state.researchSymbolErrors[key] = String(err?.message || err).slice(0, 500);
+      showToast(`${key}｜新聞查詢失敗：${err?.message || err}`, 9000);
+    } finally {
+      state.researchSymbolBusy.delete(key);
+      renderCards();
     }
-    state.researchPollTimer=setTimeout(pollNewsRun,pollInterval);
   }
 
   function setRunUi(show,percent,title,detail){
@@ -1196,7 +1185,13 @@
     els.search.addEventListener('keydown', e => { if (e.key === 'Escape') { els.search.value=''; state.searchQuery=''; renderCards(); els.search.blur(); } });
   }
   els.run.addEventListener('click',startFullAnalysis);
-  if (els.news) els.news.addEventListener('click',startNewsAnalysis);
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest?.('.research-query-pill');
+    if (!trigger) return;
+    event.preventDefault();
+    event.stopPropagation();
+    queryResearchSymbol(trigger.dataset.researchSymbol || '');
+  }, true);
   els.download.addEventListener('click',downloadCurrentJson);
   els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));
   setBattleExpanded(false, false);

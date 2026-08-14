@@ -2,22 +2,26 @@
 
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
 
-**版本：`TERMINAL v0.1.30｜NEWS-ONLY-RUN`**
+**版本：`TERMINAL v0.1.31｜ON-DEMAND-NEWS`**
 
 ## 已完成的資料流
 
 ```text
 GitHub Pages
-  ├─ 開站：只讀 R2 最後一次 snapshot
+  ├─ 開站：只讀 R2 最後一次 snapshot + 已查詢新聞快取
   ├─ 完整分析：POST Cloudflare Worker → full-analysis.yml → Pionex + S-state + R2
-  └─ 新聞分析：POST Cloudflare Worker → us-stock-research.yml
-                                      ↓
-                         只讀 R2 最新美股 snapshot
-                                      ↓
-                         GPT-OSS 120B 新聞分析
-                                      ↓
-                         24H Cache + research R2
+  └─ S3 / S0.5 / S1 卡片「🔎 等待查詢」：使用者點擊單一標的
+                                     ↓
+                         Cloudflare Worker 直接呼叫 Groq
+                                     ↓
+                         GPT-OSS 120B + Browser Search
+                                     ↓
+                         純對話第二段整理 JSON
+                                     ↓
+                         該標的固定 24H Cache + research R2
 ```
+
+新聞查詢與完整分析是兩條完全獨立的事件。完整分析與自動排程都不會自動查新聞。
 
 Stage 1 **不使用 D1**。Runtime 最新 JSON 以 R2 為唯一 source of truth；GitHub 只負責程式碼與 Actions。
 
@@ -29,9 +33,8 @@ Stage 1 **不使用 D1**。Runtime 最新 JSON 以 R2 為唯一 source of truth�
 - `config.js`：只需填 Worker URL
 - `engine/`：由原 Streamlit 拆出的 headless Python S-state engine
 - `.github/workflows/full-analysis.yml`：Cloudflare 呼叫的完整分析
-- `.github/workflows/us-stock-research.yml`：只跑美股 GPT-OSS 新聞分析，不重跑市場引擎
 - `.github/workflows/deploy-pages.yml`：GitHub Pages
-- `cloudflare/worker.js`：R2 + GitHub dispatch 中介層
+- `cloudflare/worker.js`：R2 + GitHub dispatch + 單一標的 GPT-OSS Browser Search
 - `cloudflare/wrangler.toml.example`：R2 binding / Worker vars
 - `data/bootstrap/`：R2 尚未設定時的最後一次畫面 fallback
 
@@ -78,7 +81,10 @@ Worker Secrets：
 ```text
 GITHUB_TOKEN
 CALLBACK_TOKEN
+GROQ_API_KEY
 ```
+
+`GROQ_API_KEY` 現在只放在 Cloudflare Worker Secret。GitHub Pages 不會拿到這把 Key。
 
 `GITHUB_TOKEN` 建議用 fine-grained token，只授權此 repo，Repository permissions → **Actions: Read and write**。
 
@@ -156,21 +162,33 @@ POST /api/analysis/start
 
 Worker 建 `run_id` → 呼叫 `full-analysis.yml` → Python 重新抓 Pionex → S-state → Level 5 → R2。
 
-### 按「📰 新聞分析」
+### S3 / S0.5 / S1 卡片的「🔎 等待查詢」
 
-只在「美股代幣」模式顯示：
+只有目前 S-state 為 `S3` / `S0.5` / `S1` 的美股代幣會顯示呼吸光暈查詢膠囊。**不點就完全不呼叫模型。**
+
+點單一標的：
 
 ```text
-POST /api/research/us-stock/start
+POST /api/research/us-stock/symbol
+{ "symbol": "MSFTX" }
 ```
 
-Worker 呼叫 `us-stock-research.yml`，直接讀取 R2 目前的 `snapshot_us_stock_ai.json`，只執行 GPT-OSS 新聞／財報研究。**不重新抓 Pionex、不重新計算 K 線、不重跑 S-state / probability engine。**
+Worker 先讀 R2 最新美股 snapshot 核對該標的與 S-state，再執行：
 
-原本的 24H per-symbol Cache 規則完全保留：24H 內成功結果直接沿用；未快取、已過期或前次失敗未入 Cache 的標的才需要新的模型請求。
+```text
+GPT-OSS 120B + Browser Search（自由文字，不要求 JSON）
+→ GPT-OSS 120B 純對話整理成 JSON（不再搜尋）
+→ research/us-stock/cache.json
+→ research/us-stock/latest.json
+```
+
+成功結果在 24 小時內固定不換：再次點擊同一標的只回傳既有 Cache，不重新搜尋、不覆蓋。重新整理頁面後仍從 R2 載入同一份結果。
+
+完整分析與 Auto Batch **不包含新聞研究 step**，因此市場排程不會消耗 Groq Browser Search。
 
 ### 右上角 JSON
 
-下載的是**目前頁面同一份 R2 latest JSON**，不是 GitHub copy。
+市場 JSON 下載的是目前頁面同一份 R2 snapshot。`⬇ 新聞 JSON` 則下載 `research/us-stock/latest.json`，內容只包含使用者曾主動查詢並成功寫入 R2 的新聞結果。
 
 ## R2 Key v1
 

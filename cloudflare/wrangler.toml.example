@@ -14,3 +14,4 @@ bucket_name = "sstate-market-data"
 # Secrets (do not put values in this file):
 # npx wrangler secret put GITHUB_TOKEN
 # npx wrangler secret put CALLBACK_TOKEN
+# npx wrangler secret put GROQ_API_KEY

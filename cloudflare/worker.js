@@ -67,8 +67,8 @@ export default {
       if (request.method === "POST" && url.pathname === "/api/analysis/start") {
         return await startAnalysis(request, env, origin);
       }
-      if (request.method === "POST" && url.pathname === "/api/research/us-stock/start") {
-        return await startUsStockResearch(request, env, origin);
+      if (request.method === "POST" && url.pathname === "/api/research/us-stock/symbol") {
+        return await researchUsStockSymbol(request, env, origin);
       }
       if (request.method === "POST" && url.pathname === "/api/internal/status") {
         requireInternal(request, env);
@@ -546,77 +546,262 @@ async function startAnalysis(request, env, origin) {
   return json({ ok: true, run_id: runId, market, github_run_id: dispatch?.workflow_run_id || null, github_run_url: dispatch?.html_url || null }, 200, origin);
 }
 
-async function startUsStockResearch(request, env, origin) {
-  await request.json().catch(() => ({}));
+const GROQ_MODEL = "openai/gpt-oss-120b";
+const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
+const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
+const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
+const RESEARCH_ELIGIBLE_STATES = new Set(["S3", "S0.5", "S1"]);
+const RESEARCH_TICKER_OVERRIDES = {
+  AAOIX:"AAOI", AAX:"AA", AXTIX:"AXTI", BEX:"BE", CVXX:"CVX", GMEX:"GME",
+  LRCXX:"LRCX", MPX:"MP", MUX:"MU", NFLXX:"NFLX", RGTIX:"RGTI", RTXX:"RTX",
+  SITMX:"SITM", SMCIX:"SMCI", SNXXX:"SNX", SOXXX:"SOXX", TTEX:"TTE", TXNX:"TXN",
+  ANTHROPIC:"Anthropic", OPENAI:"OpenAI", HYUNDAI:"Hyundai Motor", KIOXIA:"Kioxia",
+  SMSN:"Samsung Electronics", SKHX:"SK hynix", SKHY:"SK hynix"
+};
 
-  const auto = await readAutomationStatus(env);
-  if (automationBusy(auto)) {
-    throw httpError(409, `自動排程分析進行中（${automationPhaseLabel(auto)}），目前新聞分析已鎖定`);
+function researchState(row) {
+  return String(row?.opportunity_long?.market_state_id || "OTHER");
+}
+
+function researchTickerHint(symbol) {
+  const s = String(symbol || "").trim().toUpperCase();
+  if (RESEARCH_TICKER_OVERRIDES[s]) return RESEARCH_TICKER_OVERRIDES[s];
+  if (s.endsWith("X") && s.length > 1) return s.slice(0, -1);
+  return s;
+}
+
+function researchFresh(item, nowMs = Date.now()) {
+  if (!item || typeof item !== "object") return false;
+  const direct = Date.parse(item.expires_at || "");
+  if (Number.isFinite(direct)) return direct > nowMs;
+  const searched = Date.parse(item.searched_at || "");
+  return Number.isFinite(searched) && searched + RESEARCH_TTL_MS > nowMs;
+}
+
+async function readR2Json(env, key, fallback) {
+  try {
+    const obj = await env.JSON_BUCKET.get(key);
+    if (!obj) return fallback;
+    const parsed = JSON.parse(await obj.text());
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch (_) {
+    return fallback;
   }
+}
 
-  const latestSnapshot = await env.JSON_BUCKET.head(MARKET["us-stock"].latest);
-  if (!latestSnapshot) {
-    throw httpError(409, "R2 尚無美股 snapshot；請先至少成功執行一次美股完整分析");
-  }
-
-  const runId = `research_${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0,14)}_${crypto.randomUUID().slice(0,8)}`;
-  const initial = {
-    run_id: runId,
-    market: "us-stock",
-    task: "NEWS_RESEARCH_ONLY",
-    status: "QUEUED",
-    percent: 0,
-    message: "等待 GitHub Actions｜只執行新聞分析，不重跑市場引擎",
-    created_at: new Date().toISOString(),
-  };
-  await env.JSON_BUCKET.put(`runs/${runId}/status.json`, JSON.stringify(initial, null, 2), {
-    httpMetadata: { contentType: "application/json; charset=utf-8" },
-  });
-
-  if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
-    throw httpError(500, "Worker 缺少 GITHUB_TOKEN 或 GITHUB_REPOSITORY");
-  }
-
-  const endpoint = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/workflows/us-stock-research.yml/dispatches`;
-  const gh = await fetch(endpoint, {
+async function groqChat(env, body) {
+  if (!env.GROQ_API_KEY) throw httpError(500, "Worker 缺少 GROQ_API_KEY secret");
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Accept": "application/vnd.github+json",
-      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
-      "X-GitHub-Api-Version": "2026-03-10",
-      "User-Agent": "SStateMarketTerminal-NewsResearch-Worker",
+      "Authorization": `Bearer ${env.GROQ_API_KEY}`,
       "Content-Type": "application/json",
+      "Accept": "application/json",
     },
-    body: JSON.stringify({
-      ref: env.GITHUB_BRANCH || "main",
-      inputs: { run_id: runId },
-    }),
+    body: JSON.stringify(body),
   });
+  const text = await response.text();
+  let payload = null;
+  try { payload = JSON.parse(text); } catch (_) {}
+  if (!response.ok) {
+    const detail = payload?.error?.message || payload?.message || text || response.statusText;
+    const failed = payload?.error?.failed_generation;
+    throw httpError(response.status, `${detail}${failed ? ` | failed_generation: ${String(failed).slice(0, 1200)}` : ""}`);
+  }
+  if (!payload || typeof payload !== "object") throw httpError(502, "Groq 回傳不是有效 JSON");
+  return payload;
+}
 
-  if (!gh.ok) {
-    const text = await gh.text();
-    const failed = {
-      ...initial,
-      status: "FAILED",
-      message: `GitHub research dispatch ${gh.status}: ${text}`,
-      updated_at: new Date().toISOString(),
-    };
-    await env.JSON_BUCKET.put(`runs/${runId}/status.json`, JSON.stringify(failed, null, 2), {
-      httpMetadata: { contentType: "application/json; charset=utf-8" },
+function groqMessage(payload) {
+  return payload?.choices?.[0]?.message || {};
+}
+
+function collectResearchSources(payload, content) {
+  const sources = [];
+  const seen = new Set();
+  const add = (title, url) => {
+    const u = String(url || "").trim();
+    if (!/^https?:\/\//i.test(u) || seen.has(u)) return;
+    seen.add(u);
+    sources.push({ title: String(title || u).trim().slice(0, 220), url: u });
+  };
+  const walk = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) { for (const x of value) walk(x); return; }
+    if (typeof value !== "object") return;
+    if (value.url) add(value.title || value.name || value.url, value.url);
+    for (const x of Object.values(value)) walk(x);
+  };
+  walk(groqMessage(payload)?.executed_tools || []);
+  for (const match of String(content || "").matchAll(/https?:\/\/[^\s\]>)"']+/g)) add(match[0], match[0]);
+  return sources.slice(0, 10);
+}
+
+function normalizeEnum(value, allowed, fallback) {
+  const v = String(value || "").trim().toLowerCase();
+  return allowed.includes(v) ? v : fallback;
+}
+
+function cleanResearchObject(raw, row, searchText, sources, searchedAt) {
+  const symbol = String(row?.symbol || "").trim().toUpperCase();
+  const hint = researchTickerHint(symbol);
+  const verdict = normalizeEnum(raw?.verdict, ["strong_positive","positive","mixed","neutral","risk","high_risk"], "neutral");
+  const last = raw?.last_earnings && typeof raw.last_earnings === "object" ? raw.last_earnings : {};
+  const events = Array.isArray(raw?.events) ? raw.events.slice(0, 5).map(event => ({
+    category: normalizeEnum(event?.category, ["earnings","guidance","company_catalyst","analyst","sec_capital","regulatory_legal","direct_industry"], "company_catalyst"),
+    date: String(event?.date || "").slice(0, 20),
+    impact: normalizeEnum(event?.impact, ["positive","negative","mixed","neutral"], "neutral"),
+    title: String(event?.title || "近期資訊").slice(0, 180),
+    detail: String(event?.detail || "").slice(0, 360),
+  })) : [];
+  const summaryFallback = String(searchText || "").replace(/\s+/g, " ").trim().slice(0, 300) || "本次沒有需要特別列出的重大近期事件。";
+  const searchedMs = Date.parse(searchedAt);
+  return {
+    symbol,
+    api_symbol: row?.api_symbol || null,
+    state_at_search: researchState(row),
+    searched_at: searchedAt,
+    expires_at: new Date((Number.isFinite(searchedMs) ? searchedMs : Date.now()) + RESEARCH_TTL_MS).toISOString(),
+    underlying_ticker: String(raw?.underlying_ticker || hint).slice(0, 80),
+    company_name: String(raw?.company_name || "").slice(0, 160),
+    asset_type: String(raw?.asset_type || "other").slice(0, 40),
+    verdict,
+    summary: String(raw?.summary || summaryFallback).slice(0, 300),
+    last_earnings: {
+      date: String(last?.date || "").slice(0, 20),
+      eps: normalizeEnum(last?.eps, ["beat","miss","inline","unknown","not_applicable"], "unknown"),
+      revenue: normalizeEnum(last?.revenue, ["beat","miss","inline","unknown","not_applicable"], "unknown"),
+      guidance: normalizeEnum(last?.guidance, ["raised","maintained","lowered","unknown","not_applicable"], "unknown"),
+    },
+    next_earnings_date: String(raw?.next_earnings_date || "").slice(0, 20),
+    events,
+    sources: Array.isArray(sources) ? sources.slice(0, 10) : [],
+    model: GROQ_MODEL,
+    api: "groq-chat-completions-v1",
+    search_mode: "on_demand_browser_search_then_json",
+    research_status: "ON_DEMAND",
+    pipeline_version: "on-demand-browser-search-v1",
+    format_warning: Boolean(raw?.__format_warning),
+    raw_search_text: String(searchText || "").slice(0, 12000),
+  };
+}
+
+async function browserSearchResearch(env, row) {
+  const symbol = String(row?.symbol || "").trim().toUpperCase();
+  const hint = researchTickerHint(symbol);
+  const state = researchState(row);
+  const today = new Date().toISOString().slice(0, 10);
+  const searchPrompt = [
+    `Search the web for the most important recent information about ${hint} (${symbol}). Today is ${today}; current S-state is ${state}.`,
+    "First verify what company/security the Pionex RWA symbol corresponds to.",
+    "Focus only on material items: company catalysts in the last 7 days; analyst/SEC/capital/legal/regulatory items in the last 14 days; latest earnings within 90 days; known next earnings within 30 days; directly relevant industry events.",
+    "Exclude rumors, social media, technical analysis, price predictions, options-flow noise, and unrelated macro news.",
+    "Reply in Traditional Chinese as a concise research brief. Mention dates and source names. Do NOT output JSON."
+  ].join("\n");
+
+  const searchPayload = await groqChat(env, {
+    model: GROQ_MODEL,
+    messages: [{ role: "user", content: searchPrompt }],
+    temperature: 1,
+    max_completion_tokens: 2048,
+    top_p: 1,
+    stream: false,
+    reasoning_effort: "low",
+    tool_choice: "required",
+    tools: [{ type: "browser_search" }],
+  });
+  const searchText = String(groqMessage(searchPayload)?.content || "").trim();
+  if (!searchText) throw httpError(502, "Browser Search HTTP 200，但沒有 message.content");
+  const sources = collectResearchSources(searchPayload, searchText);
+
+  const jsonPrompt = `把下列已完成 Browser Search 的研究摘要整理成一個 JSON object。不要重新搜尋，不要加入摘要中沒有的事實。\n\n輸出欄位：\n{\n  "underlying_ticker":"",\n  "company_name":"",\n  "asset_type":"public_company|private_company|foreign_company|other",\n  "verdict":"strong_positive|positive|mixed|neutral|risk|high_risk",\n  "summary":"繁體中文最多80字",\n  "last_earnings":{"date":"","eps":"beat|miss|inline|unknown|not_applicable","revenue":"beat|miss|inline|unknown|not_applicable","guidance":"raised|maintained|lowered|unknown|not_applicable"},\n  "next_earnings_date":"",\n  "events":[{"category":"earnings|guidance|company_catalyst|analyst|sec_capital|regulatory_legal|direct_industry","date":"YYYY-MM-DD或空字串","impact":"positive|negative|mixed|neutral","title":"","detail":"繁體中文最多90字"}]\n}\nevents 最多5條；沒有資料就用 unknown、空字串或空陣列，不得猜。\n\n標的：${symbol} / ${hint}\n研究摘要：\n${searchText.slice(0, 14000)}`;
+
+  let structured = {};
+  let formatWarning = false;
+  try {
+    const normalizedPayload = await groqChat(env, {
+      model: GROQ_MODEL,
+      messages: [{ role: "user", content: jsonPrompt }],
+      temperature: 0.1,
+      max_completion_tokens: 1400,
+      stream: false,
+      response_format: { type: "json_object" },
     });
-    throw httpError(502, `新聞分析 workflow_dispatch 失敗：${gh.status}`);
+    const text = String(groqMessage(normalizedPayload)?.content || "").trim();
+    structured = JSON.parse(text);
+  } catch (_) {
+    structured = { summary: searchText.replace(/\s+/g, " ").slice(0, 300), verdict: "neutral", events: [] };
+    formatWarning = true;
+  }
+  structured.__format_warning = formatWarning;
+  return { item: cleanResearchObject(structured, row, searchText, sources, new Date().toISOString()) };
+}
+
+async function writeResearchStore(env, cache) {
+  const entries = cache?.entries && typeof cache.entries === "object" ? cache.entries : {};
+  const items = Object.values(entries).filter(x => x && typeof x === "object");
+  items.sort((a, b) => Date.parse(b.searched_at || "") - Date.parse(a.searched_at || ""));
+  const itemsBySymbol = {};
+  for (const item of items) {
+    const symbol = String(item.symbol || "").trim().toUpperCase();
+    if (symbol) itemsBySymbol[symbol] = item;
+  }
+  const now = new Date().toISOString();
+  const latest = {
+    schema_version: "2.0",
+    generated_at: now,
+    ttl_hours: 24,
+    model: GROQ_MODEL,
+    mode: "ON_DEMAND_ONLY",
+    items,
+    items_by_symbol: itemsBySymbol,
+  };
+  const normalizedCache = {
+    schema_version: "2.0",
+    ttl_hours: 24,
+    updated_at: now,
+    entries,
+  };
+  const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
+  await Promise.all([
+    env.JSON_BUCKET.put(RESEARCH_CACHE_KEY, JSON.stringify(normalizedCache, null, 2), metadata),
+    env.JSON_BUCKET.put(RESEARCH_LATEST_KEY, JSON.stringify(latest, null, 2), metadata),
+  ]);
+  return latest;
+}
+
+async function researchUsStockSymbol(request, env, origin) {
+  const body = await request.json().catch(() => ({}));
+  const symbol = String(body?.symbol || "").trim().toUpperCase();
+  if (!/^[A-Z0-9._-]{1,40}$/.test(symbol)) throw httpError(400, "invalid symbol");
+
+  const snapshotObj = await env.JSON_BUCKET.get(MARKET["us-stock"].latest);
+  if (!snapshotObj) throw httpError(409, "R2 尚無美股 snapshot；請先至少成功執行一次美股完整分析");
+  const snapshot = JSON.parse(await snapshotObj.text());
+  const row = (Array.isArray(snapshot?.records) ? snapshot.records : []).find(x => String(x?.symbol || "").trim().toUpperCase() === symbol);
+  if (!row) throw httpError(404, `${symbol} 不在目前美股 snapshot`);
+  const state = researchState(row);
+  if (!RESEARCH_ELIGIBLE_STATES.has(state)) throw httpError(409, `${symbol} 目前是 ${state}，只有 S3 / S0.5 / S1 提供新聞查詢`);
+
+  const cache = await readR2Json(env, RESEARCH_CACHE_KEY, { schema_version:"2.0", ttl_hours:24, entries:{} });
+  if (!cache.entries || typeof cache.entries !== "object") cache.entries = {};
+  const existing = cache.entries[symbol];
+  if (researchFresh(existing)) {
+    return json({ ok:true, cached:true, item:existing, generated_at:new Date().toISOString() }, 200, origin);
   }
 
-  let dispatch = null;
-  try { dispatch = await gh.json(); } catch (_) {}
-  return json({
-    ok: true,
-    run_id: runId,
-    market: "us-stock",
-    task: "NEWS_RESEARCH_ONLY",
-    github_run_id: dispatch?.workflow_run_id || null,
-    github_run_url: dispatch?.html_url || null,
-  }, 200, origin);
+  const { item } = await browserSearchResearch(env, row);
+
+  // Re-read immediately before write so a previous on-demand search completed
+  // while this Browser Search was running is merged instead of overwritten.
+  const newestCache = await readR2Json(env, RESEARCH_CACHE_KEY, { schema_version:"2.0", ttl_hours:24, entries:{} });
+  if (!newestCache.entries || typeof newestCache.entries !== "object") newestCache.entries = {};
+  if (researchFresh(newestCache.entries[symbol])) {
+    return json({ ok:true, cached:true, item:newestCache.entries[symbol], generated_at:new Date().toISOString() }, 200, origin);
+  }
+  newestCache.entries[symbol] = item;
+  const latest = await writeResearchStore(env, newestCache);
+  return json({ ok:true, cached:false, item, generated_at:latest.generated_at, r2_keys:[RESEARCH_CACHE_KEY, RESEARCH_LATEST_KEY] }, 200, origin);
 }
 
 const AUTO_STATUS_KEY = "automation/latest/status.json";

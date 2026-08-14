@@ -21,7 +21,7 @@
     button.classList.toggle("hidden", !usStock);
     button.disabled = !usStock;
     button.title = usStock
-      ? "下載 Cloudflare R2｜research/us-stock/latest.json（目前畫面使用的最新美股新聞／財報情報）"
+      ? "下載 Cloudflare R2｜research/us-stock/latest.json（使用者主動查詢並寫入 R2 的最新美股新聞／財報情報）"
       : "只在美股代幣模式提供";
   }
 
@@ -57,7 +57,7 @@
       }
       const blob = await res.blob();
       downloadBlob(blob, "us_stock_news_latest.json");
-      showToast("已下載 R2 最新美股新聞 JSON｜research/us-stock/latest.json");
+      showToast("已下載 R2 隨選新聞 JSON｜research/us-stock/latest.json");
     } catch (err) {
       showToast(`R2 新聞 JSON 下載失敗：${err.message || err}`, 8000);
     } finally {

@@ -177,3 +177,27 @@ body.research-modal-open .tv-crosshair{
     align-self:start;
   }
 }
+
+/* v0.1.27 — slightly larger typography inside the click-open research modal only.
+   The compact card/pill sizing on the main dashboard is intentionally unchanged. */
+.research-card-modal .research-title{font-size:12px !important}
+.research-card-modal .research-title strong{font-size:13px !important}
+.research-card-modal .research-title span{font-size:9px !important}
+.research-card-modal .research-verdict-line>span{font-size:10px !important}
+.research-card-modal .research-verdict-chip{font-size:11px !important}
+.research-card-modal .research-section-title{font-size:10px !important}
+.research-card-modal .research-section-title small{font-size:8px !important}
+.research-card-modal .research-summary{font-size:11px !important;line-height:1.7 !important}
+.research-card-modal .research-manual-note{font-size:10px !important;line-height:1.55 !important}
+.research-card-modal .research-fact span{font-size:9px !important}
+.research-card-modal .research-fact b{font-size:10px !important}
+.research-card-modal .research-event{font-size:10px !important;line-height:1.55 !important}
+.research-card-modal .research-event-head time{font-size:9px !important}
+.research-card-modal .research-category,
+.research-card-modal .research-impact{font-size:9px !important}
+.research-card-modal .research-event-title{font-size:11px !important}
+.research-card-modal .research-event-detail{font-size:10px !important;line-height:1.62 !important}
+.research-card-modal .research-empty{font-size:10px !important}
+.research-card-modal .research-sources a,
+.research-card-modal .research-sources.muted{font-size:9px !important}
+.research-card-modal .research-meta{font-size:9px !important}

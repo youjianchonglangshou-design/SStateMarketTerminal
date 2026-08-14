@@ -1,7 +1,12 @@
 {
-  "app_version": "TERMINAL v0.1.18｜AUTO-BATCH",
-  "stage": "AUTO-BATCH",
+  "app_version": "TERMINAL v0.1.19｜TELEGRAM-NOTIFY",
+  "stage": "TELEGRAM-NOTIFY",
   "features": [
+    "Telegram completion notification for manual Full Analysis, labeled as manual and selected market (Crypto or US-stock)",
+    "Telegram completion notification for scheduled Auto Batch, labeled as automatic and pair / 21:31 US-stock-only mode",
+    "Telegram notification includes Taiwan time, analyzed symbol count, and S3/S0.5/S1/S2/S0/OTHER breadth counts",
+    "Telegram Bot token is read only from GitHub Actions secret TELEGRAM_BOT_TOKEN; chat ID is fixed to 1880226268",
+    "Telegram delivery failure does not turn a successful market analysis into a failed analysis run",
     "Cloudflare Cron Auto Batch: every 4 hours at Taiwan 00:01/04:01/08:01/12:01/16:01/20:01 runs Crypto then US-stock sequentially",
     "Taiwan 21:31 Auto Batch runs US-stock only",
     "Website polls global Auto Batch status; Full Analysis button becomes dark ⚡🚫 and disabled while scheduled analysis is active",

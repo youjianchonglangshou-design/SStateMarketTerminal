@@ -1,51 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Terminal icon with purple downtrend and yellow uptrend step chart">
   <defs>
-    <linearGradient id="ring" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#22d3ee"/>
-      <stop offset="0.55" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#a855f7"/>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#153b8f"/>
+      <stop offset="100%" stop-color="#07225f"/>
     </linearGradient>
-    <linearGradient id="sTop" x1="18" y1="16" x2="44" y2="34" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff36a"/>
-      <stop offset="1" stop-color="#facc15"/>
+
+    <linearGradient id="panelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d2e78"/>
+      <stop offset="100%" stop-color="#08235f"/>
     </linearGradient>
-    <linearGradient id="sBottom" x1="18" y1="34" x2="46" y2="50" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#22d3ee"/>
-      <stop offset="0.55" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#a855f7"/>
-    </linearGradient>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="1.4" result="b"/>
+
+    <filter id="cyanGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
       <feMerge>
-        <feMergeNode in="b"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   </defs>
 
-  <!-- dark terminal tile -->
-  <rect x="4" y="4" width="56" height="56" rx="14"
-        fill="#0b1324" stroke="url(#ring)" stroke-width="2.4"/>
+  <!-- outer shell -->
+  <rect x="14" y="14" width="228" height="228" rx="34" fill="#06173f" stroke="#7FEFF4" stroke-width="12" filter="url(#cyanGlow)"/>
 
-  <!-- circuit corner -->
-  <path d="M10 22H15L18 18" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round"/>
-  <circle cx="10" cy="22" r="2" fill="#22d3ee"/>
-  <path d="M46 48L50 52H55" fill="none" stroke="#a855f7" stroke-width="2.2" stroke-linecap="round"/>
-  <circle cx="55" cy="52" r="2" fill="#a855f7"/>
+  <!-- inner panel -->
+  <rect x="44" y="44" width="168" height="168" rx="20" fill="url(#panelGrad)" stroke="#204ba2" stroke-width="2"/>
 
-  <!-- stylized S : S3 / ladder -->
-  <path d="M18 17H45L40 23H25L21 27H38L44 33H24L17 26Z"
-        fill="url(#sTop)" filter="url(#glow)"/>
-  <path d="M20 34H43L47 39L42 45H24L19 50H46L39 56H14L21 45H37L41 41H25Z"
-        fill="url(#sBottom)" filter="url(#glow)"/>
+  <!-- terminal prompt -->
+  <polyline points="64,82 80,98 64,114" fill="none" stroke="#78F3FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" filter="url(#cyanGlow)"/>
+  <line x1="90" y1="114" x2="108" y2="114" stroke="#78F3FF" stroke-width="10" stroke-linecap="round" filter="url(#cyanGlow)"/>
 
-  <!-- mini candlesticks -->
-  <g stroke-linecap="round">
-    <line x1="31" y1="22" x2="31" y2="39" stroke="#67e8f9" stroke-width="1.5"/>
-    <rect x="28.7" y="27" width="4.6" height="7" rx="1" fill="#22d3ee"/>
-    <line x1="37" y1="19" x2="37" y2="38" stroke="#86efac" stroke-width="1.5"/>
-    <rect x="34.7" y="23" width="4.6" height="9" rx="1" fill="#22c55e"/>
-    <line x1="43" y1="15" x2="43" y2="36" stroke="#fde047" stroke-width="1.5"/>
-    <rect x="40.7" y="20" width="4.6" height="10" rx="1" fill="#facc15"/>
-  </g>
+  <!-- bands / guide lines -->
+  <path d="M56 108 C92 110, 122 120, 152 128 C176 134, 196 132, 208 126"
+        fill="none" stroke="#D9DEE8" stroke-width="3" stroke-linecap="round" opacity="0.92" filter="url(#softGlow)"/>
+  <path d="M56 172 C94 182, 126 184, 158 182 C182 180, 196 176, 208 170"
+        fill="none" stroke="#D9DEE8" stroke-width="3" stroke-linecap="round" opacity="0.92" filter="url(#softGlow)"/>
+  <line x1="60" y1="142" x2="204" y2="142" stroke="#6F8FC8" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 10" opacity="0.7"/>
+
+  <!-- purple downtrend steps -->
+  <path d="M60 138 H74 V148 H90 V160 H110 V172 H132 V182 H150"
+        fill="none" stroke="#C38CFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)"/>
+
+  <!-- yellow uptrend steps, connected cleanly from trough -->
+  <path d="M150 182 H166 V168 H184 V154 H198 V140 H210 V126 H220"
+        fill="none" stroke="#FFE63A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)"/>
+
+  <!-- right endpoint -->
+  <circle cx="220" cy="126" r="6.5" fill="#FFF1A0" filter="url(#softGlow)"/>
+
+  <!-- bottom indicator -->
+  <rect x="111" y="220" width="34" height="8" rx="4" fill="#87F6FB" filter="url(#cyanGlow)"/>
 </svg>

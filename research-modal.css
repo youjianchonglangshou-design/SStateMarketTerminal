@@ -148,3 +148,32 @@ body.research-modal-open .tv-crosshair{
   .research-pill,.research-pill::after{animation:none !important}
   .research-modal-layer,.research-card.research-card-modal{transition:none !important}
 }
+
+/* v0.1.26 — R2 US-stock research JSON download button.
+   Desktop: sits directly under the normal market JSON button, matching the
+   empty top-right slot requested by the UI. Crypto hides it completely. */
+.research-download-button{
+  border-color:#8b5cf6 !important;
+  color:#ddd6fe !important;
+  background:linear-gradient(180deg,rgba(76,29,149,.24),rgba(30,41,59,.68)) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 12px rgba(139,92,246,.08);
+  transition:border-color .15s ease,color .15s ease,box-shadow .15s ease,filter .15s ease;
+}
+.research-download-button:hover{
+  border-color:#a78bfa !important;
+  color:#f5f3ff !important;
+  box-shadow:0 0 13px rgba(139,92,246,.22),inset 0 1px 0 rgba(255,255,255,.06);
+  filter:brightness(1.08);
+}
+.research-download-button:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+@media(min-width:761px){
+  .research-download-button{
+    grid-column:4;
+    grid-row:2;
+    height:34px !important;
+    align-self:start;
+  }
+}

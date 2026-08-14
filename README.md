@@ -2,28 +2,21 @@
 
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
 
-**版本：`TERMINAL v0.1.29｜GPT-OSS-GROQ-SDK`**
+**版本：`TERMINAL v0.1.30｜NEWS-ONLY-RUN`**
 
 ## 已完成的資料流
 
 ```text
 GitHub Pages
   ├─ 開站：只讀 R2 最後一次 snapshot
-  └─ 完整分析：POST Cloudflare Worker
-                    ↓
-             workflow_dispatch
-                    ↓
-              GitHub Actions
-                    ↓
-               Python engine
-                    ↓
-      S-state + Level 5 probability
-                    ↓
-              snapshot JSON
-                    ↓
-                  R2
-                    ↓
-               HTML 重讀
+  ├─ 完整分析：POST Cloudflare Worker → full-analysis.yml → Pionex + S-state + R2
+  └─ 新聞分析：POST Cloudflare Worker → us-stock-research.yml
+                                      ↓
+                         只讀 R2 最新美股 snapshot
+                                      ↓
+                         GPT-OSS 120B 新聞分析
+                                      ↓
+                         24H Cache + research R2
 ```
 
 Stage 1 **不使用 D1**。Runtime 最新 JSON 以 R2 為唯一 source of truth；GitHub 只負責程式碼與 Actions。
@@ -36,6 +29,7 @@ Stage 1 **不使用 D1**。Runtime 最新 JSON 以 R2 為唯一 source of truth�
 - `config.js`：只需填 Worker URL
 - `engine/`：由原 Streamlit 拆出的 headless Python S-state engine
 - `.github/workflows/full-analysis.yml`：Cloudflare 呼叫的完整分析
+- `.github/workflows/us-stock-research.yml`：只跑美股 GPT-OSS 新聞分析，不重跑市場引擎
 - `.github/workflows/deploy-pages.yml`：GitHub Pages
 - `cloudflare/worker.js`：R2 + GitHub dispatch 中介層
 - `cloudflare/wrangler.toml.example`：R2 binding / Worker vars
@@ -161,6 +155,18 @@ POST /api/analysis/start
 ```
 
 Worker 建 `run_id` → 呼叫 `full-analysis.yml` → Python 重新抓 Pionex → S-state → Level 5 → R2。
+
+### 按「📰 新聞分析」
+
+只在「美股代幣」模式顯示：
+
+```text
+POST /api/research/us-stock/start
+```
+
+Worker 呼叫 `us-stock-research.yml`，直接讀取 R2 目前的 `snapshot_us_stock_ai.json`，只執行 GPT-OSS 新聞／財報研究。**不重新抓 Pionex、不重新計算 K 線、不重跑 S-state / probability engine。**
+
+原本的 24H per-symbol Cache 規則完全保留：24H 內成功結果直接沿用；未快取、已過期或前次失敗未入 Cache 的標的才需要新的模型請求。
 
 ### 右上角 JSON
 

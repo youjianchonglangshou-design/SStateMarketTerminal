@@ -1,7 +1,9 @@
 {
-  "app_version": "TERMINAL v0.1.29｜GPT-OSS-GROQ-SDK",
-  "stage": "GPT-OSS-GROQ-SDK",
+  "app_version": "TERMINAL v0.1.30｜NEWS-ONLY-RUN",
+  "stage": "NEWS-ONLY-RUN",
   "features": [
+    "US-stock adds a dedicated 📰 新聞分析 button that reads the latest R2 snapshot and reruns only GPT-OSS research without refetching Pionex or rerunning the S-state scoring engine",
+    "Research-only runs preserve the existing 24H per-symbol cache: valid cache entries are reused, while uncached/expired/error-deferred symbols can be retried",
     "US-stock Gemini hover card is reformatted for human reading: AI重點 / 財報財測 / 近期重大事件 / 查證來源 / metadata sections",
     "Malformed or truncated Gemini JSON is no longer shown raw; recoverable ticker/company/verdict/summary/earnings/events are extracted into readable fields",
     "Add mixed verdict support and human labels for beat/miss/inline and raised/maintained/lowered",

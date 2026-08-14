@@ -3,18 +3,18 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, researchRunId: "", researchPollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, researchBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
-    version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), download: $("download-button"),
+    version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), news: $("news-analysis-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
     battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.29｜GPT-OSS-GROQ-SDK";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.30｜NEWS-ONLY-RUN";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -85,14 +85,32 @@
 
   function updateActionState() {
     const manualBusy = Boolean(state.analysisBusy);
+    const researchBusy = Boolean(state.researchBusy);
     const autoBusy = Boolean(state.autoBatchBusy);
-    els.run.disabled = manualBusy || autoBusy;
+    els.run.disabled = manualBusy || researchBusy || autoBusy;
     els.run.classList.toggle('auto-batch-locked', autoBusy);
     els.run.textContent = autoBusy ? '⚡🚫 完整分析' : '⚡ 完整分析';
-    els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : `只分析目前選取的${marketLabel(state.market)}`);
-    // Manual run keeps the selector frozen exactly as before. Auto Batch only locks execution;
+    els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : researchBusy ? '新聞分析執行中，完成後才能啟動完整分析' : `只分析目前選取的${marketLabel(state.market)}`);
+
+    if (els.news) {
+      const usStock = state.market === 'us-stock';
+      els.news.classList.toggle('hidden', !usStock);
+      els.news.disabled = !usStock || manualBusy || researchBusy || autoBusy;
+      els.news.textContent = researchBusy ? '📰⏳ 新聞分析' : '📰 新聞分析';
+      els.news.title = !usStock
+        ? '只在美股代幣模式提供'
+        : autoBusy
+          ? autoBatchTitle()
+          : manualBusy
+            ? '完整分析進行中，完成後才能單獨執行新聞分析'
+            : researchBusy
+              ? 'GPT-OSS 新聞分析執行中'
+              : '只讀取 R2 最新美股 snapshot，執行 GPT-OSS 新聞分析；不重抓 Pionex、不重跑 S-state 引擎；保留 24H Cache 規則';
+    }
+
+    // Full analysis / research-only run keeps the selector frozen. Auto Batch only locks execution;
     // the user can still switch Crypto / US-stock to inspect the last completed snapshot.
-    els.market.disabled = manualBusy;
+    els.market.disabled = manualBusy || researchBusy;
     updateDownloadButton();
   }
 
@@ -107,6 +125,11 @@
 
   function setAnalysisBusy(busy) {
     state.analysisBusy = Boolean(busy);
+    updateActionState();
+  }
+
+  function setResearchBusy(busy) {
+    state.researchBusy = Boolean(busy);
     updateActionState();
   }
 
@@ -1068,6 +1091,59 @@
     }
   }
 
+  async function startNewsAnalysis() {
+    if (state.market !== 'us-stock') { showToast('新聞分析只提供美股代幣。',5000); return; }
+    if (!workerUrl) { showToast('尚未設定 Cloudflare Worker。',7000); return; }
+    if (state.autoBatchBusy) { showToast(autoBatchTitle(),7000); return; }
+    if (state.analysisBusy || state.researchBusy) return;
+
+    setResearchBusy(true);
+    setRunUi(true,0,'正在送出新聞分析…','使用 R2 最新美股 snapshot；不重跑完整分析');
+    try {
+      const out = await fetchJson(`${workerUrl}/api/research/us-stock/start`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({})
+      });
+      state.researchRunId = out.run_id;
+      showToast(`新聞分析已啟動｜${out.run_id}`);
+      pollNewsRun();
+    } catch (err) {
+      state.researchRunId='';
+      setResearchBusy(false);
+      setRunUi(false,0,'','');
+      showToast(`新聞分析啟動失敗：${err.message}`,8000);
+    }
+  }
+
+  async function pollNewsRun(){
+    clearTimeout(state.researchPollTimer);
+    if(!state.researchRunId) return;
+    try{
+      const s=await fetchJson(`${workerUrl}/api/analysis/status?run_id=${encodeURIComponent(state.researchRunId)}&t=${Date.now()}`);
+      const p=Number(s.percent||0);
+      setRunUi(true,p,s.status==='SUCCESS'?'新聞分析完成':s.status==='FAILED'?'新聞分析失敗':'新聞分析執行中',`${s.current_symbol||''} ${s.completed??''}/${s.total??''} ${s.message||''}`.trim());
+      if(s.status==='SUCCESS'){
+        state.researchRunId='';
+        setResearchBusy(false);
+        await loadUsStockResearch();
+        setRunUi(false,100,'','');
+        showToast(s.message || '新聞分析完成，已載入 R2 最新新聞資料。',7000);
+        return;
+      }
+      if(s.status==='FAILED'){
+        state.researchRunId='';
+        setResearchBusy(false);
+        setRunUi(false,0,'','');
+        showToast(`新聞分析失敗：${s.message||'請查看 GitHub Actions'}`,9000);
+        return;
+      }
+    }catch(err){
+      setRunUi(true,0,'等待新聞分析回報',err.message);
+    }
+    state.researchPollTimer=setTimeout(pollNewsRun,pollInterval);
+  }
+
   function setRunUi(show,percent,title,detail){
     els.runPanel.classList.toggle('hidden',!show);
     els.runPercent.textContent=`${Math.round(Number(percent)||0)}%`;
@@ -1120,6 +1196,7 @@
     els.search.addEventListener('keydown', e => { if (e.key === 'Escape') { els.search.value=''; state.searchQuery=''; renderCards(); els.search.blur(); } });
   }
   els.run.addEventListener('click',startFullAnalysis);
+  if (els.news) els.news.addEventListener('click',startNewsAnalysis);
   els.download.addEventListener('click',downloadCurrentJson);
   els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));
   setBattleExpanded(false, false);

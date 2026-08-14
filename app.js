@@ -57,6 +57,14 @@
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (v, digits=1) => Number.isFinite(Number(v)) ? `${(Number(v)*100).toFixed(digits)}%` : "—";
   const num = (v, digits=2) => Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : "—";
+  // generated_at_taiwan is already Taiwan local time. Display it directly without
+  // parsing through Date(), so the browser will not apply another timezone shift.
+  const fmtTaiwanTimestamp = (v) => {
+    const s = String(v || "").trim();
+    if (!s) return "—";
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+    return m ? `${m[1]} ${m[2]}` : s.replace("T", " ").replace(/(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/, "");
+  };
   const fmtPrice = (v) => {
     const n = Number(v); if (!Number.isFinite(n)) return "—";
     if (n >= 10000) return n.toLocaleString("en-US", {maximumFractionDigits:1});
@@ -571,7 +579,7 @@
     els.empty.classList.add("hidden");
     const b = snap.batch || {};
     const pm = b.probability_model || {};
-    els.systemCaption.textContent = `${marketLabel(state.market)}｜UPDATED ${b.generated_at_taiwan || "—"}｜ENGINE ${b.engine_version || "—"}｜AI ${b.ai_analysis_layer || "—"}`;
+    els.systemCaption.textContent = `${marketLabel(state.market)}｜UPDATED ${fmtTaiwanTimestamp(b.generated_at_taiwan)}｜ENGINE ${b.engine_version || "—"}｜AI ${b.ai_analysis_layer || "—"}`;
     els.snapshotMeta.textContent = `資料源：${source}｜${b.count ?? snap.records.length} 標的｜Probability ${pm.available ? `${pm.model_id || "active"} / max L${pm.max_level || "?"}` : "未載入"}｜主判定 72H（3日）`;
     renderFilters(); renderSummary(); renderCards();
   }

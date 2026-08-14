@@ -23,6 +23,7 @@ permissions:
 concurrency:
   group: full-analysis-${{ inputs.market }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   analyze:

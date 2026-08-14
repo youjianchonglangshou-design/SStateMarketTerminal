@@ -435,3 +435,7 @@
 .research-sources b{color:#94a3b8}.research-sources a{color:#67e8f9;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.research-sources a:hover{text-decoration:underline;color:#a5f3fc}.research-sources.muted{color:#64748b}
 @media(max-width:1100px){.actions{min-width:0;width:100%;grid-template-columns:minmax(140px,1fr) minmax(185px,1.25fr) 126px 110px}}
 @media(max-width:760px){.actions{grid-template-columns:1fr 1fr}.actions select,.search-box{grid-column:1/-1}.research-card{right:auto;left:0;width:min(330px,84vw)}}
+
+/* v0.1.21 Gemini Interactions diagnostics */
+.research-error{margin:7px 0;padding:7px 8px;border:1px solid #f59e0b66;border-radius:7px;background:#7c2d1233;color:#fed7aa;font-size:10px;line-height:1.45;word-break:break-word}
+.research-error b{color:#fbbf24}

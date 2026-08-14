@@ -1,7 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.20｜GEMINI-24H-RESEARCH",
-  "stage": "GEMINI-24H-RESEARCH",
+  "app_version": "TERMINAL v0.1.21｜GEMINI-INTERACTIONS-FIX",
+  "stage": "GEMINI-INTERACTIONS-FIX",
   "features": [
+    "Fix Gemini 404 for new API keys: migrate US-stock research from generateContent to Interactions API",
+    "Gemini 2.5 Flash remains the primary research model; Gemini 3.6 Flash is an explicit fallback only if 2.5 is unavailable",
+    "Google Search uses Interactions tool syntax type=google_search and citations are extracted from model_output annotations",
+    "Gemini 2.5 uses TennisRatio-style prompt JSON + defensive parsing because structured-output + built-in tools is Gemini 3-only; the 3.6 fallback may enforce response_format",
+    "Grounded research calls are spaced by 15 seconds for newly eligible symbols, while 24H cache hits make zero Gemini calls",
+    "Research ERROR is shown as 搜尋失敗 rather than misleading 無新訊, and hover shows the technical error",
     "Local quick-search box filters cards instantly by symbol, S-state, sector, underlying ticker, company name, or research summary without API calls",
     "US-stock Full Analysis automatically researches only current S3/S0.5/S1 company-linked symbols with Gemini 2.5 Flash + Google Search grounding",
     "Per-symbol Gemini research cache is valid for 24 hours and is shared across automatic and manual analysis runs",

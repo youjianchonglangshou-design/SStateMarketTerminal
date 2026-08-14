@@ -713,7 +713,8 @@
     if (state.market !== 'us-stock') return '';
     const info = currentResearchFor(r?.symbol);
     if (!info) return '';
-    const [cls,label] = researchVerdictMeta(info.verdict);
+    const isError = String(info.research_status || '') === 'ERROR';
+    const [cls,label] = isError ? ['risk','⚠ 搜尋失敗'] : researchVerdictMeta(info.verdict);
     const statusLabel = researchStatusLabel(info.research_status);
     const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || String(r?.symbol || '');
     const events = Array.isArray(info.events) ? info.events.slice(0,5) : [];
@@ -721,11 +722,13 @@
     const eventHtml = events.length ? events.map(e => `<div class="research-event ${escapeHtml(e.impact||'neutral')}"><div><b>${escapeHtml(e.date||'—')}</b> ${escapeHtml(e.title||'')}</div><span>${escapeHtml(e.detail||'')}</span></div>`).join('') : '<div class="research-empty">沒有列入重大事件。</div>';
     const sourceHtml = sources.length ? `<div class="research-sources"><b>來源</b>${sources.map((s,i)=>`<a href="${escapeHtml(s.url||'#')}" target="_blank" rel="noopener noreferrer">${i+1}. ${escapeHtml(s.title||'來源')}</a>`).join('')}</div>` : '<div class="research-sources muted">本次沒有可顯示的 grounding URL。</div>';
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
+    const modelLabel = String(info.model || state.usStockResearch?.model || 'gemini-2.5-flash').replace(/^models\//,'');
+    const errorHtml = info.research_error ? `<div class="research-error"><b>搜尋錯誤</b> ${escapeHtml(info.research_error)}</div>` : '';
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
       <div class="research-title">${escapeHtml(title)}｜${escapeHtml(recordState(r))}</div>
       <div class="research-summary">${escapeHtml(info.summary||'')}</div>
-      <div class="research-meta">Gemini 2.5 Flash + Google Search｜${escapeHtml(searched)}</div>
-      ${eventHtml}${sourceHtml}
+      <div class="research-meta">${escapeHtml(modelLabel)} + Google Search｜${escapeHtml(searched)}</div>
+      ${errorHtml}${eventHtml}${sourceHtml}
     </div></div>`;
   }
 

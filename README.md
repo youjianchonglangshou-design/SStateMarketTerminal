@@ -346,3 +346,15 @@ R2 models/active/probability_model.json
 - 日期：15px
 - 查證來源：17px
 - 卡片寬度：900px
+
+
+## v0.1.44 NEWS-CSS-CLEAN
+- 不再增加 override。
+- 用 CSS parser 真正移除所有舊 `.research-*` selector / research keyframes。
+- 保留其他非新聞 CSS。
+- 重新建立唯一一套 canonical research UI。
+- Tavily 重點：24px / 700。
+- 文章標題：24px / 950。
+- 文章正文：24px / 700。
+- media query 不再縮小這三種文字。
+- 不修改 Tavily / Worker / R2 / 繁中 / 多空判斷。

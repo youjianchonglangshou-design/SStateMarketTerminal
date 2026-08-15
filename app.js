@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.43｜NEWS-HIGH-READABILITY";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.44｜NEWS-CSS-CLEAN";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";

@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.43｜NEWS-HIGH-READABILITY",
-  "stage": "NEWS-HIGH-READABILITY",
+  "app_version": "TERMINAL v0.1.44｜NEWS-CSS-CLEAN",
+  "stage": "NEWS-CSS-CLEAN",
   "features": [
     "Fix GLM-4.7-Flash response parsing: read choices[0].message.content from the Cloudflare chat-completions wrapper instead of mistakenly treating the wrapper object itself as the requested JSON",
     "Use reasoning_effort=low and a 2400-token completion ceiling so GLM spends less output budget on hidden/visible reasoning and reaches the final structured JSON faster",

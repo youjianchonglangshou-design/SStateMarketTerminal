@@ -1,13 +1,13 @@
 # SStateMarketTerminal
 
-### v0.1.32 Browser Search 修正
+### v0.1.33 Tavily 廣搜 + JS Hard Gate + 公司別名
 
-Groq Browser Search 有時會 HTTP 200 且 `executed_tools[].output` 已有搜尋結果，但 `message.content` 為空。v0.1.32 不再把這種情況誤判成失敗：會自動使用 `executed_tools[].output` 繼續第二段 GPT-OSS JSON 整理，之後照原規則寫入 R2 並固定 24 小時。
+新聞查詢改為「使用者點單一 S3 / S0.5 / S1 標的 → Cloudflare Worker 呼叫 Tavily Basic Search 1 次 → 最多抓 10 個候選 → Worker JS Hard Gate 過濾 → R2 24H 固定快取」。搜尋端保持寬鬆，過濾端負責排除舊事件、報價/首頁、社群、投資評論、律師招攬、持倉/內部人交易、分析師共識文與正文不一致的 feed。新增公司別名層，例如 Microsoft / MSFT / 微軟 都視為同一公司。
 
 
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
 
-**版本：`TERMINAL v0.1.32｜TOOL-OUTPUT-FALLBACK`**
+**版本：`TERMINAL v0.1.33｜TAVILY-ALIAS-HARDGATE`**
 
 ## 已完成的資料流
 
@@ -17,11 +17,11 @@ GitHub Pages
   ├─ 完整分析：POST Cloudflare Worker → full-analysis.yml → Pionex + S-state + R2
   └─ S3 / S0.5 / S1 卡片「🔎 等待查詢」：使用者點擊單一標的
                                      ↓
-                         Cloudflare Worker 直接呼叫 Groq
+                         Cloudflare Worker 直接呼叫 Tavily
                                      ↓
-                         GPT-OSS 120B + Browser Search
+                         Basic Search 廣搜最多 10 則
                                      ↓
-                         純對話第二段整理 JSON
+                         JS Hard Gate + 公司別名過濾
                                      ↓
                          該標的固定 24H Cache + research R2
 ```
@@ -39,7 +39,7 @@ Stage 1 **不使用 D1**。Runtime 最新 JSON 以 R2 為唯一 source of truth�
 - `engine/`：由原 Streamlit 拆出的 headless Python S-state engine
 - `.github/workflows/full-analysis.yml`：Cloudflare 呼叫的完整分析
 - `.github/workflows/deploy-pages.yml`：GitHub Pages
-- `cloudflare/worker.js`：R2 + GitHub dispatch + 單一標的 GPT-OSS Browser Search
+- `cloudflare/worker.js`：R2 + GitHub dispatch + 單一標的 Tavily 廣搜 / JS Hard Gate / 公司別名
 - `cloudflare/wrangler.toml.example`：R2 binding / Worker vars
 - `data/bootstrap/`：R2 尚未設定時的最後一次畫面 fallback
 
@@ -86,10 +86,10 @@ Worker Secrets：
 ```text
 GITHUB_TOKEN
 CALLBACK_TOKEN
-GROQ_API_KEY
+TAVILY_API_KEY
 ```
 
-`GROQ_API_KEY` 現在只放在 Cloudflare Worker Secret。GitHub Pages 不會拿到這把 Key。
+`TAVILY_API_KEY` 只放在 Cloudflare Worker Secret。GitHub Pages 不會拿到這把 Key。
 
 `GITHUB_TOKEN` 建議用 fine-grained token，只授權此 repo，Repository permissions → **Actions: Read and write**。
 
@@ -169,7 +169,7 @@ Worker 建 `run_id` → 呼叫 `full-analysis.yml` → Python 重新抓 Pionex �
 
 ### S3 / S0.5 / S1 卡片的「🔎 等待查詢」
 
-只有目前 S-state 為 `S3` / `S0.5` / `S1` 的美股代幣會顯示呼吸光暈查詢膠囊。**不點就完全不呼叫模型。**
+只有目前 S-state 為 `S3` / `S0.5` / `S1` 的美股代幣會顯示呼吸光暈查詢膠囊。**不點就完全不呼叫 Tavily。**
 
 點單一標的：
 
@@ -181,15 +181,15 @@ POST /api/research/us-stock/symbol
 Worker 先讀 R2 最新美股 snapshot 核對該標的與 S-state，再執行：
 
 ```text
-GPT-OSS 120B + Browser Search（自由文字，不要求 JSON）
-→ GPT-OSS 120B 純對話整理成 JSON（不再搜尋）
+Tavily Basic Search（最多 10 個候選）
+→ Cloudflare Worker JS Hard Gate + 公司別名 + 事件日期/正文一致性過濾
 → research/us-stock/cache.json
 → research/us-stock/latest.json
 ```
 
 成功結果在 24 小時內固定不換：再次點擊同一標的只回傳既有 Cache，不重新搜尋、不覆蓋。重新整理頁面後仍從 R2 載入同一份結果。
 
-完整分析與 Auto Batch **不包含新聞研究 step**，因此市場排程不會消耗 Groq Browser Search。
+完整分析與 Auto Batch **不包含新聞研究 step**，因此市場排程不會消耗 Tavily credits。
 
 ### 右上角 JSON
 

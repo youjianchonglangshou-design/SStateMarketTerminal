@@ -30,7 +30,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "SStateMarketTerminal", r2: true, groq_secret: Boolean(env.GROQ_API_KEY) }, 200, origin);
+        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY) }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -546,18 +546,115 @@ async function startAnalysis(request, env, origin) {
   return json({ ok: true, run_id: runId, market, github_run_id: dispatch?.workflow_run_id || null, github_run_url: dispatch?.html_url || null }, 200, origin);
 }
 
-const GROQ_MODEL = "openai/gpt-oss-120b";
+const RESEARCH_PROVIDER = "Tavily Search";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
 const RESEARCH_ELIGIBLE_STATES = new Set(["S3", "S0.5", "S1"]);
 const RESEARCH_TICKER_OVERRIDES = {
   AAOIX:"AAOI", AAX:"AA", AXTIX:"AXTI", BEX:"BE", CVXX:"CVX", GMEX:"GME",
-  LRCXX:"LRCX", MPX:"MP", MUX:"MU", NFLXX:"NFLX", RGTIX:"RGTI", RTXX:"RTX",
+  LRCXX:"LRCX", MPX:"MP", MUX:"MU", NFLXX:"NFLX", PAYPX:"PYPL", RGTIX:"RGTI", RTXX:"RTX",
   SITMX:"SITM", SMCIX:"SMCI", SNXXX:"SNX", SOXXX:"SOXX", TTEX:"TTE", TXNX:"TXN",
   ANTHROPIC:"Anthropic", OPENAI:"OpenAI", HYUNDAI:"Hyundai Motor", KIOXIA:"Kioxia",
-  SMSN:"Samsung Electronics", SKHX:"SK hynix", SKHY:"SK hynix"
+  SMSN:"Samsung Electronics", SKHX:"SK hynix", SKHY:"SK hynix", SPCX:"SpaceX"
 };
+
+// 公司別名只集中維護在這裡。Hard Gate 會同時辨識英文公司名、ticker 與中文常用名。
+// 沒列到的標的仍會自動使用 underlying ticker / Pionex symbol，不會因此不能搜尋。
+const RESEARCH_COMPANY_PROFILES = {
+  AAOI:{name:"Applied Optoelectronics", aliases:["Applied Optoelectronics","AAOI"], asset_type:"public_company"},
+  AA:{name:"Alcoa", aliases:["Alcoa","AA","美國鋁業"], asset_type:"public_company"},
+  AAPL:{name:"Apple", aliases:["Apple","AAPL","蘋果"], asset_type:"public_company"},
+  AMAT:{name:"Applied Materials", aliases:["Applied Materials","AMAT","應用材料"], asset_type:"public_company"},
+  AMD:{name:"Advanced Micro Devices", aliases:["Advanced Micro Devices","AMD","超微"], asset_type:"public_company"},
+  AMZN:{name:"Amazon", aliases:["Amazon","AMZN","亞馬遜"], asset_type:"public_company"},
+  APP:{name:"AppLovin", aliases:["AppLovin","APP"], asset_type:"public_company"},
+  ARM:{name:"Arm Holdings", aliases:["Arm Holdings","Arm","ARM","安謀"], asset_type:"public_company"},
+  ASML:{name:"ASML", aliases:["ASML","阿斯麥"], asset_type:"foreign_company"},
+  ASTS:{name:"AST SpaceMobile", aliases:["AST SpaceMobile","ASTS"], asset_type:"public_company"},
+  AVGO:{name:"Broadcom", aliases:["Broadcom","AVGO","博通"], asset_type:"public_company"},
+  AXTI:{name:"AXT", aliases:["AXT","AXTI"], asset_type:"public_company"},
+  BE:{name:"Bloom Energy", aliases:["Bloom Energy","BE"], asset_type:"public_company"},
+  CIFR:{name:"Cipher Mining", aliases:["Cipher Mining","CIFR"], asset_type:"public_company"},
+  CF:{name:"CF Industries", aliases:["CF Industries","CF"], asset_type:"public_company"},
+  COHR:{name:"Coherent", aliases:["Coherent","COHR"], asset_type:"public_company"},
+  COIN:{name:"Coinbase", aliases:["Coinbase","COIN"], asset_type:"public_company"},
+  CRCL:{name:"Circle Internet Group", aliases:["Circle Internet Group","Circle","CRCL"], asset_type:"public_company"},
+  CRDO:{name:"Credo Technology", aliases:["Credo Technology","Credo","CRDO"], asset_type:"public_company"},
+  CRWV:{name:"CoreWeave", aliases:["CoreWeave","CRWV"], asset_type:"public_company"},
+  CSCO:{name:"Cisco", aliases:["Cisco","CSCO","思科"], asset_type:"public_company"},
+  CVX:{name:"Chevron", aliases:["Chevron","CVX","雪佛龍"], asset_type:"public_company"},
+  DELL:{name:"Dell Technologies", aliases:["Dell Technologies","Dell","DELL","戴爾"], asset_type:"public_company"},
+  FLNC:{name:"Fluence Energy", aliases:["Fluence Energy","Fluence","FLNC"], asset_type:"public_company"},
+  GEV:{name:"GE Vernova", aliases:["GE Vernova","GEV"], asset_type:"public_company"},
+  GME:{name:"GameStop", aliases:["GameStop","GME"], asset_type:"public_company"},
+  GOOGL:{name:"Alphabet", aliases:["Alphabet","Google","GOOGL","GOOG","谷歌"], asset_type:"public_company"},
+  HIMS:{name:"Hims & Hers Health", aliases:["Hims & Hers","Hims and Hers","HIMS"], asset_type:"public_company"},
+  HOOD:{name:"Robinhood", aliases:["Robinhood","HOOD"], asset_type:"public_company"},
+  IBM:{name:"IBM", aliases:["IBM","International Business Machines"], asset_type:"public_company"},
+  INTC:{name:"Intel", aliases:["Intel","INTC","英特爾"], asset_type:"public_company"},
+  IREN:{name:"IREN", aliases:["IREN","Iris Energy"], asset_type:"public_company"},
+  KLAC:{name:"KLA", aliases:["KLA","KLAC","科磊"], asset_type:"public_company"},
+  LITE:{name:"Lumentum", aliases:["Lumentum","LITE"], asset_type:"public_company"},
+  LLY:{name:"Eli Lilly", aliases:["Eli Lilly","LLY","禮來"], asset_type:"public_company"},
+  LMT:{name:"Lockheed Martin", aliases:["Lockheed Martin","LMT","洛克希德馬丁"], asset_type:"public_company"},
+  LNG:{name:"Cheniere Energy", aliases:["Cheniere Energy","LNG"], asset_type:"public_company"},
+  LRCX:{name:"Lam Research", aliases:["Lam Research","LRCX","泛林集團","科林研發"], asset_type:"public_company"},
+  META:{name:"Meta Platforms", aliases:["Meta Platforms","Meta","Facebook","META","臉書"], asset_type:"public_company"},
+  MRVL:{name:"Marvell Technology", aliases:["Marvell Technology","Marvell","MRVL","邁威爾"], asset_type:"public_company"},
+  MSFT:{name:"Microsoft", aliases:["Microsoft","MSFT","微軟"], asset_type:"public_company"},
+  MSTR:{name:"Strategy", aliases:["Strategy","MicroStrategy","MSTR","微策略"], asset_type:"public_company"},
+  MU:{name:"Micron Technology", aliases:["Micron Technology","Micron","MU","美光"], asset_type:"public_company"},
+  NBIS:{name:"Nebius Group", aliases:["Nebius Group","Nebius","NBIS"], asset_type:"public_company"},
+  NFLX:{name:"Netflix", aliases:["Netflix","NFLX","網飛"], asset_type:"public_company"},
+  NKE:{name:"Nike", aliases:["Nike","NKE","耐吉"], asset_type:"public_company"},
+  NOK:{name:"Nokia", aliases:["Nokia","NOK","諾基亞"], asset_type:"foreign_company"},
+  NOW:{name:"ServiceNow", aliases:["ServiceNow","NOW"], asset_type:"public_company"},
+  NTR:{name:"Nutrien", aliases:["Nutrien","NTR"], asset_type:"foreign_company"},
+  NVDA:{name:"NVIDIA", aliases:["NVIDIA","Nvidia","NVDA","輝達"], asset_type:"public_company"},
+  OKLO:{name:"Oklo", aliases:["Oklo","OKLO"], asset_type:"public_company"},
+  ONDS:{name:"Ondas Holdings", aliases:["Ondas Holdings","Ondas","ONDS"], asset_type:"public_company"},
+  ORCL:{name:"Oracle", aliases:["Oracle","ORCL","甲骨文"], asset_type:"public_company"},
+  PLTR:{name:"Palantir", aliases:["Palantir","PLTR","帕蘭泰爾"], asset_type:"public_company"},
+  PYPL:{name:"PayPal", aliases:["PayPal","PYPL"], asset_type:"public_company"},
+  QCOM:{name:"Qualcomm", aliases:["Qualcomm","QCOM","高通"], asset_type:"public_company"},
+  RGTI:{name:"Rigetti Computing", aliases:["Rigetti Computing","Rigetti","RGTI"], asset_type:"public_company"},
+  RKLB:{name:"Rocket Lab", aliases:["Rocket Lab","RKLB"], asset_type:"public_company"},
+  RTX:{name:"RTX", aliases:["RTX","Raytheon Technologies","Raytheon","雷神技術"], asset_type:"public_company"},
+  SITM:{name:"SiTime", aliases:["SiTime","SITM"], asset_type:"public_company"},
+  SMCI:{name:"Super Micro Computer", aliases:["Super Micro Computer","Supermicro","SMCI","美超微"], asset_type:"public_company"},
+  SNDK:{name:"SanDisk", aliases:["SanDisk","Sandisk","SNDK","閃迪"], asset_type:"public_company"},
+  TSLA:{name:"Tesla", aliases:["Tesla","TSLA","特斯拉"], asset_type:"public_company"},
+  TSM:{name:"Taiwan Semiconductor Manufacturing", aliases:["Taiwan Semiconductor Manufacturing","TSMC","TSM","台積電"], asset_type:"foreign_company"},
+  TTE:{name:"TotalEnergies", aliases:["TotalEnergies","TTE","道達爾能源"], asset_type:"foreign_company"},
+  TXN:{name:"Texas Instruments", aliases:["Texas Instruments","TXN","德州儀器"], asset_type:"public_company"},
+  UNH:{name:"UnitedHealth Group", aliases:["UnitedHealth Group","UnitedHealth","UNH","聯合健康"], asset_type:"public_company"},
+  USAR:{name:"USA Rare Earth", aliases:["USA Rare Earth","USAR"], asset_type:"public_company"},
+  WDC:{name:"Western Digital", aliases:["Western Digital","WDC","西部數據"], asset_type:"public_company"},
+  XYZ:{name:"Block", aliases:["Block Inc","Block","Square","XYZ"], asset_type:"public_company"},
+
+  Anthropic:{name:"Anthropic", aliases:["Anthropic"], asset_type:"private_company"},
+  OpenAI:{name:"OpenAI", aliases:["OpenAI","Open AI"], asset_type:"private_company"},
+  "Hyundai Motor":{name:"Hyundai Motor", aliases:["Hyundai Motor","Hyundai","現代汽車"], asset_type:"foreign_company"},
+  Kioxia:{name:"Kioxia", aliases:["Kioxia","鎧俠"], asset_type:"foreign_company"},
+  "Samsung Electronics":{name:"Samsung Electronics", aliases:["Samsung Electronics","Samsung","三星電子","三星"], asset_type:"foreign_company"},
+  "SK hynix":{name:"SK hynix", aliases:["SK hynix","SK Hynix","SK海力士","海力士"], asset_type:"foreign_company"},
+  SpaceX:{name:"SpaceX", aliases:["SpaceX","SPCX"], asset_type:"private_company"}
+};
+
+const RESEARCH_SOCIAL_DOMAINS = ["instagram.com","facebook.com","reddit.com","x.com","twitter.com","tiktok.com","youtube.com","threads.com","moomoo.com"];
+const RESEARCH_EVENT_WORDS = [
+  "earnings","revenue","profit","guidance","forecast","quarter","results","launch","announces","announcement","product","partnership","contract","deal","agreement","acquisition","acquire","merger","investment","lawsuit","sues","settlement","regulation","regulatory","sec","antitrust","upgrade","downgrade","price target","財報","營收","獲利","財測","法說","發布","推出","產品","合作","合約","協議","收購","併購","投資","訴訟","監管","反壟斷","升評","降評","目標價","關閉","裁員","漲價","調價"
+];
+const RESEARCH_CORE_EVENT_WORDS = [
+  "earnings","revenue","guidance","quarterly results","official announcement","launch","product","pricing","price increase","partnership","contract","agreement","acquisition","merger","investment","lawsuit filed","sued","settlement","regulator","regulation","antitrust","sec filing","analyst upgrade","analyst downgrade","price target raised","price target cut","財報","營收","財測","法說","官方公告","發布","推出","產品","漲價","調價","合作","合約","協議","收購","併購","投資","提告","訴訟","和解","監管","反壟斷","升評","降評","目標價上調","目標價下調","關閉據點","裁員"
+];
+const RESEARCH_PRICE_COMMENTARY = [
+  "is it too late to buy","should you buy","stock a buy","buy this stock","stock price prediction","technical analysis","options flow","valuation","overvalued","undervalued","price action","price forecast","是否值得買","還能不能買","現在能不能追","技術分析","選擇權流量","價格預測","估值","股價還有沒有","能不能買"
+];
+const RESEARCH_AGGREGATOR_MARKERS = [
+  "latest headlines","people also follow","similar to","etfs holding","find & compare","subscriptions","investing groups","portfolios","analyst insights","statistics","balance sheet","cash flow annual","cash flow quarterly","share this article","全站最新","每日簽到","資券日報","盤後","主動式etf","期指"
+];
 
 function researchState(row) {
   return String(row?.opportunity_long?.market_state_id || "OTHER");
@@ -570,8 +667,35 @@ function researchTickerHint(symbol) {
   return s;
 }
 
+function researchCompanyProfile(symbol) {
+  const s = String(symbol || "").trim().toUpperCase();
+  const hint = researchTickerHint(s);
+  const profile = RESEARCH_COMPANY_PROFILES[hint] || RESEARCH_COMPANY_PROFILES[s] || null;
+  const aliases = [];
+  const add = (value) => {
+    const v = String(value || "").trim();
+    if (!v || aliases.some(x => x.toLowerCase() === v.toLowerCase())) return;
+    aliases.push(v);
+  };
+  add(hint);
+  if (!s.endsWith("X")) add(s);
+  if (profile) {
+    add(profile.name);
+    for (const alias of profile.aliases || []) add(alias);
+  }
+  return {
+    symbol: s,
+    underlying_ticker: hint,
+    company_name: profile?.name || hint,
+    asset_type: profile?.asset_type || "other",
+    aliases,
+  };
+}
+
 function researchFresh(item, nowMs = Date.now()) {
   if (!item || typeof item !== "object") return false;
+  // Provider migration: do not keep an old Groq cache alive after Tavily is deployed.
+  if (item.api !== "tavily-search-api") return false;
   const direct = Date.parse(item.expires_at || "");
   if (Number.isFinite(direct)) return direct > nowMs;
   const searched = Date.parse(item.searched_at || "");
@@ -589,12 +713,13 @@ async function readR2Json(env, key, fallback) {
   }
 }
 
-async function groqChat(env, body) {
-  if (!env.GROQ_API_KEY) throw httpError(500, "Worker 缺少 GROQ_API_KEY secret");
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+async function tavilySearch(env, body) {
+  const apiKey = String(env.TAVILY_API_KEY || "").trim();
+  if (!apiKey) throw httpError(500, "Worker 缺少 TAVILY_API_KEY secret");
+  const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${env.GROQ_API_KEY}`,
+      "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "Accept": "application/json",
     },
@@ -604,164 +729,365 @@ async function groqChat(env, body) {
   let payload = null;
   try { payload = JSON.parse(text); } catch (_) {}
   if (!response.ok) {
-    const detail = payload?.error?.message || payload?.message || text || response.statusText;
-    const failed = payload?.error?.failed_generation;
-    throw httpError(response.status, `${detail}${failed ? ` | failed_generation: ${String(failed).slice(0, 1200)}` : ""}`);
+    const detail = payload?.detail?.error || payload?.detail || payload?.error || payload?.message || text || response.statusText;
+    throw httpError(response.status, `Tavily Search 失敗：${String(detail).slice(0, 1200)}`);
   }
-  if (!payload || typeof payload !== "object") throw httpError(502, "Groq 回傳不是有效 JSON");
+  if (!payload || typeof payload !== "object") throw httpError(502, "Tavily 回傳不是有效 JSON");
   return payload;
 }
 
-function groqMessage(payload) {
-  return payload?.choices?.[0]?.message || {};
+function researchEscapeRx(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function groqExecutedToolOutput(payload) {
-  const tools = groqMessage(payload)?.executed_tools;
-  if (!Array.isArray(tools) || !tools.length) return "";
-  const chunks = [];
-  for (const tool of tools) {
-    const output = tool?.output;
-    if (typeof output === "string" && output.trim()) {
-      chunks.push(output.trim());
-      continue;
-    }
-    if (output && typeof output === "object") {
-      try {
-        const text = JSON.stringify(output);
-        if (text && text !== "{}" && text !== "[]") chunks.push(text);
-      } catch (_) {}
+function researchTextHasAlias(text, alias) {
+  const hay = String(text || "");
+  const needle = String(alias || "").trim();
+  if (!needle) return false;
+  if (/^[A-Za-z0-9._-]{1,7}$/.test(needle)) {
+    return new RegExp(`(^|[^A-Za-z0-9])${researchEscapeRx(needle)}([^A-Za-z0-9]|$)`, "i").test(hay);
+  }
+  return hay.toLowerCase().includes(needle.toLowerCase());
+}
+
+function researchCountAliasHits(text, aliases) {
+  const hay = String(text || "");
+  let total = 0;
+  for (const alias of aliases || []) {
+    const needle = String(alias || "").trim();
+    if (!needle) continue;
+    if (/^[A-Za-z0-9._-]{1,7}$/.test(needle)) {
+      const rx = new RegExp(`(^|[^A-Za-z0-9])${researchEscapeRx(needle)}([^A-Za-z0-9]|$)`, "ig");
+      total += (hay.match(rx) || []).length;
+    } else {
+      const lowerHay = hay.toLowerCase();
+      const lowerNeedle = needle.toLowerCase();
+      let pos = 0;
+      while ((pos = lowerHay.indexOf(lowerNeedle, pos)) !== -1) {
+        total++;
+        pos += lowerNeedle.length;
+      }
     }
   }
-  return chunks.join("\n\n").trim();
+  return total;
 }
 
-function collectResearchSources(payload, content) {
-  const sources = [];
+function researchContainsAny(text, words) {
+  const hay = String(text || "").toLowerCase();
+  return (words || []).some(word => hay.includes(String(word || "").toLowerCase()));
+}
+
+function researchHost(url) {
+  try { return new URL(String(url || "")).hostname.toLowerCase(); }
+  catch (_) { return ""; }
+}
+
+function researchAgeDays(raw) {
+  const ms = Date.parse(raw || "");
+  return Number.isFinite(ms) ? (Date.now() - ms) / 86400000 : null;
+}
+
+function researchParseExplicitEventDate(text) {
+  const s = String(text || "");
+  let m = s.match(/\b(20\d{2})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/);
+  if (m) {
+    const d = new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  m = s.match(/(\d{1,2})月(\d{1,2})日/);
+  if (m) {
+    const now = new Date();
+    const d = new Date(Date.UTC(now.getUTCFullYear(), +m[1]-1, +m[2]));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  m = s.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,\s*(20\d{2}))?/i);
+  if (m) {
+    const month = months[m[1].slice(0,3).toLowerCase()];
+    const year = +(m[3] || new Date().getUTCFullYear());
+    const d = new Date(Date.UTC(year, month, +m[2]));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+function researchEventDateTooOld(item, maxDays=8) {
+  const title = String(item?.title || "");
+  const lead = String(item?.content || "").slice(0, 500);
+  const d = researchParseExplicitEventDate(title) || researchParseExplicitEventDate(lead);
+  if (!d) return false;
+  return (Date.now() - d.getTime()) / 86400000 > maxDays;
+}
+
+function researchIsLandingOrQuotePage(item) {
+  const url = String(item?.url || "");
+  const title = String(item?.title || "");
+  if (/\bstock price\b|\bstock quote\b|\bprice and forecast\b|\bprice & overview\b|\blatest stock news\b|\bcompany profile\b|\bstock overview\b|股票報價|股價與概覽|最新股票新聞/i.test(title)) return true;
+  if (/finance\.yahoo\.com\/quote\//i.test(url)) return true;
+  if (/seekingalpha\.com\/symbol\/[^/]+\/?$/i.test(url)) return true;
+  if (/seekingalpha\.com\/symbol\/[^/]+\/news\/?$/i.test(url)) return true;
+  if (/cnn\.com\/markets\/stocks\/[^/?#]+\/?$/i.test(url)) return true;
+  if (/reuters\.com\/markets\/companies\/[^/?#]+\/?$/i.test(url)) return true;
+  return false;
+}
+
+function researchTitleDirectCompany(item, profile) {
+  const title = String(item?.title || "");
+  return (profile?.aliases || []).some(alias => researchTextHasAlias(title, alias));
+}
+
+function researchTitleStrongCompanyEvent(item, profile) {
+  return researchTitleDirectCompany(item, profile) && researchContainsAny(item?.title || "", RESEARCH_EVENT_WORDS);
+}
+
+function researchArticleLikeUrl(item) {
+  let path = "";
+  try { path = new URL(String(item?.url || "")).pathname.toLowerCase(); } catch (_) {}
+  return /\/article\//.test(path) || /\/articles\//.test(path) || /\/news\/id\//.test(path) || /\/news\/\d+/.test(path) || /\/story\//.test(path) || /\/\d{4}\/\d{2}\/\d{2}\//.test(path) || /\/press-releases?\//.test(path);
+}
+
+function researchLooksLikeAggregationPage(item, profile) {
+  const lead = String(item?.content || "").slice(0, 1900).toLowerCase();
+  if (researchArticleLikeUrl(item) && researchTitleStrongCompanyEvent(item, profile)) return false;
+  const markerHits = RESEARCH_AGGREGATOR_MARKERS.filter(m => lead.includes(m)).length;
+  const headingCount = (lead.match(/###/g) || []).length;
+  return markerHits >= 3 || headingCount >= 6;
+}
+
+function researchIsPriceCommentary(item) {
+  return researchContainsAny(item?.title || "", RESEARCH_PRICE_COMMENTARY);
+}
+
+function researchIsLawFirmSolicitation(item) {
+  const text = `${String(item?.title || "")}\n${String(item?.content || "").slice(0, 1600)}`.toLowerCase();
+  return ["deadline notice","lead plaintiff deadline","secure counsel","contact the firm","investors with losses","stockholders with losses","reminds investors","encourages investors","investor alert","trial attorneys","law firm urges","law firm reminds"].some(x => text.includes(x));
+}
+
+function researchIsInstitutionHoldingStory(item) {
+  const title = String(item?.title || "").toLowerCase();
+  return ["shares purchased by","shares sold by","stake increased by","stake reduced by","position increased by","position reduced by","asset management","institutional investor","insider sold","insider trading","insider sale"].some(x => title.includes(x));
+}
+
+function researchIsAnalystConsensusOnly(item) {
+  const text = `${String(item?.title || "")}\n${String(item?.content || "").slice(0, 900)}`.toLowerCase();
+  if (!/analysts?|price target|upside|consensus|rating/.test(text)) return false;
+  const explicit = /(upgrade[sd]?|downgrade[sd]?|raise[sd]? (?:its )?price target|lower(?:ed|s)? (?:its )?price target|price target (?:raised|cut|lowered)|initiated coverage|reiterated (?:buy|sell|hold))/i.test(text);
+  if (explicit) return false;
+  return /analysts?, one verdict|all \d+ analysts|all analysts covering|average price target|consensus|upside isn.t done|implying \d+% upside/i.test(text);
+}
+
+function researchLooksLikeMultiStoryFeed(item) {
+  const lead = String(item?.content || "").slice(0, 1600).toLowerCase();
+  const feedMarkers = ["hours ago","hour ago","全站最新","盤後","資券日報","每日簽到","主動式etf","期指","hot news","latest news","more news","下一則","上一篇","下一篇"];
+  const markerHits = feedMarkers.filter(x => lead.includes(x)).length;
+  const headingCount = (lead.match(/###/g) || []).length;
+  const numberedNewsCount = (lead.match(/\b\d+\s+/g) || []).length;
+  return markerHits >= 2 || headingCount >= 5 || numberedNewsCount >= 8;
+}
+
+function researchBodyFocusMismatch(item, profile) {
+  const title = String(item?.title || "");
+  const lead = String(item?.content || "").slice(0, 1400);
+  const titleHits = researchCountAliasHits(title, profile?.aliases || []);
+  const leadHits = researchCountAliasHits(lead, profile?.aliases || []);
+  if (titleHits > 0 && leadHits === 0) return true;
+  if (researchLooksLikeMultiStoryFeed(item) && leadHits <= 1) return true;
+  return false;
+}
+
+function researchHardGate(item, profile) {
+  const host = researchHost(item?.url);
+  const social = RESEARCH_SOCIAL_DOMAINS.some(d => host === d || host.endsWith(`.${d}`));
+  const reasons = [];
+  if (!researchTitleDirectCompany(item, profile)) reasons.push("標題沒有直接指向該公司/別名");
+  if (researchIsLandingOrQuotePage(item)) reasons.push("股票首頁/報價/公司資料頁");
+  if (researchLooksLikeAggregationPage(item, profile)) reasons.push("新聞索引/聚合頁");
+  if (researchEventDateTooOld(item, 8)) reasons.push("文章雖新，但事件日期已超過 8 天");
+  if (social) reasons.push("社群/討論區");
+  if (researchIsPriceCommentary(item)) reasons.push("股價/估值/是否值得買等投資評論");
+  if (researchIsLawFirmSolicitation(item)) reasons.push("律師事務所 Deadline / Investor Alert 招攬");
+  if (researchIsInstitutionHoldingStory(item)) reasons.push("機構持倉/內部人交易，不是公司營運事件");
+  if (researchIsAnalystConsensusOnly(item)) reasons.push("分析師共識/目標價彙整，不是新的升降評動作");
+  if (researchBodyFocusMismatch(item, profile)) reasons.push("標題像公司新聞，但正文前段與該公司不一致/疑似多則新聞 Feed");
+  return { pass: reasons.length === 0, reasons };
+}
+
+function researchScoreItem(item, profile) {
+  const gate = researchHardGate(item, profile);
+  if (!gate.pass) return { score:-99, keep:false, reasons:[], bad:gate.reasons.map(x => `硬淘汰：${x}`) };
+
+  let score = 0;
+  const reasons = [];
+  const bad = [];
+  const title = String(item?.title || "");
+  const content = String(item?.content || "");
+  const coreEvent = researchContainsAny(title, RESEARCH_CORE_EVENT_WORDS) || researchContainsAny(content.slice(0, 900), RESEARCH_CORE_EVENT_WORDS);
+  const concreteEvent = researchContainsAny(title, RESEARCH_EVENT_WORDS) || researchContainsAny(content.slice(0, 650), RESEARCH_EVENT_WORDS);
+  const age = researchAgeDays(item?.published_date || item?.publishedDate);
+
+  if (researchTitleDirectCompany(item, profile)) { score += 8; reasons.push("標題直接命中公司/別名 +8"); }
+  if (coreEvent) { score += 6; reasons.push("核心公司事件 +6"); }
+  if (concreteEvent) { score += 3; reasons.push("標題/前段有具體事件 +3"); }
+  if (age != null && age >= -1 && age <= 8) { score += 2; reasons.push("最近 8 天 +2"); }
+  const tavilyScore = Number(item?.score);
+  if (Number.isFinite(tavilyScore)) {
+    if (tavilyScore >= 0.5) { score += 2; reasons.push("Tavily 高相關 +2"); }
+    else if (tavilyScore < 0.15) { score -= 2; bad.push("Tavily 低相關 -2"); }
+  }
+  if (!coreEvent && !concreteEvent) return { score, keep:false, reasons, bad:[...bad,"沒有足夠明確的公司事件"] };
+  return { score, keep:score >= 10, reasons, bad };
+}
+
+function researchRankResults(results, profile) {
   const seen = new Set();
-  const add = (title, url) => {
-    const u = String(url || "").trim();
-    if (!/^https?:\/\//i.test(u) || seen.has(u)) return;
-    seen.add(u);
-    sources.push({ title: String(title || u).trim().slice(0, 220), url: u });
-  };
-  const walk = (value) => {
-    if (!value) return;
-    if (Array.isArray(value)) { for (const x of value) walk(x); return; }
-    if (typeof value !== "object") return;
-    if (value.url) add(value.title || value.name || value.url, value.url);
-    for (const x of Object.values(value)) walk(x);
-  };
-  walk(groqMessage(payload)?.executed_tools || []);
-  for (const match of String(content || "").matchAll(/https?:\/\/[^\s\]>)"']+/g)) add(match[0], match[0]);
-  return sources.slice(0, 10);
+  const rows = (Array.isArray(results) ? results : []).map((item, index) => {
+    const verdict = researchScoreItem(item, profile);
+    return { ...item, _index:index, _score:verdict.score, _keep:verdict.keep, _reasons:verdict.reasons, _bad:verdict.bad };
+  }).sort((a,b) => b._score - a._score);
+  const kept = [];
+  const rejected = [];
+  for (const row of rows) {
+    const key = `${String(row.title || "").toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g," ").trim().slice(0,90)}|${researchHost(row.url)}`;
+    if (row._keep && seen.has(key)) {
+      row._keep = false;
+      row._bad = [...(row._bad || []), "疑似重複來源"];
+    }
+    if (row._keep) { seen.add(key); kept.push(row); }
+    else rejected.push(row);
+  }
+  return { kept:kept.slice(0,3), rejected };
 }
 
-function normalizeEnum(value, allowed, fallback) {
-  const v = String(value || "").trim().toLowerCase();
-  return allowed.includes(v) ? v : fallback;
+function researchEventCategory(item) {
+  const text = `${item?.title || ""}\n${String(item?.content || "").slice(0, 700)}`.toLowerCase();
+  if (/earnings|revenue|quarter|results|財報|營收|法說/.test(text)) return "earnings";
+  if (/guidance|forecast|財測|展望/.test(text)) return "guidance";
+  if (/upgrade|downgrade|price target|升評|降評|目標價/.test(text)) return "analyst";
+  if (/sec filing|8-k|10-q|10-k|buyback|convertible|offering|增資|回購|可轉債/.test(text)) return "sec_capital";
+  if (/lawsuit|regulat|antitrust|investigation|probe|訴訟|監管|反壟斷|調查/.test(text)) return "regulatory_legal";
+  if (/partnership|contract|agreement|launch|product|acquisition|merger|investment|合作|合約|協議|發布|產品|收購|併購|投資|關閉據點|裁員/.test(text)) return "company_catalyst";
+  return "direct_industry";
 }
 
-function cleanResearchObject(raw, row, searchText, sources, searchedAt) {
+function researchEventImpact(item) {
+  const text = `${item?.title || ""}\n${String(item?.content || "").slice(0, 650)}`.toLowerCase();
+  const positive = /beat|growth|surge|win|partnership|contract|launch|upgrade|raised target|record|outperform|成長|優於|合作|合約|發布|升評|上調|創高/.test(text);
+  const negative = /miss|downgrade|cut target|lawsuit|investigation|probe|closure|layoff|risk|decline|下滑|低於|降評|下調|訴訟|調查|關閉|裁員|風險/.test(text);
+  if (positive && negative) return "mixed";
+  if (positive) return "positive";
+  if (negative) return "negative";
+  return "neutral";
+}
+
+function researchEventDate(item) {
+  const explicit = researchParseExplicitEventDate(`${item?.title || ""} ${String(item?.content || "").slice(0, 450)}`);
+  if (explicit) return explicit.toISOString().slice(0,10);
+  const ms = Date.parse(item?.published_date || item?.publishedDate || "");
+  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0,10) : "";
+}
+
+function researchCompactSnippet(item, maxLen=260) {
+  return String(item?.content || "").replace(/\s+/g," ").trim().slice(0,maxLen);
+}
+
+function researchVerdictFromEvents(events) {
+  const impacts = (events || []).map(x => x.impact);
+  const pos = impacts.filter(x => x === "positive").length;
+  const neg = impacts.filter(x => x === "negative").length;
+  const mixed = impacts.filter(x => x === "mixed").length;
+  if (pos >= 3 && neg === 0 && mixed === 0) return "strong_positive";
+  if (neg >= 3 && pos === 0 && mixed === 0) return "high_risk";
+  if ((pos && neg) || mixed) return "mixed";
+  if (pos) return "positive";
+  if (neg) return "risk";
+  return "neutral";
+}
+
+function researchBuildQuery(profile) {
+  const aliases = (profile?.aliases || []).slice(0, 8).join(" / ");
+  return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n公司也可能以這些名稱出現：${aliases}\n\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資\n- SEC / 監管 / 訴訟\n- 分析師重大升降評或目標價異動（必須是最近 7 天的新動作）\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示。最多 3 則，真正符合不足 3 則就不要硬湊。`;
+}
+
+function researchBuildItem(row, profile, payload, ranked, searchedAt) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
-  const hint = researchTickerHint(symbol);
-  const verdict = normalizeEnum(raw?.verdict, ["strong_positive","positive","mixed","neutral","risk","high_risk"], "neutral");
-  const last = raw?.last_earnings && typeof raw.last_earnings === "object" ? raw.last_earnings : {};
-  const events = Array.isArray(raw?.events) ? raw.events.slice(0, 5).map(event => ({
-    category: normalizeEnum(event?.category, ["earnings","guidance","company_catalyst","analyst","sec_capital","regulatory_legal","direct_industry"], "company_catalyst"),
-    date: String(event?.date || "").slice(0, 20),
-    impact: normalizeEnum(event?.impact, ["positive","negative","mixed","neutral"], "neutral"),
-    title: String(event?.title || "近期資訊").slice(0, 180),
-    detail: String(event?.detail || "").slice(0, 360),
-  })) : [];
-  const summaryFallback = String(searchText || "").replace(/\s+/g, " ").trim().slice(0, 300) || "本次沒有需要特別列出的重大近期事件。";
   const searchedMs = Date.parse(searchedAt);
+  const events = ranked.kept.map(item => ({
+    category: researchEventCategory(item),
+    date: researchEventDate(item),
+    impact: researchEventImpact(item),
+    title: String(item?.title || "近期資訊").slice(0,180),
+    detail: researchCompactSnippet(item, 320),
+  }));
+  const sources = ranked.kept.map(item => ({
+    title: String(item?.title || item?.url || "來源").slice(0,220),
+    url: String(item?.url || ""),
+    published_date: String(item?.published_date || item?.publishedDate || "").slice(0,60),
+    tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
+    js_score: Number(item?._score || 0),
+  }));
+  const rejected = ranked.rejected.map(item => ({
+    title: String(item?.title || "").slice(0,220),
+    url: String(item?.url || ""),
+    score: Number(item?._score || 0),
+    reasons: Array.isArray(item?._bad) ? item._bad.slice(0,6) : [],
+  }));
+  const summary = events.length
+    ? `最近 7 天找到 ${events.length} 則符合條件的重大公司新聞：${events.map(x => x.title).join("；")}`.slice(0,300)
+    : `最近 7 天未找到符合條件的 ${profile.company_name} 重大公司新聞；不硬湊。`;
+  const earningsEvent = events.find(x => x.category === "earnings") || null;
   return {
     symbol,
     api_symbol: row?.api_symbol || null,
     state_at_search: researchState(row),
     searched_at: searchedAt,
     expires_at: new Date((Number.isFinite(searchedMs) ? searchedMs : Date.now()) + RESEARCH_TTL_MS).toISOString(),
-    underlying_ticker: String(raw?.underlying_ticker || hint).slice(0, 80),
-    company_name: String(raw?.company_name || "").slice(0, 160),
-    asset_type: String(raw?.asset_type || "other").slice(0, 40),
-    verdict,
-    summary: String(raw?.summary || summaryFallback).slice(0, 300),
+    underlying_ticker: profile.underlying_ticker,
+    company_name: profile.company_name,
+    company_aliases: profile.aliases,
+    asset_type: profile.asset_type,
+    verdict: researchVerdictFromEvents(events),
+    summary,
     last_earnings: {
-      date: String(last?.date || "").slice(0, 20),
-      eps: normalizeEnum(last?.eps, ["beat","miss","inline","unknown","not_applicable"], "unknown"),
-      revenue: normalizeEnum(last?.revenue, ["beat","miss","inline","unknown","not_applicable"], "unknown"),
-      guidance: normalizeEnum(last?.guidance, ["raised","maintained","lowered","unknown","not_applicable"], "unknown"),
+      date: earningsEvent?.date || "",
+      eps: "unknown",
+      revenue: "unknown",
+      guidance: "unknown",
     },
-    next_earnings_date: String(raw?.next_earnings_date || "").slice(0, 20),
+    next_earnings_date: "",
     events,
-    sources: Array.isArray(sources) ? sources.slice(0, 10) : [],
-    model: GROQ_MODEL,
-    api: "groq-chat-completions-v1",
-    search_mode: "on_demand_browser_search_then_json",
+    sources,
+    rejected,
+    model: RESEARCH_PROVIDER,
+    api: "tavily-search-api",
+    search_mode: "on_demand_broad_search_js_hard_gate",
     research_status: "ON_DEMAND",
-    pipeline_version: "on-demand-browser-search-v1",
-    format_warning: Boolean(raw?.__format_warning),
-    raw_search_text: String(searchText || "").slice(0, 12000),
+    pipeline_version: "tavily-broad-js-alias-hardgate-v1",
+    query: String(payload?.query || ""),
+    tavily_answer_raw: String(payload?.answer || "").slice(0,5000),
+    provider_usage: payload?.usage || null,
+    request_id: payload?.request_id || null,
+    response_time: payload?.response_time ?? null,
   };
 }
 
 async function browserSearchResearch(env, row) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
-  const hint = researchTickerHint(symbol);
-  const state = researchState(row);
-  const today = new Date().toISOString().slice(0, 10);
-  const searchPrompt = [
-    `Search the web for the most important recent information about ${hint} (${symbol}). Today is ${today}; current S-state is ${state}.`,
-    "First verify what company/security the Pionex RWA symbol corresponds to.",
-    "Focus only on material items: company catalysts in the last 7 days; analyst/SEC/capital/legal/regulatory items in the last 14 days; latest earnings within 90 days; known next earnings within 30 days; directly relevant industry events.",
-    "Exclude rumors, social media, technical analysis, price predictions, options-flow noise, and unrelated macro news.",
-    "Reply in Traditional Chinese as a concise research brief. Mention dates and source names. Do NOT output JSON."
-  ].join("\n");
-
-  const searchPayload = await groqChat(env, {
-    model: GROQ_MODEL,
-    messages: [{ role: "user", content: searchPrompt }],
-    temperature: 1,
-    max_completion_tokens: 2048,
-    top_p: 1,
-    stream: false,
-    reasoning_effort: "low",
-    tool_choice: "required",
-    tools: [{ type: "browser_search" }],
+  const profile = researchCompanyProfile(symbol);
+  const query = researchBuildQuery(profile);
+  const payload = await tavilySearch(env, {
+    query,
+    search_depth: "basic",
+    topic: "news",
+    time_range: "week",
+    max_results: 10,
+    include_answer: "basic",
+    include_raw_content: false,
+    include_images: false,
+    include_usage: true,
   });
-  const messageText = String(groqMessage(searchPayload)?.content || "").trim();
-  const toolOutputText = groqExecutedToolOutput(searchPayload);
-  const searchText = messageText || toolOutputText;
-  const searchResultSource = messageText ? "message.content" : (toolOutputText ? "executed_tools.output" : "none");
-  if (!searchText) {
-    throw httpError(502, "Browser Search HTTP 200，但 message.content 與 executed_tools[].output 都沒有可用內容");
-  }
-  const sources = collectResearchSources(searchPayload, searchText);
-
-  const jsonPrompt = `把下列已完成 Browser Search 的研究摘要整理成一個 JSON object。不要重新搜尋，不要加入摘要中沒有的事實。\n\n輸出欄位：\n{\n  "underlying_ticker":"",\n  "company_name":"",\n  "asset_type":"public_company|private_company|foreign_company|other",\n  "verdict":"strong_positive|positive|mixed|neutral|risk|high_risk",\n  "summary":"繁體中文最多80字",\n  "last_earnings":{"date":"","eps":"beat|miss|inline|unknown|not_applicable","revenue":"beat|miss|inline|unknown|not_applicable","guidance":"raised|maintained|lowered|unknown|not_applicable"},\n  "next_earnings_date":"",\n  "events":[{"category":"earnings|guidance|company_catalyst|analyst|sec_capital|regulatory_legal|direct_industry","date":"YYYY-MM-DD或空字串","impact":"positive|negative|mixed|neutral","title":"","detail":"繁體中文最多90字"}]\n}\nevents 最多5條；沒有資料就用 unknown、空字串或空陣列，不得猜。\n\n標的：${symbol} / ${hint}\n研究摘要：\n${searchText.slice(0, 14000)}`;
-
-  let structured = {};
-  let formatWarning = false;
-  try {
-    const normalizedPayload = await groqChat(env, {
-      model: GROQ_MODEL,
-      messages: [{ role: "user", content: jsonPrompt }],
-      temperature: 0.1,
-      max_completion_tokens: 1400,
-      stream: false,
-      response_format: { type: "json_object" },
-    });
-    const text = String(groqMessage(normalizedPayload)?.content || "").trim();
-    structured = JSON.parse(text);
-  } catch (_) {
-    structured = { summary: searchText.replace(/\s+/g, " ").slice(0, 300), verdict: "neutral", events: [] };
-    formatWarning = true;
-  }
-  structured.__format_warning = formatWarning;
-  const item = cleanResearchObject(structured, row, searchText, sources, new Date().toISOString());
-  item.search_result_source = searchResultSource;
-  item.pipeline_version = "on-demand-browser-search-v2-tool-output-fallback";
+  payload.query = payload.query || query;
+  const ranked = researchRankResults(payload?.results, profile);
+  const item = researchBuildItem(row, profile, payload, ranked, new Date().toISOString());
   return { item };
 }
 
@@ -776,16 +1102,17 @@ async function writeResearchStore(env, cache) {
   }
   const now = new Date().toISOString();
   const latest = {
-    schema_version: "2.0",
+    schema_version: "3.0",
     generated_at: now,
     ttl_hours: 24,
-    model: GROQ_MODEL,
+    model: RESEARCH_PROVIDER,
+    provider: "tavily",
     mode: "ON_DEMAND_ONLY",
     items,
     items_by_symbol: itemsBySymbol,
   };
   const normalizedCache = {
-    schema_version: "2.0",
+    schema_version: "3.0",
     ttl_hours: 24,
     updated_at: now,
     entries,
@@ -811,7 +1138,7 @@ async function researchUsStockSymbol(request, env, origin) {
   const state = researchState(row);
   if (!RESEARCH_ELIGIBLE_STATES.has(state)) throw httpError(409, `${symbol} 目前是 ${state}，只有 S3 / S0.5 / S1 提供新聞查詢`);
 
-  const cache = await readR2Json(env, RESEARCH_CACHE_KEY, { schema_version:"2.0", ttl_hours:24, entries:{} });
+  const cache = await readR2Json(env, RESEARCH_CACHE_KEY, { schema_version:"3.0", ttl_hours:24, entries:{} });
   if (!cache.entries || typeof cache.entries !== "object") cache.entries = {};
   const existing = cache.entries[symbol];
   if (researchFresh(existing)) {
@@ -820,9 +1147,8 @@ async function researchUsStockSymbol(request, env, origin) {
 
   const { item } = await browserSearchResearch(env, row);
 
-  // Re-read immediately before write so a previous on-demand search completed
-  // while this Browser Search was running is merged instead of overwritten.
-  const newestCache = await readR2Json(env, RESEARCH_CACHE_KEY, { schema_version:"2.0", ttl_hours:24, entries:{} });
+  // Re-read immediately before write so concurrent on-demand searches are merged.
+  const newestCache = await readR2Json(env, RESEARCH_CACHE_KEY, { schema_version:"3.0", ttl_hours:24, entries:{} });
   if (!newestCache.entries || typeof newestCache.entries !== "object") newestCache.entries = {};
   if (researchFresh(newestCache.entries[symbol])) {
     return json({ ok:true, cached:true, item:newestCache.entries[symbol], generated_at:new Date().toISOString() }, 200, origin);

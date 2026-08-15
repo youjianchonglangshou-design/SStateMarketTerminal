@@ -14,7 +14,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.31｜ON-DEMAND-NEWS";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.33｜TAVILY-ALIAS-HARDGATE";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -91,7 +91,7 @@
     els.run.textContent = autoBusy ? '⚡🚫 完整分析' : '⚡ 完整分析';
     els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : `只分析目前選取的${marketLabel(state.market)}`);
 
-    // Per-symbol Browser Search is an independent event. It never locks the
+    // Per-symbol Tavily search is an independent event. It never locks the
     // market selector or the Full Analysis button.
     els.market.disabled = manualBusy;
     updateDownloadButton();
@@ -218,6 +218,7 @@
   function researchIsFresh(info) {
     if (!info || typeof info !== 'object') return false;
     if (['ERROR','DEFERRED','SKIPPED_NON_COMPANY'].includes(String(info.research_status || '').toUpperCase())) return false;
+    if (info.api !== 'tavily-search-api') return false;
     const expires = researchExpiresAt(info);
     return expires > Date.now();
   }
@@ -797,7 +798,7 @@
     const looksLikeJson = /^\s*[{[]/.test(summary) || /["'](?:underlying_ticker|company_name|verdict|summary)["']\s*:/.test(summary);
     if (!summary || looksLikeJson) {
       merged.summary = info?.format_warning
-        ? 'GPT-OSS 已完成 Browser Search，但回傳格式不完整；系統已把可辨識內容整理成人類可讀欄位。'
+        ? 'Tavily 已完成搜尋，但資料格式不完整；系統保留可辨識內容供人工判讀。'
         : '本次沒有需要特別列出的重大近期事件。';
     }
 
@@ -845,7 +846,7 @@
       const expired = Boolean(rawInfo && researchExpiresAt(rawInfo) && researchExpiresAt(rawInfo) <= Date.now());
       const label = busy ? '⏳ 搜尋中…' : anotherBusy ? '… 等待上一筆' : error ? '⚠ 查詢失敗・重試' : expired ? '↻ 已過24H・重新查詢' : '🔎 等待查詢';
       const title = busy
-        ? `${symbol} 正在使用 GPT-OSS 120B + Browser Search 查詢`
+        ? `${symbol} 正在使用 Tavily 廣搜 + JS Hard Gate 查詢`
         : error
           ? `${symbol} 前次查詢失敗：${error}｜點擊重試`
           : expired
@@ -889,8 +890,8 @@
     </div>` : '';
 
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
-    const modelLabel = String(info.model || state.usStockResearch?.model || 'openai/gpt-oss-120b').replace(/^models\//,'');
-    const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Browser Search 已成功；結構化整理不完整時，系統保留搜尋摘要與來源，不會重新搜尋覆蓋 24H 快取。</span></div>` : '';
+    const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search').replace(/^models\//,'');
+    const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Tavily 搜尋已完成；結構化整理不完整時，系統保留摘要與來源，不會重新搜尋覆蓋 24H 快取。</span></div>` : '';
     const verdictHtml = `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>`;
 
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
@@ -898,7 +899,7 @@
       ${verdictHtml}
       <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary||'')}</div></div>
       ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)} + Browser Search｜${escapeHtml(searched)}｜24H 固定快取</div>
+      <div class="research-meta">${escapeHtml(modelLabel)}｜廣搜 10 則 + JS Hard Gate + 公司別名｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
 
@@ -1100,12 +1101,12 @@
   async function queryResearchSymbol(symbol) {
     const key = String(symbol || '').trim().toUpperCase();
     if (!key || state.market !== 'us-stock' || !workerUrl || state.researchSymbolBusy.has(key)) return;
-    if (state.researchSymbolBusy.size > 0) { showToast('目前已有一筆 Browser Search 查詢中，完成後再查下一筆。', 5000); return; }
+    if (state.researchSymbolBusy.size > 0) { showToast('目前已有一筆 Tavily 新聞查詢中，完成後再查下一筆。', 5000); return; }
 
     state.researchSymbolBusy.add(key);
     delete state.researchSymbolErrors[key];
     renderCards();
-    showToast(`${key}｜Browser Search 查詢中…`, 4000);
+    showToast(`${key}｜Tavily 新聞查詢中…`, 4000);
 
     try {
       const out = await fetchJson(`${workerUrl}/api/research/us-stock/symbol`, {
@@ -1121,7 +1122,7 @@
       state.usStockResearch.items_by_symbol[key] = out.item;
       state.usStockResearch.items = Object.values(state.usStockResearch.items_by_symbol);
       state.usStockResearch.generated_at = out.generated_at || new Date().toISOString();
-      state.usStockResearch.model = out.item?.model || 'openai/gpt-oss-120b';
+      state.usStockResearch.model = out.item?.model || 'Tavily Search';
       delete state.researchSymbolErrors[key];
       showToast(out.cached ? `${key}｜沿用 24H 快取，不重新搜尋。` : `${key}｜新聞查詢完成，已寫入 R2 並固定快取 24H。`, 7000);
     } catch (err) {

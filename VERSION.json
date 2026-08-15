@@ -1,7 +1,16 @@
 {
-  "app_version": "TERMINAL v0.1.34｜TAVILY-ASSET-ZHTW",
-  "stage": "TAVILY-ASSET-ZHTW",
+  "app_version": "TERMINAL v0.1.35｜TAVILY-GLM-FILTER",
+  "stage": "TAVILY-GLM-FILTER",
   "features": [
+    "Replace deterministic JS Hard Gate semantic filtering with Cloudflare Workers AI GLM-4.7-Flash; Tavily only retrieves candidates and GLM decides relevance, event freshness, category, impact, and Traditional-Chinese presentation",
+    "Restore the user-defined 7-day company-news instruction for public/foreign companies and preserve asset-aware prompts for ETFs, commodities, and private companies",
+    "Increase Tavily Basic Search candidate retrieval from 10 to the API maximum of 20 results; Basic search remains 1 Tavily credit per request",
+    "Disable Tavily include_answer because GLM-4.7-Flash now performs the answer/filter/zh-TW layer; Tavily results stay grounded as source candidates",
+    "Ground every GLM event to a 1-based Tavily source_index; invalid or hallucinated source indexes are discarded before R2 write",
+    "GLM keeps all genuinely qualifying major events without a fixed final-event count, deduplicates same-event sources conceptually, and returns empty events instead of padding",
+    "GLM outputs summary_zh_tw plus per-event display_title_zh_tw/display_detail_zh_tw while original source titles and URLs remain unchanged for verification",
+    "Add Workers AI binding requirement named AI and use @cf/zai-org/glm-4.7-flash through env.AI.run()",
+    "Invalidate older research caches with pipeline version tavily-glm47-filter-zhtw-v3 so the first click after deployment uses the new Tavily→GLM pipeline",
     "Complete the current Pionex US-stock/RWA token profile layer so suffix-X contracts resolve to the real underlying ticker, company/fund/commodity name, aliases, and asset type before Tavily search",
     "Split Tavily prompts by asset type: public/private company, ETF/fund, commodity, and generic market asset no longer share the same company-earnings prompt",
     "Add a Traditional-Chinese display layer: Tavily Answer is requested in strict zh-TW format, normalized to Traditional Chinese, and mapped into display_title_zh_tw / display_detail_zh_tw while original source titles remain available for verification",

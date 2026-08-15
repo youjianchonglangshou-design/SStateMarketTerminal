@@ -2,5 +2,5 @@ window.SSTATE_CONFIG = {
   workerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev",
   defaultMarket: "crypto",
   pollIntervalMs: 4000,
-  appVersion: "TERMINAL v0.1.34｜TAVILY-ASSET-ZHTW"
+  appVersion: "TERMINAL v0.1.35｜TAVILY-GLM-FILTER"
 };

@@ -1,6 +1,6 @@
 # SState Market Terminal
 
-### v0.1.34 Tavily 資產 Profile + 類型分流 + 繁中顯示
+### v0.1.35 Tavily 廣搜 + GLM-4.7-Flash 語意篩選 / 繁中
 
 - Pionex 美股/RWA token 先解析「代幣 → underlying ticker → 正式名稱/別名 → asset_type」，補齊目前 active/pending 清單中原先只剩 ticker 的公司、ETF 與商品。
 - Tavily 搜尋依 public/private company、ETF、commodity 分流，不再拿同一套「公司財報」Prompt 查 USO / WTI / 黃金 / 半導體 ETF。
@@ -8,7 +8,31 @@
 - Worker 新增 `summary_zh_tw`、`display_title_zh_tw`、`display_detail_zh_tw`；主 UI 優先顯示繁體中文，原始英文標題只保留在查證來源。
 - 新 pipeline 會使舊 Tavily 24H cache 失效一次，下一次點擊會重新取得新格式資料。
 
-**版本：`TERMINAL v0.1.34｜TAVILY-ASSET-ZHTW`**
+**版本：`TERMINAL v0.1.35｜TAVILY-GLM-FILTER`**
+
+#### v0.1.35 新聞管線
+
+```text
+點擊 S3 / S0.5 / S1 新聞
+  ↓
+資產 Profile：派網代幣 → underlying / 公司或資產別名 / asset_type
+  ↓
+Tavily Basic Search（topic=news、week、max_results=20、chunks_per_source=3）
+  ↓
+Cloudflare Workers AI：@cf/zai-org/glm-4.7-flash
+  ↓
+依原始搜尋指令判斷所有候選：保留真正重大事件、淘汰舊事件/索引頁/投資評論/無關內容
+  ↓
+產出繁中 summary_zh_tw + display_title_zh_tw + display_detail_zh_tw
+  ↓
+每則事件綁定 Tavily source_index；只使用原候選 URL 做查證
+  ↓
+R2 24H cache.json + latest.json
+```
+
+注意：Tavily Search API 的 `max_results` 官方上限是 20，所以 v0.1.35 是「不再限制 10 則」，直接使用 API 可取的最大 20 則；若省略此參數反而會回到預設 5。GLM 不設定固定最終事件數，有幾則真正符合就保留幾則。
+
+Cloudflare Worker 必須新增 **Workers AI binding**，名稱固定為 `AI`；`TAVILY_API_KEY` Secret 與 `JSON_BUCKET` R2 binding 照舊。
 
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
 
@@ -24,7 +48,7 @@ GitHub Pages
                                      ↓
                          Basic Search 廣搜最多 10 則
                                      ↓
-                         資產 Profile + JS Hard Gate + 繁中顯示
+                         資產 Profile → GLM-4.7-Flash 語意篩選 + 繁中
                                      ↓
                          該標的固定 24H Cache + research R2
 ```
@@ -42,7 +66,7 @@ Stage 1 **不使用 D1**。Runtime 最新 JSON 以 R2 為唯一 source of truth�
 - `engine/`：由原 Streamlit 拆出的 headless Python S-state engine
 - `.github/workflows/full-analysis.yml`：Cloudflare 呼叫的完整分析
 - `.github/workflows/deploy-pages.yml`：GitHub Pages
-- `cloudflare/worker.js`：R2 + GitHub dispatch + 單一標的 Tavily 廣搜 / JS Hard Gate / 公司別名
+- `cloudflare/worker.js`：R2 + GitHub dispatch + 單一標的 Tavily 廣搜 / GLM-4.7-Flash 篩選 / 公司別名
 - `cloudflare/wrangler.toml.example`：R2 binding / Worker vars
 - `data/bootstrap/`：R2 尚未設定時的最後一次畫面 fallback
 
@@ -185,7 +209,7 @@ Worker 先讀 R2 最新美股 snapshot 核對該標的與 S-state，再執行：
 
 ```text
 Tavily Basic Search（最多 10 個候選）
-→ Cloudflare Worker JS Hard Gate + 公司別名 + 事件日期/正文一致性過濾
+→ Cloudflare Workers AI GLM-4.7-Flash 依原始指令做語意過濾、事件判斷與繁中整理
 → research/us-stock/cache.json
 → research/us-stock/latest.json
 ```

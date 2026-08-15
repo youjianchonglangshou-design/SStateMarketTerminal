@@ -30,7 +30,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY) }, 200, origin);
+        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), workers_ai_binding: Boolean(env.AI) }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -546,8 +546,9 @@ async function startAnalysis(request, env, origin) {
   return json({ ok: true, run_id: runId, market, github_run_id: dispatch?.workflow_run_id || null, github_run_url: dispatch?.html_url || null }, 200, origin);
 }
 
-const RESEARCH_PROVIDER = "Tavily Search";
-const RESEARCH_PIPELINE_VERSION = "tavily-asset-profile-zhtw-v2";
+const RESEARCH_PROVIDER = "Tavily Search + GLM-4.7-Flash";
+const RESEARCH_GLM_MODEL = "@cf/zai-org/glm-4.7-flash";
+const RESEARCH_PIPELINE_VERSION = "tavily-glm47-filter-zhtw-v3";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -751,7 +752,7 @@ function researchCompanyProfile(symbol) {
 function researchFresh(item, nowMs = Date.now()) {
   if (!item || typeof item !== "object") return false;
   // Provider migration: do not keep an old Groq cache alive after Tavily is deployed.
-  if (item.api !== "tavily-search-api") return false;
+  if (item.api !== "tavily-search-api+workers-ai") return false;
   if (item.pipeline_version !== RESEARCH_PIPELINE_VERSION) return false;
   const direct = Date.parse(item.expires_at || "");
   if (Number.isFinite(direct)) return direct > nowMs;
@@ -1193,66 +1194,217 @@ function researchVerdictFromEvents(events) {
 }
 
 function researchBuildQuery(profile) {
-  const aliases = (profile?.aliases || []).slice(0, 12).join(" / ");
+  const aliases = (profile?.aliases || []).slice(0, 16).join(" / ");
   const type = String(profile?.asset_type || "other");
   const focus = String(profile?.focus || profile?.company_name || profile?.underlying_ticker || "").trim();
-  const outputRule = `\n\n最後答案必須完全使用「台灣繁體中文（zh-TW）」撰寫，不可直接複製英文新聞標題。最多 3 則；不足 3 則不要硬湊。\n請盡量使用這個格式：\n【事件1】標題：繁體中文標題｜摘要：繁體中文摘要\n【事件2】標題：繁體中文標題｜摘要：繁體中文摘要\n【事件3】標題：繁體中文標題｜摘要：繁體中文摘要\n若沒有真正符合條件的事件，直接回答：最近 7 天沒有符合條件的重大事件。`;
 
   if (["public_company","foreign_company"].includes(type)) {
-    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n公司也可能以這些名稱出現：${aliases}\n\n只接受：\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資 / 大型訂單或合約\n- SEC / 監管 / 真正的新訴訟事件\n- 分析師最近 7 天新發生的升降評或目標價異動\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n排除單純股價漲跌、是否值得買、估值、技術分析、機構持倉、內部人交易、律師事務所 Deadline/Investor Alert。${outputRule}`;
+    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n公司也可能以這些名稱出現：${aliases}\n\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資\n- SEC / 監管 / 訴訟\n- 分析師重大升降評或目標價異動（必須是最近 7 天的新動作）\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示`;
   }
 
   if (type === "private_company") {
-    return `搜尋 ${profile.company_name} 最近 7 天直接相關的重大公司事件。\n\n可能名稱：${aliases}\n\n只接受：\n- 官方產品 / 技術 / 商業發布\n- 大型客戶、訂單、合作或合約\n- 融資、併購、重大投資、IPO / 上市進度\n- 監管、訴訟、政府合約或重大政策影響\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n不要把不存在的公開公司財報硬套給未上市公司；排除股價預測與社群傳聞。${outputRule}`;
+    return `搜尋 ${profile.company_name} 最近 7 天直接相關的重大公司事件。\n\n可能名稱：${aliases}\n\n- 官方產品 / 技術 / 商業發布\n- 大型客戶、訂單、合作或合約\n- 融資、併購、重大投資、IPO / 上市進度\n- 監管、訴訟、政府合約或重大政策影響\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示`;
   }
 
   if (type === "etf") {
-    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天重大 ETF / 基金事件，以及直接影響其核心曝險「${focus}」的重大事件。\n\n可能名稱或主題：${aliases}\n\n只接受：\n- 發行商正式公告、基金結構、拆分、配息、成分或指數再平衡\n- 有可靠來源的重大資金流 / 持倉結構變化\n- 直接影響「${focus}」的重大政策、供需、產業或大型成分股事件\n- 對 ETF 核心曝險有明確因果關係的重大市場事件\n\n排除技術分析、單純價格預測、是否值得買、一般盤勢閒聊與無直接關係的宏觀新聞。${outputRule}`;
+    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天重大 ETF / 基金事件，以及直接影響其核心曝險「${focus}」的重大事件。\n\n可能名稱或主題：${aliases}\n\n- 發行商正式公告、基金結構、拆分、配息、成分或指數再平衡\n- 有可靠來源的重大資金流 / 持倉結構變化\n- 直接影響「${focus}」的重大政策、供需、產業或大型成分股事件\n- 對 ETF 核心曝險有明確因果關係的重大市場事件\n\n且用繁體中文顯示`;
   }
 
   if (type === "commodity") {
-    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接影響「${focus}」的重大市場事件。\n\n可能名稱：${aliases}\n\n只接受：\n- 供給 / 需求 / 庫存 / 產量 / 礦山或油氣設施中斷\n- OPEC、EIA、政府政策、制裁、關稅、地緣事件且必須直接影響該商品\n- 央行、實質利率或工業需求等對該商品有明確直接影響的重大事件\n- 其他可驗證、會改變該商品供需結構的事件\n\n排除技術分析、價格預測、是否值得買與一般市場閒聊。${outputRule}`;
+    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接影響「${focus}」的重大市場事件。\n\n可能名稱：${aliases}\n\n- 供給 / 需求 / 庫存 / 產量 / 礦山或油氣設施中斷\n- OPEC、EIA、政府政策、制裁、關稅、地緣事件且必須直接影響該商品\n- 央行、實質利率或工業需求等對該商品有明確直接影響的重大事件\n- 其他可驗證、會改變該商品供需結構的事件\n\n且用繁體中文顯示`;
   }
 
-  return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接相關的重大市場事件。\n\n可能名稱：${aliases}\n\n只接受可驗證、與該標的直接相關的重大事件；排除技術分析、價格預測、社群傳聞與無關宏觀新聞。${outputRule}`;
+  return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接相關的重大市場事件。\n\n可能名稱：${aliases}\n\n只保留可驗證且直接相關的重大事件，且用繁體中文顯示`;
 }
 
-function researchBuildItem(row, profile, payload, ranked, searchedAt) {
+function researchStripCodeFence(value) {
+  return String(value || "").trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+function researchParseGlmJson(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  const raw = researchStripCodeFence(value);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (_) {}
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    try { return JSON.parse(raw.slice(first, last + 1)); } catch (_) {}
+  }
+  return null;
+}
+
+function researchNormalizeImpact(value) {
+  const v = String(value || "neutral").toLowerCase();
+  return ["positive","negative","neutral","mixed"].includes(v) ? v : "neutral";
+}
+
+function researchNormalizeVerdict(value) {
+  const v = String(value || "neutral").toLowerCase();
+  return ["positive","mixed","neutral","risk","high_risk"].includes(v) ? v : "neutral";
+}
+
+function researchNormalizeCategory(value, item, profile) {
+  const v = String(value || "").trim();
+  const allowed = new Set(["earnings","guidance","company_catalyst","analyst","regulatory","legal","fund_event","commodity_supply","policy_macro","industry"]);
+  return allowed.has(v) ? v : researchEventCategory(item, profile);
+}
+
+function researchGlmCandidate(item, index) {
+  return {
+    source_index: index + 1,
+    title: String(item?.title || "").slice(0, 500),
+    url: String(item?.url || ""),
+    published_date: String(item?.published_date || item?.publishedDate || "").slice(0, 90),
+    tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
+    content: String(item?.content || "").slice(0, 2400),
+  };
+}
+
+async function researchGlmFilter(env, profile, query, payload) {
+  if (!env.AI || typeof env.AI.run !== "function") {
+    throw httpError(500, "Worker 缺少 Workers AI binding：請新增名為 AI 的 Workers AI binding");
+  }
+
+  const candidates = (Array.isArray(payload?.results) ? payload.results : []).map(researchGlmCandidate);
+  if (!candidates.length) {
+    return {
+      summary_zh_tw: "最近 7 天沒有找到可供判讀的候選來源。",
+      verdict: "neutral",
+      events: [],
+      rejected: [],
+      raw: "",
+      usage: null,
+    };
+  }
+
+  const systemPrompt = `你是嚴格的金融新聞審核與繁體中文整理模型。Tavily 已經完成搜尋；你不能再搜尋，也不能使用候選來源以外的知識補故事。\n\n你的任務：\n1. 完整遵守使用者的「原始搜尋指令」。\n2. 從所有候選來源中，保留真正符合條件的重大事件；不要因為標題提到股票就保留。\n3. 同一事件若有多個來源，合併成一則並選資訊最完整、最直接的 source_index。\n4. 不設定固定保留數量：有幾則真正符合就保留幾則；沒有就回空陣列。不要硬湊。\n5. 事件本身必須發生在最近 7 天；新文章重講舊事件要淘汰。\n6. 排除新聞索引頁、Quote/Profile、技術分析、是否值得買、純股價評論、社群傳聞、律師事務所招攬、無關公司、只有機構持倉/內部人交易而沒有重大公司事件的文章。\n7. 分析師事件只保留最近 7 天真正新發生的升評、降評或目標價異動，不保留共識彙整文。\n8. 每一則保留事件必須綁定候選中的 source_index。不得發明 URL、數字、日期、公司行動。\n9. display_title_zh_tw、display_detail_zh_tw、summary_zh_tw 必須使用台灣繁體中文（zh-TW）；英文原文只留在來源欄，不要直接複製成顯示文字。\n10. impact 是事件本身對標的基本面/營運的方向，不是單純看當天股價漲跌。\n\n只輸出 JSON，不要 Markdown。JSON 格式：\n{\n  "summary_zh_tw": "整體重點，繁體中文",\n  "verdict": "positive|mixed|neutral|risk|high_risk",\n  "events": [\n    {\n      "source_index": 1,\n      "category": "earnings|guidance|company_catalyst|analyst|regulatory|legal|fund_event|commodity_supply|policy_macro|industry",\n      "date": "YYYY-MM-DD 或空字串",\n      "impact": "positive|negative|neutral|mixed",\n      "display_title_zh_tw": "繁體中文事件標題",\n      "display_detail_zh_tw": "繁體中文摘要，只寫來源能支持的事實"\n    }\n  ],\n  "rejected": [\n    {"source_index": 2, "reason_zh_tw": "淘汰原因"}\n  ]\n}`;
+
+  const userPayload = {
+    target: {
+      symbol: profile.symbol,
+      underlying_ticker: profile.underlying_ticker,
+      company_name: profile.company_name,
+      aliases: profile.aliases,
+      asset_type: profile.asset_type,
+      focus: profile.focus || "",
+    },
+    original_instruction: query,
+    candidate_count: candidates.length,
+    candidates,
+  };
+
+  const aiOut = await env.AI.run(RESEARCH_GLM_MODEL, {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: JSON.stringify(userPayload) },
+    ],
+    temperature: 0.1,
+    max_completion_tokens: 6000,
+    response_format: { type: "json_object" },
+  });
+
+  const responseValue = aiOut?.response ?? aiOut?.result ?? aiOut;
+  const parsed = researchParseGlmJson(responseValue);
+  if (!parsed || typeof parsed !== "object") {
+    throw httpError(502, "GLM-4.7-Flash 未回傳可解析 JSON；本次不寫入 24H 快取，請重試");
+  }
+
+  const rawEvents = Array.isArray(parsed.events) ? parsed.events : [];
+  const events = [];
+  const selectedIndices = new Set();
+  const seenEventKeys = new Set();
+
+  for (const ev of rawEvents) {
+    const sourceIndex = Number(ev?.source_index);
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > candidates.length) continue;
+    const item = payload.results[sourceIndex - 1];
+    const titleZh = researchToTraditionalChinese(String(ev?.display_title_zh_tw || "").trim());
+    const detailZh = researchToTraditionalChinese(String(ev?.display_detail_zh_tw || "").trim());
+    if (!titleZh || !detailZh) continue;
+    const key = `${sourceIndex}|${titleZh.toLowerCase()}`;
+    if (seenEventKeys.has(key)) continue;
+    seenEventKeys.add(key);
+    selectedIndices.add(sourceIndex);
+    events.push({
+      source_index: sourceIndex,
+      category: researchNormalizeCategory(ev?.category, item, profile),
+      date: /^20\d{2}-\d{2}-\d{2}$/.test(String(ev?.date || "")) ? String(ev.date) : researchEventDate(item),
+      impact: researchNormalizeImpact(ev?.impact),
+      display_title_zh_tw: titleZh.slice(0, 220),
+      display_detail_zh_tw: detailZh.slice(0, 900),
+    });
+  }
+
+  const rejectionReasons = new Map();
+  for (const rej of Array.isArray(parsed.rejected) ? parsed.rejected : []) {
+    const idx = Number(rej?.source_index);
+    if (!Number.isInteger(idx) || idx < 1 || idx > candidates.length) continue;
+    const reason = researchToTraditionalChinese(String(rej?.reason_zh_tw || "").trim());
+    if (reason) rejectionReasons.set(idx, reason.slice(0, 300));
+  }
+
+  return {
+    summary_zh_tw: researchToTraditionalChinese(String(parsed.summary_zh_tw || "").trim()) || (events.length ? `最近 7 天找到 ${events.length} 則符合條件的重大事件。` : "最近 7 天沒有符合條件的重大事件。"),
+    verdict: researchNormalizeVerdict(parsed.verdict),
+    events,
+    selected_indices: selectedIndices,
+    rejection_reasons: rejectionReasons,
+    raw: typeof responseValue === "string" ? responseValue.slice(0, 12000) : JSON.stringify(responseValue).slice(0, 12000),
+    usage: aiOut?.usage || null,
+  };
+}
+
+function researchBuildItem(row, profile, payload, glm, searchedAt) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
   const searchedMs = Date.parse(searchedAt);
-  const display = researchDisplayFields(payload?.answer || "", ranked.kept, profile);
-  const events = ranked.kept.map((item, index) => {
-    const category = researchEventCategory(item, profile);
-    const zh = display.displays[index] || {};
+  const results = Array.isArray(payload?.results) ? payload.results : [];
+  const selected = glm?.selected_indices instanceof Set ? glm.selected_indices : new Set();
+  const events = (Array.isArray(glm?.events) ? glm.events : []).map(ev => ({
+    category: ev.category,
+    date: ev.date || "",
+    impact: ev.impact,
+    title: String(results[ev.source_index - 1]?.title || "近期資訊").slice(0, 240),
+    detail: researchCompactSnippet(results[ev.source_index - 1], 420),
+    display_title_zh_tw: ev.display_title_zh_tw,
+    display_detail_zh_tw: ev.display_detail_zh_tw,
+    source_index: ev.source_index,
+  }));
+
+  const sourceIndices = [...new Set(events.map(ev => ev.source_index))];
+  const sources = sourceIndices.map(sourceIndex => {
+    const item = results[sourceIndex - 1] || {};
     return {
-      category,
-      date: researchEventDate(item),
-      impact: researchEventImpact(item),
-      title: String(item?.title || "近期資訊").slice(0,180),
-      detail: researchCompactSnippet(item, 320),
-      display_title_zh_tw: String(zh.display_title_zh_tw || `${profile.company_name}｜${researchCategoryLabelZh(category)}`).slice(0,180),
-      display_detail_zh_tw: String(zh.display_detail_zh_tw || "").slice(0,520),
+      source_index: sourceIndex,
+      title: String(item?.title || item?.url || "來源").slice(0, 260),
+      url: String(item?.url || ""),
+      published_date: String(item?.published_date || item?.publishedDate || "").slice(0, 90),
+      tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
     };
   });
-  const sources = ranked.kept.map(item => ({
-    title: String(item?.title || item?.url || "來源").slice(0,220),
-    url: String(item?.url || ""),
-    published_date: String(item?.published_date || item?.publishedDate || "").slice(0,60),
-    tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
-    js_score: Number(item?._score || 0),
-  }));
-  const rejected = ranked.rejected.map(item => ({
-    title: String(item?.title || "").slice(0,220),
-    url: String(item?.url || ""),
-    score: Number(item?._score || 0),
-    reasons: Array.isArray(item?._bad) ? item._bad.slice(0,6) : [],
-  }));
-  const summary = display.summary_zh_tw || (events.length
+
+  const rejected = results.map((item, index) => {
+    const sourceIndex = index + 1;
+    if (selected.has(sourceIndex)) return null;
+    return {
+      source_index: sourceIndex,
+      title: String(item?.title || "").slice(0, 260),
+      url: String(item?.url || ""),
+      tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
+      reasons: [`GLM：${glm?.rejection_reasons?.get(sourceIndex) || "未列入符合原始指令的重大事件"}`],
+    };
+  }).filter(Boolean);
+
+  const summary = researchToTraditionalChinese(String(glm?.summary_zh_tw || "").trim()) || (events.length
     ? `最近 7 天找到 ${events.length} 則符合條件的重大事件。`
-    : `最近 7 天未找到符合條件的 ${profile.company_name} 重大事件；不硬湊。`);
+    : `最近 7 天沒有符合條件的重大事件。`);
   const earningsEvent = ["public_company","foreign_company"].includes(profile.asset_type)
     ? events.find(x => x.category === "earnings") || null
     : null;
+
   return {
     symbol,
     api_symbol: row?.api_symbol || null,
@@ -1264,9 +1416,9 @@ function researchBuildItem(row, profile, payload, ranked, searchedAt) {
     company_aliases: profile.aliases,
     asset_type: profile.asset_type,
     asset_focus: profile.focus || "",
-    verdict: researchVerdictFromEvents(events),
-    summary: researchToTraditionalChinese(summary).slice(0,1100),
-    summary_zh_tw: researchToTraditionalChinese(summary).slice(0,1100),
+    verdict: researchNormalizeVerdict(glm?.verdict || researchVerdictFromEvents(events)),
+    summary,
+    summary_zh_tw: summary,
     last_earnings: {
       date: earningsEvent?.date || "",
       eps: earningsEvent ? "unknown" : "not_applicable",
@@ -1278,15 +1430,20 @@ function researchBuildItem(row, profile, payload, ranked, searchedAt) {
     sources,
     rejected,
     model: RESEARCH_PROVIDER,
-    api: "tavily-search-api",
-    search_mode: "on_demand_broad_search_asset_profile_js_hard_gate",
+    api: "tavily-search-api+workers-ai",
+    search_mode: "on_demand_tavily20_glm47_filter_zhtw",
     research_status: "ON_DEMAND",
     pipeline_version: RESEARCH_PIPELINE_VERSION,
     query: String(payload?.query || ""),
-    tavily_answer_raw: String(payload?.answer || "").slice(0,5000),
+    candidate_count: results.length,
+    selected_count: events.length,
+    tavily_answer_raw: "",
     provider_usage: payload?.usage || null,
     request_id: payload?.request_id || null,
     response_time: payload?.response_time ?? null,
+    glm_model: RESEARCH_GLM_MODEL,
+    glm_usage: glm?.usage || null,
+    glm_raw: String(glm?.raw || "").slice(0, 12000),
   };
 }
 
@@ -1294,20 +1451,25 @@ async function browserSearchResearch(env, row) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
   const profile = researchCompanyProfile(symbol);
   const query = researchBuildQuery(profile);
+
+  // Tavily's API currently allows max_results up to 20. Use the maximum instead of the old hard-coded 10.
+  // Search remains Basic (1 Tavily credit); GLM performs semantic filtering and zh-TW rewriting afterward.
   const payload = await tavilySearch(env, {
     query,
     search_depth: "basic",
     topic: "news",
     time_range: "week",
-    max_results: 10,
-    include_answer: "advanced",
+    max_results: 20,
+    chunks_per_source: 3,
+    include_answer: false,
     include_raw_content: false,
     include_images: false,
     include_usage: true,
   });
   payload.query = payload.query || query;
-  const ranked = researchRankResults(payload?.results, profile);
-  const item = researchBuildItem(row, profile, payload, ranked, new Date().toISOString());
+
+  const glm = await researchGlmFilter(env, profile, query, payload);
+  const item = researchBuildItem(row, profile, payload, glm, new Date().toISOString());
   return { item };
 }
 

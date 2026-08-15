@@ -77,8 +77,8 @@ body.research-modal-open .tv-crosshair{
   right:auto !important;
   top:auto !important;
   left:auto !important;
-  width:min(680px,calc(100vw - 48px)) !important;
-  max-width:680px !important;
+  width:min(900px,calc(100vw - 48px)) !important;
+  max-width:900px !important;
   max-height:min(82vh,760px) !important;
   overflow:auto !important;
   margin:0 !important;
@@ -178,26 +178,72 @@ body.research-modal-open .tv-crosshair{
   }
 }
 
-/* v0.1.27 — slightly larger typography inside the click-open research modal only.
-   The compact card/pill sizing on the main dashboard is intentionally unchanged. */
-.research-card-modal .research-title{font-size:12px !important}
-.research-card-modal .research-title strong{font-size:13px !important}
-.research-card-modal .research-title span{font-size:9px !important}
-.research-card-modal .research-verdict-line>span{font-size:10px !important}
-.research-card-modal .research-verdict-chip{font-size:11px !important}
-.research-card-modal .research-section-title{font-size:10px !important}
-.research-card-modal .research-section-title small{font-size:8px !important}
-.research-card-modal .research-summary{font-size:11px !important;line-height:1.7 !important}
-.research-card-modal .research-manual-note{font-size:10px !important;line-height:1.55 !important}
-.research-card-modal .research-fact span{font-size:9px !important}
-.research-card-modal .research-fact b{font-size:10px !important}
-.research-card-modal .research-event{font-size:10px !important;line-height:1.55 !important}
-.research-card-modal .research-event-head time{font-size:9px !important}
+/* v0.1.46 — readable typography for the ACTUAL click-open modal.
+   This file is loaded AFTER styles.css, so it is the authoritative modal layer.
+   Previous v0.1.27 values (10–11px !important) were the real reason article text
+   stayed tiny even when styles.css was changed to 20/24/30px. */
+
+/* Header */
+.research-card-modal .research-title{font-size:16px !important}
+.research-card-modal .research-title strong{font-size:18px !important}
+.research-card-modal .research-title span{font-size:11px !important}
+
+/* Top sentiment area — keep compact as requested */
+.research-card-modal .research-verdict-line>span{font-size:12px !important}
+.research-card-modal .research-verdict-chip{font-size:12px !important}
+.research-card-modal .research-impact-counts em{
+  font-size:11px !important;
+  padding:3px 7px !important;
+}
+
+/* Section labels */
+.research-card-modal .research-section-title{font-size:13px !important}
+.research-card-modal .research-section-title small{font-size:10px !important}
+
+/* Tavily summary */
+.research-card-modal .research-summary{
+  font-size:20px !important;
+  line-height:1.72 !important;
+  font-weight:700 !important;
+}
+
+/* Earnings / manual note */
+.research-card-modal .research-manual-note{font-size:13px !important;line-height:1.55 !important}
+.research-card-modal .research-fact span{font-size:11px !important}
+.research-card-modal .research-fact b{font-size:13px !important}
+
+/* Article area */
+.research-card-modal .research-event{
+  font-size:18px !important;
+  line-height:1.65 !important;
+  padding:15px 0 17px !important;
+}
+.research-card-modal .research-event-head time{font-size:11px !important}
 .research-card-modal .research-category,
-.research-card-modal .research-impact{font-size:9px !important}
-.research-card-modal .research-event-title{font-size:11px !important}
-.research-card-modal .research-event-detail{font-size:10px !important;line-height:1.62 !important}
-.research-card-modal .research-empty{font-size:10px !important}
+.research-card-modal .research-impact{
+  font-size:11px !important;
+  padding:4px 7px !important;
+}
+
+/* Article title */
+.research-card-modal .research-event-title{
+  font-size:20px !important;
+  line-height:1.5 !important;
+}
+
+/* Article body — user's yellow-box target */
+.research-card-modal .research-event-detail{
+  font-size:20px !important;
+  line-height:1.72 !important;
+  font-weight:700 !important;
+  color:#f1f5f9 !important;
+  margin-top:7px !important;
+}
+
+.research-card-modal .research-empty{font-size:13px !important}
+
+/* Sources */
 .research-card-modal .research-sources a,
-.research-card-modal .research-sources.muted{font-size:9px !important}
-.research-card-modal .research-meta{font-size:9px !important}
+.research-card-modal .research-sources.muted{font-size:14px !important}
+
+.research-card-modal .research-meta{font-size:11px !important}

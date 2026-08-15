@@ -370,3 +370,25 @@ R2 models/active/probability_model.json
 - 文章標題 `.research-event-title` 維持 24px
 - Tavily 重點維持 24px
 - 不修改 Tavily / Worker / R2 / 新聞內容 / 多空判斷
+
+
+## v0.1.46 MODAL-TYPOGRAPHY-FIX
+
+Root cause:
+`index.html` loads `research-modal.css` after `styles.css`.
+The old v0.1.27 modal stylesheet used `!important` and forced:
+- summary 11px
+- event title 11px
+- event detail 10px
+
+Therefore later edits in styles.css could not affect the click-open modal.
+
+Fix:
+- edit `research-modal.css` directly
+- modal width 680px → 900px
+- Tavily summary 20px
+- article title 20px
+- article body 20px
+- sentiment pills stay compact 11–12px
+- sources 14px
+- no Tavily / Worker / R2 / news logic changes

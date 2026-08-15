@@ -747,7 +747,7 @@
   background:#111c2d;
 }
 .research-verdict-line>span{font-size:16px;color:#94a3b8;font-weight:850}
-.research-verdict-chip{font-size:16px;font-weight:950}
+.research-verdict-chip{font-size:13px;font-weight:950}
 .research-verdict-chip.strong-positive{color:#fde68a}
 .research-verdict-chip.positive{color:#86efac}
 .research-verdict-chip.mixed{color:#fde047}
@@ -764,9 +764,9 @@
 }
 .research-impact-counts em{
   font-style:normal;
-  font-size:15px;
+  font-size:12px;
   font-weight:900;
-  padding:4px 9px;
+  padding:3px 7px;
   border-radius:999px;
   border:1px solid #334155;
   background:#0f1a2a;
@@ -865,11 +865,11 @@
 .research-event.negative .research-event-title{color:#fecaca}
 .research-event.mixed .research-event-title{color:#fde68a}
 
-/* 水藍框：文章正文，與 Tavily 重點完全同字級 / 字重 */
+/* 文章正文：使用者指定放大 */
 .research-event-detail{
-  margin-top:8px;
-  font-size:24px;
-  line-height:1.72;
+  margin-top:10px;
+  font-size:30px;
+  line-height:1.78;
   font-weight:700;
   color:#f1f5f9;
   letter-spacing:.02px;

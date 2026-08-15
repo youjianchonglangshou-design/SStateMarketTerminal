@@ -358,3 +358,15 @@ R2 models/active/probability_model.json
 - 文章正文：24px / 700。
 - media query 不再縮小這三種文字。
 - 不修改 Tavily / Worker / R2 / 繁中 / 多空判斷。
+
+
+## v0.1.45 NEWS-BODY-30PX
+只修改 v0.1.44 canonical research CSS 內既有規則，不新增 override。
+
+- 利多 / 利空 / 中性 / 混合統計：15px → 12px
+- 最終方向 chip：16px → 13px
+- 文章正文 `.research-event-detail`：24px → 30px
+- 正文 line-height：1.72 → 1.78
+- 文章標題 `.research-event-title` 維持 24px
+- Tavily 重點維持 24px
+- 不修改 Tavily / Worker / R2 / 新聞內容 / 多空判斷

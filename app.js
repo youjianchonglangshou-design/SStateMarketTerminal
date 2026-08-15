@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.36｜GLM-PARSER-RETRY";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.37｜LLAMA-JSONMODE";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -849,7 +849,7 @@
       const expired = Boolean(rawInfo && researchExpiresAt(rawInfo) && researchExpiresAt(rawInfo) <= Date.now());
       const label = busy ? '⏳ 搜尋中…' : anotherBusy ? '… 等待上一筆' : error ? '⚠ 查詢失敗・重試' : expired ? '↻ 已過24H・重新查詢' : '🔎 等待查詢';
       const title = busy
-        ? `${symbol} 正在使用 Tavily 廣搜 + GLM-4.7-Flash 篩選查詢`
+        ? `${symbol} 正在使用 Tavily 廣搜 + Llama JSON Mode 篩選查詢`
         : error
           ? `${symbol} 前次查詢失敗：${error}｜點擊重試`
           : expired
@@ -893,7 +893,7 @@
     </div>` : '';
 
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
-    const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search + GLM-4.7-Flash').replace(/^models\//,'');
+    const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search + Llama JSON Mode').replace(/^models\//,'');
     const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Tavily 搜尋與 GLM 整理已完成；若模型輸出無法解析，Worker 不會寫入 24H 快取。</span></div>` : '';
     const verdictHtml = `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>`;
 
@@ -902,7 +902,7 @@
       ${verdictHtml}
       <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary_zh_tw||info.summary||'')}</div></div>
       ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則候選 → GLM-4.7-Flash 篩選 + 繁中｜${escapeHtml(searched)}｜24H 固定快取</div>
+      <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則候選 → Llama JSON Mode 篩選 + 繁中｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
 
@@ -1125,7 +1125,7 @@
       state.usStockResearch.items_by_symbol[key] = out.item;
       state.usStockResearch.items = Object.values(state.usStockResearch.items_by_symbol);
       state.usStockResearch.generated_at = out.generated_at || new Date().toISOString();
-      state.usStockResearch.model = out.item?.model || 'Tavily Search + GLM-4.7-Flash';
+      state.usStockResearch.model = out.item?.model || 'Tavily Search + Llama JSON Mode';
       delete state.researchSymbolErrors[key];
       showToast(out.cached ? `${key}｜沿用 24H 快取，不重新搜尋。` : `${key}｜新聞查詢完成，已寫入 R2 並固定快取 24H。`, 7000);
     } catch (err) {

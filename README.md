@@ -1,10 +1,10 @@
 # SState Market Terminal
 
-### v0.1.36 GLM response parser + reasoning retry 修正
+### v0.1.37 GLM response parser + reasoning retry 修正
 
 這版修正 v0.1.35 的關鍵 bug：Cloudflare GLM-4.7-Flash 回傳的是 chat-completions wrapper，真正 JSON 在 `choices[0].message.content`。v0.1.35 把 wrapper 本身當 JSON，所以即使 GLM 已選出事件，最後仍被寫成 `selected_count: 0`。
 
-另外 GLM 偶爾會把 completion token 全花在 reasoning，造成 `message.content = null`。v0.1.36 先使用 `reasoning_effort: low`，若仍沒有 final JSON，自動以精簡候選資料重試一次；兩次都失敗才回 502，而且不寫入 24H 快取。
+另外 GLM 偶爾會把 completion token 全花在 reasoning，造成 `message.content = null`。v0.1.37 先使用 `reasoning_effort: low`，若仍沒有 final JSON，自動以精簡候選資料重試一次；兩次都失敗才回 502，而且不寫入 24H 快取。
 
 ### v0.1.35 Tavily 廣搜 + GLM-4.7-Flash 語意篩選 / 繁中
 
@@ -14,7 +14,7 @@
 - Worker 新增 `summary_zh_tw`、`display_title_zh_tw`、`display_detail_zh_tw`；主 UI 優先顯示繁體中文，原始英文標題只保留在查證來源。
 - 新 pipeline 會使舊 Tavily 24H cache 失效一次，下一次點擊會重新取得新格式資料。
 
-**版本：`TERMINAL v0.1.36｜GLM-PARSER-RETRY`**
+**版本：`TERMINAL v0.1.37｜GLM-PARSER-RETRY`**
 
 #### v0.1.35 新聞管線
 
@@ -258,3 +258,15 @@ R2 models/active/probability_model.json
 ```
 
 不採用「每天產生新模型就直接覆蓋 active」。
+
+
+## v0.1.37 LLAMA-JSONMODE
+
+- 修正 v0.1.36：GLM-4.7-Flash 可能只回 reasoning、沒有 final JSON，造成 502。
+- 不再使用 GLM 作新聞語意篩選器。
+- Primary：`@cf/meta/llama-3.1-8b-instruct-fast`
+- Fallback：`@cf/meta/llama-3.3-70b-instruct-fp8-fast`
+- 兩者皆走 Workers AI JSON Mode `json_schema`。
+- Parser 同時支援 Workers AI JSON Mode 的 `{ response: {...} }` 物件輸出。
+- Tavily 仍負責廣搜最多 20 個候選；AI 負責事件過濾與 zh-TW 改寫。
+- Primary 失敗才啟用 70B fallback；兩層失敗才回 502，而且不寫入 24H cache。

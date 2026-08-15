@@ -546,9 +546,10 @@ async function startAnalysis(request, env, origin) {
   return json({ ok: true, run_id: runId, market, github_run_id: dispatch?.workflow_run_id || null, github_run_url: dispatch?.html_url || null }, 200, origin);
 }
 
-const RESEARCH_PROVIDER = "Tavily Search + GLM-4.7-Flash";
-const RESEARCH_GLM_MODEL = "@cf/zai-org/glm-4.7-flash";
-const RESEARCH_PIPELINE_VERSION = "tavily-glm47-filter-zhtw-v4";
+const RESEARCH_PROVIDER = "Tavily Search + Llama JSON Mode";
+const RESEARCH_GLM_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+const RESEARCH_FALLBACK_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const RESEARCH_PIPELINE_VERSION = "tavily-llama-jsonschema-zhtw-v5";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1261,18 +1262,28 @@ function researchGlmOutputText(value) {
 
 function researchParseGlmJson(value) {
   if (researchIsExpectedGlmObject(value)) return value;
+
+  // Workers AI JSON Mode commonly returns { response: { ...validated object... } }.
+  // Also accept result/data object wrappers for forward compatibility.
+  const objectWrappers = [value?.response, value?.result, value?.data];
+  for (const wrapped of objectWrappers) {
+    if (researchIsExpectedGlmObject(wrapped)) return wrapped;
+  }
+
   const raw = researchStripCodeFence(researchGlmOutputText(value));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    return researchIsExpectedGlmObject(parsed) ? parsed : null;
+    if (researchIsExpectedGlmObject(parsed)) return parsed;
+    if (researchIsExpectedGlmObject(parsed?.response)) return parsed.response;
   } catch (_) {}
   const first = raw.indexOf("{");
   const last = raw.lastIndexOf("}");
   if (first >= 0 && last > first) {
     try {
       const parsed = JSON.parse(raw.slice(first, last + 1));
-      return researchIsExpectedGlmObject(parsed) ? parsed : null;
+      if (researchIsExpectedGlmObject(parsed)) return parsed;
+      if (researchIsExpectedGlmObject(parsed?.response)) return parsed.response;
     } catch (_) {}
   }
   return null;
@@ -1331,6 +1342,60 @@ function researchGlmCandidate(item, index) {
   };
 }
 
+
+function researchNewsJsonSchema() {
+  return {
+    type: "object",
+    properties: {
+      summary_zh_tw: { type: "string" },
+      verdict: {
+        type: "string",
+        enum: ["positive", "mixed", "neutral", "risk", "high_risk"]
+      },
+      events: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            source_index: { type: "integer" },
+            category: {
+              type: "string",
+              enum: [
+                "earnings","guidance","company_catalyst","analyst",
+                "regulatory","legal","fund_event","commodity_supply",
+                "policy_macro","industry"
+              ]
+            },
+            date: { type: "string" },
+            impact: {
+              type: "string",
+              enum: ["positive","negative","neutral","mixed"]
+            },
+            display_title_zh_tw: { type: "string" },
+            display_detail_zh_tw: { type: "string" }
+          },
+          required: [
+            "source_index","category","date","impact",
+            "display_title_zh_tw","display_detail_zh_tw"
+          ]
+        }
+      },
+      rejected: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            source_index: { type: "integer" },
+            reason_zh_tw: { type: "string" }
+          },
+          required: ["source_index","reason_zh_tw"]
+        }
+      }
+    },
+    required: ["summary_zh_tw","verdict","events","rejected"]
+  };
+}
+
 async function researchGlmFilter(env, profile, query, payload) {
   if (!env.AI || typeof env.AI.run !== "function") {
     throw httpError(500, "Worker 缺少 Workers AI binding：請新增名為 AI 的 Workers AI binding");
@@ -1364,53 +1429,89 @@ async function researchGlmFilter(env, profile, query, payload) {
     candidates,
   };
 
+  const jsonSchema = researchNewsJsonSchema();
+
   const firstRequest = {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: JSON.stringify(userPayload) },
     ],
     temperature: 0,
-    reasoning_effort: "low",
-    max_completion_tokens: 2400,
-    response_format: { type: "json_object" },
+    max_tokens: 1800,
+    response_format: {
+      type: "json_schema",
+      json_schema: jsonSchema,
+    },
   };
 
-  let aiOut = await env.AI.run(RESEARCH_GLM_MODEL, firstRequest);
-  const firstOut = aiOut;
-  let parsed = researchParseGlmJson(aiOut);
-  let attempts = 1;
+  let aiOut = null;
+  let firstOut = null;
   let retryOut = null;
+  let parsed = null;
+  let attempts = 0;
+  let primaryError = null;
 
-  // GLM-4.7-Flash is a reasoning model. In rare cases it can spend the entire
-  // completion budget on reasoning and return message.content = null. Retry once
-  // with a shorter payload and an explicit direct-JSON instruction instead of
-  // incorrectly caching the stock as "no news".
+  // Primary: cheap non-reasoning Llama 3.1 8B Fast, officially supported by
+  // Workers AI JSON Mode. We require a validated schema instead of hoping the
+  // model prints parseable JSON after free-form reasoning.
+  try {
+    attempts = 1;
+    aiOut = await env.AI.run(RESEARCH_GLM_MODEL, firstRequest);
+    firstOut = aiOut;
+    parsed = researchParseGlmJson(aiOut);
+  } catch (err) {
+    primaryError = String(err?.message || err || "");
+  }
+
+  // Fallback: Llama 3.3 70B Fast, also officially supported by JSON Mode.
+  // Only runs when the cheap primary model fails schema/parse, so normal calls
+  // stay inexpensive and within the Free-plan Neuron budget more easily.
   if (!parsed) {
     attempts = 2;
     const compactPayload = {
       target: userPayload.target,
       original_instruction: query,
       candidate_count: candidates.length,
-      candidates: researchCompactGlmCandidates(candidates),
+      candidates: candidates.map(item => ({
+        source_index: item.source_index,
+        title: item.title,
+        url: item.url,
+        published_date: item.published_date,
+        tavily_score: item.tavily_score,
+        content: String(item.content || "").slice(0, 850),
+      })),
     };
-    const retrySystemPrompt = `你是金融新聞篩選器。禁止輸出分析過程；直接輸出 JSON。\n\n依照 original_instruction，從 candidates 保留真正符合的最近 7 天重大事件。排除舊事件、Quote/Profile/新聞索引、純股價或技術分析、社群傳聞、律師招攬、無關公司、單純機構持倉/內部人交易。相同事件合併。每則事件必須使用真實 source_index。不得發明事實。所有顯示文字使用台灣繁體中文。\n\nJSON：{"summary_zh_tw":"...","verdict":"positive|mixed|neutral|risk|high_risk","events":[{"source_index":1,"category":"earnings|guidance|company_catalyst|analyst|regulatory|legal|fund_event|commodity_supply|policy_macro|industry","date":"YYYY-MM-DD 或空字串","impact":"positive|negative|neutral|mixed","display_title_zh_tw":"...","display_detail_zh_tw":"..."}],"rejected":[]}`;
 
-    retryOut = await env.AI.run(RESEARCH_GLM_MODEL, {
-      messages: [
-        { role: "system", content: retrySystemPrompt },
-        { role: "user", content: JSON.stringify(compactPayload) },
-      ],
-      temperature: 0,
-      reasoning_effort: "low",
-      max_completion_tokens: 1800,
-      response_format: { type: "json_object" },
-    });
-    parsed = researchParseGlmJson(retryOut);
-    if (parsed) aiOut = retryOut;
+    try {
+      retryOut = await env.AI.run(RESEARCH_FALLBACK_MODEL, {
+        messages: [
+          {
+            role: "system",
+            content:
+              "你是金融新聞篩選器。只根據候選來源工作。依 original_instruction 保留最近 7 天真正重要且直接相關的事件；排除舊事件、Quote/Profile/索引頁、技術分析、純股價評論、社群傳聞、律師招攬、無關公司與單純機構持倉。相同事件合併。所有顯示文字使用台灣繁體中文。不得發明資料。"
+          },
+          { role: "user", content: JSON.stringify(compactPayload) },
+        ],
+        temperature: 0,
+        max_tokens: 1600,
+        response_format: {
+          type: "json_schema",
+          json_schema: jsonSchema,
+        },
+      });
+      parsed = researchParseGlmJson(retryOut);
+      if (parsed) aiOut = retryOut;
+    } catch (err) {
+      if (!primaryError) primaryError = "";
+      primaryError += `${primaryError ? " | " : ""}fallback: ${String(err?.message || err || "")}`;
+    }
   }
 
   if (!parsed || typeof parsed !== "object") {
-    throw httpError(502, "GLM-4.7-Flash 本次只回傳 reasoning、沒有最終 JSON；已自動重試 1 次且仍失敗。本次不寫入 24H 快取，請稍後再點一次");
+    throw httpError(
+      502,
+      `AI JSON Mode 兩層都失敗；本次不寫入 24H 快取。${primaryError ? " " + primaryError.slice(0, 500) : ""}`
+    );
   }
 
   const responseValue = researchGlmOutputText(aiOut) || aiOut;
@@ -1534,7 +1635,7 @@ function researchBuildItem(row, profile, payload, glm, searchedAt) {
     rejected,
     model: RESEARCH_PROVIDER,
     api: "tavily-search-api+workers-ai",
-    search_mode: "on_demand_tavily20_glm47_filter_zhtw",
+    search_mode: "on_demand_tavily20_llama_jsonmode_zhtw",
     research_status: "ON_DEMAND",
     pipeline_version: RESEARCH_PIPELINE_VERSION,
     query: String(payload?.query || ""),
@@ -1544,7 +1645,9 @@ function researchBuildItem(row, profile, payload, glm, searchedAt) {
     provider_usage: payload?.usage || null,
     request_id: payload?.request_id || null,
     response_time: payload?.response_time ?? null,
-    glm_model: RESEARCH_GLM_MODEL,
+    glm_model: attempts > 1 && retryOut ? RESEARCH_FALLBACK_MODEL : RESEARCH_GLM_MODEL,
+    ai_primary_model: RESEARCH_GLM_MODEL,
+    ai_fallback_model: RESEARCH_FALLBACK_MODEL,
     glm_usage: glm?.usage || null,
     glm_attempt_count: Number(glm?.attempt_count || 1),
     glm_raw: String(glm?.raw || "").slice(0, 12000),

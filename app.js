@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.47｜MODAL-COLOR-STYLES-RESTORE";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.48｜OOS-EVIDENCE-FIX";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -442,7 +442,9 @@
   }
 
   function fmtMetric(v, digits=4) {
-    return Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : "—";
+    if (v === null || v === undefined || v === "") return "—";
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(digits) : "—";
   }
 
   async function loadModelBattle() {
@@ -552,9 +554,13 @@
 
     const active = e.active || {};
     const challenger = e.challenger || {};
-    const pBetter = Number(e.bootstrap_probability_challenger_brier_better);
     const oosCases = Number(e.paired_oos_cases || 0);
     const oosSymbols = Number(e.paired_oos_symbols || 0);
+    const pBetterRaw = e.bootstrap_probability_challenger_brier_better;
+    const pBetter = pBetterRaw === null || pBetterRaw === undefined || pBetterRaw === ""
+      ? NaN
+      : Number(pBetterRaw);
+    const pBetterText = oosCases > 0 && Number.isFinite(pBetter) ? pct(pBetter,1) : "—";
     const assigned = h.assigned_at || h.generated_at;
     const ageH = shadowAgeHours(assigned);
 
@@ -563,7 +569,7 @@
       ["OOS symbols", oosSymbols.toLocaleString()],
       ["Champion Brier", fmtMetric(active.multiclass_brier)],
       ["Challenger Brier", fmtMetric(challenger.multiclass_brier)],
-      ["Challenger 較佳信心", Number.isFinite(pBetter) ? pct(pBetter,1) : "—"],
+      ["Challenger 較佳信心", pBetterText],
       ["Decision", decisionZh(e.decision)]
     ].map(([k,v])=>`<div class="battle-metric"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join("");
 

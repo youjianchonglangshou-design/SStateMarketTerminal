@@ -404,3 +404,13 @@ Fix:
 - 混合：文章標題 + 正文黃色。
 - 中性：文章標題 + 正文灰白。
 - 不修改 Tavily / Worker / R2 / 文章判斷邏輯。
+
+
+## v0.1.48 OOS-EVIDENCE-FIX
+
+Only the requested Champion/Challenger evidence display was changed:
+
+- `OOS=0` no longer shows a fake 50% Challenger confidence; it displays `—`.
+- `null` Brier values display `—` instead of `0.0000`.
+- 168H timeout logic is fixed in HistoricalTraining so insufficient evidence cannot remain `WAITING_EVIDENCE` forever.
+- No S-state engine, training model, Worker, R2, Tavily, or market-analysis logic changed.

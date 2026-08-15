@@ -292,3 +292,19 @@ R2 models/active/probability_model.json
 - Tavily Answer 直接作為「Tavily 重點」
 - 修正 v0.1.38 前端 pipeline 還停在舊 v4、Worker 已是 v6 的不一致
 - pipeline：`tavily-answer-direct-zhtw-v7`
+
+
+## v0.1.40 TAVILY-ZHTW-SENTIMENT
+
+這版不改 v0.1.39 已經跑通的新聞主架構。
+
+- Tavily Search + Tavily Answer 仍是唯一新聞來源。
+- 不新增 GLM / Llama keep-drop 篩選。
+- 新聞卡字體與卡片寬度略放大。
+- 每篇依現有 impact 規則統計：利多 / 利空 / 中性 / 混合。
+- 最終方向改成「票數多者勝」：利多數 > 利空數 = 利多；反之 = 利空；相同 = 多空相同。
+- 不再把有文章的 neutral 顯示成「無重大新訊」。
+- Tavily Answer 本身已是繁中；現在會把 Answer 的中文片段映射回各個 results 作為顯示標題 / 摘要。
+- 若 Tavily Answer 沒有足夠逐則片段，畫面使用中文 fallback，不再把原始英文摘要直接顯示在事件卡。
+- 原始英文標題 / URL 仍保留在 JSON 與來源 tooltip 作查證，不影響 grounding。
+- pipeline：`tavily-answer-direct-zhtw-v8`。

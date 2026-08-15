@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v7";
+  const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v8";
   const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.39｜TAVILY-DIRECT";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.40｜TAVILY-ZHTW-SENTIMENT";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -728,13 +728,13 @@
 
   function researchVerdictMeta(value) {
     return ({
-      strong_positive: ['strong-positive','🔥 強利多'],
-      positive: ['positive','🟢 偏利多'],
-      mixed: ['mixed','🟡 多空混合'],
-      neutral: ['neutral','⚪ 無重大新訊'],
-      risk: ['risk','🟠 有風險'],
-      high_risk: ['high-risk','🔴 重大風險']
-    })[String(value || 'neutral')] || ['neutral','⚪ 無重大新訊'];
+      strong_positive: ['strong-positive','🔥 明顯利多'],
+      positive: ['positive','🟢 利多'],
+      mixed: ['mixed','🟡 多空相同'],
+      neutral: ['neutral','⚪ 中性'],
+      risk: ['risk','🔴 利空'],
+      high_risk: ['high-risk','🔴 明顯利空']
+    })[String(value || 'neutral')] || ['neutral','⚪ 中性'];
   }
 
   function researchStatusLabel(value) {
@@ -822,6 +822,29 @@
     })[String(value || 'neutral')] || ['neutral','• 中性'];
   }
 
+  function researchImpactCountsClient(info, events) {
+    const saved = info?.impact_counts && typeof info.impact_counts === 'object' ? info.impact_counts : null;
+    if (saved) {
+      return {
+        positive: Number(saved.positive || 0),
+        negative: Number(saved.negative || 0),
+        neutral: Number(saved.neutral || 0),
+        mixed: Number(saved.mixed || 0),
+        total: Number(saved.total || 0),
+      };
+    }
+    const counts = { positive:0, negative:0, neutral:0, mixed:0, total:0 };
+    for (const e of Array.isArray(events) ? events : []) {
+      const impact = String(e?.impact || 'neutral');
+      if (impact === 'positive') counts.positive += 1;
+      else if (impact === 'negative') counts.negative += 1;
+      else if (impact === 'mixed') counts.mixed += 1;
+      else counts.neutral += 1;
+      counts.total += 1;
+    }
+    return counts;
+  }
+
   function earningsHuman(value) {
     return ({beat:'優於預期',miss:'低於預期',inline:'符合預期',unknown:'未知',not_applicable:'不適用'})[String(value || 'unknown')] || '未知';
   }
@@ -860,12 +883,14 @@
 
     const info = humanizeResearchInfo(rawInfo);
     const isManualReview = Boolean(info.format_warning) || String(info.verification_status || '') === 'MANUAL_REVIEW';
-    const [verdictCls,verdictLabel] = researchVerdictMeta(info.verdict);
+    const events = Array.isArray(info.events) ? info.events : [];
+    const sources = Array.isArray(info.sources) ? info.sources : [];
+    const counts = researchImpactCountsClient(info, events);
+    const verdictMeta = events.length ? researchVerdictMeta(info.verdict) : ['neutral','⚪ 無搜尋結果'];
+    const [verdictCls,verdictLabel] = verdictMeta;
     const [cls,label] = isManualReview ? ['neutral','ℹ 人工判讀'] : [verdictCls,verdictLabel];
     const statusLabel = researchStatusLabel(info.research_status);
     const title = [...new Set([info.underlying_ticker, info.company_name].filter(Boolean).map(String))].join('｜') || symbol;
-    const events = Array.isArray(info.events) ? info.events : [];
-    const sources = Array.isArray(info.sources) ? info.sources : [];
     const last = info.last_earnings && typeof info.last_earnings === 'object' ? info.last_earnings : {};
     const hasEarnings = Boolean(last.date || info.next_earnings_date || ['beat','miss','inline'].includes(String(last.eps)) || ['beat','miss','inline'].includes(String(last.revenue)) || ['raised','maintained','lowered'].includes(String(last.guidance)));
 
@@ -879,7 +904,7 @@
       </div>`;
     }).join('')}</div>` : '<div class="research-section"><div class="research-section-title">Tavily 搜尋結果</div><div class="research-empty">Tavily 本次沒有回傳新聞。</div></div>';
 
-    const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((src,i)=>`<a href="${escapeHtml(src.url||'#')}" target="_blank" rel="noopener noreferrer"><span>${i+1}</span>${escapeHtml(src.title||'來源')}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
+    const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((src,i)=>`<a href="${escapeHtml(src.url||'#')}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(src.title||'原始來源')}"><span>${i+1}</span>${escapeHtml(src.display_title_zh_tw||`查證來源 ${i+1}`)}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
 
     const earningsHtml = hasEarnings ? `<div class="research-section">
       <div class="research-section-title">財報／財測</div>
@@ -895,14 +920,23 @@
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
     const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search + Answer').replace(/^models\//,'');
     const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Tavily 搜尋已完成；本版不使用第二層 AI 篩選。</span></div>` : '';
-    const verdictHtml = `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>`;
+    const verdictHtml = `<div class="research-verdict-line">
+      <span>情報方向</span>
+      <div class="research-impact-counts">
+        <em class="positive">利多 ${counts.positive}</em>
+        <em class="negative">利空 ${counts.negative}</em>
+        <em class="neutral">中性 ${counts.neutral}</em>
+        ${counts.mixed ? `<em class="mixed">混合 ${counts.mixed}</em>` : ''}
+      </div>
+      <b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b>
+    </div>`;
 
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
       <div class="research-title"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(recordState(r))}</span></div>
       ${verdictHtml}
       <div class="research-section research-overview"><div class="research-section-title">Tavily 重點</div><div class="research-summary">${escapeHtml(info.summary_zh_tw||info.summary||'')}</div></div>
       ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則 → Tavily Answer｜不經第二層 AI 過濾｜${escapeHtml(searched)}｜24H 固定快取</div>
+      <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則 → Tavily Answer 繁中整理｜文章多空統計｜不經第二層 AI 過濾｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
 

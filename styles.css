@@ -522,3 +522,40 @@
   78%{opacity:0;transform:scale(1.12)}
 }
 @media(prefers-reduced-motion:reduce){.research-query-pill,.research-query-pill::after{animation:none!important}}
+
+
+/* v0.1.40 — news popup readability + sentiment counts */
+.research-card{
+  width:520px;
+  max-height:620px;
+  padding:15px;
+}
+.research-title{font-size:13px;padding-bottom:9px;margin-bottom:9px}
+.research-title strong{font-size:14px}
+.research-title span{font-size:10px;padding:3px 7px}
+.research-verdict-line{gap:8px;padding:9px 10px;flex-wrap:wrap}
+.research-verdict-line>span{font-size:11px}
+.research-verdict-chip{font-size:12px}
+.research-impact-counts{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-left:auto}
+.research-impact-counts em{font-style:normal;font-size:10px;font-weight:900;padding:2px 6px;border-radius:999px;border:1px solid #334155;background:#0f1a2a}
+.research-impact-counts .positive{color:#86efac;border-color:#22c55e55}
+.research-impact-counts .negative{color:#fca5a5;border-color:#ef444455}
+.research-impact-counts .neutral{color:#cbd5e1}
+.research-impact-counts .mixed{color:#fde68a;border-color:#eab30855}
+.research-section{margin-top:10px;padding-top:10px}
+.research-section-title{font-size:11px;margin-bottom:7px}
+.research-section-title small{font-size:9px;padding:2px 6px}
+.research-overview{padding:10px 11px}
+.research-summary{font-size:12px;line-height:1.72}
+.research-event{padding:10px 0;font-size:11px;line-height:1.55}
+.research-event-head{gap:6px;margin-bottom:5px}
+.research-event-head time{font-size:10px}
+.research-category,.research-impact{font-size:10px;padding:3px 6px}
+.research-event-title{font-size:12px;line-height:1.55}
+.research-event-detail{font-size:11px;line-height:1.65;margin-top:4px}
+.research-empty{font-size:11px}
+.research-sources a{font-size:10px;padding:6px 7px;margin-top:5px}
+.research-sources a span{flex-basis:19px;height:19px}
+.research-meta{font-size:9px;line-height:1.5}
+.research-manual-note{font-size:10px}
+@media(max-width:760px){.research-card{width:min(520px,92vw);max-height:74vh}}

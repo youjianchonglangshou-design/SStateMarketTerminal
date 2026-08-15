@@ -549,7 +549,7 @@ async function startAnalysis(request, env, origin) {
 const RESEARCH_PROVIDER = "Tavily Search + Answer";
 const RESEARCH_GLM_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const RESEARCH_FALLBACK_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v7";
+const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v8";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1116,7 +1116,7 @@ function researchDisplayFields(payloadAnswer, kept, profile) {
     if (bestIndex < 0 && segments.length) bestIndex = segments.findIndex((_, idx) => !used.has(idx));
     if (bestIndex >= 0) used.add(bestIndex);
     const segment = bestIndex >= 0 ? segments[bestIndex] : "";
-    let displayTitle = `${profile.company_name}｜${researchCategoryLabelZh(category)}`;
+    let displayTitle = `${profile.underlying_ticker || "標的"}｜${researchCategoryLabelZh(category)}`;
     let displayDetail = segment;
     const titleMatch = segment.match(/(?:^|[｜|])\s*標題[:：]\s*([^｜|]+)(?:[｜|]|$)/i);
     const detailMatch = segment.match(/(?:^|[｜|])\s*摘要[:：]\s*([\s\S]+)/i);
@@ -1181,16 +1181,30 @@ function researchCompactSnippet(item, maxLen=260) {
   return String(item?.content || "").replace(/\s+/g," ").trim().slice(0,maxLen);
 }
 
+function researchImpactCounts(events) {
+  const counts = { positive:0, negative:0, neutral:0, mixed:0, total:0 };
+  for (const event of Array.isArray(events) ? events : []) {
+    const impact = String(event?.impact || "neutral");
+    if (impact === "positive") counts.positive += 1;
+    else if (impact === "negative") counts.negative += 1;
+    else if (impact === "mixed") counts.mixed += 1;
+    else counts.neutral += 1;
+    counts.total += 1;
+  }
+  return counts;
+}
+
 function researchVerdictFromEvents(events) {
-  const impacts = (events || []).map(x => x.impact);
-  const pos = impacts.filter(x => x === "positive").length;
-  const neg = impacts.filter(x => x === "negative").length;
-  const mixed = impacts.filter(x => x === "mixed").length;
-  if (pos >= 3 && neg === 0 && mixed === 0) return "strong_positive";
-  if (neg >= 3 && pos === 0 && mixed === 0) return "high_risk";
-  if ((pos && neg) || mixed) return "mixed";
-  if (pos) return "positive";
-  if (neg) return "risk";
+  const counts = researchImpactCounts(events);
+  // Majority rule requested by the UI: more positive articles => bullish;
+  // more negative articles => bearish. Mixed/neutral never erase the result.
+  if (counts.positive > counts.negative) {
+    return counts.positive >= 3 && counts.negative === 0 ? "strong_positive" : "positive";
+  }
+  if (counts.negative > counts.positive) {
+    return counts.negative >= 3 && counts.positive === 0 ? "high_risk" : "risk";
+  }
+  if (counts.positive > 0 || counts.negative > 0 || counts.mixed > 0) return "mixed";
   return "neutral";
 }
 
@@ -1567,29 +1581,43 @@ function researchBuildItem(row, profile, payload, searchedAt) {
   const searchedMs = Date.parse(searchedAt);
   const results = Array.isArray(payload?.results) ? payload.results : [];
 
-  // v0.1.39: first make news visibly work.
-  // Tavily returns N results => UI receives N events and N source URLs.
-  // No second AI / Hard Gate is allowed to erase Tavily results.
-  const events = results.map((item, index) => ({
-    category: researchEventCategory(item, profile),
-    date: researchEventDate(item),
-    impact: researchEventImpact(item),
-    title: String(item?.title || "近期資訊").slice(0, 300),
-    detail: researchCompactSnippet(item, 520),
-    display_title_zh_tw: String(item?.title || "近期資訊").slice(0, 300),
-    display_detail_zh_tw: researchCompactSnippet(item, 520),
-    source_index: index + 1,
-  }));
+  // Tavily remains the only search/answer layer. We DO NOT filter out results.
+  // For display language, reuse Tavily's own Traditional-Chinese Answer and map
+  // its Chinese segments back onto the raw result list. If a one-to-one segment
+  // is unavailable, show a deterministic Chinese fallback instead of raw English.
+  const display = researchDisplayFields(payload?.answer || "", results, profile);
+
+  const events = results.map((item, index) => {
+    const zh = display.displays?.[index] || {};
+    return {
+      category: researchEventCategory(item, profile),
+      date: researchEventDate(item),
+      impact: researchEventImpact(item),
+      title: String(item?.title || "近期資訊").slice(0, 300),
+      detail: researchCompactSnippet(item, 520),
+      display_title_zh_tw: researchToTraditionalChinese(
+        String(zh.display_title_zh_tw || `${profile.underlying_ticker || "標的"}｜${researchCategoryLabelZh(researchEventCategory(item, profile))}`)
+      ).slice(0, 180),
+      display_detail_zh_tw: researchToTraditionalChinese(
+        String(zh.display_detail_zh_tw || `Tavily 已找到第 ${index + 1} 則相關資訊；點擊下方查證來源可查看原始文章。`)
+      ).slice(0, 520),
+      source_index: index + 1,
+    };
+  });
+
+  const counts = researchImpactCounts(events);
+  const verdict = researchVerdictFromEvents(events);
 
   const sources = results.map((item, index) => ({
     source_index: index + 1,
-    title: String(item?.title || item?.url || "來源").slice(0, 300),
+    title: String(item?.title || item?.url || "來源").slice(0, 300), // raw source title preserved
+    display_title_zh_tw: String(events[index]?.display_title_zh_tw || `查證來源 ${index + 1}`).slice(0, 180),
     url: String(item?.url || ""),
     published_date: String(item?.published_date || item?.publishedDate || "").slice(0, 90),
     tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
   }));
 
-  const answer = researchToTraditionalChinese(String(payload?.answer || "").trim());
+  const answer = researchCleanAnswerText(payload?.answer || "");
   const summary = answer || (results.length
     ? `Tavily 最近 7 天找到 ${results.length} 則相關新聞；以下直接顯示搜尋結果，不經第二層 AI 淘汰。`
     : `Tavily 最近 7 天沒有回傳搜尋結果。`);
@@ -1605,9 +1633,10 @@ function researchBuildItem(row, profile, payload, searchedAt) {
     company_aliases: profile.aliases,
     asset_type: profile.asset_type,
     asset_focus: profile.focus || "",
-    verdict: "neutral",
+    verdict,
+    impact_counts: counts,
     summary,
-    summary_zh_tw: summary,
+    summary_zh_tw: researchToTraditionalChinese(summary),
     last_earnings: { date: "", eps: "not_applicable", revenue: "not_applicable", guidance: "not_applicable" },
     next_earnings_date: "",
     events,
@@ -1615,7 +1644,7 @@ function researchBuildItem(row, profile, payload, searchedAt) {
     rejected: [],
     model: RESEARCH_PROVIDER,
     api: "tavily-search-api",
-    search_mode: "on_demand_tavily20_answer_direct",
+    search_mode: "on_demand_tavily20_answer_direct_zhtw",
     research_status: "ON_DEMAND",
     pipeline_version: RESEARCH_PIPELINE_VERSION,
     query: String(payload?.query || ""),

@@ -308,3 +308,16 @@ R2 models/active/probability_model.json
 - 若 Tavily Answer 沒有足夠逐則片段，畫面使用中文 fallback，不再把原始英文摘要直接顯示在事件卡。
 - 原始英文標題 / URL 仍保留在 JSON 與來源 tooltip 作查證，不影響 grounding。
 - pipeline：`tavily-answer-direct-zhtw-v8`。
+
+
+## v0.1.41 NEWS-READABILITY
+
+只調整新聞彈出卡可讀性，不修改新聞搜尋、Tavily、繁中、利多利空或 R2 邏輯。
+
+- 卡片寬度：600px
+- Tavily 重點：14px
+- 文章標題：15px
+- 文章摘要：14px
+- 情報方向 / 統計：12–13px
+- 查證來源：12px
+- 增加段落與文章間距

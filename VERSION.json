@@ -1,7 +1,8 @@
 {
-  "app_version": "TERMINAL v0.1.31｜ON-DEMAND-NEWS",
-  "stage": "ON-DEMAND-NEWS",
+  "app_version": "TERMINAL v0.1.32｜TOOL-OUTPUT-FALLBACK",
+  "stage": "TOOL-OUTPUT-FALLBACK",
   "features": [
+    "Fix GPT-OSS Browser Search HTTP 200 with empty message.content: automatically fall back to executed_tools[].output, then continue the existing second-pass JSON normalization and R2 24H cache pipeline",
     "US-stock S3 / S0.5 / S1 cards now expose an on-demand breathing 🔎 等待查詢 capsule; no news search runs until the user explicitly clicks that symbol",
     "Per-symbol news lookup is fully independent from Full Analysis and Auto Batch; manual/scheduled market analysis never triggers GPT-OSS news research",
     "Successful per-symbol Browser Search results are written directly by Cloudflare Worker to R2 and remain fixed for 24 hours; repeat clicks inside TTL reuse cache without replacing it",

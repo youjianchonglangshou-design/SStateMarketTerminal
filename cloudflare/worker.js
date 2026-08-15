@@ -30,7 +30,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "SStateMarketTerminal", r2: true }, 200, origin);
+        return json({ ok: true, service: "SStateMarketTerminal", r2: true, groq_secret: Boolean(env.GROQ_API_KEY) }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -616,6 +616,26 @@ function groqMessage(payload) {
   return payload?.choices?.[0]?.message || {};
 }
 
+function groqExecutedToolOutput(payload) {
+  const tools = groqMessage(payload)?.executed_tools;
+  if (!Array.isArray(tools) || !tools.length) return "";
+  const chunks = [];
+  for (const tool of tools) {
+    const output = tool?.output;
+    if (typeof output === "string" && output.trim()) {
+      chunks.push(output.trim());
+      continue;
+    }
+    if (output && typeof output === "object") {
+      try {
+        const text = JSON.stringify(output);
+        if (text && text !== "{}" && text !== "[]") chunks.push(text);
+      } catch (_) {}
+    }
+  }
+  return chunks.join("\n\n").trim();
+}
+
 function collectResearchSources(payload, content) {
   const sources = [];
   const seen = new Set();
@@ -710,8 +730,13 @@ async function browserSearchResearch(env, row) {
     tool_choice: "required",
     tools: [{ type: "browser_search" }],
   });
-  const searchText = String(groqMessage(searchPayload)?.content || "").trim();
-  if (!searchText) throw httpError(502, "Browser Search HTTP 200，但沒有 message.content");
+  const messageText = String(groqMessage(searchPayload)?.content || "").trim();
+  const toolOutputText = groqExecutedToolOutput(searchPayload);
+  const searchText = messageText || toolOutputText;
+  const searchResultSource = messageText ? "message.content" : (toolOutputText ? "executed_tools.output" : "none");
+  if (!searchText) {
+    throw httpError(502, "Browser Search HTTP 200，但 message.content 與 executed_tools[].output 都沒有可用內容");
+  }
   const sources = collectResearchSources(searchPayload, searchText);
 
   const jsonPrompt = `把下列已完成 Browser Search 的研究摘要整理成一個 JSON object。不要重新搜尋，不要加入摘要中沒有的事實。\n\n輸出欄位：\n{\n  "underlying_ticker":"",\n  "company_name":"",\n  "asset_type":"public_company|private_company|foreign_company|other",\n  "verdict":"strong_positive|positive|mixed|neutral|risk|high_risk",\n  "summary":"繁體中文最多80字",\n  "last_earnings":{"date":"","eps":"beat|miss|inline|unknown|not_applicable","revenue":"beat|miss|inline|unknown|not_applicable","guidance":"raised|maintained|lowered|unknown|not_applicable"},\n  "next_earnings_date":"",\n  "events":[{"category":"earnings|guidance|company_catalyst|analyst|sec_capital|regulatory_legal|direct_industry","date":"YYYY-MM-DD或空字串","impact":"positive|negative|mixed|neutral","title":"","detail":"繁體中文最多90字"}]\n}\nevents 最多5條；沒有資料就用 unknown、空字串或空陣列，不得猜。\n\n標的：${symbol} / ${hint}\n研究摘要：\n${searchText.slice(0, 14000)}`;
@@ -734,7 +759,10 @@ async function browserSearchResearch(env, row) {
     formatWarning = true;
   }
   structured.__format_warning = formatWarning;
-  return { item: cleanResearchObject(structured, row, searchText, sources, new Date().toISOString()) };
+  const item = cleanResearchObject(structured, row, searchText, sources, new Date().toISOString());
+  item.search_result_source = searchResultSource;
+  item.pipeline_version = "on-demand-browser-search-v2-tool-output-fallback";
+  return { item };
 }
 
 async function writeResearchStore(env, cache) {

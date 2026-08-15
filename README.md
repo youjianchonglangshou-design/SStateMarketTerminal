@@ -1,8 +1,13 @@
 # SStateMarketTerminal
 
+### v0.1.32 Browser Search 修正
+
+Groq Browser Search 有時會 HTTP 200 且 `executed_tools[].output` 已有搜尋結果，但 `message.content` 為空。v0.1.32 不再把這種情況誤判成失敗：會自動使用 `executed_tools[].output` 繼續第二段 GPT-OSS JSON 整理，之後照原規則寫入 R2 並固定 24 小時。
+
+
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
 
-**版本：`TERMINAL v0.1.31｜ON-DEMAND-NEWS`**
+**版本：`TERMINAL v0.1.32｜TOOL-OUTPUT-FALLBACK`**
 
 ## 已完成的資料流
 

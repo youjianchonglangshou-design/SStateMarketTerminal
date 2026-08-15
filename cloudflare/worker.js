@@ -547,6 +547,7 @@ async function startAnalysis(request, env, origin) {
 }
 
 const RESEARCH_PROVIDER = "Tavily Search";
+const RESEARCH_PIPELINE_VERSION = "tavily-asset-profile-zhtw-v2";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -620,7 +621,7 @@ const RESEARCH_COMPANY_PROFILES = {
   QCOM:{name:"Qualcomm", aliases:["Qualcomm","QCOM","高通"], asset_type:"public_company"},
   RGTI:{name:"Rigetti Computing", aliases:["Rigetti Computing","Rigetti","RGTI"], asset_type:"public_company"},
   RKLB:{name:"Rocket Lab", aliases:["Rocket Lab","RKLB"], asset_type:"public_company"},
-  RTX:{name:"RTX", aliases:["RTX","Raytheon Technologies","Raytheon","雷神技術"], asset_type:"public_company"},
+  RTX:{name:"RTX Corporation", aliases:["RTX Corporation","RTX","Raytheon Technologies","Raytheon","雷神技術"], asset_type:"public_company"},
   SITM:{name:"SiTime", aliases:["SiTime","SITM"], asset_type:"public_company"},
   SMCI:{name:"Super Micro Computer", aliases:["Super Micro Computer","Supermicro","SMCI","美超微"], asset_type:"public_company"},
   SNDK:{name:"SanDisk", aliases:["SanDisk","Sandisk","SNDK","閃迪"], asset_type:"public_company"},
@@ -632,6 +633,53 @@ const RESEARCH_COMPANY_PROFILES = {
   USAR:{name:"USA Rare Earth", aliases:["USA Rare Earth","USAR"], asset_type:"public_company"},
   WDC:{name:"Western Digital", aliases:["Western Digital","WDC","西部數據"], asset_type:"public_company"},
   XYZ:{name:"Block", aliases:["Block Inc","Block","Square","XYZ"], asset_type:"public_company"},
+
+
+  // ---- Current Pionex RWA universe: profiles that cannot be inferred safely from removing the final X ----
+  BMNR:{name:"BitMine Immersion Technologies", aliases:["BitMine Immersion Technologies","BitMine","BMNR"], asset_type:"public_company"},
+  BNO:{name:"United States Brent Oil Fund", aliases:["United States Brent Oil Fund","BNO","Brent crude","Brent oil","布蘭特原油"], asset_type:"etf", focus:"布蘭特原油"},
+  BRENTOIL:{name:"Brent Crude Oil", aliases:["Brent Crude Oil","Brent crude","Brent oil","BRENTOIL","布蘭特原油"], asset_type:"commodity", focus:"布蘭特原油供需"},
+  CBRS:{name:"Cerebras Systems", aliases:["Cerebras Systems","Cerebras","CBRS"], asset_type:"private_company"},
+  CEG:{name:"Constellation Energy", aliases:["Constellation Energy","CEG","星座能源"], asset_type:"public_company"},
+  WTI:{name:"West Texas Intermediate Crude Oil", aliases:["West Texas Intermediate","WTI","WTI crude","crude oil","西德州中質原油","西德州原油","原油"], asset_type:"commodity", focus:"WTI 原油供需"},
+  COPPER:{name:"Copper", aliases:["Copper","COPPER","copper price","銅","銅價"], asset_type:"commodity", focus:"全球銅供需"},
+  CPER:{name:"United States Copper Index Fund", aliases:["United States Copper Index Fund","CPER","copper","銅","銅價"], asset_type:"etf", focus:"銅與銅期貨"},
+  DRAM:{name:"Roundhill Memory ETF", aliases:["Roundhill Memory ETF","DRAM","memory ETF","memory chip","DRAM memory","記憶體ETF","記憶體晶片","記憶體"], asset_type:"etf", focus:"記憶體半導體"},
+  EWJ:{name:"iShares MSCI Japan ETF", aliases:["iShares MSCI Japan ETF","EWJ","Japan equities","Japanese stocks","日本股市","日股"], asset_type:"etf", focus:"日本股市"},
+  EWY:{name:"iShares MSCI South Korea ETF", aliases:["iShares MSCI South Korea ETF","EWY","South Korea equities","Korean stocks","韓國股市","韓股"], asset_type:"etf", focus:"韓國股市"},
+  GLW:{name:"Corning", aliases:["Corning","Corning Incorporated","GLW","康寧"], asset_type:"public_company"},
+  GSG:{name:"iShares S&P GSCI Commodity-Indexed Trust", aliases:["iShares S&P GSCI Commodity-Indexed Trust","GSG","S&P GSCI","commodities","大宗商品"], asset_type:"etf", focus:"全球大宗商品"},
+  HPE:{name:"Hewlett Packard Enterprise", aliases:["Hewlett Packard Enterprise","HPE","慧與"], asset_type:"public_company"},
+  MOS:{name:"The Mosaic Company", aliases:["The Mosaic Company","Mosaic","MOS","美盛"], asset_type:"public_company"},
+  MP:{name:"MP Materials", aliases:["MP Materials","MP","MP Materials Corp"], asset_type:"public_company"},
+  NATGAS:{name:"Natural Gas", aliases:["Natural Gas","NATGAS","Henry Hub","natural gas","天然氣"], asset_type:"commodity", focus:"天然氣供需與庫存"},
+  QNT:{name:"Quantinuum", aliases:["Quantinuum","QNT"], asset_type:"private_company"},
+  QQQ:{name:"Invesco QQQ Trust", aliases:["Invesco QQQ Trust","QQQ","Nasdaq-100","Nasdaq 100","NASDAQ 100","那斯達克100","納斯達克100"], asset_type:"etf", focus:"Nasdaq-100"},
+  SLV:{name:"iShares Silver Trust", aliases:["iShares Silver Trust","SLV","silver","白銀"], asset_type:"etf", focus:"白銀"},
+  SMH:{name:"VanEck Semiconductor ETF", aliases:["VanEck Semiconductor ETF","SMH","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業"},
+  SOXL:{name:"Direxion Daily Semiconductor Bull 3X Shares", aliases:["Direxion Daily Semiconductor Bull 3X Shares","SOXL","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業三倍多頭"},
+  SOXX:{name:"iShares Semiconductor ETF", aliases:["iShares Semiconductor ETF","SOXX","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業"},
+  SPY:{name:"SPDR S&P 500 ETF Trust", aliases:["SPDR S&P 500 ETF Trust","SPY","S&P 500","SP500","標普500"], asset_type:"etf", focus:"S&P 500"},
+  STX:{name:"Seagate Technology", aliases:["Seagate Technology","Seagate","STX","希捷"], asset_type:"public_company"},
+  TQQQ:{name:"ProShares UltraPro QQQ", aliases:["ProShares UltraPro QQQ","TQQQ","Nasdaq-100","Nasdaq 100","那斯達克100","納斯達克100"], asset_type:"etf", focus:"Nasdaq-100 三倍多頭"},
+  UNG:{name:"United States Natural Gas Fund", aliases:["United States Natural Gas Fund","UNG","natural gas","Henry Hub","天然氣"], asset_type:"etf", focus:"天然氣"},
+  URA:{name:"Global X Uranium ETF", aliases:["Global X Uranium ETF","URA","uranium","nuclear energy","鈾","核能"], asset_type:"etf", focus:"鈾與核能產業"},
+  URNM:{name:"Sprott Uranium Miners ETF", aliases:["Sprott Uranium Miners ETF","URNM","uranium miners","uranium","鈾礦","鈾"], asset_type:"etf", focus:"鈾礦產業"},
+  USO:{name:"United States Oil Fund", aliases:["United States Oil Fund","USO","WTI","crude oil","West Texas Intermediate","原油","西德州原油"], asset_type:"etf", focus:"WTI 原油"},
+  VGK:{name:"Vanguard FTSE Europe ETF", aliases:["Vanguard FTSE Europe ETF","VGK","European equities","Europe stocks","歐洲股市","歐股"], asset_type:"etf", focus:"歐洲股市"},
+  XAG:{name:"Silver", aliases:["Silver","XAG","XAGUSD","白銀"], asset_type:"commodity", focus:"白銀供需與貴金屬市場"},
+  XAU:{name:"Gold", aliases:["Gold","XAU","XAUUSD","黃金"], asset_type:"commodity", focus:"黃金與貴金屬市場"},
+  XPD:{name:"Palladium", aliases:["Palladium","XPD","XPDUSD","鈀金","鈀"], asset_type:"commodity", focus:"鈀金供需"},
+  XPT:{name:"Platinum", aliases:["Platinum","XPT","XPTUSD","鉑金","白金"], asset_type:"commodity", focus:"鉑金供需"},
+  ALAB:{name:"Astera Labs", aliases:["Astera Labs","ALAB"], asset_type:"public_company"},
+  ON:{name:"onsemi", aliases:["onsemi","ON Semiconductor","ON Semiconductor Corporation","安森美","安森美半導體"], asset_type:"public_company"},
+  SNX:{name:"TD SYNNEX", aliases:["TD SYNNEX","SYNNEX","SNX","新聚思"], asset_type:"public_company"},
+  VSH:{name:"Vishay Intertechnology", aliases:["Vishay Intertechnology","Vishay","VSH","威世科技","威世"], asset_type:"public_company"},
+  PANW:{name:"Palo Alto Networks", aliases:["Palo Alto Networks","PANW","帕洛阿爾托網路"], asset_type:"public_company"},
+  SHAZ:{name:"SharonAI Holdings", aliases:["SharonAI Holdings","SharonAI","SHAZ"], asset_type:"public_company"},
+  SOXS:{name:"Direxion Daily Semiconductor Bear 3X Shares", aliases:["Direxion Daily Semiconductor Bear 3X Shares","SOXS","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業三倍空頭"},
+  XLP:{name:"Consumer Staples Select Sector SPDR Fund", aliases:["Consumer Staples Select Sector SPDR Fund","XLP","consumer staples","必需消費品"], asset_type:"etf", focus:"美國必需消費品產業"},
+  XLV:{name:"Health Care Select Sector SPDR Fund", aliases:["Health Care Select Sector SPDR Fund","XLV","health care","healthcare","醫療保健"], asset_type:"etf", focus:"美國醫療保健產業"},
 
   Anthropic:{name:"Anthropic", aliases:["Anthropic"], asset_type:"private_company"},
   OpenAI:{name:"OpenAI", aliases:["OpenAI","Open AI"], asset_type:"private_company"},
@@ -683,12 +731,20 @@ function researchCompanyProfile(symbol) {
     add(profile.name);
     for (const alias of profile.aliases || []) add(alias);
   }
+  // Short 1-2 letter tickers (ON / BE / MP...) are common English words.
+  // Keep them in the search prompt, but do not use them alone as Hard-Gate match aliases when a proper profile exists.
+  const matchAliases = aliases.filter(value => {
+    const v = String(value || "").trim();
+    return !(profile && /^[A-Za-z]{1,2}$/.test(v));
+  });
   return {
     symbol: s,
     underlying_ticker: hint,
     company_name: profile?.name || hint,
     asset_type: profile?.asset_type || "other",
+    focus: profile?.focus || "",
     aliases,
+    match_aliases: matchAliases.length ? matchAliases : aliases,
   };
 }
 
@@ -696,6 +752,7 @@ function researchFresh(item, nowMs = Date.now()) {
   if (!item || typeof item !== "object") return false;
   // Provider migration: do not keep an old Groq cache alive after Tavily is deployed.
   if (item.api !== "tavily-search-api") return false;
+  if (item.pipeline_version !== RESEARCH_PIPELINE_VERSION) return false;
   const direct = Date.parse(item.expires_at || "");
   if (Number.isFinite(direct)) return direct > nowMs;
   const searched = Date.parse(item.searched_at || "");
@@ -828,12 +885,16 @@ function researchIsLandingOrQuotePage(item) {
   if (/seekingalpha\.com\/symbol\/[^/]+\/news\/?$/i.test(url)) return true;
   if (/cnn\.com\/markets\/stocks\/[^/?#]+\/?$/i.test(url)) return true;
   if (/reuters\.com\/markets\/companies\/[^/?#]+\/?$/i.test(url)) return true;
+  if (/marketbeat\.com\/stocks\/[^/]+\/[^/]+\/news\/?$/i.test(url)) return true;
+  if (/tradingkey\.com\/markets\/stocks\/[^/]+\/news\/?$/i.test(url)) return true;
+  if (/\/news-and-events\/news\/default\.aspx(?:[?#].*)?$/i.test(url)) return true;
+  if (/markets\.financialcontent\.com\/.*\/quote\/news/i.test(url)) return true;
   return false;
 }
 
 function researchTitleDirectCompany(item, profile) {
   const title = String(item?.title || "");
-  return (profile?.aliases || []).some(alias => researchTextHasAlias(title, alias));
+  return (profile?.match_aliases || profile?.aliases || []).some(alias => researchTextHasAlias(title, alias));
 }
 
 function researchTitleStrongCompanyEvent(item, profile) {
@@ -888,8 +949,8 @@ function researchLooksLikeMultiStoryFeed(item) {
 function researchBodyFocusMismatch(item, profile) {
   const title = String(item?.title || "");
   const lead = String(item?.content || "").slice(0, 1400);
-  const titleHits = researchCountAliasHits(title, profile?.aliases || []);
-  const leadHits = researchCountAliasHits(lead, profile?.aliases || []);
+  const titleHits = researchCountAliasHits(title, profile?.match_aliases || profile?.aliases || []);
+  const leadHits = researchCountAliasHits(lead, profile?.match_aliases || profile?.aliases || []);
   if (titleHits > 0 && leadHits === 0) return true;
   if (researchLooksLikeMultiStoryFeed(item) && leadHits <= 1) return true;
   return false;
@@ -958,8 +1019,136 @@ function researchRankResults(results, profile) {
   return { kept:kept.slice(0,3), rejected };
 }
 
-function researchEventCategory(item) {
+
+function researchToTraditionalChinese(value) {
+  // Lightweight normalization for the common Simplified-Chinese characters Tavily occasionally returns.
+  // It is intentionally small and deterministic; original source text is preserved separately.
+  const map = {
+    "发":"發","财":"財","报":"報","预":"預","测":"測","会":"會","营":"營","获":"獲","优":"優","于":"於","产":"產","业":"業","数":"數","据":"據","关":"關","闭":"閉","监":"監","诉":"訴","讼":"訟","评":"評","级":"級","标":"標","价":"價","调":"調","资":"資","议":"議","并":"並","购":"購","联":"聯","动":"動","风":"風","险":"險","势":"勢","涨":"漲","亿":"億","万":"萬","与":"與","为":"為","将":"將","这":"這","过":"過","个":"個","时":"時","间":"間","内":"內","进":"進","术":"術","电":"電","网":"網","软":"軟","务":"務","国":"國","华":"華","台":"臺","额":"額","经":"經","济":"濟","证":"證","券":"券","现":"現","实":"實","应":"應","对":"對","从":"從","长":"長","广":"廣","东":"東","门":"門","点":"點","体":"體","复":"復","规":"規","则":"則","权":"權","处":"處","么":"麼","还":"還","仅":"僅","约":"約","换":"換","后":"後","压":"壓","线":"線","机":"機","构":"構","类":"類","创":"創","强":"強","较":"較","显":"顯","际":"際","开":"開","扩":"擴","达":"達","远":"遠","维":"維","续":"續","减":"減","增":"增","转":"轉","陆":"陸","离":"離","储":"儲","销":"銷","损":"損","础":"礎","协":"協","终":"終","选":"選","择":"擇","独":"獨","涨":"漲","跌":"跌","总":"總","值":"值"
+  };
+  return String(value || "").replace(/[\u3400-\u9fff]/g, ch => map[ch] || ch);
+}
+
+function researchHasCjk(value) {
+  return /[\u3400-\u9fff]/.test(String(value || ""));
+}
+
+function researchCleanAnswerText(value) {
+  return researchToTraditionalChinese(value)
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
+function researchCategoryLabelZh(category) {
+  return ({
+    earnings:"財報／營收", guidance:"財測／展望", company_catalyst:"公司催化",
+    analyst:"分析師異動", sec_capital:"SEC／資本", regulatory_legal:"法規／訴訟",
+    fund_event:"ETF／基金事件", commodity_supply:"供需／庫存", policy_macro:"政策／產業事件",
+    direct_industry:"產業事件"
+  })[String(category || "")] || "重大事件";
+}
+
+function researchAnswerSegments(answer) {
+  const text = researchCleanAnswerText(answer);
+  if (!text) return [];
+  const out = [];
+  const push = (raw) => {
+    let s = String(raw || "").replace(/^\s*[\-•]+\s*/, "").trim();
+    s = s.replace(/^標題[:：]\s*/i, "").trim();
+    if (s.length < 12 || !researchHasCjk(s)) return;
+    if (/^(根據|依據|以下是|最近7天|最近 7 天).{0,24}(重大|新聞|事件)/.test(s) && s.length < 80) return;
+    if (!out.some(x => x === s)) out.push(s.slice(0, 520));
+  };
+
+  // Preferred strict format: 【事件1】標題：...｜摘要：...
+  const strict = [...text.matchAll(/【事件\s*\d+】\s*([\s\S]*?)(?=【事件\s*\d+】|$)/g)];
+  if (strict.length) {
+    for (const m of strict) push(m[1]);
+    return out.slice(0, 6);
+  }
+
+  // Numbered answer.
+  const numbered = text.split(/(?:^|\n)\s*\d+[\.、\)]\s+/).slice(1);
+  if (numbered.length) {
+    numbered.forEach(push);
+    if (out.length) return out.slice(0, 6);
+  }
+
+  // Paragraph answer: split common Chinese sequencing words and punctuation.
+  text.split(/(?:首先|其次|最後|最后|此外|另外|同時|同时|；|。|！|？|\n+)/).forEach(push);
+  return out.slice(0, 8);
+}
+
+function researchSegmentScoreForItem(segment, item, profile, category) {
+  const seg = String(segment || "");
+  const src = `${item?.title || ""} ${String(item?.content || "").slice(0, 900)}`;
+  let score = 0;
+  if ((profile?.match_aliases || profile?.aliases || []).some(a => researchTextHasAlias(seg, a))) score += 4;
+  const segNums = new Set((seg.match(/\b\d+(?:\.\d+)?\b/g) || []).filter(x => x.length >= 2));
+  for (const n of (src.match(/\b\d+(?:\.\d+)?\b/g) || [])) if (segNums.has(n)) score += 3;
+  const tokens = (src.match(/[A-Za-z][A-Za-z0-9-]{2,}/g) || []).filter(x => !/^(the|and|for|with|from|this|that|stock|news|company)$/i.test(x));
+  for (const t of tokens.slice(0, 30)) if (seg.toLowerCase().includes(t.toLowerCase())) score += 1;
+  if (researchCategoryLabelZh(category) && researchContainsAny(seg, [researchCategoryLabelZh(category)])) score += 2;
+  return score;
+}
+
+function researchDisplayFields(payloadAnswer, kept, profile) {
+  const answer = researchCleanAnswerText(payloadAnswer);
+  const segments = researchAnswerSegments(answer);
+  const used = new Set();
+  const displays = [];
+
+  for (const item of kept || []) {
+    const category = researchEventCategory(item, profile);
+    let bestIndex = -1;
+    let bestScore = -1;
+    segments.forEach((seg, idx) => {
+      if (used.has(idx)) return;
+      const score = researchSegmentScoreForItem(seg, item, profile, category);
+      if (score > bestScore) { bestScore = score; bestIndex = idx; }
+    });
+    if (bestIndex < 0 && segments.length) bestIndex = segments.findIndex((_, idx) => !used.has(idx));
+    if (bestIndex >= 0) used.add(bestIndex);
+    const segment = bestIndex >= 0 ? segments[bestIndex] : "";
+    let displayTitle = `${profile.company_name}｜${researchCategoryLabelZh(category)}`;
+    let displayDetail = segment;
+    const titleMatch = segment.match(/(?:^|[｜|])\s*標題[:：]\s*([^｜|]+)(?:[｜|]|$)/i);
+    const detailMatch = segment.match(/(?:^|[｜|])\s*摘要[:：]\s*([\s\S]+)/i);
+    const compactParts = segment.split(/[｜|]/).map(x => x.trim()).filter(Boolean);
+    if (titleMatch && researchHasCjk(titleMatch[1])) displayTitle = titleMatch[1].trim().slice(0, 120);
+    else if (compactParts.length >= 2 && researchHasCjk(compactParts[0])) displayTitle = compactParts[0].replace(/^標題[:：]\s*/i, "").slice(0,120);
+    if (detailMatch && researchHasCjk(detailMatch[1])) displayDetail = detailMatch[1].trim().slice(0, 420);
+    else if (compactParts.length >= 2 && researchHasCjk(compactParts.slice(1).join(" "))) displayDetail = compactParts.slice(1).join(" ").replace(/^摘要[:：]\s*/i, "").slice(0,420);
+    if (!displayDetail || !researchHasCjk(displayDetail)) {
+      displayDetail = `已找到與 ${profile.company_name} 直接相關的近期${researchCategoryLabelZh(category)}；原始英文內容與網址保留於下方查證來源。`;
+    }
+    displays.push({ display_title_zh_tw:researchToTraditionalChinese(displayTitle), display_detail_zh_tw:researchToTraditionalChinese(displayDetail) });
+  }
+
+  let summary = kept?.length ? answer : "";
+  if (!summary || !researchHasCjk(summary)) {
+    summary = kept?.length
+      ? `最近 7 天找到 ${kept.length} 則符合條件的重大事件；已由 JS Hard Gate 驗證來源，繁體中文事件重點顯示於下方。`
+      : `最近 7 天未找到符合條件的 ${profile.company_name} 重大事件；不硬湊。`;
+  }
+  return { summary_zh_tw:researchToTraditionalChinese(summary).slice(0, 1100), displays };
+}
+
+function researchEventCategory(item, profile=null) {
   const text = `${item?.title || ""}\n${String(item?.content || "").slice(0, 700)}`.toLowerCase();
+  const type = String(profile?.asset_type || "");
+  if (type === "commodity") {
+    if (/inventory|stockpile|production|output|supply|demand|opec|eia|庫存|產量|供給|供應|需求/.test(text)) return "commodity_supply";
+    return "policy_macro";
+  }
+  if (type === "etf") {
+    if (/rebalance|reconstitution|holdings|constituent|inflow|outflow|fund flow|distribution|split|成分|再平衡|資金流|配息|拆分/.test(text)) return "fund_event";
+    return "policy_macro";
+  }
   if (/earnings|revenue|quarter|results|財報|營收|法說/.test(text)) return "earnings";
   if (/guidance|forecast|財測|展望/.test(text)) return "guidance";
   if (/upgrade|downgrade|price target|升評|降評|目標價/.test(text)) return "analyst";
@@ -1004,20 +1193,47 @@ function researchVerdictFromEvents(events) {
 }
 
 function researchBuildQuery(profile) {
-  const aliases = (profile?.aliases || []).slice(0, 8).join(" / ");
-  return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n公司也可能以這些名稱出現：${aliases}\n\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資\n- SEC / 監管 / 訴訟\n- 分析師重大升降評或目標價異動（必須是最近 7 天的新動作）\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示。最多 3 則，真正符合不足 3 則就不要硬湊。`;
+  const aliases = (profile?.aliases || []).slice(0, 12).join(" / ");
+  const type = String(profile?.asset_type || "other");
+  const focus = String(profile?.focus || profile?.company_name || profile?.underlying_ticker || "").trim();
+  const outputRule = `\n\n最後答案必須完全使用「台灣繁體中文（zh-TW）」撰寫，不可直接複製英文新聞標題。最多 3 則；不足 3 則不要硬湊。\n請盡量使用這個格式：\n【事件1】標題：繁體中文標題｜摘要：繁體中文摘要\n【事件2】標題：繁體中文標題｜摘要：繁體中文摘要\n【事件3】標題：繁體中文標題｜摘要：繁體中文摘要\n若沒有真正符合條件的事件，直接回答：最近 7 天沒有符合條件的重大事件。`;
+
+  if (["public_company","foreign_company"].includes(type)) {
+    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n公司也可能以這些名稱出現：${aliases}\n\n只接受：\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資 / 大型訂單或合約\n- SEC / 監管 / 真正的新訴訟事件\n- 分析師最近 7 天新發生的升降評或目標價異動\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n排除單純股價漲跌、是否值得買、估值、技術分析、機構持倉、內部人交易、律師事務所 Deadline/Investor Alert。${outputRule}`;
+  }
+
+  if (type === "private_company") {
+    return `搜尋 ${profile.company_name} 最近 7 天直接相關的重大公司事件。\n\n可能名稱：${aliases}\n\n只接受：\n- 官方產品 / 技術 / 商業發布\n- 大型客戶、訂單、合作或合約\n- 融資、併購、重大投資、IPO / 上市進度\n- 監管、訴訟、政府合約或重大政策影響\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n不要把不存在的公開公司財報硬套給未上市公司；排除股價預測與社群傳聞。${outputRule}`;
+  }
+
+  if (type === "etf") {
+    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天重大 ETF / 基金事件，以及直接影響其核心曝險「${focus}」的重大事件。\n\n可能名稱或主題：${aliases}\n\n只接受：\n- 發行商正式公告、基金結構、拆分、配息、成分或指數再平衡\n- 有可靠來源的重大資金流 / 持倉結構變化\n- 直接影響「${focus}」的重大政策、供需、產業或大型成分股事件\n- 對 ETF 核心曝險有明確因果關係的重大市場事件\n\n排除技術分析、單純價格預測、是否值得買、一般盤勢閒聊與無直接關係的宏觀新聞。${outputRule}`;
+  }
+
+  if (type === "commodity") {
+    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接影響「${focus}」的重大市場事件。\n\n可能名稱：${aliases}\n\n只接受：\n- 供給 / 需求 / 庫存 / 產量 / 礦山或油氣設施中斷\n- OPEC、EIA、政府政策、制裁、關稅、地緣事件且必須直接影響該商品\n- 央行、實質利率或工業需求等對該商品有明確直接影響的重大事件\n- 其他可驗證、會改變該商品供需結構的事件\n\n排除技術分析、價格預測、是否值得買與一般市場閒聊。${outputRule}`;
+  }
+
+  return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接相關的重大市場事件。\n\n可能名稱：${aliases}\n\n只接受可驗證、與該標的直接相關的重大事件；排除技術分析、價格預測、社群傳聞與無關宏觀新聞。${outputRule}`;
 }
 
 function researchBuildItem(row, profile, payload, ranked, searchedAt) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
   const searchedMs = Date.parse(searchedAt);
-  const events = ranked.kept.map(item => ({
-    category: researchEventCategory(item),
-    date: researchEventDate(item),
-    impact: researchEventImpact(item),
-    title: String(item?.title || "近期資訊").slice(0,180),
-    detail: researchCompactSnippet(item, 320),
-  }));
+  const display = researchDisplayFields(payload?.answer || "", ranked.kept, profile);
+  const events = ranked.kept.map((item, index) => {
+    const category = researchEventCategory(item, profile);
+    const zh = display.displays[index] || {};
+    return {
+      category,
+      date: researchEventDate(item),
+      impact: researchEventImpact(item),
+      title: String(item?.title || "近期資訊").slice(0,180),
+      detail: researchCompactSnippet(item, 320),
+      display_title_zh_tw: String(zh.display_title_zh_tw || `${profile.company_name}｜${researchCategoryLabelZh(category)}`).slice(0,180),
+      display_detail_zh_tw: String(zh.display_detail_zh_tw || "").slice(0,520),
+    };
+  });
   const sources = ranked.kept.map(item => ({
     title: String(item?.title || item?.url || "來源").slice(0,220),
     url: String(item?.url || ""),
@@ -1031,10 +1247,12 @@ function researchBuildItem(row, profile, payload, ranked, searchedAt) {
     score: Number(item?._score || 0),
     reasons: Array.isArray(item?._bad) ? item._bad.slice(0,6) : [],
   }));
-  const summary = events.length
-    ? `最近 7 天找到 ${events.length} 則符合條件的重大公司新聞：${events.map(x => x.title).join("；")}`.slice(0,300)
-    : `最近 7 天未找到符合條件的 ${profile.company_name} 重大公司新聞；不硬湊。`;
-  const earningsEvent = events.find(x => x.category === "earnings") || null;
+  const summary = display.summary_zh_tw || (events.length
+    ? `最近 7 天找到 ${events.length} 則符合條件的重大事件。`
+    : `最近 7 天未找到符合條件的 ${profile.company_name} 重大事件；不硬湊。`);
+  const earningsEvent = ["public_company","foreign_company"].includes(profile.asset_type)
+    ? events.find(x => x.category === "earnings") || null
+    : null;
   return {
     symbol,
     api_symbol: row?.api_symbol || null,
@@ -1045,13 +1263,15 @@ function researchBuildItem(row, profile, payload, ranked, searchedAt) {
     company_name: profile.company_name,
     company_aliases: profile.aliases,
     asset_type: profile.asset_type,
+    asset_focus: profile.focus || "",
     verdict: researchVerdictFromEvents(events),
-    summary,
+    summary: researchToTraditionalChinese(summary).slice(0,1100),
+    summary_zh_tw: researchToTraditionalChinese(summary).slice(0,1100),
     last_earnings: {
       date: earningsEvent?.date || "",
-      eps: "unknown",
-      revenue: "unknown",
-      guidance: "unknown",
+      eps: earningsEvent ? "unknown" : "not_applicable",
+      revenue: earningsEvent ? "unknown" : "not_applicable",
+      guidance: earningsEvent ? "unknown" : "not_applicable",
     },
     next_earnings_date: "",
     events,
@@ -1059,9 +1279,9 @@ function researchBuildItem(row, profile, payload, ranked, searchedAt) {
     rejected,
     model: RESEARCH_PROVIDER,
     api: "tavily-search-api",
-    search_mode: "on_demand_broad_search_js_hard_gate",
+    search_mode: "on_demand_broad_search_asset_profile_js_hard_gate",
     research_status: "ON_DEMAND",
-    pipeline_version: "tavily-broad-js-alias-hardgate-v1",
+    pipeline_version: RESEARCH_PIPELINE_VERSION,
     query: String(payload?.query || ""),
     tavily_answer_raw: String(payload?.answer || "").slice(0,5000),
     provider_usage: payload?.usage || null,
@@ -1080,7 +1300,7 @@ async function browserSearchResearch(env, row) {
     topic: "news",
     time_range: "week",
     max_results: 10,
-    include_answer: "basic",
+    include_answer: "advanced",
     include_raw_content: false,
     include_images: false,
     include_usage: true,

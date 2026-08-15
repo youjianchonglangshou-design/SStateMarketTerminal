@@ -1,7 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.33｜TAVILY-ALIAS-HARDGATE",
-  "stage": "TAVILY-ALIAS-HARDGATE",
+  "app_version": "TERMINAL v0.1.34｜TAVILY-ASSET-ZHTW",
+  "stage": "TAVILY-ASSET-ZHTW",
   "features": [
+    "Complete the current Pionex US-stock/RWA token profile layer so suffix-X contracts resolve to the real underlying ticker, company/fund/commodity name, aliases, and asset type before Tavily search",
+    "Split Tavily prompts by asset type: public/private company, ETF/fund, commodity, and generic market asset no longer share the same company-earnings prompt",
+    "Add a Traditional-Chinese display layer: Tavily Answer is requested in strict zh-TW format, normalized to Traditional Chinese, and mapped into display_title_zh_tw / display_detail_zh_tw while original source titles remain available for verification",
+    "Use Tavily Search depth=basic with include_answer=advanced so each click remains a 1-credit Search request while the answer layer is more detailed",
+    "Add fund/commodity event categories and asset-aware Hard Gate matching; short ambiguous tickers such as ON are not used as generic English-word match keys when a proper profile exists",
+    "Invalidate older Tavily research cache entries by pipeline version so the first click after deployment refreshes old 24H results with the new asset-profile/zh-TW pipeline",
     "Replace the on-demand Groq/GPT-OSS research path with one Tavily Basic Search request per clicked S3/S0.5/S1 symbol; Full Analysis and Auto Batch remain completely independent from news lookup",
     "Tavily search stays broad (topic=news, time_range=week, max_results=10); Cloudflare Worker JS performs deterministic Hard Gate filtering after retrieval instead of over-constraining the search API",
     "Add a centralized company alias layer for English names, tickers and common Traditional-Chinese names such as Microsoft/MSFT/微軟, NVIDIA/NVDA/輝達, TSMC/TSM/台積電, SK hynix/SK海力士",

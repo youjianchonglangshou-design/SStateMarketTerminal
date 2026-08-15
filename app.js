@@ -3,6 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
+  const RESEARCH_PIPELINE_VERSION = "tavily-asset-profile-zhtw-v2";
   const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
@@ -14,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.33｜TAVILY-ALIAS-HARDGATE";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.34｜TAVILY-ASSET-ZHTW";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -219,6 +220,7 @@
     if (!info || typeof info !== 'object') return false;
     if (['ERROR','DEFERRED','SKIPPED_NON_COMPANY'].includes(String(info.research_status || '').toUpperCase())) return false;
     if (info.api !== 'tavily-search-api') return false;
+    if (info.pipeline_version !== RESEARCH_PIPELINE_VERSION) return false;
     const expires = researchExpiresAt(info);
     return expires > Date.now();
   }
@@ -807,8 +809,9 @@
 
   function researchCategoryMeta(value) {
     return ({
-      earnings: ['財報','📊'], guidance: ['財測','🧭'], company_catalyst: ['公司利多','⚡'],
+      earnings: ['財報','📊'], guidance: ['財測','🧭'], company_catalyst: ['公司催化','⚡'],
       analyst: ['分析師','🏦'], sec_capital: ['SEC／資本','📄'], regulatory_legal: ['法規／訴訟','⚖'],
+      fund_event: ['ETF／基金','🧺'], commodity_supply: ['供需／庫存','🛢'], policy_macro: ['政策／產業','🌐'],
       direct_industry: ['產業事件','🏭']
     })[String(value || '')] || ['近期事件','•'];
   }
@@ -860,7 +863,7 @@
     const [verdictCls,verdictLabel] = researchVerdictMeta(info.verdict);
     const [cls,label] = isManualReview ? ['neutral','ℹ 人工判讀'] : [verdictCls,verdictLabel];
     const statusLabel = researchStatusLabel(info.research_status);
-    const title = [info.underlying_ticker, info.company_name].filter(Boolean).join('｜') || symbol;
+    const title = [...new Set([info.underlying_ticker, info.company_name].filter(Boolean).map(String))].join('｜') || symbol;
     const events = Array.isArray(info.events) ? info.events.slice(0,5) : [];
     const sources = Array.isArray(info.sources) ? info.sources.slice(0,6) : [];
     const last = info.last_earnings && typeof info.last_earnings === 'object' ? info.last_earnings : {};
@@ -871,8 +874,8 @@
       const [impactCls,impactLabel] = researchImpactMeta(e.impact);
       return `<div class="research-event ${escapeHtml(impactCls)}">
         <div class="research-event-head"><span class="research-category">${catIcon} ${escapeHtml(catLabel)}</span><span class="research-impact ${escapeHtml(impactCls)}">${escapeHtml(impactLabel)}</span><time>${escapeHtml(e.date||'日期未明')}</time></div>
-        <div class="research-event-title">${escapeHtml(e.title||'近期資訊')}</div>
-        ${e.detail?`<div class="research-event-detail">${escapeHtml(e.detail)}</div>`:''}
+        <div class="research-event-title">${escapeHtml(e.display_title_zh_tw||e.title||'近期資訊')}</div>
+        ${(e.display_detail_zh_tw||e.detail)?`<div class="research-event-detail">${escapeHtml(e.display_detail_zh_tw||e.detail)}</div>`:''}
       </div>`;
     }).join('')}</div>` : '<div class="research-section"><div class="research-section-title">近期重大事件</div><div class="research-empty">沒有列入重大事件。</div></div>';
 
@@ -897,9 +900,9 @@
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
       <div class="research-title"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(recordState(r))}</span></div>
       ${verdictHtml}
-      <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary||'')}</div></div>
+      <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary_zh_tw||info.summary||'')}</div></div>
       ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)}｜廣搜 10 則 + JS Hard Gate + 公司別名｜${escapeHtml(searched)}｜24H 固定快取</div>
+      <div class="research-meta">${escapeHtml(modelLabel)}｜廣搜 10 則 + 資產 Profile + JS Hard Gate + 繁中顯示｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
 

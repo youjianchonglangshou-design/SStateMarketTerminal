@@ -1,13 +1,16 @@
-# SStateMarketTerminal
+# SState Market Terminal
 
-### v0.1.33 Tavily 廣搜 + JS Hard Gate + 公司別名
+### v0.1.34 Tavily 資產 Profile + 類型分流 + 繁中顯示
 
-新聞查詢改為「使用者點單一 S3 / S0.5 / S1 標的 → Cloudflare Worker 呼叫 Tavily Basic Search 1 次 → 最多抓 10 個候選 → Worker JS Hard Gate 過濾 → R2 24H 固定快取」。搜尋端保持寬鬆，過濾端負責排除舊事件、報價/首頁、社群、投資評論、律師招攬、持倉/內部人交易、分析師共識文與正文不一致的 feed。新增公司別名層，例如 Microsoft / MSFT / 微軟 都視為同一公司。
+- Pionex 美股/RWA token 先解析「代幣 → underlying ticker → 正式名稱/別名 → asset_type」，補齊目前 active/pending 清單中原先只剩 ticker 的公司、ETF 與商品。
+- Tavily 搜尋依 public/private company、ETF、commodity 分流，不再拿同一套「公司財報」Prompt 查 USO / WTI / 黃金 / 半導體 ETF。
+- 搜尋仍維持 `search_depth=basic`、最多 10 則；`include_answer=advanced` 只用來取得更完整的繁中 Answer。
+- Worker 新增 `summary_zh_tw`、`display_title_zh_tw`、`display_detail_zh_tw`；主 UI 優先顯示繁體中文，原始英文標題只保留在查證來源。
+- 新 pipeline 會使舊 Tavily 24H cache 失效一次，下一次點擊會重新取得新格式資料。
 
+**版本：`TERMINAL v0.1.34｜TAVILY-ASSET-ZHTW`**
 
 Streamlit 脫殼 Stage 1：GitHub Pages 靜態 HTML/JS/CSS + Cloudflare Worker/R2 + GitHub Actions Python 引擎。
-
-**版本：`TERMINAL v0.1.33｜TAVILY-ALIAS-HARDGATE`**
 
 ## 已完成的資料流
 
@@ -21,7 +24,7 @@ GitHub Pages
                                      ↓
                          Basic Search 廣搜最多 10 則
                                      ↓
-                         JS Hard Gate + 公司別名過濾
+                         資產 Profile + JS Hard Gate + 繁中顯示
                                      ↓
                          該標的固定 24H Cache + research R2
 ```

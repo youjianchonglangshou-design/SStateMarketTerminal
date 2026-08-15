@@ -270,3 +270,25 @@ R2 models/active/probability_model.json
 - Parser 同時支援 Workers AI JSON Mode 的 `{ response: {...} }` 物件輸出。
 - Tavily 仍負責廣搜最多 20 個候選；AI 負責事件過濾與 zh-TW 改寫。
 - Primary 失敗才啟用 70B fallback；兩層失敗才回 502，而且不寫入 24H cache。
+
+
+## v0.1.38 LLAMA-SCOPE-FIX
+- 只修一個 Worker scope bug。
+- `researchBuildItem()` 不再直接引用只存在於 `researchGlmFilter()` 的 `attempts` / `retryOut`。
+- 改成只讀 `glm.attempt_count` 決定實際使用的模型名稱。
+- Tavily query、max_results、Llama JSON Mode、新聞篩選規則全部不變。
+- pipeline 升到 `tavily-llama-jsonschema-zhtw-v6`，避免舊失敗快取干擾。
+
+
+## v0.1.39 TAVILY-DIRECT
+
+正式新聞路徑：`按鈕 → Tavily Search（最多 20）→ Tavily Answer → R2 → UI`
+
+- `max_results = 20`
+- `include_answer = "advanced"`
+- Tavily `results[]` 回幾則，Worker 就建立幾則 `events[]` / `sources[]`
+- 不呼叫 GLM / Llama
+- 不使用 Hard Gate 淘汰 Tavily results
+- Tavily Answer 直接作為「Tavily 重點」
+- 修正 v0.1.38 前端 pipeline 還停在舊 v4、Worker 已是 v6 的不一致
+- pipeline：`tavily-answer-direct-zhtw-v7`

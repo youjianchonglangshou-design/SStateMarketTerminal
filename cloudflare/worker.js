@@ -30,7 +30,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), workers_ai_binding: Boolean(env.AI) }, 200, origin);
+        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), news_pipeline: RESEARCH_PIPELINE_VERSION, workers_ai_binding_optional: Boolean(env.AI) }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -546,10 +546,10 @@ async function startAnalysis(request, env, origin) {
   return json({ ok: true, run_id: runId, market, github_run_id: dispatch?.workflow_run_id || null, github_run_url: dispatch?.html_url || null }, 200, origin);
 }
 
-const RESEARCH_PROVIDER = "Tavily Search + Llama JSON Mode";
+const RESEARCH_PROVIDER = "Tavily Search + Answer";
 const RESEARCH_GLM_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const RESEARCH_FALLBACK_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-const RESEARCH_PIPELINE_VERSION = "tavily-llama-jsonschema-zhtw-v5";
+const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v7";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -753,7 +753,7 @@ function researchCompanyProfile(symbol) {
 function researchFresh(item, nowMs = Date.now()) {
   if (!item || typeof item !== "object") return false;
   // Provider migration: do not keep an old Groq cache alive after Tavily is deployed.
-  if (item.api !== "tavily-search-api+workers-ai") return false;
+  if (item.api !== "tavily-search-api") return false;
   if (item.pipeline_version !== RESEARCH_PIPELINE_VERSION) return false;
   const direct = Date.parse(item.expires_at || "");
   if (Number.isFinite(direct)) return direct > nowMs;
@@ -1562,52 +1562,37 @@ async function researchGlmFilter(env, profile, query, payload) {
   };
 }
 
-function researchBuildItem(row, profile, payload, glm, searchedAt) {
+function researchBuildItem(row, profile, payload, searchedAt) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
   const searchedMs = Date.parse(searchedAt);
   const results = Array.isArray(payload?.results) ? payload.results : [];
-  const selected = glm?.selected_indices instanceof Set ? glm.selected_indices : new Set();
-  const events = (Array.isArray(glm?.events) ? glm.events : []).map(ev => ({
-    category: ev.category,
-    date: ev.date || "",
-    impact: ev.impact,
-    title: String(results[ev.source_index - 1]?.title || "近期資訊").slice(0, 240),
-    detail: researchCompactSnippet(results[ev.source_index - 1], 420),
-    display_title_zh_tw: ev.display_title_zh_tw,
-    display_detail_zh_tw: ev.display_detail_zh_tw,
-    source_index: ev.source_index,
+
+  // v0.1.39: first make news visibly work.
+  // Tavily returns N results => UI receives N events and N source URLs.
+  // No second AI / Hard Gate is allowed to erase Tavily results.
+  const events = results.map((item, index) => ({
+    category: researchEventCategory(item, profile),
+    date: researchEventDate(item),
+    impact: researchEventImpact(item),
+    title: String(item?.title || "近期資訊").slice(0, 300),
+    detail: researchCompactSnippet(item, 520),
+    display_title_zh_tw: String(item?.title || "近期資訊").slice(0, 300),
+    display_detail_zh_tw: researchCompactSnippet(item, 520),
+    source_index: index + 1,
   }));
 
-  const sourceIndices = [...new Set(events.map(ev => ev.source_index))];
-  const sources = sourceIndices.map(sourceIndex => {
-    const item = results[sourceIndex - 1] || {};
-    return {
-      source_index: sourceIndex,
-      title: String(item?.title || item?.url || "來源").slice(0, 260),
-      url: String(item?.url || ""),
-      published_date: String(item?.published_date || item?.publishedDate || "").slice(0, 90),
-      tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
-    };
-  });
+  const sources = results.map((item, index) => ({
+    source_index: index + 1,
+    title: String(item?.title || item?.url || "來源").slice(0, 300),
+    url: String(item?.url || ""),
+    published_date: String(item?.published_date || item?.publishedDate || "").slice(0, 90),
+    tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
+  }));
 
-  const rejected = results.map((item, index) => {
-    const sourceIndex = index + 1;
-    if (selected.has(sourceIndex)) return null;
-    return {
-      source_index: sourceIndex,
-      title: String(item?.title || "").slice(0, 260),
-      url: String(item?.url || ""),
-      tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
-      reasons: [`GLM：${glm?.rejection_reasons?.get(sourceIndex) || "未列入符合原始指令的重大事件"}`],
-    };
-  }).filter(Boolean);
-
-  const summary = researchToTraditionalChinese(String(glm?.summary_zh_tw || "").trim()) || (events.length
-    ? `最近 7 天找到 ${events.length} 則符合條件的重大事件。`
-    : `最近 7 天沒有符合條件的重大事件。`);
-  const earningsEvent = ["public_company","foreign_company"].includes(profile.asset_type)
-    ? events.find(x => x.category === "earnings") || null
-    : null;
+  const answer = researchToTraditionalChinese(String(payload?.answer || "").trim());
+  const summary = answer || (results.length
+    ? `Tavily 最近 7 天找到 ${results.length} 則相關新聞；以下直接顯示搜尋結果，不經第二層 AI 淘汰。`
+    : `Tavily 最近 7 天沒有回傳搜尋結果。`);
 
   return {
     symbol,
@@ -1620,37 +1605,26 @@ function researchBuildItem(row, profile, payload, glm, searchedAt) {
     company_aliases: profile.aliases,
     asset_type: profile.asset_type,
     asset_focus: profile.focus || "",
-    verdict: researchNormalizeVerdict(glm?.verdict || researchVerdictFromEvents(events)),
+    verdict: "neutral",
     summary,
     summary_zh_tw: summary,
-    last_earnings: {
-      date: earningsEvent?.date || "",
-      eps: earningsEvent ? "unknown" : "not_applicable",
-      revenue: earningsEvent ? "unknown" : "not_applicable",
-      guidance: earningsEvent ? "unknown" : "not_applicable",
-    },
+    last_earnings: { date: "", eps: "not_applicable", revenue: "not_applicable", guidance: "not_applicable" },
     next_earnings_date: "",
     events,
     sources,
-    rejected,
+    rejected: [],
     model: RESEARCH_PROVIDER,
-    api: "tavily-search-api+workers-ai",
-    search_mode: "on_demand_tavily20_llama_jsonmode_zhtw",
+    api: "tavily-search-api",
+    search_mode: "on_demand_tavily20_answer_direct",
     research_status: "ON_DEMAND",
     pipeline_version: RESEARCH_PIPELINE_VERSION,
     query: String(payload?.query || ""),
     candidate_count: results.length,
-    selected_count: events.length,
-    tavily_answer_raw: "",
+    selected_count: results.length,
+    tavily_answer_raw: String(payload?.answer || ""),
     provider_usage: payload?.usage || null,
     request_id: payload?.request_id || null,
     response_time: payload?.response_time ?? null,
-    glm_model: attempts > 1 && retryOut ? RESEARCH_FALLBACK_MODEL : RESEARCH_GLM_MODEL,
-    ai_primary_model: RESEARCH_GLM_MODEL,
-    ai_fallback_model: RESEARCH_FALLBACK_MODEL,
-    glm_usage: glm?.usage || null,
-    glm_attempt_count: Number(glm?.attempt_count || 1),
-    glm_raw: String(glm?.raw || "").slice(0, 12000),
   };
 }
 
@@ -1659,24 +1633,20 @@ async function browserSearchResearch(env, row) {
   const profile = researchCompanyProfile(symbol);
   const query = researchBuildQuery(profile);
 
-  // Tavily's API currently allows max_results up to 20. Use the maximum instead of the old hard-coded 10.
-  // Search remains Basic (1 Tavily credit); GLM performs semantic filtering and zh-TW rewriting afterward.
   const payload = await tavilySearch(env, {
     query,
     search_depth: "basic",
     topic: "news",
     time_range: "week",
     max_results: 20,
-    chunks_per_source: 3,
-    include_answer: false,
+    include_answer: "advanced",
     include_raw_content: false,
     include_images: false,
     include_usage: true,
   });
   payload.query = payload.query || query;
 
-  const glm = await researchGlmFilter(env, profile, query, payload);
-  const item = researchBuildItem(row, profile, payload, glm, new Date().toISOString());
+  const item = researchBuildItem(row, profile, payload, new Date().toISOString());
   return { item };
 }
 

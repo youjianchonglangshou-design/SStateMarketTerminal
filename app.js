@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const RESEARCH_PIPELINE_VERSION = "tavily-glm47-filter-zhtw-v4";
+  const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v7";
   const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleMetrics: $("battle-metrics"), battleProgress: $("battle-progress"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.37｜LLAMA-JSONMODE";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.39｜TAVILY-DIRECT";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -219,7 +219,7 @@
   function researchIsFresh(info) {
     if (!info || typeof info !== 'object') return false;
     if (['ERROR','DEFERRED','SKIPPED_NON_COMPANY'].includes(String(info.research_status || '').toUpperCase())) return false;
-    if (info.api !== 'tavily-search-api+workers-ai') return false;
+    if (info.api !== 'tavily-search-api') return false;
     if (info.pipeline_version !== RESEARCH_PIPELINE_VERSION) return false;
     const expires = researchExpiresAt(info);
     return expires > Date.now();
@@ -849,7 +849,7 @@
       const expired = Boolean(rawInfo && researchExpiresAt(rawInfo) && researchExpiresAt(rawInfo) <= Date.now());
       const label = busy ? '⏳ 搜尋中…' : anotherBusy ? '… 等待上一筆' : error ? '⚠ 查詢失敗・重試' : expired ? '↻ 已過24H・重新查詢' : '🔎 等待查詢';
       const title = busy
-        ? `${symbol} 正在使用 Tavily 廣搜 + Llama JSON Mode 篩選查詢`
+        ? `${symbol} 正在使用 Tavily 搜尋 + Tavily Answer 查詢`
         : error
           ? `${symbol} 前次查詢失敗：${error}｜點擊重試`
           : expired
@@ -869,7 +869,7 @@
     const last = info.last_earnings && typeof info.last_earnings === 'object' ? info.last_earnings : {};
     const hasEarnings = Boolean(last.date || info.next_earnings_date || ['beat','miss','inline'].includes(String(last.eps)) || ['beat','miss','inline'].includes(String(last.revenue)) || ['raised','maintained','lowered'].includes(String(last.guidance)));
 
-    const eventHtml = events.length ? `<div class="research-section"><div class="research-section-title">近期重大事件 <small>${events.length} 則</small></div>${events.map(e => {
+    const eventHtml = events.length ? `<div class="research-section"><div class="research-section-title">Tavily 搜尋結果 <small>${events.length} 則</small></div>${events.map(e => {
       const [catLabel,catIcon] = researchCategoryMeta(e.category);
       const [impactCls,impactLabel] = researchImpactMeta(e.impact);
       return `<div class="research-event ${escapeHtml(impactCls)}">
@@ -877,7 +877,7 @@
         <div class="research-event-title">${escapeHtml(e.display_title_zh_tw||e.title||'近期資訊')}</div>
         ${(e.display_detail_zh_tw||e.detail)?`<div class="research-event-detail">${escapeHtml(e.display_detail_zh_tw||e.detail)}</div>`:''}
       </div>`;
-    }).join('')}</div>` : '<div class="research-section"><div class="research-section-title">近期重大事件</div><div class="research-empty">沒有列入重大事件。</div></div>';
+    }).join('')}</div>` : '<div class="research-section"><div class="research-section-title">Tavily 搜尋結果</div><div class="research-empty">Tavily 本次沒有回傳新聞。</div></div>';
 
     const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((src,i)=>`<a href="${escapeHtml(src.url||'#')}" target="_blank" rel="noopener noreferrer"><span>${i+1}</span>${escapeHtml(src.title||'來源')}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
 
@@ -893,16 +893,16 @@
     </div>` : '';
 
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
-    const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search + Llama JSON Mode').replace(/^models\//,'');
-    const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Tavily 搜尋與 GLM 整理已完成；若模型輸出無法解析，Worker 不會寫入 24H 快取。</span></div>` : '';
+    const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search + Answer').replace(/^models\//,'');
+    const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Tavily 搜尋已完成；本版不使用第二層 AI 篩選。</span></div>` : '';
     const verdictHtml = `<div class="research-verdict-line"><span>情報方向</span><b class="research-verdict-chip ${escapeHtml(verdictCls)}">${escapeHtml(verdictLabel)}</b></div>`;
 
     return `<div class="research-wrap"><span class="pill research-pill ${cls}">${label}${statusLabel?` <small>${statusLabel}</small>`:''}</span><div class="research-card">
       <div class="research-title"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(recordState(r))}</span></div>
       ${verdictHtml}
-      <div class="research-section research-overview"><div class="research-section-title">AI 重點</div><div class="research-summary">${escapeHtml(info.summary_zh_tw||info.summary||'')}</div></div>
+      <div class="research-section research-overview"><div class="research-section-title">Tavily 重點</div><div class="research-summary">${escapeHtml(info.summary_zh_tw||info.summary||'')}</div></div>
       ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
-      <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則候選 → Llama JSON Mode 篩選 + 繁中｜${escapeHtml(searched)}｜24H 固定快取</div>
+      <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則 → Tavily Answer｜不經第二層 AI 過濾｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
 

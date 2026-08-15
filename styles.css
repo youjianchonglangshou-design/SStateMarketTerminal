@@ -658,3 +658,67 @@
   .research-event-title{font-size:14px}
   .research-event-detail{font-size:13px}
 }
+
+
+/* v0.1.42 — stronger news article readability */
+.research-card{
+  width:680px;
+  max-height:720px;
+  padding:20px;
+}
+
+.research-summary{
+  font-size:16px;
+  line-height:1.82;
+}
+
+.research-event{
+  padding:15px 0;
+  font-size:15px;
+  line-height:1.72;
+}
+
+.research-event-title{
+  font-size:17px;
+  line-height:1.58;
+}
+
+.research-event-detail{
+  font-size:16px;
+  line-height:1.78;
+  margin-top:7px;
+}
+
+.research-section-title{
+  font-size:14px;
+}
+
+.research-event-head time{
+  font-size:12px;
+}
+
+.research-category,
+.research-impact{
+  font-size:12px;
+  padding:4px 8px;
+}
+
+.research-sources a{
+  font-size:13px;
+  line-height:1.5;
+}
+
+.research-meta{
+  font-size:12px;
+}
+
+@media(max-width:760px){
+  .research-card{
+    width:min(680px,95vw);
+    max-height:80vh;
+    padding:16px;
+  }
+  .research-summary{font-size:15px}
+  .research-event-title{font-size:16px}
+  .research-event-detail{font-size:15px}
+}

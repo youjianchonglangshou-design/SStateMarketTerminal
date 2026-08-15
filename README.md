@@ -321,3 +321,15 @@ R2 models/active/probability_model.json
 - 情報方向 / 統計：12–13px
 - 查證來源：12px
 - 增加段落與文章間距
+
+
+## v0.1.42 NEWS-LARGE-TEXT
+
+只加大新聞彈出卡文章閱讀區：
+- Tavily 重點：16px
+- 文章標題：17px
+- 文章正文：16px
+- 標籤 / 日期：12px
+- 查證來源：13px
+- 卡片寬度：680px
+- 不修改 Tavily、繁中、利多利空、R2 或 Worker 邏輯

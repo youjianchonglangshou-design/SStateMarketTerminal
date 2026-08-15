@@ -660,66 +660,173 @@
 }
 
 
-/* v0.1.42 — stronger news article readability
-   User scale: article title 17px → 20px (×1.176), related sizes enlarged proportionally */
+/* v0.1.42 — stronger news article readability */
 .research-card{
-  width:800px;
-  max-height:850px;
-  padding:24px;
+  width:680px;
+  max-height:720px;
+  padding:20px;
 }
 
 .research-summary{
-  font-size:19px;
+  font-size:16px;
   line-height:1.82;
 }
 
 .research-event{
-  padding:18px 0;
-  font-size:18px;
+  padding:15px 0;
+  font-size:15px;
   line-height:1.72;
 }
 
 .research-event-title{
-  font-size:20px;
+  font-size:17px;
   line-height:1.58;
 }
 
 .research-event-detail{
-  font-size:19px;
+  font-size:16px;
   line-height:1.78;
-  margin-top:8px;
+  margin-top:7px;
 }
 
 .research-section-title{
-  font-size:16px;
+  font-size:14px;
 }
 
 .research-event-head time{
-  font-size:14px;
+  font-size:12px;
 }
 
 .research-category,
 .research-impact{
-  font-size:14px;
-  padding:5px 9px;
+  font-size:12px;
+  padding:4px 8px;
 }
 
 .research-sources a{
-  font-size:15px;
+  font-size:13px;
   line-height:1.5;
 }
 
 .research-meta{
-  font-size:14px;
+  font-size:12px;
 }
 
 @media(max-width:760px){
   .research-card{
-    width:min(800px,95vw);
+    width:min(680px,95vw);
     max-height:80vh;
-    padding:19px;
+    padding:16px;
   }
-  .research-summary{font-size:18px}
-  .research-event-title{font-size:19px}
-  .research-event-detail{font-size:18px}
+  .research-summary{font-size:15px}
+  .research-event-title{font-size:16px}
+  .research-event-detail{font-size:15px}
+}
+
+
+/* v0.1.43 — HIGH READABILITY NEWS TEXT
+   Current live 20px title was technically applied, but body still looked small
+   because of muted color / lighter weight. This block increases both actual
+   size and perceived readability. */
+.research-card{
+  width:900px;
+  max-height:820px;
+  padding:24px 26px;
+}
+
+/* Tavily 重點 */
+.research-summary{
+  font-size:22px;
+  line-height:1.78;
+  font-weight:700;
+  color:#f1f5f9;
+  letter-spacing:.05px;
+}
+
+/* 文章標題 */
+.research-event-title{
+  font-size:24px;
+  line-height:1.48;
+  font-weight:950;
+}
+
+/* 文章正文 — 這是你黃色圈起來最難讀的區域 */
+.research-event-detail{
+  font-size:22px;
+  line-height:1.72;
+  font-weight:650;
+  color:#dbeafe;
+  margin-top:8px;
+  letter-spacing:.03px;
+}
+
+/* 每篇文章本體 */
+.research-event{
+  padding:18px 0 20px;
+  font-size:20px;
+  line-height:1.7;
+}
+
+/* 區塊標題：Tavily 搜尋結果 / 查證來源 */
+.research-section-title{
+  font-size:17px;
+  font-weight:950;
+}
+
+/* 日期 */
+.research-event-head time{
+  font-size:15px;
+  color:#94a3b8;
+}
+
+/* 財報 / 利多 / 利空 標籤 */
+.research-category,
+.research-impact{
+  font-size:15px;
+  padding:5px 9px;
+}
+
+/* 查證來源 */
+.research-sources a{
+  font-size:17px;
+  line-height:1.55;
+  padding:9px 10px;
+}
+
+/* 最下面 metadata */
+.research-meta{
+  font-size:13px;
+  line-height:1.6;
+}
+
+/* 上方情報方向區也同步稍微加大 */
+.research-verdict-line>span{
+  font-size:15px;
+}
+.research-verdict-chip{
+  font-size:15px;
+}
+.research-impact-counts em{
+  font-size:14px;
+  padding:4px 8px;
+}
+
+@media(max-width:1000px){
+  .research-card{
+    width:min(900px,94vw);
+  }
+}
+
+@media(max-width:760px){
+  .research-card{
+    width:95vw;
+    max-height:82vh;
+    padding:18px;
+  }
+  .research-summary{font-size:19px}
+  .research-event-title{font-size:21px}
+  .research-event-detail{font-size:19px}
+  .research-category,.research-impact{font-size:13px}
+  .research-event-head time{font-size:13px}
+  .research-sources a{font-size:15px}
 }

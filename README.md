@@ -333,3 +333,16 @@ R2 models/active/probability_model.json
 - 查證來源：13px
 - 卡片寬度：680px
 - 不修改 Tavily、繁中、利多利空、R2 或 Worker 邏輯
+
+
+## v0.1.43 NEWS-HIGH-READABILITY
+
+只改新聞彈出卡閱讀性，不修改 Tavily / R2 / 新聞判定 / 繁中 / 利多利空邏輯。
+
+- Tavily 重點：22px / weight 700 / 高對比
+- 文章標題：24px / weight 950
+- 文章正文：22px / weight 650 / 顏色由灰藍提高到 #dbeafe
+- 標籤：15px
+- 日期：15px
+- 查證來源：17px
+- 卡片寬度：900px

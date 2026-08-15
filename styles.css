@@ -660,65 +660,66 @@
 }
 
 
-/* v0.1.42 — stronger news article readability */
+/* v0.1.42 — stronger news article readability
+   User scale: article title 17px → 20px (×1.176), related sizes enlarged proportionally */
 .research-card{
-  width:680px;
-  max-height:720px;
-  padding:20px;
+  width:800px;
+  max-height:850px;
+  padding:24px;
 }
 
 .research-summary{
-  font-size:16px;
+  font-size:19px;
   line-height:1.82;
 }
 
 .research-event{
-  padding:15px 0;
-  font-size:15px;
+  padding:18px 0;
+  font-size:18px;
   line-height:1.72;
 }
 
 .research-event-title{
-  font-size:17px;
+  font-size:20px;
   line-height:1.58;
 }
 
 .research-event-detail{
-  font-size:16px;
+  font-size:19px;
   line-height:1.78;
-  margin-top:7px;
+  margin-top:8px;
 }
 
 .research-section-title{
-  font-size:14px;
+  font-size:16px;
 }
 
 .research-event-head time{
-  font-size:12px;
+  font-size:14px;
 }
 
 .research-category,
 .research-impact{
-  font-size:12px;
-  padding:4px 8px;
+  font-size:14px;
+  padding:5px 9px;
 }
 
 .research-sources a{
-  font-size:13px;
+  font-size:15px;
   line-height:1.5;
 }
 
 .research-meta{
-  font-size:12px;
+  font-size:14px;
 }
 
 @media(max-width:760px){
   .research-card{
-    width:min(680px,95vw);
+    width:min(800px,95vw);
     max-height:80vh;
-    padding:16px;
+    padding:19px;
   }
-  .research-summary{font-size:15px}
-  .research-event-title{font-size:16px}
-  .research-event-detail{font-size:15px}
+  .research-summary{font-size:18px}
+  .research-event-title{font-size:19px}
+  .research-event-detail{font-size:18px}
 }

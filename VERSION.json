@@ -1,7 +1,12 @@
 {
-  "app_version": "TERMINAL v0.1.35｜TAVILY-GLM-FILTER",
-  "stage": "TAVILY-GLM-FILTER",
+  "app_version": "TERMINAL v0.1.36｜GLM-PARSER-RETRY",
+  "stage": "GLM-PARSER-RETRY",
   "features": [
+    "Fix GLM-4.7-Flash response parsing: read choices[0].message.content from the Cloudflare chat-completions wrapper instead of mistakenly treating the wrapper object itself as the requested JSON",
+    "Use reasoning_effort=low and a 2400-token completion ceiling so GLM spends less output budget on hidden/visible reasoning and reaches the final structured JSON faster",
+    "If GLM returns content=null after exhausting reasoning tokens, retry the same GLM-4.7-Flash once with a compact candidate payload and direct-JSON instruction; failed retries are not cached as false no-news results",
+    "Record glm_attempt_count and combined first/retry Workers AI usage for diagnosis",
+    "Invalidate v0.1.35 false no-news cache entries with pipeline tavily-glm47-filter-zhtw-v4; Tavily remains Basic Search with max_results=20 and GLM remains the semantic filter/zh-TW layer",
     "Replace deterministic JS Hard Gate semantic filtering with Cloudflare Workers AI GLM-4.7-Flash; Tavily only retrieves candidates and GLM decides relevance, event freshness, category, impact, and Traditional-Chinese presentation",
     "Restore the user-defined 7-day company-news instruction for public/foreign companies and preserve asset-aware prompts for ETFs, commodities, and private companies",
     "Increase Tavily Basic Search candidate retrieval from 10 to the API maximum of 20 results; Basic search remains 1 Tavily credit per request",

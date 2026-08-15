@@ -548,7 +548,7 @@ async function startAnalysis(request, env, origin) {
 
 const RESEARCH_PROVIDER = "Tavily Search + GLM-4.7-Flash";
 const RESEARCH_GLM_MODEL = "@cf/zai-org/glm-4.7-flash";
-const RESEARCH_PIPELINE_VERSION = "tavily-glm47-filter-zhtw-v3";
+const RESEARCH_PIPELINE_VERSION = "tavily-glm47-filter-zhtw-v4";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1224,17 +1224,84 @@ function researchStripCodeFence(value) {
     .trim();
 }
 
+function researchIsExpectedGlmObject(value) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    (Array.isArray(value.events) || Object.prototype.hasOwnProperty.call(value, "summary_zh_tw") || Object.prototype.hasOwnProperty.call(value, "verdict"))
+  );
+}
+
+function researchGlmOutputText(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+
+  // Cloudflare GLM-4.7-Flash synchronous output follows chat-completions shape:
+  // choices[0].message.content. Older Workers AI models may expose response/result.
+  const direct = [value.response, value.result, value.output_text, value.text];
+  for (const part of direct) {
+    if (typeof part === "string" && part.trim()) return part;
+  }
+
+  const message = value?.choices?.[0]?.message;
+  if (typeof message?.content === "string" && message.content.trim()) return message.content;
+  if (Array.isArray(message?.content)) {
+    const joined = message.content.map(part => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object") return String(part.text || part.content || "");
+      return "";
+    }).join("\n").trim();
+    if (joined) return joined;
+  }
+
+  const choiceText = value?.choices?.[0]?.text;
+  return typeof choiceText === "string" ? choiceText : "";
+}
+
 function researchParseGlmJson(value) {
-  if (value && typeof value === "object" && !Array.isArray(value)) return value;
-  const raw = researchStripCodeFence(value);
+  if (researchIsExpectedGlmObject(value)) return value;
+  const raw = researchStripCodeFence(researchGlmOutputText(value));
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch (_) {}
+  try {
+    const parsed = JSON.parse(raw);
+    return researchIsExpectedGlmObject(parsed) ? parsed : null;
+  } catch (_) {}
   const first = raw.indexOf("{");
   const last = raw.lastIndexOf("}");
   if (first >= 0 && last > first) {
-    try { return JSON.parse(raw.slice(first, last + 1)); } catch (_) {}
+    try {
+      const parsed = JSON.parse(raw.slice(first, last + 1));
+      return researchIsExpectedGlmObject(parsed) ? parsed : null;
+    } catch (_) {}
   }
   return null;
+}
+
+function researchCompactGlmCandidates(candidates) {
+  return candidates.map(item => ({
+    source_index: item.source_index,
+    title: item.title,
+    url: item.url,
+    published_date: item.published_date,
+    tavily_score: item.tavily_score,
+    content: String(item.content || "").slice(0, 1100),
+  }));
+}
+
+function researchGlmUsageSummary(firstUsage, retryUsage, attempts) {
+  const a = firstUsage && typeof firstUsage === "object" ? firstUsage : {};
+  const b = retryUsage && typeof retryUsage === "object" ? retryUsage : {};
+  const add = key => (Number(a[key]) || 0) + (Number(b[key]) || 0);
+  return {
+    attempts,
+    prompt_tokens: add("prompt_tokens"),
+    completion_tokens: add("completion_tokens"),
+    total_tokens: add("total_tokens"),
+    neurons: add("neurons"),
+    first: firstUsage || null,
+    retry: retryUsage || null,
+  };
 }
 
 function researchNormalizeImpact(value) {
@@ -1297,21 +1364,56 @@ async function researchGlmFilter(env, profile, query, payload) {
     candidates,
   };
 
-  const aiOut = await env.AI.run(RESEARCH_GLM_MODEL, {
+  const firstRequest = {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: JSON.stringify(userPayload) },
     ],
-    temperature: 0.1,
-    max_completion_tokens: 6000,
+    temperature: 0,
+    reasoning_effort: "low",
+    max_completion_tokens: 2400,
     response_format: { type: "json_object" },
-  });
+  };
 
-  const responseValue = aiOut?.response ?? aiOut?.result ?? aiOut;
-  const parsed = researchParseGlmJson(responseValue);
-  if (!parsed || typeof parsed !== "object") {
-    throw httpError(502, "GLM-4.7-Flash 未回傳可解析 JSON；本次不寫入 24H 快取，請重試");
+  let aiOut = await env.AI.run(RESEARCH_GLM_MODEL, firstRequest);
+  const firstOut = aiOut;
+  let parsed = researchParseGlmJson(aiOut);
+  let attempts = 1;
+  let retryOut = null;
+
+  // GLM-4.7-Flash is a reasoning model. In rare cases it can spend the entire
+  // completion budget on reasoning and return message.content = null. Retry once
+  // with a shorter payload and an explicit direct-JSON instruction instead of
+  // incorrectly caching the stock as "no news".
+  if (!parsed) {
+    attempts = 2;
+    const compactPayload = {
+      target: userPayload.target,
+      original_instruction: query,
+      candidate_count: candidates.length,
+      candidates: researchCompactGlmCandidates(candidates),
+    };
+    const retrySystemPrompt = `你是金融新聞篩選器。禁止輸出分析過程；直接輸出 JSON。\n\n依照 original_instruction，從 candidates 保留真正符合的最近 7 天重大事件。排除舊事件、Quote/Profile/新聞索引、純股價或技術分析、社群傳聞、律師招攬、無關公司、單純機構持倉/內部人交易。相同事件合併。每則事件必須使用真實 source_index。不得發明事實。所有顯示文字使用台灣繁體中文。\n\nJSON：{"summary_zh_tw":"...","verdict":"positive|mixed|neutral|risk|high_risk","events":[{"source_index":1,"category":"earnings|guidance|company_catalyst|analyst|regulatory|legal|fund_event|commodity_supply|policy_macro|industry","date":"YYYY-MM-DD 或空字串","impact":"positive|negative|neutral|mixed","display_title_zh_tw":"...","display_detail_zh_tw":"..."}],"rejected":[]}`;
+
+    retryOut = await env.AI.run(RESEARCH_GLM_MODEL, {
+      messages: [
+        { role: "system", content: retrySystemPrompt },
+        { role: "user", content: JSON.stringify(compactPayload) },
+      ],
+      temperature: 0,
+      reasoning_effort: "low",
+      max_completion_tokens: 1800,
+      response_format: { type: "json_object" },
+    });
+    parsed = researchParseGlmJson(retryOut);
+    if (parsed) aiOut = retryOut;
   }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw httpError(502, "GLM-4.7-Flash 本次只回傳 reasoning、沒有最終 JSON；已自動重試 1 次且仍失敗。本次不寫入 24H 快取，請稍後再點一次");
+  }
+
+  const responseValue = researchGlmOutputText(aiOut) || aiOut;
 
   const rawEvents = Array.isArray(parsed.events) ? parsed.events : [];
   const events = [];
@@ -1354,7 +1456,8 @@ async function researchGlmFilter(env, profile, query, payload) {
     selected_indices: selectedIndices,
     rejection_reasons: rejectionReasons,
     raw: typeof responseValue === "string" ? responseValue.slice(0, 12000) : JSON.stringify(responseValue).slice(0, 12000),
-    usage: aiOut?.usage || null,
+    usage: researchGlmUsageSummary(firstOut?.usage || null, retryOut?.usage || null, attempts),
+    attempt_count: attempts,
   };
 }
 
@@ -1443,6 +1546,7 @@ function researchBuildItem(row, profile, payload, glm, searchedAt) {
     response_time: payload?.response_time ?? null,
     glm_model: RESEARCH_GLM_MODEL,
     glm_usage: glm?.usage || null,
+    glm_attempt_count: Number(glm?.attempt_count || 1),
     glm_raw: String(glm?.raw || "").slice(0, 12000),
   };
 }

@@ -414,230 +414,75 @@
 .search-box input{min-width:0;width:100%;height:100%;border:0;outline:0;background:transparent;color:#e2e8f0;font-weight:800;font-size:11px}
 .search-box input::placeholder{color:#64748b}
 .search-box input::-webkit-search-cancel-button{filter:invert(.8)}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+.research-wrap{position:relative;display:inline-flex;z-index:7}
+.research-pill{font-weight:950;cursor:help;letter-spacing:.05px}
+.research-pill small{font-size:8px;opacity:.7;margin-left:2px}
+.research-pill.strong-positive{border-color:#f59e0b;color:#fde68a;background:#f59e0b18;box-shadow:0 0 10px #f59e0b22}
+.research-pill.positive{border-color:#22c55e;color:#bbf7d0;background:#22c55e12}
+.research-pill.neutral{border-color:#64748b;color:#e2e8f0;background:#64748b12}
+.research-pill.risk{border-color:#f97316;color:#fdba74;background:#f9731614}
+.research-pill.high-risk{border-color:#ef4444;color:#fecaca;background:#ef444414}
+.research-card{position:absolute;right:0;top:calc(100% + 7px);width:340px;max-height:430px;overflow:auto;padding:11px;border-radius:10px;background:#0b1322f8;border:1px solid #475569;box-shadow:0 16px 38px #000a;opacity:0;visibility:hidden;transform:translateY(-4px);transition:.14s;pointer-events:none;z-index:80;text-align:left}
+.research-wrap:hover .research-card{opacity:1;visibility:visible;transform:none;pointer-events:auto}
+.research-title{font-size:11px;font-weight:950;color:#f8fafc;border-bottom:1px solid #334155;padding-bottom:6px;margin-bottom:6px}
+.research-summary{font-size:10px;font-weight:800;color:#cbd5e1;line-height:1.55;margin-bottom:5px}
+.research-meta{font-size:8px;color:#64748b;margin-bottom:7px}
+.research-event{padding:6px 0;border-top:1px solid #1f3148;font-size:9px;line-height:1.45;color:#dbeafe}
+.research-event b{color:#94a3b8;margin-right:3px}.research-event span{display:block;color:#94a3b8;margin-top:2px}
+.research-event.positive div{color:#bbf7d0}.research-event.negative div{color:#fecaca}.research-event.mixed div{color:#fde68a}
+.research-empty{font-size:9px;color:#64748b;padding:6px 0}
+.research-sources{border-top:1px solid #334155;margin-top:5px;padding-top:6px;display:flex;flex-direction:column;gap:3px;font-size:8px}
+.research-sources b{color:#94a3b8}.research-sources a{color:#67e8f9;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.research-sources a:hover{text-decoration:underline;color:#a5f3fc}.research-sources.muted{color:#64748b}
 @media(max-width:1100px){.actions{min-width:0;width:100%;grid-template-columns:minmax(140px,1fr) minmax(185px,1.25fr) 126px 116px 110px}}
-@media(max-width:760px){.actions{grid-template-columns:1fr 1fr}.actions select,.search-box{grid-column:1/-1}}
+@media(max-width:760px){.actions{grid-template-columns:1fr 1fr}.actions select,.search-box{grid-column:1/-1}.research-card{right:auto;left:0;width:min(330px,84vw)}}
 
 /* v0.1.21 Gemini Interactions diagnostics */
-
-
+.research-error{margin:7px 0;padding:7px 8px;border:1px solid #f59e0b66;border-radius:7px;background:#7c2d1233;color:#fed7aa;font-size:10px;line-height:1.45;word-break:break-word}
+.research-error b{color:#fbbf24}
 
 /* v0.1.24 — human-readable US-stock research card */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+.research-pill.mixed{border-color:#eab308;color:#fde68a;background:#eab30814}
+.research-card{
+  width:460px;
+  max-height:560px;
+  padding:13px;
+  border-color:#52657f;
+  background:#0b1322fc;
+}
+.research-title{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;padding-bottom:8px;margin-bottom:8px}
+.research-title strong{font-size:12px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.research-title span{flex:0 0 auto;padding:2px 6px;border:1px solid #475569;border-radius:999px;color:#cbd5e1;font-size:8px}
+.research-verdict-line{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;margin-bottom:8px;border:1px solid #334155;border-radius:8px;background:#111c2d}
+.research-verdict-line>span{font-size:9px;color:#94a3b8;font-weight:800}
+.research-verdict-chip{font-size:10px;font-weight:950}.research-verdict-chip.strong-positive{color:#fde68a}.research-verdict-chip.positive{color:#86efac}.research-verdict-chip.mixed{color:#fde047}.research-verdict-chip.neutral{color:#cbd5e1}.research-verdict-chip.risk{color:#fdba74}.research-verdict-chip.high-risk{color:#fca5a5}
+.research-section{margin-top:8px;padding-top:8px;border-top:1px solid #243247}
+.research-section:first-of-type{margin-top:0}
+.research-section-title{display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#94a3b8;font-size:9px;font-weight:950;letter-spacing:.2px}
+.research-section-title small{padding:1px 5px;border:1px solid #334155;border-radius:999px;color:#64748b;font-size:7px}
+.research-overview{padding:8px 9px;border:1px solid #2f415a;border-radius:8px;background:#111c2d;margin-top:0}
+.research-summary{margin:0;color:#e2e8f0;font-size:10px;font-weight:750;line-height:1.65;white-space:normal;word-break:break-word}
+.research-manual-note{display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:7px 8px;border:1px solid #64748b55;border-radius:8px;background:#3341552b;font-size:9px;line-height:1.45}
+.research-manual-note b{flex:0 0 auto;color:#cbd5e1}.research-manual-note span{color:#94a3b8}
+.research-fact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.research-fact{min-width:0;padding:7px 8px;border:1px solid #334155;border-radius:7px;background:#101827}
+.research-fact span{display:block;margin-bottom:2px;color:#64748b;font-size:8px}.research-fact b{display:block;color:#e2e8f0;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.research-fact.beat b,.research-fact.raised b{color:#86efac}.research-fact.miss b,.research-fact.lowered b{color:#fca5a5}.research-fact.inline b,.research-fact.maintained b{color:#fde68a}
+.research-event{padding:8px 0;border-top:1px solid #1f3148;font-size:9px;line-height:1.45}.research-event:first-of-type{border-top:0}
+.research-event-head{display:flex;align-items:center;gap:5px;margin-bottom:4px}.research-event-head time{margin-left:auto;color:#64748b;font-size:8px;white-space:nowrap}
+.research-category,.research-impact{display:inline-flex;align-items:center;padding:2px 5px;border:1px solid #334155;border-radius:999px;font-size:8px;font-weight:900}
+.research-category{color:#cbd5e1;background:#172235}.research-impact.positive{border-color:#22c55e55;color:#86efac;background:#22c55e10}.research-impact.negative{border-color:#ef444455;color:#fca5a5;background:#ef444410}.research-impact.mixed{border-color:#eab30855;color:#fde68a;background:#eab30810}.research-impact.neutral{color:#94a3b8}
+.research-event-title{font-weight:900;color:#e2e8f0;font-size:10px}.research-event.positive .research-event-title{color:#bbf7d0}.research-event.negative .research-event-title{color:#fecaca}.research-event.mixed .research-event-title{color:#fde68a}
+.research-event-detail{margin-top:3px;color:#94a3b8;font-size:9px;line-height:1.55}
+.research-empty{padding:4px 0;color:#64748b;font-size:9px}
+.research-sources{display:block}.research-sources a{display:flex;align-items:center;gap:6px;margin-top:4px;padding:4px 6px;border-radius:6px;background:#0f1a2a;color:#67e8f9;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.research-sources a span{display:grid;place-items:center;flex:0 0 16px;height:16px;border-radius:999px;background:#164e63;color:#a5f3fc;font-weight:900}.research-sources.muted{font-size:8px;color:#64748b}
+.research-error{display:flex;flex-direction:column;gap:3px}.research-error span{word-break:break-word}
+.research-meta{margin-top:9px;padding-top:7px;border-top:1px solid #243247;color:#64748b;font-size:8px}
+@media(max-width:760px){.research-card{right:auto;left:0;width:min(440px,88vw);max-height:70vh}.research-fact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 
 
 
 /* v0.1.31 — on-demand per-symbol news search. Only S3 / S0.5 / S1 show this capsule. */
-
-
-
-
-
-
-
-
-
-
-/* v0.1.40 — news popup readability + sentiment counts */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* v0.1.41 — news popup larger typography only */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* v0.1.42 — stronger news article readability */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* v0.1.43 — HIGH READABILITY NEWS TEXT
-   Current live 20px title was technically applied, but body still looked small
-   because of muted color / lighter weight. This block increases both actual
-   size and perceived readability. */
-
-
-/* Tavily 重點 */
-
-
-/* 文章標題 */
-
-
-/* 文章正文 — 這是你黃色圈起來最難讀的區域 */
-
-
-/* 每篇文章本體 */
-
-
-/* 區塊標題：Tavily 搜尋結果 / 查證來源 */
-
-
-/* 日期 */
-
-
-/* 財報 / 利多 / 利空 標籤 */
-
-
-/* 查證來源 */
-
-
-/* 最下面 metadata */
-
-
-/* 上方情報方向區也同步稍微加大 */
-
-/* ============================================================
-   v0.1.44 — CANONICAL NEWS RESEARCH UI
-   唯一正式新聞樣式來源。
-   舊版重複 .research-* 已真正移除，不再疊 override。
-   ============================================================ */
-
-.research-wrap{
-  position:relative;
-  display:inline-flex;
-  z-index:7;
-}
-
-.research-pill{
-  font-weight:950;
-  cursor:help;
-  letter-spacing:.05px;
-}
-.research-pill small{font-size:10px;opacity:.75;margin-left:2px}
-.research-pill.strong-positive{border-color:#f59e0b;color:#fde68a;background:#f59e0b18;box-shadow:0 0 10px #f59e0b22}
-.research-pill.positive{border-color:#22c55e;color:#bbf7d0;background:#22c55e12}
-.research-pill.mixed{border-color:#eab308;color:#fde68a;background:#eab30814}
-.research-pill.neutral{border-color:#64748b;color:#e2e8f0;background:#64748b12}
-.research-pill.risk{border-color:#f97316;color:#fdba74;background:#f9731614}
-.research-pill.high-risk{border-color:#ef4444;color:#fecaca;background:#ef444414}
-
 .research-query-pill{
   position:relative;
   cursor:pointer;
@@ -667,7 +512,6 @@
 }
 .research-query-pill.is-busy{border-color:#facc15;color:#fef08a;background:#854d0e22;cursor:wait}
 .research-query-pill.is-error{border-color:#fb7185;color:#fecdd3;background:#88133722}
-
 @keyframes research-query-breathe{
   0%,100%{filter:brightness(.95);box-shadow:0 0 0 rgba(34,211,238,0)}
   50%{filter:brightness(1.18);box-shadow:0 0 14px rgba(34,211,238,.28)}
@@ -677,298 +521,41 @@
   45%{opacity:.30;transform:scale(1.04)}
   78%{opacity:0;transform:scale(1.12)}
 }
+@media(prefers-reduced-motion:reduce){.research-query-pill,.research-query-pill::after{animation:none!important}}
 
+
+/* v0.1.40 — news popup readability + sentiment counts */
 .research-card{
-  position:absolute;
-  right:0;
-  top:calc(100% + 7px);
-  width:900px;
-  max-width:94vw;
-  max-height:82vh;
-  overflow:auto;
-  padding:24px 26px;
-  border-radius:12px;
-  background:#0b1322fc;
-  border:1px solid #52657f;
-  box-shadow:0 16px 38px #000a;
-  opacity:0;
-  visibility:hidden;
-  transform:translateY(-4px);
-  transition:.14s;
-  pointer-events:none;
-  z-index:80;
-  text-align:left;
+  width:520px;
+  max-height:620px;
+  padding:15px;
 }
-.research-wrap:hover .research-card{
-  opacity:1;
-  visibility:visible;
-  transform:none;
-  pointer-events:auto;
-}
-
-.research-title{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding-bottom:12px;
-  margin-bottom:12px;
-  border-bottom:1px solid #334155;
-  font-size:18px;
-  font-weight:950;
-  color:#f8fafc;
-}
-.research-title strong{
-  font-size:20px;
-  color:#fff;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.research-title span{
-  flex:0 0 auto;
-  padding:4px 8px;
-  border:1px solid #475569;
-  border-radius:999px;
-  color:#cbd5e1;
-  font-size:13px;
-}
-
-.research-verdict-line{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  flex-wrap:wrap;
-  padding:12px 14px;
-  margin-bottom:12px;
-  border:1px solid #334155;
-  border-radius:9px;
-  background:#111c2d;
-}
-.research-verdict-line>span{font-size:16px;color:#94a3b8;font-weight:850}
-.research-verdict-chip{font-size:13px;font-weight:950}
-.research-verdict-chip.strong-positive{color:#fde68a}
-.research-verdict-chip.positive{color:#86efac}
-.research-verdict-chip.mixed{color:#fde047}
-.research-verdict-chip.neutral{color:#cbd5e1}
-.research-verdict-chip.risk{color:#fdba74}
-.research-verdict-chip.high-risk{color:#fca5a5}
-
-.research-impact-counts{
-  display:flex;
-  align-items:center;
-  gap:7px;
-  flex-wrap:wrap;
-  margin-left:auto;
-}
-.research-impact-counts em{
-  font-style:normal;
-  font-size:12px;
-  font-weight:900;
-  padding:3px 7px;
-  border-radius:999px;
-  border:1px solid #334155;
-  background:#0f1a2a;
-}
+.research-title{font-size:13px;padding-bottom:9px;margin-bottom:9px}
+.research-title strong{font-size:14px}
+.research-title span{font-size:10px;padding:3px 7px}
+.research-verdict-line{gap:8px;padding:9px 10px;flex-wrap:wrap}
+.research-verdict-line>span{font-size:11px}
+.research-verdict-chip{font-size:12px}
+.research-impact-counts{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-left:auto}
+.research-impact-counts em{font-style:normal;font-size:10px;font-weight:900;padding:2px 6px;border-radius:999px;border:1px solid #334155;background:#0f1a2a}
 .research-impact-counts .positive{color:#86efac;border-color:#22c55e55}
 .research-impact-counts .negative{color:#fca5a5;border-color:#ef444455}
 .research-impact-counts .neutral{color:#cbd5e1}
 .research-impact-counts .mixed{color:#fde68a;border-color:#eab30855}
-
-.research-section{
-  margin-top:14px;
-  padding-top:14px;
-  border-top:1px solid #243247;
-}
-.research-section:first-of-type{margin-top:0}
-.research-section-title{
-  display:flex;
-  align-items:center;
-  gap:7px;
-  margin-bottom:10px;
-  color:#94a3b8;
-  font-size:18px;
-  font-weight:950;
-  letter-spacing:.2px;
-}
-.research-section-title small{
-  padding:2px 7px;
-  border:1px solid #334155;
-  border-radius:999px;
-  color:#64748b;
-  font-size:12px;
-}
-
-.research-overview{
-  padding:15px 16px;
-  border:1px solid #2f415a;
-  border-radius:9px;
-  background:#111c2d;
-  margin-top:0;
-}
-
-/* 紅框：Tavily 重點 */
-.research-summary{
-  margin:0;
-  font-size:24px;
-  line-height:1.72;
-  font-weight:700;
-  color:#f1f5f9;
-  white-space:normal;
-  word-break:break-word;
-}
-
-.research-fact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
-.research-fact{min-width:0;padding:8px 9px;border:1px solid #334155;border-radius:7px;background:#101827}
-.research-fact span{display:block;margin-bottom:3px;color:#64748b;font-size:13px}
-.research-fact b{display:block;color:#e2e8f0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.research-fact.beat b,.research-fact.raised b{color:#86efac}
-.research-fact.miss b,.research-fact.lowered b{color:#fca5a5}
-.research-fact.inline b,.research-fact.maintained b{color:#fde68a}
-
-.research-event{
-  padding:19px 0 21px;
-  border-top:1px solid #1f3148;
-  font-size:24px;
-  line-height:1.72;
-  color:#dbeafe;
-}
-.research-event:first-of-type{border-top:0}
-.research-event-head{display:flex;align-items:center;gap:7px;margin-bottom:9px}
-.research-event-head time{margin-left:auto;color:#94a3b8;font-size:16px;white-space:nowrap}
-
-.research-category,
-.research-impact{
-  display:inline-flex;
-  align-items:center;
-  padding:5px 9px;
-  border:1px solid #334155;
-  border-radius:999px;
-  font-size:16px;
-  font-weight:900;
-}
-.research-category{color:#cbd5e1;background:#172235}
-.research-impact.positive{border-color:#22c55e55;color:#86efac;background:#22c55e10}
-.research-impact.negative{border-color:#ef444455;color:#fca5a5;background:#ef444410}
-.research-impact.mixed{border-color:#eab30855;color:#fde68a;background:#eab30810}
-.research-impact.neutral{color:#94a3b8}
-
-/* 每篇文章標題 */
-.research-event-title{
-  font-size:24px;
-  line-height:1.52;
-  font-weight:950;
-  color:#e2e8f0;
-}
-.research-event.positive .research-event-title{color:#bbf7d0}
-.research-event.negative .research-event-title{color:#fecaca}
-.research-event.mixed .research-event-title{color:#fde68a}
-
-/* 文章正文：使用者指定放大 */
-.research-event-detail{
-  margin-top:10px;
-  font-size:30px;
-  line-height:1.78;
-  font-weight:700;
-  color:#f1f5f9;
-  letter-spacing:.02px;
-}
-
-.research-empty{padding:6px 0;color:#64748b;font-size:16px}
-
-.research-sources{display:block}
-.research-sources a{
-  display:flex;
-  align-items:center;
-  gap:7px;
-  margin-top:6px;
-  padding:9px 10px;
-  border-radius:7px;
-  background:#0f1a2a;
-  color:#67e8f9;
-  text-decoration:none;
-  font-size:18px;
-  line-height:1.5;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.research-sources a:hover{text-decoration:underline;color:#a5f3fc}
-.research-sources a span{
-  display:grid;
-  place-items:center;
-  flex:0 0 22px;
-  height:22px;
-  border-radius:999px;
-  background:#164e63;
-  color:#a5f3fc;
-  font-weight:900;
-}
-.research-sources.muted{font-size:14px;color:#64748b}
-
-.research-error{
-  display:flex;
-  flex-direction:column;
-  gap:3px;
-  margin:8px 0;
-  padding:8px 9px;
-  border:1px solid #f59e0b66;
-  border-radius:7px;
-  background:#7c2d1233;
-  color:#fed7aa;
-  font-size:14px;
-  line-height:1.5;
-  word-break:break-word;
-}
-.research-error b{color:#fbbf24}
-.research-error span{word-break:break-word}
-
-.research-manual-note{
-  display:flex;
-  gap:8px;
-  align-items:flex-start;
-  margin-top:9px;
-  padding:8px 9px;
-  border:1px solid #64748b55;
-  border-radius:8px;
-  background:#3341552b;
-  font-size:14px;
-  line-height:1.5;
-}
-.research-manual-note b{flex:0 0 auto;color:#cbd5e1}
-.research-manual-note span{color:#94a3b8}
-
-.research-meta{
-  margin-top:11px;
-  padding-top:9px;
-  border-top:1px solid #243247;
-  color:#64748b;
-  font-size:13px;
-  line-height:1.6;
-}
-
-/* 窄視窗只改卡片尺寸，不再改新聞字體 */
-@media(max-width:1100px){
-  .research-card{
-    right:auto;
-    left:0;
-    width:min(900px,94vw);
-  }
-}
-@media(max-width:760px){
-  .research-card{
-    width:95vw;
-    max-height:82vh;
-    padding:18px;
-  }
-  .research-fact-grid{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-}
-@media(prefers-reduced-motion:reduce){
-  .research-query-pill,
-  .research-query-pill::after{
-    animation:none;
-  }
-}
+.research-section{margin-top:10px;padding-top:10px}
+.research-section-title{font-size:11px;margin-bottom:7px}
+.research-section-title small{font-size:9px;padding:2px 6px}
+.research-overview{padding:10px 11px}
+.research-summary{font-size:12px;line-height:1.72}
+.research-event{padding:10px 0;font-size:11px;line-height:1.55}
+.research-event-head{gap:6px;margin-bottom:5px}
+.research-event-head time{font-size:10px}
+.research-category,.research-impact{font-size:10px;padding:3px 6px}
+.research-event-title{font-size:12px;line-height:1.55}
+.research-event-detail{font-size:11px;line-height:1.65;margin-top:4px}
+.research-empty{font-size:11px}
+.research-sources a{font-size:10px;padding:6px 7px;margin-top:5px}
+.research-sources a span{flex-basis:19px;height:19px}
+.research-meta{font-size:9px;line-height:1.5}
+.research-manual-note{font-size:10px}
+@media(max-width:760px){.research-card{width:min(520px,92vw);max-height:74vh}}

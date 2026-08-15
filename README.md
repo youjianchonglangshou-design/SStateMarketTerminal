@@ -392,3 +392,15 @@ Fix:
 - sentiment pills stay compact 11–12px
 - sources 14px
 - no Tavily / Worker / R2 / news logic changes
+
+
+## v0.1.47 MODAL-COLOR-STYLES-RESTORE
+
+- `styles.css` 已直接從 v0.1.40 完整包復原，不是手動猜回去。
+- 復原 SHA256：`0fe172a52a919cfba0b3deb3dfc5fc6274feb771d7c7efabfc4a7ca86ff7e2ee`
+- 文章彈窗字體仍由 `research-modal.css` 控制。
+- 利多：文章標題 + 正文綠色。
+- 利空：文章標題 + 正文紅色。
+- 混合：文章標題 + 正文黃色。
+- 中性：文章標題 + 正文灰白。
+- 不修改 Tavily / Worker / R2 / 文章判斷邏輯。

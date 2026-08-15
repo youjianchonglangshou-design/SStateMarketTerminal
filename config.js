@@ -2,5 +2,5 @@ window.SSTATE_CONFIG = {
   workerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev",
   defaultMarket: "crypto",
   pollIntervalMs: 4000,
-  appVersion: "TERMINAL v0.1.46｜MODAL-TYPOGRAPHY-FIX"
+  appVersion: "TERMINAL v0.1.47｜MODAL-COLOR-STYLES-RESTORE"
 };

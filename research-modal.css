@@ -247,3 +247,25 @@ body.research-modal-open .tv-crosshair{
 .research-card-modal .research-sources.muted{font-size:14px !important}
 
 .research-card-modal .research-meta{font-size:11px !important}
+
+/* v0.1.47 — article title + body follow impact color in the actual modal */
+.research-card-modal .research-event.positive .research-event-title,
+.research-card-modal .research-event.positive .research-event-detail{
+  color:#bbf7d0 !important;
+}
+
+.research-card-modal .research-event.negative .research-event-title,
+.research-card-modal .research-event.negative .research-event-detail{
+  color:#fecaca !important;
+}
+
+.research-card-modal .research-event.mixed .research-event-title,
+.research-card-modal .research-event.mixed .research-event-detail{
+  color:#fde68a !important;
+}
+
+.research-card-modal .research-event.neutral .research-event-title,
+.research-card-modal .research-event.neutral .research-event-detail{
+  color:#e2e8f0 !important;
+}
+

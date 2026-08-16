@@ -30,7 +30,7 @@ export default {
 
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), news_pipeline: RESEARCH_PIPELINE_VERSION, workers_ai_binding_optional: Boolean(env.AI) }, 200, origin);
+        return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), news_pipeline: RESEARCH_PIPELINE_VERSION }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -547,8 +547,6 @@ async function startAnalysis(request, env, origin) {
 }
 
 const RESEARCH_PROVIDER = "Tavily Search + Answer";
-const RESEARCH_GLM_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
-const RESEARCH_FALLBACK_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
@@ -2181,20 +2179,6 @@ const RESEARCH_ASSET_IDENTITIES = {
   }
 };
 
-const RESEARCH_SOCIAL_DOMAINS = ["instagram.com","facebook.com","reddit.com","x.com","twitter.com","tiktok.com","youtube.com","threads.com","moomoo.com"];
-const RESEARCH_EVENT_WORDS = [
-  "earnings","revenue","profit","guidance","forecast","quarter","results","launch","announces","announcement","product","partnership","contract","deal","agreement","acquisition","acquire","merger","investment","lawsuit","sues","settlement","regulation","regulatory","sec","antitrust","upgrade","downgrade","price target","財報","營收","獲利","財測","法說","發布","推出","產品","合作","合約","協議","收購","併購","投資","訴訟","監管","反壟斷","升評","降評","目標價","關閉","裁員","漲價","調價"
-];
-const RESEARCH_CORE_EVENT_WORDS = [
-  "earnings","revenue","guidance","quarterly results","official announcement","launch","product","pricing","price increase","partnership","contract","agreement","acquisition","merger","investment","lawsuit filed","sued","settlement","regulator","regulation","antitrust","sec filing","analyst upgrade","analyst downgrade","price target raised","price target cut","財報","營收","財測","法說","官方公告","發布","推出","產品","漲價","調價","合作","合約","協議","收購","併購","投資","提告","訴訟","和解","監管","反壟斷","升評","降評","目標價上調","目標價下調","關閉據點","裁員"
-];
-const RESEARCH_PRICE_COMMENTARY = [
-  "is it too late to buy","should you buy","stock a buy","buy this stock","stock price prediction","technical analysis","options flow","valuation","overvalued","undervalued","price action","price forecast","是否值得買","還能不能買","現在能不能追","技術分析","選擇權流量","價格預測","估值","股價還有沒有","能不能買"
-];
-const RESEARCH_AGGREGATOR_MARKERS = [
-  "latest headlines","people also follow","similar to","etfs holding","find & compare","subscriptions","investing groups","portfolios","analyst insights","statistics","balance sheet","cash flow annual","cash flow quarterly","share this article","全站最新","每日簽到","資券日報","盤後","主動式etf","期指"
-];
-
 function researchState(row) {
   return String(row?.opportunity_long?.market_state_id || "OTHER");
 }
@@ -2263,7 +2247,7 @@ function researchCompanyProfile(symbol) {
 
 function researchFresh(item, nowMs = Date.now()) {
   if (!item || typeof item !== "object") return false;
-  // Provider migration: do not keep an old Groq cache alive after Tavily is deployed.
+  // Only current Tavily pipeline entries are eligible for the 24H cache.
   if (item.api !== "tavily-search-api") return false;
   if (item.pipeline_version !== RESEARCH_PIPELINE_VERSION) return false;
   const direct = Date.parse(item.expires_at || "");
@@ -2320,41 +2304,9 @@ function researchTextHasAlias(text, alias) {
   return hay.toLowerCase().includes(needle.toLowerCase());
 }
 
-function researchCountAliasHits(text, aliases) {
-  const hay = String(text || "");
-  let total = 0;
-  for (const alias of aliases || []) {
-    const needle = String(alias || "").trim();
-    if (!needle) continue;
-    if (/^[A-Za-z0-9._-]{1,7}$/.test(needle)) {
-      const rx = new RegExp(`(^|[^A-Za-z0-9])${researchEscapeRx(needle)}([^A-Za-z0-9]|$)`, "ig");
-      total += (hay.match(rx) || []).length;
-    } else {
-      const lowerHay = hay.toLowerCase();
-      const lowerNeedle = needle.toLowerCase();
-      let pos = 0;
-      while ((pos = lowerHay.indexOf(lowerNeedle, pos)) !== -1) {
-        total++;
-        pos += lowerNeedle.length;
-      }
-    }
-  }
-  return total;
-}
-
 function researchContainsAny(text, words) {
   const hay = String(text || "").toLowerCase();
   return (words || []).some(word => hay.includes(String(word || "").toLowerCase()));
-}
-
-function researchHost(url) {
-  try { return new URL(String(url || "")).hostname.toLowerCase(); }
-  catch (_) { return ""; }
-}
-
-function researchAgeDays(raw) {
-  const ms = Date.parse(raw || "");
-  return Number.isFinite(ms) ? (Date.now() - ms) / 86400000 : null;
 }
 
 function researchParseExplicitEventDate(text) {
@@ -2379,157 +2331,6 @@ function researchParseExplicitEventDate(text) {
     if (!Number.isNaN(d.getTime())) return d;
   }
   return null;
-}
-
-function researchEventDateTooOld(item, maxDays=8) {
-  const title = String(item?.title || "");
-  const lead = String(item?.content || "").slice(0, 500);
-  const d = researchParseExplicitEventDate(title) || researchParseExplicitEventDate(lead);
-  if (!d) return false;
-  return (Date.now() - d.getTime()) / 86400000 > maxDays;
-}
-
-function researchIsLandingOrQuotePage(item) {
-  const url = String(item?.url || "");
-  const title = String(item?.title || "");
-  if (/\bstock price\b|\bstock quote\b|\bprice and forecast\b|\bprice & overview\b|\blatest stock news\b|\bcompany profile\b|\bstock overview\b|股票報價|股價與概覽|最新股票新聞/i.test(title)) return true;
-  if (/finance\.yahoo\.com\/quote\//i.test(url)) return true;
-  if (/seekingalpha\.com\/symbol\/[^/]+\/?$/i.test(url)) return true;
-  if (/seekingalpha\.com\/symbol\/[^/]+\/news\/?$/i.test(url)) return true;
-  if (/cnn\.com\/markets\/stocks\/[^/?#]+\/?$/i.test(url)) return true;
-  if (/reuters\.com\/markets\/companies\/[^/?#]+\/?$/i.test(url)) return true;
-  if (/marketbeat\.com\/stocks\/[^/]+\/[^/]+\/news\/?$/i.test(url)) return true;
-  if (/tradingkey\.com\/markets\/stocks\/[^/]+\/news\/?$/i.test(url)) return true;
-  if (/\/news-and-events\/news\/default\.aspx(?:[?#].*)?$/i.test(url)) return true;
-  if (/markets\.financialcontent\.com\/.*\/quote\/news/i.test(url)) return true;
-  return false;
-}
-
-function researchTitleDirectCompany(item, profile) {
-  const title = String(item?.title || "");
-  return (profile?.match_aliases || profile?.aliases || []).some(alias => researchTextHasAlias(title, alias));
-}
-
-function researchTitleStrongCompanyEvent(item, profile) {
-  return researchTitleDirectCompany(item, profile) && researchContainsAny(item?.title || "", RESEARCH_EVENT_WORDS);
-}
-
-function researchArticleLikeUrl(item) {
-  let path = "";
-  try { path = new URL(String(item?.url || "")).pathname.toLowerCase(); } catch (_) {}
-  return /\/article\//.test(path) || /\/articles\//.test(path) || /\/news\/id\//.test(path) || /\/news\/\d+/.test(path) || /\/story\//.test(path) || /\/\d{4}\/\d{2}\/\d{2}\//.test(path) || /\/press-releases?\//.test(path);
-}
-
-function researchLooksLikeAggregationPage(item, profile) {
-  const lead = String(item?.content || "").slice(0, 1900).toLowerCase();
-  if (researchArticleLikeUrl(item) && researchTitleStrongCompanyEvent(item, profile)) return false;
-  const markerHits = RESEARCH_AGGREGATOR_MARKERS.filter(m => lead.includes(m)).length;
-  const headingCount = (lead.match(/###/g) || []).length;
-  return markerHits >= 3 || headingCount >= 6;
-}
-
-function researchIsPriceCommentary(item) {
-  return researchContainsAny(item?.title || "", RESEARCH_PRICE_COMMENTARY);
-}
-
-function researchIsLawFirmSolicitation(item) {
-  const text = `${String(item?.title || "")}\n${String(item?.content || "").slice(0, 1600)}`.toLowerCase();
-  return ["deadline notice","lead plaintiff deadline","secure counsel","contact the firm","investors with losses","stockholders with losses","reminds investors","encourages investors","investor alert","trial attorneys","law firm urges","law firm reminds"].some(x => text.includes(x));
-}
-
-function researchIsInstitutionHoldingStory(item) {
-  const title = String(item?.title || "").toLowerCase();
-  return ["shares purchased by","shares sold by","stake increased by","stake reduced by","position increased by","position reduced by","asset management","institutional investor","insider sold","insider trading","insider sale"].some(x => title.includes(x));
-}
-
-function researchIsAnalystConsensusOnly(item) {
-  const text = `${String(item?.title || "")}\n${String(item?.content || "").slice(0, 900)}`.toLowerCase();
-  if (!/analysts?|price target|upside|consensus|rating/.test(text)) return false;
-  const explicit = /(upgrade[sd]?|downgrade[sd]?|raise[sd]? (?:its )?price target|lower(?:ed|s)? (?:its )?price target|price target (?:raised|cut|lowered)|initiated coverage|reiterated (?:buy|sell|hold))/i.test(text);
-  if (explicit) return false;
-  return /analysts?, one verdict|all \d+ analysts|all analysts covering|average price target|consensus|upside isn.t done|implying \d+% upside/i.test(text);
-}
-
-function researchLooksLikeMultiStoryFeed(item) {
-  const lead = String(item?.content || "").slice(0, 1600).toLowerCase();
-  const feedMarkers = ["hours ago","hour ago","全站最新","盤後","資券日報","每日簽到","主動式etf","期指","hot news","latest news","more news","下一則","上一篇","下一篇"];
-  const markerHits = feedMarkers.filter(x => lead.includes(x)).length;
-  const headingCount = (lead.match(/###/g) || []).length;
-  const numberedNewsCount = (lead.match(/\b\d+\s+/g) || []).length;
-  return markerHits >= 2 || headingCount >= 5 || numberedNewsCount >= 8;
-}
-
-function researchBodyFocusMismatch(item, profile) {
-  const title = String(item?.title || "");
-  const lead = String(item?.content || "").slice(0, 1400);
-  const titleHits = researchCountAliasHits(title, profile?.match_aliases || profile?.aliases || []);
-  const leadHits = researchCountAliasHits(lead, profile?.match_aliases || profile?.aliases || []);
-  if (titleHits > 0 && leadHits === 0) return true;
-  if (researchLooksLikeMultiStoryFeed(item) && leadHits <= 1) return true;
-  return false;
-}
-
-function researchHardGate(item, profile) {
-  const host = researchHost(item?.url);
-  const social = RESEARCH_SOCIAL_DOMAINS.some(d => host === d || host.endsWith(`.${d}`));
-  const reasons = [];
-  if (!researchTitleDirectCompany(item, profile)) reasons.push("標題沒有直接指向該公司/別名");
-  if (researchIsLandingOrQuotePage(item)) reasons.push("股票首頁/報價/公司資料頁");
-  if (researchLooksLikeAggregationPage(item, profile)) reasons.push("新聞索引/聚合頁");
-  if (researchEventDateTooOld(item, 8)) reasons.push("文章雖新，但事件日期已超過 8 天");
-  if (social) reasons.push("社群/討論區");
-  if (researchIsPriceCommentary(item)) reasons.push("股價/估值/是否值得買等投資評論");
-  if (researchIsLawFirmSolicitation(item)) reasons.push("律師事務所 Deadline / Investor Alert 招攬");
-  if (researchIsInstitutionHoldingStory(item)) reasons.push("機構持倉/內部人交易，不是公司營運事件");
-  if (researchIsAnalystConsensusOnly(item)) reasons.push("分析師共識/目標價彙整，不是新的升降評動作");
-  if (researchBodyFocusMismatch(item, profile)) reasons.push("標題像公司新聞，但正文前段與該公司不一致/疑似多則新聞 Feed");
-  return { pass: reasons.length === 0, reasons };
-}
-
-function researchScoreItem(item, profile) {
-  const gate = researchHardGate(item, profile);
-  if (!gate.pass) return { score:-99, keep:false, reasons:[], bad:gate.reasons.map(x => `硬淘汰：${x}`) };
-
-  let score = 0;
-  const reasons = [];
-  const bad = [];
-  const title = String(item?.title || "");
-  const content = String(item?.content || "");
-  const coreEvent = researchContainsAny(title, RESEARCH_CORE_EVENT_WORDS) || researchContainsAny(content.slice(0, 900), RESEARCH_CORE_EVENT_WORDS);
-  const concreteEvent = researchContainsAny(title, RESEARCH_EVENT_WORDS) || researchContainsAny(content.slice(0, 650), RESEARCH_EVENT_WORDS);
-  const age = researchAgeDays(item?.published_date || item?.publishedDate);
-
-  if (researchTitleDirectCompany(item, profile)) { score += 8; reasons.push("標題直接命中公司/別名 +8"); }
-  if (coreEvent) { score += 6; reasons.push("核心公司事件 +6"); }
-  if (concreteEvent) { score += 3; reasons.push("標題/前段有具體事件 +3"); }
-  if (age != null && age >= -1 && age <= 8) { score += 2; reasons.push("最近 8 天 +2"); }
-  const tavilyScore = Number(item?.score);
-  if (Number.isFinite(tavilyScore)) {
-    if (tavilyScore >= 0.5) { score += 2; reasons.push("Tavily 高相關 +2"); }
-    else if (tavilyScore < 0.15) { score -= 2; bad.push("Tavily 低相關 -2"); }
-  }
-  if (!coreEvent && !concreteEvent) return { score, keep:false, reasons, bad:[...bad,"沒有足夠明確的公司事件"] };
-  return { score, keep:score >= 10, reasons, bad };
-}
-
-function researchRankResults(results, profile) {
-  const seen = new Set();
-  const rows = (Array.isArray(results) ? results : []).map((item, index) => {
-    const verdict = researchScoreItem(item, profile);
-    return { ...item, _index:index, _score:verdict.score, _keep:verdict.keep, _reasons:verdict.reasons, _bad:verdict.bad };
-  }).sort((a,b) => b._score - a._score);
-  const kept = [];
-  const rejected = [];
-  for (const row of rows) {
-    const key = `${String(row.title || "").toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g," ").trim().slice(0,90)}|${researchHost(row.url)}`;
-    if (row._keep && seen.has(key)) {
-      row._keep = false;
-      row._bad = [...(row._bad || []), "疑似重複來源"];
-    }
-    if (row._keep) { seen.add(key); kept.push(row); }
-    else rejected.push(row);
-  }
-  return { kept:kept.slice(0,3), rejected };
 }
 
 
@@ -2645,7 +2446,7 @@ function researchDisplayFields(payloadAnswer, kept, profile) {
   let summary = kept?.length ? answer : "";
   if (!summary || !researchHasCjk(summary)) {
     summary = kept?.length
-      ? `最近 7 天找到 ${kept.length} 則符合條件的重大事件；已由 JS Hard Gate 驗證來源，繁體中文事件重點顯示於下方。`
+      ? `最近 7 天 Tavily 找到 ${kept.length} 則相關新聞；繁體中文重點顯示於下方。`
       : `最近 7 天未找到符合條件的 ${profile.company_name} 重大事件；不硬湊。`;
   }
   return { summary_zh_tw:researchToTraditionalChinese(summary).slice(0, 1100), displays };
@@ -2756,349 +2557,6 @@ function researchBuildQuery(profile) {
   return `搜尋 ${profile.company_name} (${profile.qualified_ticker || profile.underlying_ticker}) 最近 7 天直接相關的重大市場事件。\n\n標的身分（必須以此為準）：\n${identity}\n\n可能名稱：${aliases}\n\n只保留可驗證且直接相關的重大事件，且用繁體中文顯示`;
 }
 
-function researchStripCodeFence(value) {
-  return String(value || "").trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
-
-function researchIsExpectedGlmObject(value) {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    (Array.isArray(value.events) || Object.prototype.hasOwnProperty.call(value, "summary_zh_tw") || Object.prototype.hasOwnProperty.call(value, "verdict"))
-  );
-}
-
-function researchGlmOutputText(value) {
-  if (typeof value === "string") return value;
-  if (!value || typeof value !== "object") return "";
-
-  // Cloudflare GLM-4.7-Flash synchronous output follows chat-completions shape:
-  // choices[0].message.content. Older Workers AI models may expose response/result.
-  const direct = [value.response, value.result, value.output_text, value.text];
-  for (const part of direct) {
-    if (typeof part === "string" && part.trim()) return part;
-  }
-
-  const message = value?.choices?.[0]?.message;
-  if (typeof message?.content === "string" && message.content.trim()) return message.content;
-  if (Array.isArray(message?.content)) {
-    const joined = message.content.map(part => {
-      if (typeof part === "string") return part;
-      if (part && typeof part === "object") return String(part.text || part.content || "");
-      return "";
-    }).join("\n").trim();
-    if (joined) return joined;
-  }
-
-  const choiceText = value?.choices?.[0]?.text;
-  return typeof choiceText === "string" ? choiceText : "";
-}
-
-function researchParseGlmJson(value) {
-  if (researchIsExpectedGlmObject(value)) return value;
-
-  // Workers AI JSON Mode commonly returns { response: { ...validated object... } }.
-  // Also accept result/data object wrappers for forward compatibility.
-  const objectWrappers = [value?.response, value?.result, value?.data];
-  for (const wrapped of objectWrappers) {
-    if (researchIsExpectedGlmObject(wrapped)) return wrapped;
-  }
-
-  const raw = researchStripCodeFence(researchGlmOutputText(value));
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (researchIsExpectedGlmObject(parsed)) return parsed;
-    if (researchIsExpectedGlmObject(parsed?.response)) return parsed.response;
-  } catch (_) {}
-  const first = raw.indexOf("{");
-  const last = raw.lastIndexOf("}");
-  if (first >= 0 && last > first) {
-    try {
-      const parsed = JSON.parse(raw.slice(first, last + 1));
-      if (researchIsExpectedGlmObject(parsed)) return parsed;
-      if (researchIsExpectedGlmObject(parsed?.response)) return parsed.response;
-    } catch (_) {}
-  }
-  return null;
-}
-
-function researchCompactGlmCandidates(candidates) {
-  return candidates.map(item => ({
-    source_index: item.source_index,
-    title: item.title,
-    url: item.url,
-    published_date: item.published_date,
-    tavily_score: item.tavily_score,
-    content: String(item.content || "").slice(0, 1100),
-  }));
-}
-
-function researchGlmUsageSummary(firstUsage, retryUsage, attempts) {
-  const a = firstUsage && typeof firstUsage === "object" ? firstUsage : {};
-  const b = retryUsage && typeof retryUsage === "object" ? retryUsage : {};
-  const add = key => (Number(a[key]) || 0) + (Number(b[key]) || 0);
-  return {
-    attempts,
-    prompt_tokens: add("prompt_tokens"),
-    completion_tokens: add("completion_tokens"),
-    total_tokens: add("total_tokens"),
-    neurons: add("neurons"),
-    first: firstUsage || null,
-    retry: retryUsage || null,
-  };
-}
-
-function researchNormalizeImpact(value) {
-  const v = String(value || "neutral").toLowerCase();
-  return ["positive","negative","neutral","mixed"].includes(v) ? v : "neutral";
-}
-
-function researchNormalizeVerdict(value) {
-  const v = String(value || "neutral").toLowerCase();
-  return ["positive","mixed","neutral","risk","high_risk"].includes(v) ? v : "neutral";
-}
-
-function researchNormalizeCategory(value, item, profile) {
-  const v = String(value || "").trim();
-  const allowed = new Set(["earnings","guidance","company_catalyst","analyst","regulatory","legal","fund_event","commodity_supply","policy_macro","industry"]);
-  return allowed.has(v) ? v : researchEventCategory(item, profile);
-}
-
-function researchGlmCandidate(item, index) {
-  return {
-    source_index: index + 1,
-    title: String(item?.title || "").slice(0, 500),
-    url: String(item?.url || ""),
-    published_date: String(item?.published_date || item?.publishedDate || "").slice(0, 90),
-    tavily_score: Number.isFinite(Number(item?.score)) ? Number(item.score) : null,
-    content: String(item?.content || "").slice(0, 2400),
-  };
-}
-
-
-function researchNewsJsonSchema() {
-  return {
-    type: "object",
-    properties: {
-      summary_zh_tw: { type: "string" },
-      verdict: {
-        type: "string",
-        enum: ["positive", "mixed", "neutral", "risk", "high_risk"]
-      },
-      events: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            source_index: { type: "integer" },
-            category: {
-              type: "string",
-              enum: [
-                "earnings","guidance","company_catalyst","analyst",
-                "regulatory","legal","fund_event","commodity_supply",
-                "policy_macro","industry"
-              ]
-            },
-            date: { type: "string" },
-            impact: {
-              type: "string",
-              enum: ["positive","negative","neutral","mixed"]
-            },
-            display_title_zh_tw: { type: "string" },
-            display_detail_zh_tw: { type: "string" }
-          },
-          required: [
-            "source_index","category","date","impact",
-            "display_title_zh_tw","display_detail_zh_tw"
-          ]
-        }
-      },
-      rejected: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            source_index: { type: "integer" },
-            reason_zh_tw: { type: "string" }
-          },
-          required: ["source_index","reason_zh_tw"]
-        }
-      }
-    },
-    required: ["summary_zh_tw","verdict","events","rejected"]
-  };
-}
-
-async function researchGlmFilter(env, profile, query, payload) {
-  if (!env.AI || typeof env.AI.run !== "function") {
-    throw httpError(500, "Worker 缺少 Workers AI binding：請新增名為 AI 的 Workers AI binding");
-  }
-
-  const candidates = (Array.isArray(payload?.results) ? payload.results : []).map(researchGlmCandidate);
-  if (!candidates.length) {
-    return {
-      summary_zh_tw: "最近 7 天沒有找到可供判讀的候選來源。",
-      verdict: "neutral",
-      events: [],
-      rejected: [],
-      raw: "",
-      usage: null,
-    };
-  }
-
-  const systemPrompt = `你是嚴格的金融新聞審核與繁體中文整理模型。Tavily 已經完成搜尋；你不能再搜尋，也不能使用候選來源以外的知識補故事。\n\n你的任務：\n1. 完整遵守使用者的「原始搜尋指令」。\n2. 從所有候選來源中，保留真正符合條件的重大事件；不要因為標題提到股票就保留。\n3. 同一事件若有多個來源，合併成一則並選資訊最完整、最直接的 source_index。\n4. 不設定固定保留數量：有幾則真正符合就保留幾則；沒有就回空陣列。不要硬湊。\n5. 事件本身必須發生在最近 7 天；新文章重講舊事件要淘汰。\n6. 排除新聞索引頁、Quote/Profile、技術分析、是否值得買、純股價評論、社群傳聞、律師事務所招攬、無關公司、只有機構持倉/內部人交易而沒有重大公司事件的文章。\n7. 分析師事件只保留最近 7 天真正新發生的升評、降評或目標價異動，不保留共識彙整文。\n8. 每一則保留事件必須綁定候選中的 source_index。不得發明 URL、數字、日期、公司行動。\n9. display_title_zh_tw、display_detail_zh_tw、summary_zh_tw 必須使用台灣繁體中文（zh-TW）；英文原文只留在來源欄，不要直接複製成顯示文字。\n10. impact 是事件本身對標的基本面/營運的方向，不是單純看當天股價漲跌。\n\n只輸出 JSON，不要 Markdown。JSON 格式：\n{\n  "summary_zh_tw": "整體重點，繁體中文",\n  "verdict": "positive|mixed|neutral|risk|high_risk",\n  "events": [\n    {\n      "source_index": 1,\n      "category": "earnings|guidance|company_catalyst|analyst|regulatory|legal|fund_event|commodity_supply|policy_macro|industry",\n      "date": "YYYY-MM-DD 或空字串",\n      "impact": "positive|negative|neutral|mixed",\n      "display_title_zh_tw": "繁體中文事件標題",\n      "display_detail_zh_tw": "繁體中文摘要，只寫來源能支持的事實"\n    }\n  ],\n  "rejected": [\n    {"source_index": 2, "reason_zh_tw": "淘汰原因"}\n  ]\n}`;
-
-  const userPayload = {
-    target: {
-      symbol: profile.symbol,
-      underlying_ticker: profile.underlying_ticker,
-      company_name: profile.company_name,
-      aliases: profile.aliases,
-      asset_type: profile.asset_type,
-      focus: profile.focus || "",
-    },
-    original_instruction: query,
-    candidate_count: candidates.length,
-    candidates,
-  };
-
-  const jsonSchema = researchNewsJsonSchema();
-
-  const firstRequest = {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(userPayload) },
-    ],
-    temperature: 0,
-    max_tokens: 1800,
-    response_format: {
-      type: "json_schema",
-      json_schema: jsonSchema,
-    },
-  };
-
-  let aiOut = null;
-  let firstOut = null;
-  let retryOut = null;
-  let parsed = null;
-  let attempts = 0;
-  let primaryError = null;
-
-  // Primary: cheap non-reasoning Llama 3.1 8B Fast, officially supported by
-  // Workers AI JSON Mode. We require a validated schema instead of hoping the
-  // model prints parseable JSON after free-form reasoning.
-  try {
-    attempts = 1;
-    aiOut = await env.AI.run(RESEARCH_GLM_MODEL, firstRequest);
-    firstOut = aiOut;
-    parsed = researchParseGlmJson(aiOut);
-  } catch (err) {
-    primaryError = String(err?.message || err || "");
-  }
-
-  // Fallback: Llama 3.3 70B Fast, also officially supported by JSON Mode.
-  // Only runs when the cheap primary model fails schema/parse, so normal calls
-  // stay inexpensive and within the Free-plan Neuron budget more easily.
-  if (!parsed) {
-    attempts = 2;
-    const compactPayload = {
-      target: userPayload.target,
-      original_instruction: query,
-      candidate_count: candidates.length,
-      candidates: candidates.map(item => ({
-        source_index: item.source_index,
-        title: item.title,
-        url: item.url,
-        published_date: item.published_date,
-        tavily_score: item.tavily_score,
-        content: String(item.content || "").slice(0, 850),
-      })),
-    };
-
-    try {
-      retryOut = await env.AI.run(RESEARCH_FALLBACK_MODEL, {
-        messages: [
-          {
-            role: "system",
-            content:
-              "你是金融新聞篩選器。只根據候選來源工作。依 original_instruction 保留最近 7 天真正重要且直接相關的事件；排除舊事件、Quote/Profile/索引頁、技術分析、純股價評論、社群傳聞、律師招攬、無關公司與單純機構持倉。相同事件合併。所有顯示文字使用台灣繁體中文。不得發明資料。"
-          },
-          { role: "user", content: JSON.stringify(compactPayload) },
-        ],
-        temperature: 0,
-        max_tokens: 1600,
-        response_format: {
-          type: "json_schema",
-          json_schema: jsonSchema,
-        },
-      });
-      parsed = researchParseGlmJson(retryOut);
-      if (parsed) aiOut = retryOut;
-    } catch (err) {
-      if (!primaryError) primaryError = "";
-      primaryError += `${primaryError ? " | " : ""}fallback: ${String(err?.message || err || "")}`;
-    }
-  }
-
-  if (!parsed || typeof parsed !== "object") {
-    throw httpError(
-      502,
-      `AI JSON Mode 兩層都失敗；本次不寫入 24H 快取。${primaryError ? " " + primaryError.slice(0, 500) : ""}`
-    );
-  }
-
-  const responseValue = researchGlmOutputText(aiOut) || aiOut;
-
-  const rawEvents = Array.isArray(parsed.events) ? parsed.events : [];
-  const events = [];
-  const selectedIndices = new Set();
-  const seenEventKeys = new Set();
-
-  for (const ev of rawEvents) {
-    const sourceIndex = Number(ev?.source_index);
-    if (!Number.isInteger(sourceIndex) || sourceIndex < 1 || sourceIndex > candidates.length) continue;
-    const item = payload.results[sourceIndex - 1];
-    const titleZh = researchToTraditionalChinese(String(ev?.display_title_zh_tw || "").trim());
-    const detailZh = researchToTraditionalChinese(String(ev?.display_detail_zh_tw || "").trim());
-    if (!titleZh || !detailZh) continue;
-    const key = `${sourceIndex}|${titleZh.toLowerCase()}`;
-    if (seenEventKeys.has(key)) continue;
-    seenEventKeys.add(key);
-    selectedIndices.add(sourceIndex);
-    events.push({
-      source_index: sourceIndex,
-      category: researchNormalizeCategory(ev?.category, item, profile),
-      date: /^20\d{2}-\d{2}-\d{2}$/.test(String(ev?.date || "")) ? String(ev.date) : researchEventDate(item),
-      impact: researchNormalizeImpact(ev?.impact),
-      display_title_zh_tw: titleZh.slice(0, 220),
-      display_detail_zh_tw: detailZh.slice(0, 900),
-    });
-  }
-
-  const rejectionReasons = new Map();
-  for (const rej of Array.isArray(parsed.rejected) ? parsed.rejected : []) {
-    const idx = Number(rej?.source_index);
-    if (!Number.isInteger(idx) || idx < 1 || idx > candidates.length) continue;
-    const reason = researchToTraditionalChinese(String(rej?.reason_zh_tw || "").trim());
-    if (reason) rejectionReasons.set(idx, reason.slice(0, 300));
-  }
-
-  return {
-    summary_zh_tw: researchToTraditionalChinese(String(parsed.summary_zh_tw || "").trim()) || (events.length ? `最近 7 天找到 ${events.length} 則符合條件的重大事件。` : "最近 7 天沒有符合條件的重大事件。"),
-    verdict: researchNormalizeVerdict(parsed.verdict),
-    events,
-    selected_indices: selectedIndices,
-    rejection_reasons: rejectionReasons,
-    raw: typeof responseValue === "string" ? responseValue.slice(0, 12000) : JSON.stringify(responseValue).slice(0, 12000),
-    usage: researchGlmUsageSummary(firstOut?.usage || null, retryOut?.usage || null, attempts),
-    attempt_count: attempts,
-  };
-}
 
 function researchBuildItem(row, profile, payload, searchedAt) {
   const symbol = String(row?.symbol || "").trim().toUpperCase();
@@ -3207,7 +2665,11 @@ async function browserSearchResearch(env, row) {
 }
 
 async function writeResearchStore(env, cache) {
-  const entries = cache?.entries && typeof cache.entries === "object" ? cache.entries : {};
+  const rawEntries = cache?.entries && typeof cache.entries === "object" ? cache.entries : {};
+  const entries = {};
+  for (const [symbol, item] of Object.entries(rawEntries)) {
+    if (researchFresh(item)) entries[String(symbol || "").trim().toUpperCase()] = item;
+  }
   const items = Object.values(entries).filter(x => x && typeof x === "object");
   items.sort((a, b) => Date.parse(b.searched_at || "") - Date.parse(a.searched_at || ""));
   const itemsBySymbol = {};

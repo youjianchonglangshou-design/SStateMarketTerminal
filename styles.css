@@ -412,7 +412,7 @@
 }
 
 
-/* v0.1.20 — local quick search + Gemini 24H US-stock research */
+/* Local quick search + 24H on-demand US-stock research */
 .actions{grid-template-columns:minmax(140px,1fr) minmax(185px,1.25fr) 126px 116px 110px;min-width:720px}
 .search-box{height:38px;display:flex;align-items:center;gap:7px;border:1px solid #52657f;background:#101b2d;border-radius:10px;padding:0 10px;color:#64748b;transition:.15s}
 .search-box:focus-within{border-color:#22d3ee;box-shadow:0 0 0 1px #22d3ee33,0 0 14px #22d3ee1c;color:#67e8f9}
@@ -442,7 +442,7 @@
 @media(max-width:1100px){.actions{min-width:0;width:100%;grid-template-columns:minmax(140px,1fr) minmax(185px,1.25fr) 126px 116px 110px}}
 @media(max-width:760px){.actions{grid-template-columns:1fr 1fr}.actions select,.search-box{grid-column:1/-1}.research-card{right:auto;left:0;width:min(330px,84vw)}}
 
-/* v0.1.21 Gemini Interactions diagnostics */
+/* On-demand research interaction diagnostics */
 .research-error{margin:7px 0;padding:7px 8px;border:1px solid #f59e0b66;border-radius:7px;background:#7c2d1233;color:#fed7aa;font-size:10px;line-height:1.45;word-break:break-word}
 .research-error b{color:#fbbf24}
 

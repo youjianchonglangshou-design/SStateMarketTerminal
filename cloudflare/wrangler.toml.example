@@ -11,8 +11,6 @@ ALLOWED_ORIGIN = "https://youjianchonglangshou-design.github.io"
 binding = "JSON_BUCKET"
 bucket_name = "sstate-market-data"
 
-[ai]
-binding = "AI"
 
 # Secrets (do not put values in this file):
 # npx wrangler secret put GITHUB_TOKEN

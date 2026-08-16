@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleFlow: $("battle-flow"), battleDetails: $("battle-details"), battleMetrics: $("battle-metrics"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.51｜NEWS-ASSET-IDENTITY";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.52｜NEWS-RUNTIME-CLEAN";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -827,72 +827,6 @@
     return ({ON_DEMAND:'ON DEMAND',NEW_SEARCH:'NEW',CACHE_24H:'24H CACHE',STALE_CACHE:'STALE',ERROR:'ERROR',DEFERRED:'待下輪',SKIPPED_NON_COMPANY:'SKIP'})[String(value || '')] || '';
   }
 
-  function stripResearchCodeWrapper(value) {
-    return String(value || '')
-      .trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
-  }
-
-  function parseEmbeddedResearchJson(value) {
-    const text = stripResearchCodeWrapper(value);
-    if (!text) return null;
-    const candidates = [text];
-    const first = text.indexOf('{');
-    const last = text.lastIndexOf('}');
-    if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1));
-    for (const candidate of candidates) {
-      try {
-        const parsed = JSON.parse(candidate);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-      } catch (_) {}
-    }
-    return null;
-  }
-
-  function looseResearchString(value, key) {
-    const text = stripResearchCodeWrapper(value);
-    if (!text) return '';
-    const escaped = String(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const patterns = [
-      new RegExp(`["']${escaped}["']\\s*:\\s*["']([^"'\\n\\r]{1,900})["']`, 'i'),
-      new RegExp(`${escaped}\\s*:\\s*["']([^"'\\n\\r]{1,900})["']`, 'i')
-    ];
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match?.[1]) return match[1].replace(/\\n/g, ' ').replace(/\\"/g, '"').trim();
-    }
-    return '';
-  }
-
-  function humanizeResearchInfo(info) {
-    const rawText = String(info?.raw_model_text || info?.summary || '');
-    const parsed = parseEmbeddedResearchJson(rawText);
-    const merged = parsed ? { ...info, ...parsed } : { ...info };
-
-    const looseFields = ['underlying_ticker','company_name','asset_type','verdict','summary','next_earnings_date'];
-    for (const key of looseFields) {
-      if (!merged[key] || (key === 'summary' && /^\s*[{[]/.test(String(merged[key])))) {
-        const loose = looseResearchString(rawText, key);
-        if (loose) merged[key] = loose;
-      }
-    }
-
-    if (parsed?.last_earnings && typeof parsed.last_earnings === 'object') merged.last_earnings = parsed.last_earnings;
-    if (Array.isArray(parsed?.events)) merged.events = parsed.events;
-
-    const summary = String(merged.summary || '').trim();
-    const looksLikeJson = /^\s*[{[]/.test(summary) || /["'](?:underlying_ticker|company_name|verdict|summary)["']\s*:/.test(summary);
-    if (!summary || looksLikeJson) {
-      merged.summary = info?.format_warning
-        ? 'Tavily 已完成搜尋，但資料格式不完整；系統保留可辨識內容供人工判讀。'
-        : '本次沒有需要特別列出的重大近期事件。';
-    }
-
-    return merged;
-  }
-
   function researchCategoryMeta(value) {
     return ({
       earnings: ['財報','📊'], guidance: ['財測','🧭'], company_catalyst: ['公司催化','⚡'],
@@ -931,19 +865,6 @@
     return counts;
   }
 
-  function earningsHuman(value) {
-    return ({beat:'優於預期',miss:'低於預期',inline:'符合預期',unknown:'未知',not_applicable:'不適用'})[String(value || 'unknown')] || '未知';
-  }
-
-  function guidanceHuman(value) {
-    return ({raised:'上調',maintained:'維持',lowered:'下調',unknown:'未知',not_applicable:'不適用'})[String(value || 'unknown')] || '未知';
-  }
-
-  function researchFactHtml(label, value, tone='') {
-    const text = String(value || '—');
-    return `<div class="research-fact ${escapeHtml(tone)}"><span>${escapeHtml(label)}</span><b>${escapeHtml(text)}</b></div>`;
-  }
-
   function renderResearch(r) {
     if (!researchEligible(r)) return '';
 
@@ -967,18 +888,15 @@
       return `<button type="button" class="pill research-query-pill ${busy?'is-busy':error?'is-error':'is-waiting'}" data-research-symbol="${escapeHtml(symbol)}" title="${escapeHtml(title)}" ${(busy||anotherBusy)?'disabled':''}>${escapeHtml(label)}</button>`;
     }
 
-    const info = humanizeResearchInfo(rawInfo);
-    const isManualReview = Boolean(info.format_warning) || String(info.verification_status || '') === 'MANUAL_REVIEW';
+    const info = rawInfo;
     const events = Array.isArray(info.events) ? info.events : [];
     const sources = Array.isArray(info.sources) ? info.sources : [];
     const counts = researchImpactCountsClient(info, events);
     const verdictMeta = events.length ? researchVerdictMeta(info.verdict) : ['neutral','⚪ 無搜尋結果'];
     const [verdictCls,verdictLabel] = verdictMeta;
-    const [cls,label] = isManualReview ? ['neutral','ℹ 人工判讀'] : [verdictCls,verdictLabel];
+    const [cls,label] = [verdictCls,verdictLabel];
     const statusLabel = researchStatusLabel(info.research_status);
     const title = [...new Set([info.underlying_ticker, info.company_name].filter(Boolean).map(String))].join('｜') || symbol;
-    const last = info.last_earnings && typeof info.last_earnings === 'object' ? info.last_earnings : {};
-    const hasEarnings = Boolean(last.date || info.next_earnings_date || ['beat','miss','inline'].includes(String(last.eps)) || ['beat','miss','inline'].includes(String(last.revenue)) || ['raised','maintained','lowered'].includes(String(last.guidance)));
 
     const eventHtml = events.length ? `<div class="research-section"><div class="research-section-title">Tavily 搜尋結果 <small>${events.length} 則</small></div>${events.map(e => {
       const [catLabel,catIcon] = researchCategoryMeta(e.category);
@@ -992,20 +910,8 @@
 
     const sourceHtml = sources.length ? `<div class="research-section research-sources"><div class="research-section-title">查證來源 <small>${sources.length}</small></div>${sources.map((src,i)=>`<a href="${escapeHtml(src.url||'#')}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(src.title||'原始來源')}"><span>${i+1}</span>${escapeHtml(src.display_title_zh_tw||`查證來源 ${i+1}`)}</a>`).join('')}</div>` : '<div class="research-section research-sources muted"><div class="research-section-title">查證來源</div><div>本次沒有可顯示的 grounding URL。</div></div>';
 
-    const earningsHtml = hasEarnings ? `<div class="research-section">
-      <div class="research-section-title">財報／財測</div>
-      <div class="research-fact-grid">
-        ${researchFactHtml('最近財報', last.date || '—')}
-        ${researchFactHtml('EPS', earningsHuman(last.eps), String(last.eps||''))}
-        ${researchFactHtml('營收', earningsHuman(last.revenue), String(last.revenue||''))}
-        ${researchFactHtml('Guidance', guidanceHuman(last.guidance), String(last.guidance||''))}
-        ${researchFactHtml('下次財報', info.next_earnings_date || '—')}
-      </div>
-    </div>` : '';
-
     const searched = info.searched_at ? new Date(info.searched_at).toLocaleString('zh-TW',{hour12:false}) : '—';
     const modelLabel = String(info.model || state.usStockResearch?.model || 'Tavily Search + Answer').replace(/^models\//,'');
-    const manualHtml = isManualReview ? `<div class="research-manual-note"><b>ℹ 人工判讀</b><span>Tavily 搜尋已完成；本版不使用第二層 AI 篩選。</span></div>` : '';
     const verdictHtml = `<div class="research-verdict-line">
       <span>情報方向</span>
       <div class="research-impact-counts">
@@ -1021,7 +927,7 @@
       <div class="research-title"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(recordState(r))}</span></div>
       ${verdictHtml}
       <div class="research-section research-overview"><div class="research-section-title">Tavily 重點</div><div class="research-summary">${escapeHtml(info.summary_zh_tw||info.summary||'')}</div></div>
-      ${manualHtml}${earningsHtml}${eventHtml}${sourceHtml}
+      ${eventHtml}${sourceHtml}
       <div class="research-meta">${escapeHtml(modelLabel)}｜Tavily 最多 20 則 → Tavily Answer 繁中整理｜文章多空統計｜不經第二層 AI 過濾｜${escapeHtml(searched)}｜24H 固定快取</div>
     </div></div>`;
   }
@@ -1245,7 +1151,7 @@
       state.usStockResearch.items_by_symbol[key] = out.item;
       state.usStockResearch.items = Object.values(state.usStockResearch.items_by_symbol);
       state.usStockResearch.generated_at = out.generated_at || new Date().toISOString();
-      state.usStockResearch.model = out.item?.model || 'Tavily Search + Llama JSON Mode';
+      state.usStockResearch.model = out.item?.model || 'Tavily Search + Answer';
       delete state.researchSymbolErrors[key];
       showToast(out.cached ? `${key}｜沿用 24H 快取，不重新搜尋。` : `${key}｜新聞查詢完成，已寫入 R2 並固定快取 24H。`, 7000);
     } catch (err) {

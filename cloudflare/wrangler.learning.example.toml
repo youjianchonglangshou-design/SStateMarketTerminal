@@ -1,0 +1,4 @@
+# Optional reference only. You are currently configuring via Cloudflare Dashboard.
+# Cloudflare Cron uses UTC. 00:25 UTC = Taiwan 08:25.
+[triggers]
+crons = ["25 0 * * *"]

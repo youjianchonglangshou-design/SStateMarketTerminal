@@ -549,147 +549,1636 @@ async function startAnalysis(request, env, origin) {
 const RESEARCH_PROVIDER = "Tavily Search + Answer";
 const RESEARCH_GLM_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const RESEARCH_FALLBACK_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v8";
+const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
 const RESEARCH_CACHE_KEY = "research/us-stock/cache.json";
 const RESEARCH_LATEST_KEY = "research/us-stock/latest.json";
 const RESEARCH_TTL_MS = 24 * 60 * 60 * 1000;
 const RESEARCH_ELIGIBLE_STATES = new Set(["S3", "S0.5", "S1"]);
-const RESEARCH_TICKER_OVERRIDES = {
-  AAOIX:"AAOI", AAX:"AA", AXTIX:"AXTI", BEX:"BE", CVXX:"CVX", GMEX:"GME",
-  LRCXX:"LRCX", MPX:"MP", MUX:"MU", NFLXX:"NFLX", PAYPX:"PYPL", RGTIX:"RGTI", RTXX:"RTX",
-  SITMX:"SITM", SMCIX:"SMCI", SNXXX:"SNX", SOXXX:"SOXX", TTEX:"TTE", TXNX:"TXN",
-  ANTHROPIC:"Anthropic", OPENAI:"OpenAI", HYUNDAI:"Hyundai Motor", KIOXIA:"Kioxia",
-  SMSN:"Samsung Electronics", SKHX:"SK hynix", SKHY:"SK hynix", SPCX:"SpaceX"
-};
 
-// 公司別名只集中維護在這裡。Hard Gate 會同時辨識英文公司名、ticker 與中文常用名。
-// 沒列到的標的仍會自動使用 underlying ticker / Pionex symbol，不會因此不能搜尋。
-const RESEARCH_COMPANY_PROFILES = {
-  AAOI:{name:"Applied Optoelectronics", aliases:["Applied Optoelectronics","AAOI"], asset_type:"public_company"},
-  AA:{name:"Alcoa", aliases:["Alcoa","AA","美國鋁業"], asset_type:"public_company"},
-  AAPL:{name:"Apple", aliases:["Apple","AAPL","蘋果"], asset_type:"public_company"},
-  AMAT:{name:"Applied Materials", aliases:["Applied Materials","AMAT","應用材料"], asset_type:"public_company"},
-  AMD:{name:"Advanced Micro Devices", aliases:["Advanced Micro Devices","AMD","超微"], asset_type:"public_company"},
-  AMZN:{name:"Amazon", aliases:["Amazon","AMZN","亞馬遜"], asset_type:"public_company"},
-  APP:{name:"AppLovin", aliases:["AppLovin","APP"], asset_type:"public_company"},
-  ARM:{name:"Arm Holdings", aliases:["Arm Holdings","Arm","ARM","安謀"], asset_type:"public_company"},
-  ASML:{name:"ASML", aliases:["ASML","阿斯麥"], asset_type:"foreign_company"},
-  ASTS:{name:"AST SpaceMobile", aliases:["AST SpaceMobile","ASTS"], asset_type:"public_company"},
-  AVGO:{name:"Broadcom", aliases:["Broadcom","AVGO","博通"], asset_type:"public_company"},
-  AXTI:{name:"AXT", aliases:["AXT","AXTI"], asset_type:"public_company"},
-  BE:{name:"Bloom Energy", aliases:["Bloom Energy","BE"], asset_type:"public_company"},
-  CIFR:{name:"Cipher Mining", aliases:["Cipher Mining","CIFR"], asset_type:"public_company"},
-  CF:{name:"CF Industries", aliases:["CF Industries","CF"], asset_type:"public_company"},
-  COHR:{name:"Coherent", aliases:["Coherent","COHR"], asset_type:"public_company"},
-  COIN:{name:"Coinbase", aliases:["Coinbase","COIN"], asset_type:"public_company"},
-  CRCL:{name:"Circle Internet Group", aliases:["Circle Internet Group","Circle","CRCL"], asset_type:"public_company"},
-  CRDO:{name:"Credo Technology", aliases:["Credo Technology","Credo","CRDO"], asset_type:"public_company"},
-  CRWV:{name:"CoreWeave", aliases:["CoreWeave","CRWV"], asset_type:"public_company"},
-  CSCO:{name:"Cisco", aliases:["Cisco","CSCO","思科"], asset_type:"public_company"},
-  CVX:{name:"Chevron", aliases:["Chevron","CVX","雪佛龍"], asset_type:"public_company"},
-  DELL:{name:"Dell Technologies", aliases:["Dell Technologies","Dell","DELL","戴爾"], asset_type:"public_company"},
-  FLNC:{name:"Fluence Energy", aliases:["Fluence Energy","Fluence","FLNC"], asset_type:"public_company"},
-  GEV:{name:"GE Vernova", aliases:["GE Vernova","GEV"], asset_type:"public_company"},
-  GME:{name:"GameStop", aliases:["GameStop","GME"], asset_type:"public_company"},
-  GOOGL:{name:"Alphabet", aliases:["Alphabet","Google","GOOGL","GOOG","谷歌"], asset_type:"public_company"},
-  HIMS:{name:"Hims & Hers Health", aliases:["Hims & Hers","Hims and Hers","HIMS"], asset_type:"public_company"},
-  HOOD:{name:"Robinhood", aliases:["Robinhood","HOOD"], asset_type:"public_company"},
-  IBM:{name:"IBM", aliases:["IBM","International Business Machines"], asset_type:"public_company"},
-  INTC:{name:"Intel", aliases:["Intel","INTC","英特爾"], asset_type:"public_company"},
-  IREN:{name:"IREN", aliases:["IREN","Iris Energy"], asset_type:"public_company"},
-  KLAC:{name:"KLA", aliases:["KLA","KLAC","科磊"], asset_type:"public_company"},
-  LITE:{name:"Lumentum", aliases:["Lumentum","LITE"], asset_type:"public_company"},
-  LLY:{name:"Eli Lilly", aliases:["Eli Lilly","LLY","禮來"], asset_type:"public_company"},
-  LMT:{name:"Lockheed Martin", aliases:["Lockheed Martin","LMT","洛克希德馬丁"], asset_type:"public_company"},
-  LNG:{name:"Cheniere Energy", aliases:["Cheniere Energy","LNG"], asset_type:"public_company"},
-  LRCX:{name:"Lam Research", aliases:["Lam Research","LRCX","泛林集團","科林研發"], asset_type:"public_company"},
-  META:{name:"Meta Platforms", aliases:["Meta Platforms","Meta","Facebook","META","臉書"], asset_type:"public_company"},
-  MRVL:{name:"Marvell Technology", aliases:["Marvell Technology","Marvell","MRVL","邁威爾"], asset_type:"public_company"},
-  MSFT:{name:"Microsoft", aliases:["Microsoft","MSFT","微軟"], asset_type:"public_company"},
-  MSTR:{name:"Strategy", aliases:["Strategy","MicroStrategy","MSTR","微策略"], asset_type:"public_company"},
-  MU:{name:"Micron Technology", aliases:["Micron Technology","Micron","MU","美光"], asset_type:"public_company"},
-  NBIS:{name:"Nebius Group", aliases:["Nebius Group","Nebius","NBIS"], asset_type:"public_company"},
-  NFLX:{name:"Netflix", aliases:["Netflix","NFLX","網飛"], asset_type:"public_company"},
-  NKE:{name:"Nike", aliases:["Nike","NKE","耐吉"], asset_type:"public_company"},
-  NOK:{name:"Nokia", aliases:["Nokia","NOK","諾基亞"], asset_type:"foreign_company"},
-  NOW:{name:"ServiceNow", aliases:["ServiceNow","NOW"], asset_type:"public_company"},
-  NTR:{name:"Nutrien", aliases:["Nutrien","NTR"], asset_type:"foreign_company"},
-  NVDA:{name:"NVIDIA", aliases:["NVIDIA","Nvidia","NVDA","輝達"], asset_type:"public_company"},
-  OKLO:{name:"Oklo", aliases:["Oklo","OKLO"], asset_type:"public_company"},
-  ONDS:{name:"Ondas Holdings", aliases:["Ondas Holdings","Ondas","ONDS"], asset_type:"public_company"},
-  ORCL:{name:"Oracle", aliases:["Oracle","ORCL","甲骨文"], asset_type:"public_company"},
-  PLTR:{name:"Palantir", aliases:["Palantir","PLTR","帕蘭泰爾"], asset_type:"public_company"},
-  PYPL:{name:"PayPal", aliases:["PayPal","PYPL"], asset_type:"public_company"},
-  QCOM:{name:"Qualcomm", aliases:["Qualcomm","QCOM","高通"], asset_type:"public_company"},
-  RGTI:{name:"Rigetti Computing", aliases:["Rigetti Computing","Rigetti","RGTI"], asset_type:"public_company"},
-  RKLB:{name:"Rocket Lab", aliases:["Rocket Lab","RKLB"], asset_type:"public_company"},
-  RTX:{name:"RTX Corporation", aliases:["RTX Corporation","RTX","Raytheon Technologies","Raytheon","雷神技術"], asset_type:"public_company"},
-  SITM:{name:"SiTime", aliases:["SiTime","SITM"], asset_type:"public_company"},
-  SMCI:{name:"Super Micro Computer", aliases:["Super Micro Computer","Supermicro","SMCI","美超微"], asset_type:"public_company"},
-  SNDK:{name:"SanDisk", aliases:["SanDisk","Sandisk","SNDK","閃迪"], asset_type:"public_company"},
-  TSLA:{name:"Tesla", aliases:["Tesla","TSLA","特斯拉"], asset_type:"public_company"},
-  TSM:{name:"Taiwan Semiconductor Manufacturing", aliases:["Taiwan Semiconductor Manufacturing","TSMC","TSM","台積電"], asset_type:"foreign_company"},
-  TTE:{name:"TotalEnergies", aliases:["TotalEnergies","TTE","道達爾能源"], asset_type:"foreign_company"},
-  TXN:{name:"Texas Instruments", aliases:["Texas Instruments","TXN","德州儀器"], asset_type:"public_company"},
-  UNH:{name:"UnitedHealth Group", aliases:["UnitedHealth Group","UnitedHealth","UNH","聯合健康"], asset_type:"public_company"},
-  USAR:{name:"USA Rare Earth", aliases:["USA Rare Earth","USAR"], asset_type:"public_company"},
-  WDC:{name:"Western Digital", aliases:["Western Digital","WDC","西部數據"], asset_type:"public_company"},
-  XYZ:{name:"Block", aliases:["Block Inc","Block","Square","XYZ"], asset_type:"public_company"},
-
-
-  // ---- Current Pionex RWA universe: profiles that cannot be inferred safely from removing the final X ----
-  BMNR:{name:"BitMine Immersion Technologies", aliases:["BitMine Immersion Technologies","BitMine","BMNR"], asset_type:"public_company"},
-  BNO:{name:"United States Brent Oil Fund", aliases:["United States Brent Oil Fund","BNO","Brent crude","Brent oil","布蘭特原油"], asset_type:"etf", focus:"布蘭特原油"},
-  BRENTOIL:{name:"Brent Crude Oil", aliases:["Brent Crude Oil","Brent crude","Brent oil","BRENTOIL","布蘭特原油"], asset_type:"commodity", focus:"布蘭特原油供需"},
-  CBRS:{name:"Cerebras Systems", aliases:["Cerebras Systems","Cerebras","CBRS"], asset_type:"private_company"},
-  CEG:{name:"Constellation Energy", aliases:["Constellation Energy","CEG","星座能源"], asset_type:"public_company"},
-  WTI:{name:"West Texas Intermediate Crude Oil", aliases:["West Texas Intermediate","WTI","WTI crude","crude oil","西德州中質原油","西德州原油","原油"], asset_type:"commodity", focus:"WTI 原油供需"},
-  COPPER:{name:"Copper", aliases:["Copper","COPPER","copper price","銅","銅價"], asset_type:"commodity", focus:"全球銅供需"},
-  CPER:{name:"United States Copper Index Fund", aliases:["United States Copper Index Fund","CPER","copper","銅","銅價"], asset_type:"etf", focus:"銅與銅期貨"},
-  DRAM:{name:"Roundhill Memory ETF", aliases:["Roundhill Memory ETF","DRAM","memory ETF","memory chip","DRAM memory","記憶體ETF","記憶體晶片","記憶體"], asset_type:"etf", focus:"記憶體半導體"},
-  EWJ:{name:"iShares MSCI Japan ETF", aliases:["iShares MSCI Japan ETF","EWJ","Japan equities","Japanese stocks","日本股市","日股"], asset_type:"etf", focus:"日本股市"},
-  EWY:{name:"iShares MSCI South Korea ETF", aliases:["iShares MSCI South Korea ETF","EWY","South Korea equities","Korean stocks","韓國股市","韓股"], asset_type:"etf", focus:"韓國股市"},
-  GLW:{name:"Corning", aliases:["Corning","Corning Incorporated","GLW","康寧"], asset_type:"public_company"},
-  GSG:{name:"iShares S&P GSCI Commodity-Indexed Trust", aliases:["iShares S&P GSCI Commodity-Indexed Trust","GSG","S&P GSCI","commodities","大宗商品"], asset_type:"etf", focus:"全球大宗商品"},
-  HPE:{name:"Hewlett Packard Enterprise", aliases:["Hewlett Packard Enterprise","HPE","慧與"], asset_type:"public_company"},
-  MOS:{name:"The Mosaic Company", aliases:["The Mosaic Company","Mosaic","MOS","美盛"], asset_type:"public_company"},
-  MP:{name:"MP Materials", aliases:["MP Materials","MP","MP Materials Corp"], asset_type:"public_company"},
-  NATGAS:{name:"Natural Gas", aliases:["Natural Gas","NATGAS","Henry Hub","natural gas","天然氣"], asset_type:"commodity", focus:"天然氣供需與庫存"},
-  QNT:{name:"Quantinuum", aliases:["Quantinuum","QNT"], asset_type:"private_company"},
-  QQQ:{name:"Invesco QQQ Trust", aliases:["Invesco QQQ Trust","QQQ","Nasdaq-100","Nasdaq 100","NASDAQ 100","那斯達克100","納斯達克100"], asset_type:"etf", focus:"Nasdaq-100"},
-  SLV:{name:"iShares Silver Trust", aliases:["iShares Silver Trust","SLV","silver","白銀"], asset_type:"etf", focus:"白銀"},
-  SMH:{name:"VanEck Semiconductor ETF", aliases:["VanEck Semiconductor ETF","SMH","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業"},
-  SOXL:{name:"Direxion Daily Semiconductor Bull 3X Shares", aliases:["Direxion Daily Semiconductor Bull 3X Shares","SOXL","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業三倍多頭"},
-  SOXX:{name:"iShares Semiconductor ETF", aliases:["iShares Semiconductor ETF","SOXX","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業"},
-  SPY:{name:"SPDR S&P 500 ETF Trust", aliases:["SPDR S&P 500 ETF Trust","SPY","S&P 500","SP500","標普500"], asset_type:"etf", focus:"S&P 500"},
-  STX:{name:"Seagate Technology", aliases:["Seagate Technology","Seagate","STX","希捷"], asset_type:"public_company"},
-  TQQQ:{name:"ProShares UltraPro QQQ", aliases:["ProShares UltraPro QQQ","TQQQ","Nasdaq-100","Nasdaq 100","那斯達克100","納斯達克100"], asset_type:"etf", focus:"Nasdaq-100 三倍多頭"},
-  UNG:{name:"United States Natural Gas Fund", aliases:["United States Natural Gas Fund","UNG","natural gas","Henry Hub","天然氣"], asset_type:"etf", focus:"天然氣"},
-  URA:{name:"Global X Uranium ETF", aliases:["Global X Uranium ETF","URA","uranium","nuclear energy","鈾","核能"], asset_type:"etf", focus:"鈾與核能產業"},
-  URNM:{name:"Sprott Uranium Miners ETF", aliases:["Sprott Uranium Miners ETF","URNM","uranium miners","uranium","鈾礦","鈾"], asset_type:"etf", focus:"鈾礦產業"},
-  USO:{name:"United States Oil Fund", aliases:["United States Oil Fund","USO","WTI","crude oil","West Texas Intermediate","原油","西德州原油"], asset_type:"etf", focus:"WTI 原油"},
-  VGK:{name:"Vanguard FTSE Europe ETF", aliases:["Vanguard FTSE Europe ETF","VGK","European equities","Europe stocks","歐洲股市","歐股"], asset_type:"etf", focus:"歐洲股市"},
-  XAG:{name:"Silver", aliases:["Silver","XAG","XAGUSD","白銀"], asset_type:"commodity", focus:"白銀供需與貴金屬市場"},
-  XAU:{name:"Gold", aliases:["Gold","XAU","XAUUSD","黃金"], asset_type:"commodity", focus:"黃金與貴金屬市場"},
-  XPD:{name:"Palladium", aliases:["Palladium","XPD","XPDUSD","鈀金","鈀"], asset_type:"commodity", focus:"鈀金供需"},
-  XPT:{name:"Platinum", aliases:["Platinum","XPT","XPTUSD","鉑金","白金"], asset_type:"commodity", focus:"鉑金供需"},
-  ALAB:{name:"Astera Labs", aliases:["Astera Labs","ALAB"], asset_type:"public_company"},
-  ON:{name:"onsemi", aliases:["onsemi","ON Semiconductor","ON Semiconductor Corporation","安森美","安森美半導體"], asset_type:"public_company"},
-  SNX:{name:"TD SYNNEX", aliases:["TD SYNNEX","SYNNEX","SNX","新聚思"], asset_type:"public_company"},
-  VSH:{name:"Vishay Intertechnology", aliases:["Vishay Intertechnology","Vishay","VSH","威世科技","威世"], asset_type:"public_company"},
-  PANW:{name:"Palo Alto Networks", aliases:["Palo Alto Networks","PANW","帕洛阿爾托網路"], asset_type:"public_company"},
-  SHAZ:{name:"SharonAI Holdings", aliases:["SharonAI Holdings","SharonAI","SHAZ"], asset_type:"public_company"},
-  SOXS:{name:"Direxion Daily Semiconductor Bear 3X Shares", aliases:["Direxion Daily Semiconductor Bear 3X Shares","SOXS","semiconductor","semiconductors","半導體","晶片"], asset_type:"etf", focus:"半導體產業三倍空頭"},
-  XLP:{name:"Consumer Staples Select Sector SPDR Fund", aliases:["Consumer Staples Select Sector SPDR Fund","XLP","consumer staples","必需消費品"], asset_type:"etf", focus:"美國必需消費品產業"},
-  XLV:{name:"Health Care Select Sector SPDR Fund", aliases:["Health Care Select Sector SPDR Fund","XLV","health care","healthcare","醫療保健"], asset_type:"etf", focus:"美國醫療保健產業"},
-
-  Anthropic:{name:"Anthropic", aliases:["Anthropic"], asset_type:"private_company"},
-  OpenAI:{name:"OpenAI", aliases:["OpenAI","Open AI"], asset_type:"private_company"},
-  "Hyundai Motor":{name:"Hyundai Motor", aliases:["Hyundai Motor","Hyundai","現代汽車"], asset_type:"foreign_company"},
-  Kioxia:{name:"Kioxia", aliases:["Kioxia","鎧俠"], asset_type:"foreign_company"},
-  "Samsung Electronics":{name:"Samsung Electronics", aliases:["Samsung Electronics","Samsung","三星電子","三星"], asset_type:"foreign_company"},
-  "SK hynix":{name:"SK hynix", aliases:["SK hynix","SK Hynix","SK海力士","海力士"], asset_type:"foreign_company"},
-  SpaceX:{name:"SpaceX", aliases:["SpaceX","SPCX"], asset_type:"private_company"}
+// Generated from engine/us_stock_aliases.py.
+// Exact Pionex-symbol identity wins over suffix-X guessing and legacy overrides.
+// This is the live Cloudflare Worker copy used by Tavily news research.
+const RESEARCH_ASSET_IDENTITIES = {
+  "AAOIX": {
+    "ticker": "AAOI",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AAOI",
+    "name_en": "Applied Optoelectronics, Inc.",
+    "name_zh": "應用光電",
+    "asset_type": "public_company",
+    "aliases": [
+      "Applied Optoelectronics",
+      "應用光電",
+      "NASDAQ:AAOI"
+    ]
+  },
+  "AAPLX": {
+    "ticker": "AAPL",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AAPL",
+    "name_en": "Apple Inc.",
+    "name_zh": "蘋果",
+    "asset_type": "public_company",
+    "aliases": [
+      "Apple",
+      "蘋果公司",
+      "NASDAQ:AAPL"
+    ]
+  },
+  "AAX": {
+    "ticker": "AA",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:AA",
+    "name_en": "Alcoa Corporation",
+    "name_zh": "美國鋁業",
+    "asset_type": "public_company",
+    "aliases": [
+      "Alcoa",
+      "美國鋁業",
+      "NYSE:AA"
+    ]
+  },
+  "AMATX": {
+    "ticker": "AMAT",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AMAT",
+    "name_en": "Applied Materials, Inc.",
+    "name_zh": "應用材料",
+    "asset_type": "public_company",
+    "aliases": [
+      "Applied Materials",
+      "應用材料",
+      "NASDAQ:AMAT"
+    ]
+  },
+  "AMDX": {
+    "ticker": "AMD",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AMD",
+    "name_en": "Advanced Micro Devices, Inc.",
+    "name_zh": "超微半導體",
+    "asset_type": "public_company",
+    "aliases": [
+      "AMD",
+      "Advanced Micro Devices",
+      "超微",
+      "超微半導體",
+      "NASDAQ:AMD"
+    ]
+  },
+  "AMZNX": {
+    "ticker": "AMZN",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AMZN",
+    "name_en": "Amazon.com, Inc.",
+    "name_zh": "亞馬遜",
+    "asset_type": "public_company",
+    "aliases": [
+      "Amazon",
+      "Amazon.com",
+      "亞馬遜",
+      "NASDAQ:AMZN"
+    ]
+  },
+  "ANTHROPIC": {
+    "ticker": "ANTHROPIC",
+    "exchange": "PRIVATE",
+    "qualified_ticker": "PRIVATE:ANTHROPIC",
+    "name_en": "Anthropic PBC",
+    "name_zh": "Anthropic（Claude 開發商）",
+    "asset_type": "private_company",
+    "aliases": [
+      "Anthropic",
+      "Claude",
+      "Anthropic PBC"
+    ]
+  },
+  "APPX": {
+    "ticker": "APP",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:APP",
+    "name_en": "AppLovin Corporation",
+    "name_zh": "AppLovin",
+    "asset_type": "public_company",
+    "aliases": [
+      "AppLovin",
+      "NASDAQ:APP"
+    ]
+  },
+  "ARMX": {
+    "ticker": "ARM",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:ARM",
+    "name_en": "Arm Holdings plc",
+    "name_zh": "安謀控股",
+    "asset_type": "public_company",
+    "aliases": [
+      "Arm",
+      "Arm Holdings",
+      "安謀",
+      "NASDAQ:ARM"
+    ]
+  },
+  "ASMLX": {
+    "ticker": "ASML",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:ASML",
+    "name_en": "ASML Holding N.V.",
+    "name_zh": "艾司摩爾",
+    "asset_type": "public_company",
+    "aliases": [
+      "ASML",
+      "ASML Holding",
+      "艾司摩爾",
+      "NASDAQ:ASML"
+    ]
+  },
+  "ASTSX": {
+    "ticker": "ASTS",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:ASTS",
+    "name_en": "AST SpaceMobile, Inc.",
+    "name_zh": "AST SpaceMobile",
+    "asset_type": "public_company",
+    "aliases": [
+      "AST SpaceMobile",
+      "NASDAQ:ASTS"
+    ]
+  },
+  "AVGOX": {
+    "ticker": "AVGO",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AVGO",
+    "name_en": "Broadcom Inc.",
+    "name_zh": "博通",
+    "asset_type": "public_company",
+    "aliases": [
+      "Broadcom",
+      "博通",
+      "NASDAQ:AVGO"
+    ]
+  },
+  "AXTIX": {
+    "ticker": "AXTI",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:AXTI",
+    "name_en": "AXT, Inc.",
+    "name_zh": "AXT",
+    "asset_type": "public_company",
+    "aliases": [
+      "AXT Inc",
+      "NASDAQ:AXTI"
+    ]
+  },
+  "BEX": {
+    "ticker": "BE",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:BE",
+    "name_en": "Bloom Energy Corporation",
+    "name_zh": "Bloom Energy",
+    "asset_type": "public_company",
+    "aliases": [
+      "Bloom Energy",
+      "NYSE:BE"
+    ]
+  },
+  "BMNRX": {
+    "ticker": "BMNR",
+    "exchange": "NYSEAMERICAN",
+    "qualified_ticker": "NYSEAMERICAN:BMNR",
+    "name_en": "BitMine Immersion Technologies, Inc.",
+    "name_zh": "BitMine Immersion Technologies",
+    "asset_type": "public_company",
+    "aliases": [
+      "BitMine",
+      "BitMine Immersion Technologies",
+      "BMNR"
+    ]
+  },
+  "BNOX": {
+    "ticker": "BNO",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:BNO",
+    "name_en": "United States Brent Oil Fund, LP",
+    "name_zh": "美國布蘭特原油基金",
+    "asset_type": "etf",
+    "aliases": [
+      "United States Brent Oil Fund",
+      "Brent Oil ETF",
+      "布蘭特原油 ETF",
+      "NYSEARCA:BNO"
+    ]
+  },
+  "BRENTOIL": {
+    "ticker": "BRENT",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:BRENT",
+    "name_en": "Brent Crude Oil",
+    "name_zh": "布蘭特原油",
+    "asset_type": "commodity",
+    "aliases": [
+      "Brent crude",
+      "Brent oil",
+      "布蘭特原油"
+    ]
+  },
+  "CBRS": {
+    "ticker": "CBRS",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:CBRS",
+    "name_en": "Cerebras Systems, Inc.",
+    "name_zh": "Cerebras Systems",
+    "asset_type": "public_company",
+    "aliases": [
+      "Cerebras",
+      "Cerebras Systems",
+      "NASDAQ:CBRS"
+    ]
+  },
+  "CEGX": {
+    "ticker": "CEG",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:CEG",
+    "name_en": "Constellation Energy Corporation",
+    "name_zh": "Constellation Energy／星座能源",
+    "asset_type": "public_company",
+    "aliases": [
+      "Constellation Energy",
+      "星座能源",
+      "NASDAQ:CEG"
+    ]
+  },
+  "CF": {
+    "ticker": "CF",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:CF",
+    "name_en": "CF Industries Holdings, Inc.",
+    "name_zh": "CF Industries",
+    "asset_type": "public_company",
+    "aliases": [
+      "CF Industries",
+      "NYSE:CF"
+    ]
+  },
+  "CIFRX": {
+    "ticker": "CIFR",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:CIFR",
+    "name_en": "Cipher Mining Inc.",
+    "name_zh": "Cipher Mining",
+    "asset_type": "public_company",
+    "aliases": [
+      "Cipher Mining",
+      "NASDAQ:CIFR"
+    ]
+  },
+  "WTI": {
+    "ticker": "WTI",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:WTI",
+    "name_en": "West Texas Intermediate Crude Oil",
+    "name_zh": "西德州中質原油",
+    "asset_type": "commodity",
+    "aliases": [
+      "WTI crude oil",
+      "West Texas Intermediate",
+      "西德州原油"
+    ]
+  },
+  "COHRX": {
+    "ticker": "COHR",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:COHR",
+    "name_en": "Coherent Corp.",
+    "name_zh": "Coherent／高意",
+    "asset_type": "public_company",
+    "aliases": [
+      "Coherent Corp",
+      "Coherent",
+      "高意",
+      "NYSE:COHR"
+    ]
+  },
+  "COINX": {
+    "ticker": "COIN",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:COIN",
+    "name_en": "Coinbase Global, Inc.",
+    "name_zh": "Coinbase",
+    "asset_type": "public_company",
+    "aliases": [
+      "Coinbase",
+      "Coinbase Global",
+      "NASDAQ:COIN"
+    ]
+  },
+  "COPPER": {
+    "ticker": "COPPER",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:COPPER",
+    "name_en": "Copper",
+    "name_zh": "銅",
+    "asset_type": "commodity",
+    "aliases": [
+      "Copper futures",
+      "COMEX copper",
+      "銅"
+    ]
+  },
+  "CPERX": {
+    "ticker": "CPER",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:CPER",
+    "name_en": "United States Copper Index Fund",
+    "name_zh": "美國銅指數基金",
+    "asset_type": "etf",
+    "aliases": [
+      "United States Copper Index Fund",
+      "Copper ETF",
+      "銅 ETF",
+      "NYSEARCA:CPER"
+    ]
+  },
+  "CRCLX": {
+    "ticker": "CRCL",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:CRCL",
+    "name_en": "Circle Internet Group, Inc.",
+    "name_zh": "Circle",
+    "asset_type": "public_company",
+    "aliases": [
+      "Circle",
+      "Circle Internet Group",
+      "NYSE:CRCL"
+    ]
+  },
+  "CRDOX": {
+    "ticker": "CRDO",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:CRDO",
+    "name_en": "Credo Technology Group Holding Ltd",
+    "name_zh": "Credo Technology",
+    "asset_type": "public_company",
+    "aliases": [
+      "Credo",
+      "Credo Technology",
+      "NASDAQ:CRDO"
+    ]
+  },
+  "CRWVX": {
+    "ticker": "CRWV",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:CRWV",
+    "name_en": "CoreWeave, Inc.",
+    "name_zh": "CoreWeave",
+    "asset_type": "public_company",
+    "aliases": [
+      "CoreWeave",
+      "NASDAQ:CRWV"
+    ]
+  },
+  "CSCOX": {
+    "ticker": "CSCO",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:CSCO",
+    "name_en": "Cisco Systems, Inc.",
+    "name_zh": "思科",
+    "asset_type": "public_company",
+    "aliases": [
+      "Cisco",
+      "Cisco Systems",
+      "思科",
+      "NASDAQ:CSCO"
+    ]
+  },
+  "CVXX": {
+    "ticker": "CVX",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:CVX",
+    "name_en": "Chevron Corporation",
+    "name_zh": "雪佛龍",
+    "asset_type": "public_company",
+    "aliases": [
+      "Chevron",
+      "雪佛龍",
+      "NYSE:CVX"
+    ]
+  },
+  "DELLX": {
+    "ticker": "DELL",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:DELL",
+    "name_en": "Dell Technologies Inc.",
+    "name_zh": "戴爾科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "Dell",
+      "Dell Technologies",
+      "戴爾",
+      "NYSE:DELL"
+    ]
+  },
+  "DRAMX": {
+    "ticker": "DRAM",
+    "exchange": "CBOE",
+    "qualified_ticker": "CBOE:DRAM",
+    "name_en": "Roundhill Memory ETF",
+    "name_zh": "Roundhill 記憶體 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "Roundhill Memory ETF",
+      "Memory ETF",
+      "記憶體 ETF",
+      "CBOE:DRAM"
+    ]
+  },
+  "EWJX": {
+    "ticker": "EWJ",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:EWJ",
+    "name_en": "iShares MSCI Japan ETF",
+    "name_zh": "iShares MSCI 日本 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "iShares MSCI Japan ETF",
+      "日本 ETF",
+      "NYSEARCA:EWJ"
+    ]
+  },
+  "EWYX": {
+    "ticker": "EWY",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:EWY",
+    "name_en": "iShares MSCI South Korea ETF",
+    "name_zh": "iShares MSCI 韓國 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "iShares MSCI South Korea ETF",
+      "韓國 ETF",
+      "NYSEARCA:EWY"
+    ]
+  },
+  "FLNCX": {
+    "ticker": "FLNC",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:FLNC",
+    "name_en": "Fluence Energy, Inc.",
+    "name_zh": "Fluence Energy",
+    "asset_type": "public_company",
+    "aliases": [
+      "Fluence Energy",
+      "NASDAQ:FLNC"
+    ]
+  },
+  "GEVX": {
+    "ticker": "GEV",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:GEV",
+    "name_en": "GE Vernova Inc.",
+    "name_zh": "GE Vernova",
+    "asset_type": "public_company",
+    "aliases": [
+      "GE Vernova",
+      "NYSE:GEV"
+    ]
+  },
+  "GLWX": {
+    "ticker": "GLW",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:GLW",
+    "name_en": "Corning Incorporated",
+    "name_zh": "康寧",
+    "asset_type": "public_company",
+    "aliases": [
+      "Corning",
+      "康寧",
+      "NYSE:GLW"
+    ]
+  },
+  "GMEX": {
+    "ticker": "GME",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:GME",
+    "name_en": "GameStop Corp.",
+    "name_zh": "GameStop",
+    "asset_type": "public_company",
+    "aliases": [
+      "GameStop",
+      "NYSE:GME"
+    ]
+  },
+  "GOOGLX": {
+    "ticker": "GOOGL",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:GOOGL",
+    "name_en": "Alphabet Inc.",
+    "name_zh": "Alphabet／Google",
+    "asset_type": "public_company",
+    "aliases": [
+      "Alphabet",
+      "Google",
+      "谷歌",
+      "NASDAQ:GOOGL"
+    ]
+  },
+  "GSGX": {
+    "ticker": "GSG",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:GSG",
+    "name_en": "iShares S&P GSCI Commodity-Indexed Trust",
+    "name_zh": "iShares S&P GSCI 商品指數信託",
+    "asset_type": "etf",
+    "aliases": [
+      "GSG",
+      "commodity ETF",
+      "商品 ETF",
+      "NYSEARCA:GSG"
+    ]
+  },
+  "HIMSX": {
+    "ticker": "HIMS",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:HIMS",
+    "name_en": "Hims & Hers Health, Inc.",
+    "name_zh": "Hims & Hers Health",
+    "asset_type": "public_company",
+    "aliases": [
+      "Hims & Hers",
+      "Hims",
+      "NYSE:HIMS"
+    ]
+  },
+  "HOODX": {
+    "ticker": "HOOD",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:HOOD",
+    "name_en": "Robinhood Markets, Inc.",
+    "name_zh": "Robinhood",
+    "asset_type": "public_company",
+    "aliases": [
+      "Robinhood",
+      "NASDAQ:HOOD"
+    ]
+  },
+  "HPEX": {
+    "ticker": "HPE",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:HPE",
+    "name_en": "Hewlett Packard Enterprise Company",
+    "name_zh": "慧與科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "Hewlett Packard Enterprise",
+      "HPE",
+      "慧與",
+      "NYSE:HPE"
+    ]
+  },
+  "HYUNDAI": {
+    "ticker": "005380",
+    "exchange": "KRX",
+    "qualified_ticker": "KRX:005380",
+    "name_en": "Hyundai Motor Company",
+    "name_zh": "現代汽車",
+    "asset_type": "foreign_company",
+    "aliases": [
+      "Hyundai Motor",
+      "Hyundai",
+      "現代汽車",
+      "KRX:005380"
+    ]
+  },
+  "IBMX": {
+    "ticker": "IBM",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:IBM",
+    "name_en": "International Business Machines Corporation",
+    "name_zh": "IBM／國際商業機器",
+    "asset_type": "public_company",
+    "aliases": [
+      "IBM",
+      "International Business Machines",
+      "NYSE:IBM"
+    ]
+  },
+  "INTCX": {
+    "ticker": "INTC",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:INTC",
+    "name_en": "Intel Corporation",
+    "name_zh": "英特爾",
+    "asset_type": "public_company",
+    "aliases": [
+      "Intel",
+      "英特爾",
+      "NASDAQ:INTC"
+    ]
+  },
+  "IRENX": {
+    "ticker": "IREN",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:IREN",
+    "name_en": "IREN Limited",
+    "name_zh": "IREN",
+    "asset_type": "public_company",
+    "aliases": [
+      "IREN",
+      "IREN Limited",
+      "NASDAQ:IREN"
+    ]
+  },
+  "LITEX": {
+    "ticker": "LITE",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:LITE",
+    "name_en": "Lumentum Holdings Inc.",
+    "name_zh": "Lumentum",
+    "asset_type": "public_company",
+    "aliases": [
+      "Lumentum",
+      "NASDAQ:LITE"
+    ]
+  },
+  "LLYX": {
+    "ticker": "LLY",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:LLY",
+    "name_en": "Eli Lilly and Company",
+    "name_zh": "禮來",
+    "asset_type": "public_company",
+    "aliases": [
+      "Eli Lilly",
+      "Lilly",
+      "禮來",
+      "NYSE:LLY"
+    ]
+  },
+  "LMTX": {
+    "ticker": "LMT",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:LMT",
+    "name_en": "Lockheed Martin Corporation",
+    "name_zh": "洛克希德馬丁",
+    "asset_type": "public_company",
+    "aliases": [
+      "Lockheed Martin",
+      "洛克希德馬丁",
+      "NYSE:LMT"
+    ]
+  },
+  "LNGX": {
+    "ticker": "LNG",
+    "exchange": "NYSEAMERICAN",
+    "qualified_ticker": "NYSEAMERICAN:LNG",
+    "name_en": "Cheniere Energy, Inc.",
+    "name_zh": "Cheniere Energy",
+    "asset_type": "public_company",
+    "aliases": [
+      "Cheniere Energy",
+      "LNG",
+      "NYSEAMERICAN:LNG"
+    ]
+  },
+  "LRCXX": {
+    "ticker": "LRCX",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:LRCX",
+    "name_en": "Lam Research Corporation",
+    "name_zh": "科林研發",
+    "asset_type": "public_company",
+    "aliases": [
+      "Lam Research",
+      "科林研發",
+      "NASDAQ:LRCX"
+    ]
+  },
+  "METAX": {
+    "ticker": "META",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:META",
+    "name_en": "Meta Platforms, Inc.",
+    "name_zh": "Meta",
+    "asset_type": "public_company",
+    "aliases": [
+      "Meta",
+      "Meta Platforms",
+      "Facebook",
+      "NASDAQ:META"
+    ]
+  },
+  "MOSX": {
+    "ticker": "MOS",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:MOS",
+    "name_en": "The Mosaic Company",
+    "name_zh": "美盛",
+    "asset_type": "public_company",
+    "aliases": [
+      "Mosaic",
+      "The Mosaic Company",
+      "美盛",
+      "NYSE:MOS"
+    ]
+  },
+  "MPX": {
+    "ticker": "MP",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:MP",
+    "name_en": "MP Materials Corp.",
+    "name_zh": "MP Materials",
+    "asset_type": "public_company",
+    "aliases": [
+      "MP Materials",
+      "NYSE:MP"
+    ]
+  },
+  "MRVLX": {
+    "ticker": "MRVL",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:MRVL",
+    "name_en": "Marvell Technology, Inc.",
+    "name_zh": "Marvell／邁威爾科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "Marvell",
+      "邁威爾科技",
+      "NASDAQ:MRVL"
+    ]
+  },
+  "MSFTX": {
+    "ticker": "MSFT",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:MSFT",
+    "name_en": "Microsoft Corporation",
+    "name_zh": "微軟",
+    "asset_type": "public_company",
+    "aliases": [
+      "Microsoft",
+      "微軟",
+      "NASDAQ:MSFT"
+    ]
+  },
+  "MSTRX": {
+    "ticker": "MSTR",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:MSTR",
+    "name_en": "Strategy Inc.",
+    "name_zh": "Strategy（原 MicroStrategy）",
+    "asset_type": "public_company",
+    "aliases": [
+      "Strategy",
+      "MicroStrategy",
+      "微策略",
+      "NASDAQ:MSTR"
+    ]
+  },
+  "MUX": {
+    "ticker": "MU",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:MU",
+    "name_en": "Micron Technology, Inc.",
+    "name_zh": "美光科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "Micron",
+      "Micron Technology",
+      "美光",
+      "NASDAQ:MU"
+    ]
+  },
+  "NATGAS": {
+    "ticker": "NATGAS",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:NATGAS",
+    "name_en": "Natural Gas",
+    "name_zh": "天然氣",
+    "asset_type": "commodity",
+    "aliases": [
+      "Natural gas",
+      "Henry Hub natural gas",
+      "天然氣"
+    ]
+  },
+  "NBISX": {
+    "ticker": "NBIS",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:NBIS",
+    "name_en": "Nebius Group N.V.",
+    "name_zh": "Nebius Group",
+    "asset_type": "public_company",
+    "aliases": [
+      "Nebius",
+      "Nebius Group",
+      "NASDAQ:NBIS"
+    ]
+  },
+  "NFLXX": {
+    "ticker": "NFLX",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:NFLX",
+    "name_en": "Netflix, Inc.",
+    "name_zh": "Netflix／網飛",
+    "asset_type": "public_company",
+    "aliases": [
+      "Netflix",
+      "網飛",
+      "NASDAQ:NFLX"
+    ]
+  },
+  "NKEX": {
+    "ticker": "NKE",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:NKE",
+    "name_en": "NIKE, Inc.",
+    "name_zh": "Nike／耐吉",
+    "asset_type": "public_company",
+    "aliases": [
+      "Nike",
+      "耐吉",
+      "NYSE:NKE"
+    ]
+  },
+  "NOKX": {
+    "ticker": "NOK",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:NOK",
+    "name_en": "Nokia Corporation",
+    "name_zh": "諾基亞",
+    "asset_type": "public_company",
+    "aliases": [
+      "Nokia",
+      "諾基亞",
+      "NYSE:NOK"
+    ]
+  },
+  "NOWX": {
+    "ticker": "NOW",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:NOW",
+    "name_en": "ServiceNow, Inc.",
+    "name_zh": "ServiceNow",
+    "asset_type": "public_company",
+    "aliases": [
+      "ServiceNow",
+      "NYSE:NOW"
+    ]
+  },
+  "NTRX": {
+    "ticker": "NTR",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:NTR",
+    "name_en": "Nutrien Ltd.",
+    "name_zh": "Nutrien",
+    "asset_type": "public_company",
+    "aliases": [
+      "Nutrien",
+      "NYSE:NTR"
+    ]
+  },
+  "NVDAX": {
+    "ticker": "NVDA",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:NVDA",
+    "name_en": "NVIDIA Corporation",
+    "name_zh": "輝達",
+    "asset_type": "public_company",
+    "aliases": [
+      "NVIDIA",
+      "Nvidia",
+      "輝達",
+      "NASDAQ:NVDA"
+    ]
+  },
+  "OKLOX": {
+    "ticker": "OKLO",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:OKLO",
+    "name_en": "Oklo Inc.",
+    "name_zh": "Oklo",
+    "asset_type": "public_company",
+    "aliases": [
+      "Oklo",
+      "NYSE:OKLO"
+    ]
+  },
+  "ONDSX": {
+    "ticker": "ONDS",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:ONDS",
+    "name_en": "Ondas Holdings Inc.",
+    "name_zh": "Ondas Holdings",
+    "asset_type": "public_company",
+    "aliases": [
+      "Ondas",
+      "Ondas Holdings",
+      "NASDAQ:ONDS"
+    ]
+  },
+  "OPENAI": {
+    "ticker": "OPENAI",
+    "exchange": "PRIVATE",
+    "qualified_ticker": "PRIVATE:OPENAI",
+    "name_en": "OpenAI",
+    "name_zh": "OpenAI",
+    "asset_type": "private_company",
+    "aliases": [
+      "OpenAI",
+      "ChatGPT"
+    ]
+  },
+  "ORCLX": {
+    "ticker": "ORCL",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:ORCL",
+    "name_en": "Oracle Corporation",
+    "name_zh": "甲骨文",
+    "asset_type": "public_company",
+    "aliases": [
+      "Oracle",
+      "甲骨文",
+      "NYSE:ORCL"
+    ]
+  },
+  "PAYPX": {
+    "ticker": "PAYP",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:PAYP",
+    "name_en": "PayPay Corporation",
+    "name_zh": "PayPay（行動支付）",
+    "asset_type": "foreign_company",
+    "aliases": [
+      "PayPay",
+      "PayPay Corporation",
+      "NASDAQ:PAYP"
+    ]
+  },
+  "PLTRX": {
+    "ticker": "PLTR",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:PLTR",
+    "name_en": "Palantir Technologies Inc.",
+    "name_zh": "Palantir",
+    "asset_type": "public_company",
+    "aliases": [
+      "Palantir",
+      "NASDAQ:PLTR"
+    ]
+  },
+  "QCOMX": {
+    "ticker": "QCOM",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:QCOM",
+    "name_en": "QUALCOMM Incorporated",
+    "name_zh": "高通",
+    "asset_type": "public_company",
+    "aliases": [
+      "Qualcomm",
+      "高通",
+      "NASDAQ:QCOM"
+    ]
+  },
+  "QNTX": {
+    "ticker": "QNT",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:QNT",
+    "name_en": "Quantinuum Inc.",
+    "name_zh": "Quantinuum",
+    "asset_type": "public_company",
+    "aliases": [
+      "Quantinuum",
+      "量子運算 Quantinuum",
+      "NASDAQ:QNT"
+    ]
+  },
+  "QQQX": {
+    "ticker": "QQQ",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:QQQ",
+    "name_en": "Invesco QQQ Trust",
+    "name_zh": "Invesco QQQ ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "Invesco QQQ",
+      "QQQ ETF",
+      "NASDAQ:QQQ"
+    ]
+  },
+  "RGTIX": {
+    "ticker": "RGTI",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:RGTI",
+    "name_en": "Rigetti Computing, Inc.",
+    "name_zh": "Rigetti Computing",
+    "asset_type": "public_company",
+    "aliases": [
+      "Rigetti",
+      "Rigetti Computing",
+      "NASDAQ:RGTI"
+    ]
+  },
+  "RKLBX": {
+    "ticker": "RKLB",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:RKLB",
+    "name_en": "Rocket Lab Corporation",
+    "name_zh": "Rocket Lab",
+    "asset_type": "public_company",
+    "aliases": [
+      "Rocket Lab",
+      "NASDAQ:RKLB"
+    ]
+  },
+  "RTXX": {
+    "ticker": "RTX",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:RTX",
+    "name_en": "RTX Corporation",
+    "name_zh": "RTX／雷神技術",
+    "asset_type": "public_company",
+    "aliases": [
+      "RTX",
+      "Raytheon Technologies",
+      "雷神技術",
+      "NYSE:RTX"
+    ]
+  },
+  "SITMX": {
+    "ticker": "SITM",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SITM",
+    "name_en": "SiTime Corporation",
+    "name_zh": "SiTime",
+    "asset_type": "public_company",
+    "aliases": [
+      "SiTime",
+      "NASDAQ:SITM"
+    ]
+  },
+  "SKHX": {
+    "ticker": "000660",
+    "exchange": "KRX",
+    "qualified_ticker": "KRX:000660",
+    "name_en": "SK hynix Inc.",
+    "name_zh": "SK 海力士",
+    "asset_type": "foreign_company",
+    "aliases": [
+      "SK hynix",
+      "SK Hynix",
+      "SK 海力士",
+      "海力士",
+      "KRX:000660"
+    ]
+  },
+  "SLVX": {
+    "ticker": "SLV",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:SLV",
+    "name_en": "iShares Silver Trust",
+    "name_zh": "iShares 白銀信託",
+    "asset_type": "etf",
+    "aliases": [
+      "iShares Silver Trust",
+      "Silver ETF",
+      "白銀 ETF",
+      "NYSEARCA:SLV"
+    ]
+  },
+  "SMHX": {
+    "ticker": "SMH",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SMH",
+    "name_en": "VanEck Semiconductor ETF",
+    "name_zh": "VanEck 半導體 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "VanEck Semiconductor ETF",
+      "Semiconductor ETF",
+      "半導體 ETF",
+      "NASDAQ:SMH"
+    ]
+  },
+  "SMSN": {
+    "ticker": "SMSN",
+    "exchange": "LSE",
+    "qualified_ticker": "LSE:SMSN",
+    "name_en": "Samsung Electronics Co., Ltd. GDR",
+    "name_zh": "三星電子",
+    "asset_type": "foreign_company",
+    "aliases": [
+      "Samsung Electronics",
+      "Samsung",
+      "三星電子",
+      "LSE:SMSN",
+      "KRX:005930"
+    ]
+  },
+  "SNDKX": {
+    "ticker": "SNDK",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SNDK",
+    "name_en": "Sandisk Corporation",
+    "name_zh": "SanDisk／閃迪",
+    "asset_type": "public_company",
+    "aliases": [
+      "Sandisk",
+      "SanDisk",
+      "閃迪",
+      "NASDAQ:SNDK"
+    ]
+  },
+  "SOXLX": {
+    "ticker": "SOXL",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:SOXL",
+    "name_en": "Direxion Daily Semiconductor Bull 3X Shares",
+    "name_zh": "Direxion 半導體三倍做多 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "SOXL",
+      "Semiconductor Bull 3X",
+      "半導體三倍做多",
+      "NYSEARCA:SOXL"
+    ]
+  },
+  "SOXXX": {
+    "ticker": "SOXX",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SOXX",
+    "name_en": "iShares Semiconductor ETF",
+    "name_zh": "iShares 半導體 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "iShares Semiconductor ETF",
+      "SOXX",
+      "半導體 ETF",
+      "NASDAQ:SOXX"
+    ]
+  },
+  "SPCX": {
+    "ticker": "SPCX",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SPCX",
+    "name_en": "SpaceX",
+    "name_zh": "SpaceX／太空探索科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "SpaceX",
+      "Space Exploration Technologies",
+      "太空探索科技",
+      "NASDAQ:SPCX"
+    ]
+  },
+  "SPYX": {
+    "ticker": "SPY",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:SPY",
+    "name_en": "SPDR S&P 500 ETF Trust",
+    "name_zh": "SPDR S&P 500 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "SPDR S&P 500 ETF Trust",
+      "S&P 500 ETF",
+      "標普500 ETF",
+      "NYSEARCA:SPY"
+    ]
+  },
+  "STXX": {
+    "ticker": "STX",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:STX",
+    "name_en": "Seagate Technology Holdings plc",
+    "name_zh": "希捷科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "Seagate",
+      "Seagate Technology",
+      "希捷科技",
+      "NASDAQ:STX"
+    ]
+  },
+  "TQQQX": {
+    "ticker": "TQQQ",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:TQQQ",
+    "name_en": "ProShares UltraPro QQQ",
+    "name_zh": "ProShares 三倍做多納指 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "TQQQ",
+      "UltraPro QQQ",
+      "三倍做多納指",
+      "NASDAQ:TQQQ"
+    ]
+  },
+  "TSLAX": {
+    "ticker": "TSLA",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:TSLA",
+    "name_en": "Tesla, Inc.",
+    "name_zh": "特斯拉",
+    "asset_type": "public_company",
+    "aliases": [
+      "Tesla",
+      "特斯拉",
+      "NASDAQ:TSLA"
+    ]
+  },
+  "TSMX": {
+    "ticker": "TSM",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:TSM",
+    "name_en": "Taiwan Semiconductor Manufacturing Company Limited ADR",
+    "name_zh": "台積電 ADR",
+    "asset_type": "public_company",
+    "aliases": [
+      "TSMC",
+      "Taiwan Semiconductor",
+      "台積電",
+      "NYSE:TSM"
+    ]
+  },
+  "TTEX": {
+    "ticker": "TTE",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:TTE",
+    "name_en": "TotalEnergies SE ADR",
+    "name_zh": "道達爾能源 ADR",
+    "asset_type": "public_company",
+    "aliases": [
+      "TotalEnergies",
+      "道達爾能源",
+      "NYSE:TTE"
+    ]
+  },
+  "TXNX": {
+    "ticker": "TXN",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:TXN",
+    "name_en": "Texas Instruments Incorporated",
+    "name_zh": "德州儀器",
+    "asset_type": "public_company",
+    "aliases": [
+      "Texas Instruments",
+      "德州儀器",
+      "NASDAQ:TXN"
+    ]
+  },
+  "UNGX": {
+    "ticker": "UNG",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:UNG",
+    "name_en": "United States Natural Gas Fund, LP",
+    "name_zh": "美國天然氣基金",
+    "asset_type": "etf",
+    "aliases": [
+      "United States Natural Gas Fund",
+      "Natural Gas ETF",
+      "天然氣 ETF",
+      "NYSEARCA:UNG"
+    ]
+  },
+  "UNHX": {
+    "ticker": "UNH",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:UNH",
+    "name_en": "UnitedHealth Group Incorporated",
+    "name_zh": "聯合健康",
+    "asset_type": "public_company",
+    "aliases": [
+      "UnitedHealth",
+      "UnitedHealth Group",
+      "聯合健康",
+      "NYSE:UNH"
+    ]
+  },
+  "URAX": {
+    "ticker": "URA",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:URA",
+    "name_en": "Global X Uranium ETF",
+    "name_zh": "Global X 鈾礦 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "Global X Uranium ETF",
+      "Uranium ETF",
+      "鈾礦 ETF",
+      "NYSEARCA:URA"
+    ]
+  },
+  "URNMX": {
+    "ticker": "URNM",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:URNM",
+    "name_en": "Sprott Uranium Miners ETF",
+    "name_zh": "Sprott 鈾礦商 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "Sprott Uranium Miners ETF",
+      "Uranium Miners ETF",
+      "鈾礦商 ETF",
+      "NYSEARCA:URNM"
+    ]
+  },
+  "USARX": {
+    "ticker": "USAR",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:USAR",
+    "name_en": "USA Rare Earth, Inc.",
+    "name_zh": "USA Rare Earth／美國稀土",
+    "asset_type": "public_company",
+    "aliases": [
+      "USA Rare Earth",
+      "美國稀土",
+      "NASDAQ:USAR"
+    ]
+  },
+  "USOX": {
+    "ticker": "USO",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:USO",
+    "name_en": "United States Oil Fund, LP",
+    "name_zh": "美國原油基金",
+    "asset_type": "etf",
+    "aliases": [
+      "United States Oil Fund",
+      "US Oil ETF",
+      "原油 ETF",
+      "NYSEARCA:USO"
+    ]
+  },
+  "VGKX": {
+    "ticker": "VGK",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:VGK",
+    "name_en": "Vanguard FTSE Europe ETF",
+    "name_zh": "Vanguard 歐洲 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "Vanguard FTSE Europe ETF",
+      "Europe ETF",
+      "歐洲 ETF",
+      "NYSEARCA:VGK"
+    ]
+  },
+  "WDCX": {
+    "ticker": "WDC",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:WDC",
+    "name_en": "Western Digital Corporation",
+    "name_zh": "威騰電子",
+    "asset_type": "public_company",
+    "aliases": [
+      "Western Digital",
+      "WD",
+      "威騰",
+      "NASDAQ:WDC"
+    ]
+  },
+  "XAG": {
+    "ticker": "XAG",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:XAG",
+    "name_en": "Silver",
+    "name_zh": "白銀",
+    "asset_type": "commodity",
+    "aliases": [
+      "Silver",
+      "spot silver",
+      "白銀"
+    ]
+  },
+  "XAU": {
+    "ticker": "XAU",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:XAU",
+    "name_en": "Gold",
+    "name_zh": "黃金",
+    "asset_type": "commodity",
+    "aliases": [
+      "Gold",
+      "spot gold",
+      "黃金"
+    ]
+  },
+  "XPD": {
+    "ticker": "XPD",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:XPD",
+    "name_en": "Palladium",
+    "name_zh": "鈀金",
+    "asset_type": "commodity",
+    "aliases": [
+      "Palladium",
+      "鈀金"
+    ]
+  },
+  "XPT": {
+    "ticker": "XPT",
+    "exchange": "COMMODITY",
+    "qualified_ticker": "COMMODITY:XPT",
+    "name_en": "Platinum",
+    "name_zh": "鉑金",
+    "asset_type": "commodity",
+    "aliases": [
+      "Platinum",
+      "鉑金"
+    ]
+  },
+  "XYZX": {
+    "ticker": "XYZ",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:XYZ",
+    "name_en": "Block, Inc.",
+    "name_zh": "Block（原 Square）",
+    "asset_type": "public_company",
+    "aliases": [
+      "Block Inc",
+      "Square",
+      "Cash App",
+      "Block",
+      "NYSE:XYZ"
+    ]
+  },
+  "ALABX": {
+    "ticker": "ALAB",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:ALAB",
+    "name_en": "Astera Labs, Inc.",
+    "name_zh": "Astera Labs",
+    "asset_type": "public_company",
+    "aliases": [
+      "Astera Labs",
+      "NASDAQ:ALAB"
+    ]
+  },
+  "KLACX": {
+    "ticker": "KLAC",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:KLAC",
+    "name_en": "KLA Corporation",
+    "name_zh": "科磊",
+    "asset_type": "public_company",
+    "aliases": [
+      "KLA",
+      "KLA Corporation",
+      "科磊",
+      "NASDAQ:KLAC"
+    ]
+  },
+  "ONX": {
+    "ticker": "ON",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:ON",
+    "name_en": "onsemi",
+    "name_zh": "安森美半導體",
+    "asset_type": "public_company",
+    "aliases": [
+      "onsemi",
+      "ON Semiconductor",
+      "安森美",
+      "安森美半導體",
+      "NASDAQ:ON"
+    ]
+  },
+  "SKHY": {
+    "ticker": "SKHY",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SKHY",
+    "name_en": "SK hynix Inc. ADR",
+    "name_zh": "SK 海力士 ADR",
+    "asset_type": "foreign_company",
+    "aliases": [
+      "SK hynix",
+      "SK Hynix",
+      "SK 海力士",
+      "海力士",
+      "NASDAQ:SKHY",
+      "KRX:000660"
+    ]
+  },
+  "SMCIX": {
+    "ticker": "SMCI",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SMCI",
+    "name_en": "Super Micro Computer, Inc.",
+    "name_zh": "美超微電腦",
+    "asset_type": "public_company",
+    "aliases": [
+      "Super Micro Computer",
+      "Supermicro",
+      "美超微",
+      "NASDAQ:SMCI"
+    ]
+  },
+  "SNXXX": {
+    "ticker": "SNX",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:SNX",
+    "name_en": "TD SYNNEX Corporation",
+    "name_zh": "TD SYNNEX",
+    "asset_type": "public_company",
+    "aliases": [
+      "TD SYNNEX",
+      "Synnex",
+      "NYSE:SNX"
+    ]
+  },
+  "VSHX": {
+    "ticker": "VSH",
+    "exchange": "NYSE",
+    "qualified_ticker": "NYSE:VSH",
+    "name_en": "Vishay Intertechnology, Inc.",
+    "name_zh": "Vishay／威世科技",
+    "asset_type": "public_company",
+    "aliases": [
+      "Vishay",
+      "Vishay Intertechnology",
+      "威世",
+      "NYSE:VSH"
+    ]
+  },
+  "KIOXIA": {
+    "ticker": "285A",
+    "exchange": "TSE",
+    "qualified_ticker": "TSE:285A",
+    "name_en": "Kioxia Holdings Corporation",
+    "name_zh": "鎧俠控股",
+    "asset_type": "foreign_company",
+    "aliases": [
+      "Kioxia",
+      "Kioxia Holdings",
+      "鎧俠",
+      "TSE:285A"
+    ]
+  },
+  "PANWX": {
+    "ticker": "PANW",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:PANW",
+    "name_en": "Palo Alto Networks, Inc.",
+    "name_zh": "Palo Alto Networks",
+    "asset_type": "public_company",
+    "aliases": [
+      "Palo Alto Networks",
+      "PANW",
+      "NASDAQ:PANW"
+    ]
+  },
+  "SHAZX": {
+    "ticker": "SHAZ",
+    "exchange": "NASDAQ",
+    "qualified_ticker": "NASDAQ:SHAZ",
+    "name_en": "SharonAI Holdings Inc.",
+    "name_zh": "SharonAI Holdings",
+    "asset_type": "public_company",
+    "aliases": [
+      "SharonAI",
+      "Sharon AI",
+      "NASDAQ:SHAZ"
+    ]
+  },
+  "SOXSX": {
+    "ticker": "SOXS",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:SOXS",
+    "name_en": "Direxion Daily Semiconductor Bear 3X Shares",
+    "name_zh": "Direxion 半導體三倍做空 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "SOXS",
+      "Semiconductor Bear 3X",
+      "半導體三倍做空",
+      "NYSEARCA:SOXS"
+    ]
+  },
+  "XLPX": {
+    "ticker": "XLP",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:XLP",
+    "name_en": "Consumer Staples Select Sector SPDR Fund",
+    "name_zh": "SPDR 必需消費類股 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "XLP",
+      "Consumer Staples Select Sector SPDR",
+      "必需消費 ETF",
+      "NYSEARCA:XLP"
+    ]
+  },
+  "XLVX": {
+    "ticker": "XLV",
+    "exchange": "NYSEARCA",
+    "qualified_ticker": "NYSEARCA:XLV",
+    "name_en": "Health Care Select Sector SPDR Fund",
+    "name_zh": "SPDR 醫療保健類股 ETF",
+    "asset_type": "etf",
+    "aliases": [
+      "XLV",
+      "Health Care Select Sector SPDR",
+      "醫療保健 ETF",
+      "NYSEARCA:XLV"
+    ]
+  }
 };
 
 const RESEARCH_SOCIAL_DOMAINS = ["instagram.com","facebook.com","reddit.com","x.com","twitter.com","tiktok.com","youtube.com","threads.com","moomoo.com"];
@@ -712,41 +2201,63 @@ function researchState(row) {
 
 function researchTickerHint(symbol) {
   const s = String(symbol || "").trim().toUpperCase();
-  if (RESEARCH_TICKER_OVERRIDES[s]) return RESEARCH_TICKER_OVERRIDES[s];
+  const identity = RESEARCH_ASSET_IDENTITIES[s] || null;
+  if (identity?.ticker) return String(identity.ticker).trim();
   if (s.endsWith("X") && s.length > 1) return s.slice(0, -1);
   return s;
 }
 
 function researchCompanyProfile(symbol) {
   const s = String(symbol || "").trim().toUpperCase();
+  const identity = RESEARCH_ASSET_IDENTITIES[s] || null;
   const hint = researchTickerHint(s);
-  const profile = RESEARCH_COMPANY_PROFILES[hint] || RESEARCH_COMPANY_PROFILES[s] || null;
   const aliases = [];
   const add = (value) => {
     const v = String(value || "").trim();
     if (!v || aliases.some(x => x.toLowerCase() === v.toLowerCase())) return;
     aliases.push(v);
   };
+
+  if (identity) {
+    add(identity.ticker);
+    add(identity.qualified_ticker);
+    add(identity.name_en);
+    add(identity.name_zh);
+    for (const alias of identity.aliases || []) add(alias);
+
+    const matchAliases = aliases.filter(value => {
+      const v = String(value || "").trim();
+      return !/^[A-Za-z]{1,2}$/.test(v);
+    });
+
+    return {
+      symbol: s,
+      underlying_ticker: String(identity.ticker || hint).trim(),
+      exchange: String(identity.exchange || "").trim(),
+      qualified_ticker: String(identity.qualified_ticker || identity.ticker || hint).trim(),
+      company_name: String(identity.name_en || identity.ticker || hint).trim(),
+      company_name_zh: String(identity.name_zh || "").trim(),
+      asset_type: String(identity.asset_type || "other").trim(),
+      focus: String(identity.name_zh || identity.name_en || identity.ticker || hint).trim(),
+      aliases,
+      match_aliases: matchAliases.length ? matchAliases : aliases,
+    };
+  }
+
+  // Unknown future Pionex symbols: generic fallback only. Do not guess a company name.
   add(hint);
   if (!s.endsWith("X")) add(s);
-  if (profile) {
-    add(profile.name);
-    for (const alias of profile.aliases || []) add(alias);
-  }
-  // Short 1-2 letter tickers (ON / BE / MP...) are common English words.
-  // Keep them in the search prompt, but do not use them alone as Hard-Gate match aliases when a proper profile exists.
-  const matchAliases = aliases.filter(value => {
-    const v = String(value || "").trim();
-    return !(profile && /^[A-Za-z]{1,2}$/.test(v));
-  });
   return {
     symbol: s,
     underlying_ticker: hint,
-    company_name: profile?.name || hint,
-    asset_type: profile?.asset_type || "other",
-    focus: profile?.focus || "",
+    exchange: "",
+    qualified_ticker: hint,
+    company_name: hint,
+    company_name_zh: "",
+    asset_type: "other",
+    focus: hint,
     aliases,
-    match_aliases: matchAliases.length ? matchAliases : aliases,
+    match_aliases: aliases,
   };
 }
 
@@ -1208,28 +2719,41 @@ function researchVerdictFromEvents(events) {
   return "neutral";
 }
 
+function researchIdentityBlock(profile) {
+  const marketId = profile?.qualified_ticker || profile?.underlying_ticker || profile?.symbol || "";
+  const lines = [
+    `Pionex RWA 代號：${profile?.symbol || ""}`,
+    `正式市場代號：${marketId}`,
+    `英文名稱：${profile?.company_name || ""}`,
+  ];
+  if (profile?.company_name_zh) lines.push(`中文名稱：${profile.company_name_zh}`);
+  lines.push(`資產類型：${profile?.asset_type || "other"}`);
+  return lines.join("\n");
+}
+
 function researchBuildQuery(profile) {
-  const aliases = (profile?.aliases || []).slice(0, 16).join(" / ");
+  const aliases = (profile?.aliases || []).slice(0, 20).join(" / ");
   const type = String(profile?.asset_type || "other");
   const focus = String(profile?.focus || profile?.company_name || profile?.underlying_ticker || "").trim();
+  const identity = researchIdentityBlock(profile);
 
   if (["public_company","foreign_company"].includes(type)) {
-    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n公司也可能以這些名稱出現：${aliases}\n\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資\n- SEC / 監管 / 訴訟\n- 分析師重大升降評或目標價異動（必須是最近 7 天的新動作）\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示`;
+    return `搜尋 ${profile.company_name} (${profile.qualified_ticker || profile.underlying_ticker}) 最近 7 天「直接與 ${profile.company_name} 本身有關、而且事件本身也發生在最近 7 天」的重大公司新聞。\n\n標的身分（必須以此為準，不要只用短 ticker 猜公司）：\n${identity}\n\n公司也可能以這些名稱出現：${aliases}\n\n- 財報 / 財測 / 法說會更新\n- ${profile.company_name} 官方公告\n- 新產品或重大業務正式發布\n- 重大合作 / 收購 / 投資\n- SEC / 監管 / 訴訟\n- 分析師重大升降評或目標價異動（必須是最近 7 天的新動作）\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示`;
   }
 
   if (type === "private_company") {
-    return `搜尋 ${profile.company_name} 最近 7 天直接相關的重大公司事件。\n\n可能名稱：${aliases}\n\n- 官方產品 / 技術 / 商業發布\n- 大型客戶、訂單、合作或合約\n- 融資、併購、重大投資、IPO / 上市進度\n- 監管、訴訟、政府合約或重大政策影響\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示`;
+    return `搜尋 ${profile.company_name} 最近 7 天直接相關的重大公司事件。\n\n標的身分（必須以此為準）：\n${identity}\n\n可能名稱：${aliases}\n\n- 官方產品 / 技術 / 商業發布\n- 大型客戶、訂單、合作或合約\n- 融資、併購、重大投資、IPO / 上市進度\n- 監管、訴訟、政府合約或重大政策影響\n- 直接影響 ${profile.company_name} 營運的重大產業事件\n\n且用繁體中文顯示`;
   }
 
   if (type === "etf") {
-    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天重大 ETF / 基金事件，以及直接影響其核心曝險「${focus}」的重大事件。\n\n可能名稱或主題：${aliases}\n\n- 發行商正式公告、基金結構、拆分、配息、成分或指數再平衡\n- 有可靠來源的重大資金流 / 持倉結構變化\n- 直接影響「${focus}」的重大政策、供需、產業或大型成分股事件\n- 對 ETF 核心曝險有明確因果關係的重大市場事件\n\n且用繁體中文顯示`;
+    return `搜尋 ${profile.company_name} (${profile.qualified_ticker || profile.underlying_ticker}) 最近 7 天重大 ETF / 基金事件，以及直接影響其核心曝險「${focus}」的重大事件。\n\n標的身分（必須以此為準，不得當成公司股票）：\n${identity}\n\n可能名稱或主題：${aliases}\n\n- 發行商正式公告、基金結構、拆分、配息、成分或指數再平衡\n- 有可靠來源的重大資金流 / 持倉結構變化\n- 直接影響「${focus}」的重大政策、供需、產業或大型成分股事件\n- 對 ETF 核心曝險有明確因果關係的重大市場事件\n\n且用繁體中文顯示`;
   }
 
   if (type === "commodity") {
-    return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接影響「${focus}」的重大市場事件。\n\n可能名稱：${aliases}\n\n- 供給 / 需求 / 庫存 / 產量 / 礦山或油氣設施中斷\n- OPEC、EIA、政府政策、制裁、關稅、地緣事件且必須直接影響該商品\n- 央行、實質利率或工業需求等對該商品有明確直接影響的重大事件\n- 其他可驗證、會改變該商品供需結構的事件\n\n且用繁體中文顯示`;
+    return `搜尋 ${profile.company_name} (${profile.qualified_ticker || profile.underlying_ticker}) 最近 7 天直接影響「${focus}」的重大市場事件。\n\n標的身分（必須以此為準，不得當成公司股票）：\n${identity}\n\n可能名稱：${aliases}\n\n- 供給 / 需求 / 庫存 / 產量 / 礦山或油氣設施中斷\n- OPEC、EIA、政府政策、制裁、關稅、地緣事件且必須直接影響該商品\n- 央行、實質利率或工業需求等對該商品有明確直接影響的重大事件\n- 其他可驗證、會改變該商品供需結構的事件\n\n且用繁體中文顯示`;
   }
 
-  return `搜尋 ${profile.company_name} (${profile.underlying_ticker}) 最近 7 天直接相關的重大市場事件。\n\n可能名稱：${aliases}\n\n只保留可驗證且直接相關的重大事件，且用繁體中文顯示`;
+  return `搜尋 ${profile.company_name} (${profile.qualified_ticker || profile.underlying_ticker}) 最近 7 天直接相關的重大市場事件。\n\n標的身分（必須以此為準）：\n${identity}\n\n可能名稱：${aliases}\n\n只保留可驗證且直接相關的重大事件，且用繁體中文顯示`;
 }
 
 function researchStripCodeFence(value) {
@@ -1629,7 +3153,10 @@ function researchBuildItem(row, profile, payload, searchedAt) {
     searched_at: searchedAt,
     expires_at: new Date((Number.isFinite(searchedMs) ? searchedMs : Date.now()) + RESEARCH_TTL_MS).toISOString(),
     underlying_ticker: profile.underlying_ticker,
+    exchange: profile.exchange || "",
+    qualified_ticker: profile.qualified_ticker || profile.underlying_ticker,
     company_name: profile.company_name,
+    company_name_zh: profile.company_name_zh || "",
     company_aliases: profile.aliases,
     asset_type: profile.asset_type,
     asset_focus: profile.focus || "",

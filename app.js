@@ -3,7 +3,7 @@
   const cfg = window.SSTATE_CONFIG || {};
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
-  const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v8";
+  const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
   const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
@@ -15,7 +15,7 @@
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleFlow: $("battle-flow"), battleDetails: $("battle-details"), battleMetrics: $("battle-metrics"),
     battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.50｜MODEL-VALIDATION-FLOW";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.51｜NEWS-ASSET-IDENTITY";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";

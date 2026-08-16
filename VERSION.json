@@ -1,7 +1,8 @@
 {
-  "app_version": "TERMINAL v0.1.50｜MODEL-VALIDATION-FLOW",
-  "stage": "MODEL-VALIDATION-FLOW",
+  "app_version": "TERMINAL v0.1.51｜NEWS-ASSET-IDENTITY",
+  "stage": "NEWS-ASSET-IDENTITY",
   "features": [
+    "Add reviewed 122-symbol US-stock/RWA identity dictionary (ticker, exchange, qualified ticker, English/Traditional-Chinese name, asset type, aliases) and make the live Cloudflare Tavily news path resolve exact identity before suffix-X guessing",
     "Replace Champion/Challenger metric wall with a four-stage validation flow: 72H observation → evidence accumulation → model duel → final replacement result",
     "Use Challenger generated_at for the 72H UI gate, matching backend promotion_decision age logic; assigned_at is no longer used for the countdown",
     "Keep Brier/bootstrap metrics behind a collapsed comparison-details disclosure; the main UI only shows current stage, remaining requirement, and final replacement result",

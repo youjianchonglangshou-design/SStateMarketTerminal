@@ -414,3 +414,27 @@ Only the requested Champion/Challenger evidence display was changed:
 - `null` Brier values display `—` instead of `0.0000`.
 - 168H timeout logic is fixed in HistoricalTraining so insufficient evidence cannot remain `WAITING_EVIDENCE` forever.
 - No S-state engine, training model, Worker, R2, Tavily, or market-analysis logic changed.
+
+
+## v0.1.49 OOS-EVAL-TIME
+
+只修 Champion vs Challenger 時間顯示，避免把「現在 Shadow 年齡」和「最後一次 OOS 評估時間」混為一談。
+
+- `目前 Shadow 年齡`：瀏覽器依現在時間即時計算。
+- `最後 OOS 評估`：直接使用 evaluation.json 的 `challenger_age_hours` + `evaluated_at`。
+- 新增 `最後 OOS 評估年齡` progress row。
+- OOS cases / symbols / Brier / confidence 仍代表最後一次 evaluation 結果。
+- 不修改 HistoricalTraining、OOS 計算、Worker、R2、模型判定。
+
+
+## v0.1.50 MODEL-VALIDATION-FLOW
+
+Champion vs Challenger 主畫面改為四關闖關流程：
+
+1. 72H 實戰觀察：只顯示距離 72H 還剩多久；倒數來源與後端一致，使用 Challenger `generated_at`。
+2. 累積驗證證據：只在本關顯示 Cases 180 / Symbols 50 進度，並直接告訴使用者還差多少。
+3. Champion vs Challenger 模型對決：證據達標才進入。
+4. 最終結果：直接顯示 Challenger 是否取代 Champion。
+
+Brier / bootstrap confidence 等專業數據收進「查看比較細節」，不再平鋪主畫面。
+未修改 HistoricalTraining、180/50 門檻、72H 門檻、Worker、R2 或模型升降級規則。

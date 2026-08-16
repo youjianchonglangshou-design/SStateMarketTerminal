@@ -1,7 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.48｜OOS-EVIDENCE-FIX",
-  "stage": "OOS-EVIDENCE-FIX",
+  "app_version": "TERMINAL v0.1.50｜MODEL-VALIDATION-FLOW",
+  "stage": "MODEL-VALIDATION-FLOW",
   "features": [
+    "Replace Champion/Challenger metric wall with a four-stage validation flow: 72H observation → evidence accumulation → model duel → final replacement result",
+    "Use Challenger generated_at for the 72H UI gate, matching backend promotion_decision age logic; assigned_at is no longer used for the countdown",
+    "Keep Brier/bootstrap metrics behind a collapsed comparison-details disclosure; the main UI only shows current stage, remaining requirement, and final replacement result",
     "Fix GLM-4.7-Flash response parsing: read choices[0].message.content from the Cloudflare chat-completions wrapper instead of mistakenly treating the wrapper object itself as the requested JSON",
     "Use reasoning_effort=low and a 2400-token completion ceiling so GLM spends less output budget on hidden/visible reasoning and reaches the final structured JSON faster",
     "If GLM returns content=null after exhausting reasoning tokens, retry the same GLM-4.7-Flash once with a compact candidate payload and direct-JSON instruction; failed retries are not cached as false no-news results",

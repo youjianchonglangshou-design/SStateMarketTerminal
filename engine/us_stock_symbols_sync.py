@@ -1,10 +1,12 @@
-"""每次美股分析前同步 Pionex 最新 active RWA/美股永續清單到 R2。
+"""每日同步 Pionex 最新 active RWA/美股永續清單到 R2。
 
-清單層不再用 49 根日 K 當門檻；只要 Pionex future_markets 仍為 active/TRADING
-us_token_contract，就進 R2。K 線成熟度交給 analysis_core 自然處理。
+預設由 GitHub Actions 每天台灣時間 06:00 執行一次。
+清單層不使用日 K 根數門檻；只要 Pionex future_markets 仍為 active/TRADING
+us_token_contract，就進 R2。完整分析只讀 R2，不再重複向 Pionex 抓市場清單。
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -219,3 +221,27 @@ def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dic
     upload = _upload_to_r2(session, worker, token, payload)
     payload["r2_upload"] = upload
     return payload
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Daily Pionex US-stock/RWA symbol sync -> R2")
+    parser.add_argument(
+        "--output",
+        default="",
+        help="Optional local JSON copy for workflow artifact/debugging",
+    )
+    args = parser.parse_args()
+
+    result = sync_us_stock_symbols_to_r2(output_path=args.output or None)
+    summary = {
+        "generated_at": result.get("generated_at"),
+        "candidate_count": result.get("candidate_count"),
+        "active_count": result.get("active_count"),
+        "r2_upload": result.get("r2_upload"),
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

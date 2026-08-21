@@ -15,7 +15,6 @@ from analysis_core import analyze_symbol, annotate
 from get import build_snapshot_payload
 from github_sync import serialize_snapshot_json
 from symbols_config import get_rwa_symbol_source, get_symbols_config
-from us_stock_symbols_sync import sync_us_stock_symbols_to_r2
 
 TW_TZ = timezone(timedelta(hours=8))
 
@@ -76,42 +75,21 @@ def main() -> int:
     started_at = datetime.now(TW_TZ).isoformat()
     symbol_sync = {"status": "NOT_APPLICABLE"}
 
+    # 美股清單不再於每次完整分析時向 Pionex 重新同步。
+    # 每天台灣時間 06:00 由獨立 workflow 執行 us_stock_symbols_sync.py 更新 R2；
+    # 手動 / 自動完整分析只讀 R2 的當日清單。
     if args.market == "us-stock":
         write_progress(args.progress_file, {
             "status": "RUNNING",
             "market": args.market,
-            "phase": "SYNC_US_STOCK_SYMBOLS",
-            "message": "Pionex 最新 active 美股/RWA 清單 → R2（不設日K門檻）",
+            "phase": "LOAD_US_STOCK_SYMBOLS_FROM_R2",
+            "message": "讀取 R2 每日 06:00 更新的 Pionex 美股/RWA 清單",
             "completed": 0,
             "total": 0,
             "percent": 0,
             "started_at_taiwan": started_at,
         })
-        try:
-            synced = sync_us_stock_symbols_to_r2(
-                output_path=output_dir / "us_stock_symbols.json",
-            )
-            symbol_sync = {
-                "status": "SUCCESS",
-                "generated_at": synced.get("generated_at"),
-                "candidate_count": synced.get("candidate_count"),
-                "active_count": synced.get("active_count", synced.get("eligible_count")),
-                "eligible_count": synced.get("eligible_count"),
-                "rejected_count": synced.get("rejected_count"),
-                "check_error_count": synced.get("check_error_count"),
-            }
-            print(
-                "US-stock symbol sync -> "
-                f"active={synced.get('active_count', synced.get('eligible_count'))} / candidates={synced.get('candidate_count')}"
-            )
-        except Exception as exc:
-            # 不破壞 working baseline：同步失敗時保留上一版 R2；若 R2 也不可用，
-            # symbols_config 會退回 repository fallback；不會因同步暫時失敗清空主頁。
-            symbol_sync = {
-                "status": "FAILED_USING_PREVIOUS_R2_OR_FALLBACK",
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-            print(f"WARNING: US-stock symbol sync failed: {symbol_sync['error']}", file=sys.stderr)
+        symbol_sync = {"status": "R2_DAILY_0600_LIST"}
 
     groups = get_symbols_config(
         force_reload_rwa=args.market == "us-stock",

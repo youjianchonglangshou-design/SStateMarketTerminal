@@ -76,14 +76,14 @@ def main() -> int:
     symbol_sync = {"status": "NOT_APPLICABLE"}
 
     # 美股清單不再於每次完整分析時向 Pionex 重新同步。
-    # 每天台灣時間 06:00 由獨立 workflow 執行 us_stock_symbols_sync.py 更新 R2；
-    # 手動 / 自動完整分析只讀 R2 的當日清單。
+    # 每天台灣時間 06:00 由 Cloudflare Worker Cron Trigger 發出 workflow_dispatch，
+    # GitHub Actions 只負責執行 us_stock_symbols_sync.py；手動 / 自動完整分析只讀 R2。
     if args.market == "us-stock":
         write_progress(args.progress_file, {
             "status": "RUNNING",
             "market": args.market,
             "phase": "LOAD_US_STOCK_SYMBOLS_FROM_R2",
-            "message": "讀取 R2 每日 06:00 更新的 Pionex 美股/RWA 清單",
+            "message": "讀取 R2（Cloudflare 每日 06:00 觸發更新）的 Pionex 美股/RWA 清單",
             "completed": 0,
             "total": 0,
             "percent": 0,

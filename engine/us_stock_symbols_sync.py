@@ -1,6 +1,7 @@
 """每日同步 Pionex 最新 active RWA/美股永續清單到 R2。
 
-預設由 GitHub Actions 每天台灣時間 06:00 執行一次。
+預設由 Cloudflare Worker 每天台灣時間 06:00 觸發 GitHub workflow_dispatch，
+GitHub Actions 只作為 Python runner 執行一次。
 清單層不使用日 K 根數門檻；只要 Pionex future_markets 仍為 active/TRADING
 us_token_contract，就進 R2。完整分析只讀 R2，不再重複向 Pionex 抓市場清單。
 """

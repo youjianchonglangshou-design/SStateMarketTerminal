@@ -81,7 +81,7 @@ def main() -> int:
             "status": "RUNNING",
             "market": args.market,
             "phase": "SYNC_US_STOCK_SYMBOLS",
-            "message": "Pionex 最新美股/RWA 清單 + 實際 49 根日K門禁",
+            "message": "Pionex 最新 active 美股/RWA 清單 → R2（不設日K門檻）",
             "completed": 0,
             "total": 0,
             "percent": 0,
@@ -95,17 +95,18 @@ def main() -> int:
                 "status": "SUCCESS",
                 "generated_at": synced.get("generated_at"),
                 "candidate_count": synced.get("candidate_count"),
+                "active_count": synced.get("active_count", synced.get("eligible_count")),
                 "eligible_count": synced.get("eligible_count"),
                 "rejected_count": synced.get("rejected_count"),
                 "check_error_count": synced.get("check_error_count"),
             }
             print(
                 "US-stock symbol sync -> "
-                f"eligible={synced.get('eligible_count')} / candidates={synced.get('candidate_count')}"
+                f"active={synced.get('active_count', synced.get('eligible_count'))} / candidates={synced.get('candidate_count')}"
             )
         except Exception as exc:
             # 不破壞 working baseline：同步失敗時保留上一版 R2；若 R2 也不可用，
-            # symbols_config 會退回 repository fallback，analysis_core 仍會做真實 49 根檢查。
+            # symbols_config 會退回 repository fallback；不會因同步暫時失敗清空主頁。
             symbol_sync = {
                 "status": "FAILED_USING_PREVIOUS_R2_OR_FALLBACK",
                 "error": f"{type(exc).__name__}: {exc}",

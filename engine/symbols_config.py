@@ -1,4 +1,4 @@
-"""市場清單設定：考試幣 + R2 動態 Pionex 美股/RWA 永續合約。"""
+"""市場清單設定：考試幣 + R2 動態 Pionex active 美股/RWA 永續合約。"""
 from __future__ import annotations
 
 import os
@@ -7,8 +7,6 @@ import threading
 import requests
 
 R2_US_STOCK_SYMBOLS_PATH = "/api/symbols/us-stock"
-RWA_MIN_DAILY_BARS = 49
-
 EXAM_SYMBOLS = ['BTC',
  '1INCH',
  'RAY',
@@ -213,7 +211,7 @@ RWA_FALLBACK_ACTIVE_SYMBOL_MAP = {'AAOIX': 'AAOIX_USDT_PERP',
  'XYZX': 'XYZX_USDT_PERP'}
 
 # 舊 pending 清單現在只保留為 fallback 對照；不再做日期門禁。
-# 真正 49 根門禁由 us_stock_symbols_sync.py 每次分析前直接向 Pionex K 線 API 驗證。
+# 正常清單來自 R2；不再用日K根數或日期做放行門檻。
 RWA_FALLBACK_EXTRA_SYMBOL_MAP = {'ALABX': 'ALABX_USDT_PERP',
  'KLACX': 'KLACX_USDT_PERP',
  'ONX': 'ONX_USDT_PERP',
@@ -261,11 +259,8 @@ def _load_r2_symbol_map() -> tuple[dict[str, str], str]:
         response.raise_for_status()
         payload = response.json()
         symbol_map = _normalize_symbol_map(payload.get("symbol_map"))
-        min_bars = int(payload.get("min_daily_bars", 0) or 0)
         if not symbol_map:
             raise ValueError("R2 us-stock symbol_map is empty")
-        if min_bars < RWA_MIN_DAILY_BARS:
-            raise ValueError(f"R2 min_daily_bars={min_bars} < {RWA_MIN_DAILY_BARS}")
         generated_at = str(payload.get("generated_at") or payload.get("updated_at") or "unknown")
         return symbol_map, f"r2:{generated_at}"
     except Exception as exc:

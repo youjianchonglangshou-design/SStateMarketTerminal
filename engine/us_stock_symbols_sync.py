@@ -1,9 +1,12 @@
-"""每次美股分析前同步 Pionex 最新 RWA/美股永續清單，實測 1D >= 49 根才寫入 R2。"""
+"""每次美股分析前同步 Pionex 最新 active RWA/美股永續清單到 R2。
+
+清單層不再用 49 根日 K 當門檻；只要 Pionex future_markets 仍為 active/TRADING
+us_token_contract，就進 R2。K 線成熟度交給 analysis_core 自然處理。
+"""
 from __future__ import annotations
 
 import json
 import os
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -11,10 +14,8 @@ from typing import Any
 import requests
 
 TW_TZ = timezone(timedelta(hours=8))
-MIN_DAILY_BARS = 49
 R2_PUBLIC_PATH = "/api/symbols/us-stock"
 R2_INTERNAL_PATH = "/api/internal/symbols/us-stock"
-KLINES_URL = "https://api.pionex.com/api/v1/market/klines"
 
 # Pionex Web 版本只作為 internal market-list endpoint 的 query 參數；可由 Actions env 覆蓋。
 DEFAULT_PIONEX_WEB_VERSION = "20260819.1657.89e6310"
@@ -46,14 +47,17 @@ def _fetch_market_payload(session: requests.Session, endpoint: str) -> dict[str,
     response = session.get(url, params=_web_common_query(), headers=_headers(), timeout=(8, 30))
     response.raise_for_status()
     payload = response.json()
-    if NumberLike(payload.get("code")) not in (None, 0):
-        raise RuntimeError(f"Pionex {endpoint} error: {payload.get('reason') or payload.get('message') or payload.get('code')}")
+    if _number_like(payload.get("code")) not in (None, 0):
+        raise RuntimeError(
+            f"Pionex {endpoint} error: "
+            f"{payload.get('reason') or payload.get('message') or payload.get('code')}"
+        )
     if not isinstance(payload.get("data"), list):
         raise RuntimeError(f"Pionex {endpoint} returned invalid data")
     return payload
 
 
-def NumberLike(value: Any) -> int | None:
+def _number_like(value: Any) -> int | None:
     if value is None:
         return None
     try:
@@ -63,7 +67,7 @@ def NumberLike(value: Any) -> int | None:
 
 
 def parse_spot_us_tokens(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """解析 spot_markets；只保留 Pionex 標記為股票/RWA token 的 USDT 現貨。"""
+    """解析 spot_markets；只保留 Pionex 標記為股票/RWA token 的 USDT 現貨 metadata。"""
     output: dict[str, dict[str, Any]] = {}
     for row in payload.get("data") or []:
         if not isinstance(row, dict):
@@ -92,7 +96,7 @@ def parse_spot_us_tokens(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def parse_future_us_token_contracts(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """解析 future_markets；us_token_contract 是可供本引擎分析的 RWA 永續來源。"""
+    """解析 future_markets；active us_token_contract 就是本引擎的動態美股/RWA universe。"""
     output: dict[str, dict[str, Any]] = {}
     for row in payload.get("data") or []:
         if not isinstance(row, dict):
@@ -131,7 +135,7 @@ def build_candidate_universe(
     if not future:
         raise RuntimeError("Pionex future_markets returned no active us_token_contract *_USDT_PERP symbols")
 
-    # future us_token_contract 是真正可分析的 PERP 清單；spot 只補上 ETF/new_listing 等 metadata。
+    # future us_token_contract 是真正可分析的 PERP 清單；spot 只補 ETF/new_listing 等 metadata。
     candidates: list[dict[str, Any]] = []
     for base in sorted(future):
         info = {"symbol": base, **future[base]}
@@ -141,104 +145,12 @@ def build_candidate_universe(
     return candidates
 
 
-def _fetch_daily_bar_count(session: requests.Session, api_symbol: str) -> int:
-    delay = max(0.0, float(os.environ.get("PIONEX_SYMBOL_SYNC_DELAY", "0.60") or 0.60))
-    last_error: Exception | None = None
-    for attempt in range(1, 4):
-        try:
-            response = session.get(
-                KLINES_URL,
-                params={"symbol": api_symbol, "interval": "1D", "limit": MIN_DAILY_BARS},
-                headers={"Accept": "application/json"},
-                timeout=(6, 25),
-            )
-            if response.status_code == 429:
-                retry_after = response.headers.get("Retry-After")
-                try:
-                    wait = max(5.0, float(retry_after) if retry_after else 0.0)
-                except (TypeError, ValueError):
-                    wait = 5.0
-                time.sleep(wait)
-                last_error = RuntimeError(f"429 Too Many Requests ({api_symbol})")
-                continue
-            response.raise_for_status()
-            payload = response.json()
-            rows = (payload.get("data") or {}).get("klines") or []
-            if not isinstance(rows, list):
-                raise RuntimeError(f"invalid kline payload for {api_symbol}")
-            return len(rows)
-        except Exception as exc:  # keep previous R2 list safe on transient upstream errors
-            last_error = exc
-            if attempt < 3:
-                time.sleep(1.5 * attempt)
-        finally:
-            if delay:
-                time.sleep(delay)
-    if last_error:
-        raise last_error
-    raise RuntimeError(f"unable to check daily bars for {api_symbol}")
-
-
-def _load_previous_r2(session: requests.Session, worker: str) -> dict[str, Any]:
-    if not worker:
-        return {}
-    try:
-        response = session.get(f"{worker}{R2_PUBLIC_PATH}", headers={"Accept": "application/json"}, timeout=(5, 15))
-        if response.status_code == 404:
-            return {}
-        response.raise_for_status()
-        payload = response.json()
-        return payload if isinstance(payload, dict) else {}
-    except Exception:
-        return {}
-
-
-def qualify_candidates(
-    candidates: list[dict[str, Any]],
-    *,
+def _upload_to_r2(
     session: requests.Session,
-    previous_symbol_map: dict[str, str] | None = None,
-) -> tuple[dict[str, str], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    previous_symbol_map = previous_symbol_map or {}
-    qualified: dict[str, str] = {}
-    passed: list[dict[str, Any]] = []
-    rejected: list[dict[str, Any]] = []
-    errors: list[dict[str, Any]] = []
-
-    for candidate in candidates:
-        symbol = str(candidate["symbol"]).upper()
-        api_symbol = str(candidate["api_symbol"]).upper()
-        try:
-            bars = _fetch_daily_bar_count(session, api_symbol)
-            if bars >= MIN_DAILY_BARS:
-                qualified[symbol] = api_symbol
-                passed.append({**candidate, "daily_bars_checked": bars, "qualified": True})
-            else:
-                rejected.append({
-                    **candidate,
-                    "daily_bars_checked": bars,
-                    "qualified": False,
-                    "reason": f"daily_bars<{MIN_DAILY_BARS}",
-                })
-        except Exception as exc:
-            error = {
-                **candidate,
-                "qualified": False,
-                "reason": "kline_check_error",
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-            errors.append(error)
-            # 已經在上一版 R2 通過 49 根，而且目前 future market 仍為 TRADING：
-            # 單次 K 線網路錯誤時保留，避免暫時性 API 失敗讓主頁標的誤消失。
-            previous_api = str(previous_symbol_map.get(symbol) or "").upper()
-            if previous_api == api_symbol:
-                qualified[symbol] = api_symbol
-                passed.append({**error, "qualified": True, "preserved_from_previous_r2": True})
-
-    return qualified, passed, rejected, errors
-
-
-def _upload_to_r2(session: requests.Session, worker: str, token: str, payload: dict[str, Any]) -> dict[str, Any]:
+    worker: str,
+    token: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
     if not worker or not token:
         raise RuntimeError("WORKER_BASE_URL / WORKER_CALLBACK_TOKEN missing; cannot update R2 symbol list")
     response = session.put(
@@ -257,48 +169,46 @@ def _upload_to_r2(session: requests.Session, worker: str, token: str, payload: d
 
 
 def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dict[str, Any]:
-    """抓最新市場清單 -> 實測每個 PERP 的 1D 49 根 -> 合格清單寫入 R2。"""
+    """抓 Pionex 最新 active 美股/RWA PERP 清單，直接寫入 R2；不做日 K 根數門禁。"""
     worker = os.environ.get("WORKER_BASE_URL", "").rstrip("/")
     token = os.environ.get("WORKER_CALLBACK_TOKEN", "")
     session = requests.Session()
 
-    previous = _load_previous_r2(session, worker)
-    previous_symbol_map = previous.get("symbol_map") if isinstance(previous.get("symbol_map"), dict) else {}
-
+    # 只有兩個市場清單請求；任何一個失敗都不覆蓋上一版 R2。
     spot_payload = _fetch_market_payload(session, "spot_markets")
     future_payload = _fetch_market_payload(session, "future_markets")
     candidates = build_candidate_universe(spot_payload, future_payload)
 
-    symbol_map, passed, rejected, errors = qualify_candidates(
-        candidates,
-        session=session,
-        previous_symbol_map={str(k).upper(): str(v).upper() for k, v in previous_symbol_map.items()},
-    )
-
-    # 不讓大面積 API 錯誤覆蓋掉上一版正常 R2 清單。
-    error_limit = max(5, int(len(candidates) * 0.20))
-    if len(errors) > error_limit:
-        raise RuntimeError(
-            f"Pionex K-line check errors too many: {len(errors)}/{len(candidates)}; previous R2 preserved"
-        )
+    symbol_map = {
+        str(item["symbol"]).upper(): str(item["api_symbol"]).upper()
+        for item in candidates
+    }
     if not symbol_map:
-        raise RuntimeError("No US-stock/RWA symbols passed the real 49-daily-bar gate; previous R2 preserved")
+        raise RuntimeError("No active Pionex US-stock/RWA contracts found; previous R2 preserved")
 
     now = datetime.now(TW_TZ)
+    active = [
+        {**item, "qualified": True, "kline_gate": "disabled"}
+        for item in candidates
+    ]
     payload = {
-        "schema_version": "pionex-us-stock-symbols-v2-real-49-bars",
+        "schema_version": "pionex-us-stock-symbols-v3-live-active",
         "generated_at": now.isoformat(),
-        "source": "Pionex spot_markets + future_markets + /api/v1/market/klines",
-        "min_daily_bars": MIN_DAILY_BARS,
+        "source": "Pionex spot_markets + future_markets",
+        "kline_gate": "disabled",
+        "min_daily_bars": 0,
         "candidate_count": len(candidates),
+        "active_count": len(symbol_map),
+        # 舊欄位保留相容性；現在 eligible 的意思就是 active contract，不再代表滿 49 根。
         "eligible_count": len(symbol_map),
-        "rejected_count": len(rejected),
-        "check_error_count": len(errors),
+        "rejected_count": 0,
+        "check_error_count": 0,
         "symbols": sorted(symbol_map),
         "symbol_map": {key: symbol_map[key] for key in sorted(symbol_map)},
-        "eligible": sorted(passed, key=lambda item: str(item.get("symbol"))),
-        "rejected": sorted(rejected, key=lambda item: str(item.get("symbol"))),
-        "check_errors": sorted(errors, key=lambda item: str(item.get("symbol"))),
+        "active": sorted(active, key=lambda item: str(item.get("symbol"))),
+        "eligible": sorted(active, key=lambda item: str(item.get("symbol"))),
+        "rejected": [],
+        "check_errors": [],
     }
 
     if output_path:

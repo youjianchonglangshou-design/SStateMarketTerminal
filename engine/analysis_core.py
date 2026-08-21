@@ -25,7 +25,8 @@ score_hint = getattr(_scoring_engine, "score_hint", None)
 
 STRUCTURE_WINDOW_DAYS = 30
 BB_PERIOD = 20
-MIN_DAILY_BARS = STRUCTURE_WINDOW_DAYS + BB_PERIOD - 1
+MIN_DAILY_BARS = 1  # 清單不設成熟度門檻；有 1 根日K就可進主頁，BB20 之後自然長出。
+MIN_4H_BARS = 1
 _PIONEX_RATE_LOCK = threading.Lock()
 _PIONEX_NEXT_REQUEST_AT = 0.0
 _PIONEX_MIN_INTERVAL_SECONDS = 0.25
@@ -213,8 +214,8 @@ def analyze_symbol(symbol: str):
         daily_raw = fetch_klines(symbol, "1D")
         four_h_raw = fetch_klines(symbol, "4H")
 
-        if len(daily_raw) < MIN_DAILY_BARS or len(four_h_raw) < 6:
-            return None, f"{symbol}: 資料不足"
+        if len(daily_raw) < MIN_DAILY_BARS or len(four_h_raw) < MIN_4H_BARS:
+            return None, f"{symbol}: 尚無可用K線"
 
         daily_ha = calculate_heikin_ashi(daily_raw)
         four_h_ha = calculate_heikin_ashi(four_h_raw)
@@ -225,18 +226,18 @@ def analyze_symbol(symbol: str):
         )
         price = four_h_raw[-1]["close"]
 
-        previous_daily = get_ha_color(daily_ha[-2])
+        previous_daily = get_ha_color(daily_ha[-2]) if len(daily_ha) >= 2 else "⚫"
         current_daily = get_ha_color(daily_ha[-1])
         four_h_colors = [get_ha_color(item) for item in four_h_ha[-6:]]
         current_four_h = four_h_colors[-1]
-        previous_four_h = four_h_colors[-2]
+        previous_four_h = four_h_colors[-2] if len(four_h_colors) >= 2 else "⚫"
         previous_four_h_1 = four_h_colors[-3] if len(four_h_colors) >= 3 else "⚫"
         previous_four_h_2 = four_h_colors[-4] if len(four_h_colors) >= 4 else "⚫"
         previous_four_h_3 = four_h_colors[-5] if len(four_h_colors) >= 5 else "⚫"
 
-        bb_pct = ((price - basis) / basis * 100.0) if basis else 0.0
-        dot = "🟢" if bb_pct > 0 else "🔴" if bb_pct < 0 else "⚫"
-        abs_dev = abs(bb_pct)
+        bb_pct = ((price - basis) / basis * 100.0) if basis else None
+        dot = "🟢" if bb_pct is not None and bb_pct > 0 else "🔴" if bb_pct is not None and bb_pct < 0 else "⚫"
+        abs_dev = abs(bb_pct) if bb_pct is not None else 0.0
 
         # 顯示／結構視窗改為 30 日，但技術指標仍維持 BB20。
         # 直接用 rolling 向量化整段 BB20，避免 30 日視窗逐日重複切 20 根重算。
@@ -255,7 +256,7 @@ def analyze_symbol(symbol: str):
         percentages = [
             ((candle["close"] - sma) / sma * 100.0)
             if sma is not None and np.isfinite(sma) and sma > 0
-            else 0.0
+            else None
             for candle, sma in zip(last_30, band_basis_series)
         ]
 
@@ -277,7 +278,7 @@ def analyze_symbol(symbol: str):
             "幣種": symbol,
             "_api_symbol": resolve_api_symbol(symbol),
             "現價": format_price(price),
-            "差%": f"{dot} {bb_pct:+.2f}%",
+            "差%": f"{dot} {bb_pct:+.2f}%" if bb_pct is not None else "⚫ —",
             "均K界": threshold_display,
             "BB日上軌": format_price(upper_band),
             "BB日中軌": format_price(basis),
@@ -296,9 +297,13 @@ def analyze_symbol(symbol: str):
             "_bb_upper_1d": upper_band or 0.0,
             "_bb_lower_1d": lower_band or 0.0,
             "_bb_pct": bb_pct,
+            "_bb_ready": basis is not None,
+            "_bb_valid_points": sum(1 for value in band_basis_series if value is not None and np.isfinite(value)),
+            "_daily_bar_count": len(daily_raw),
+            "_four_h_bar_count": len(four_h_raw),
             "_abs_dev": abs_dev,
             "_ha_pct_series": percentages,
-            "_ha_curr_pct": percentages[-1],
+            "_ha_curr_pct": percentages[-1] if percentages else None,
             "_bb_basis_series": band_basis_series,
             "_bb_upper_series": band_upper_series,
             "_bb_lower_series": band_lower_series,
@@ -365,20 +370,81 @@ def preview_ladder_history(record: dict[str, Any]) -> list[dict[str, Any]]:
         )
     return output
 
+def _bb_ready_scoring_record(record: dict[str, Any]) -> dict[str, Any]:
+    """
+    給 S-state 引擎的幾何只保留 BB20 已真正存在的日期。
+    主頁 chart 仍保留全部可用日K，因此新上架標的會先長價格階梯，
+    等 BB20 自然形成後才開始累積可判斷的 S0/S0.5/S1/S2/S3 幾何。
+    """
+    mids = list(record.get("_bb_basis_series") or [])
+    uppers = list(record.get("_bb_upper_series") or [])
+    lowers = list(record.get("_bb_lower_series") or [])
+
+    valid_indexes = []
+    for index in range(min(len(mids), len(uppers), len(lowers))):
+        try:
+            values = (float(mids[index]), float(uppers[index]), float(lowers[index]))
+        except (TypeError, ValueError):
+            continue
+        if all(np.isfinite(value) for value in values):
+            valid_indexes.append(index)
+
+    scoring = dict(record)
+    aligned_keys = (
+        "_ha_pct_series",
+        "_bb_basis_series",
+        "_bb_upper_series",
+        "_bb_lower_series",
+        "_ha_opens_last30",
+        "_ha_closes_last30",
+        "_ha_times_last30",
+        "_raw_opens_last30",
+        "_raw_highs_last30",
+        "_raw_lows_last30",
+        "_raw_closes_last30",
+    )
+    for key in aligned_keys:
+        values = list(record.get(key) or [])
+        scoring[key] = [values[index] for index in valid_indexes if index < len(values)]
+
+    scoring["_bb_valid_points"] = len(valid_indexes)
+    return scoring
+
+
 def annotate(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     output = []
     for base in items:
         record = dict(base)
-        flags = build_pattern_flags(
-            record,
-            preview_ladder_history(record),
-        )
+        scoring_record = _bb_ready_scoring_record(record)
+        scoring_history = preview_ladder_history(scoring_record)
+        if scoring_history:
+            flags = build_pattern_flags(
+                scoring_record,
+                scoring_history,
+            )
+            pattern_hint = classify_pattern(flags)
+            machine_score = score_hint(
+                flags,
+                {"abs_dev": record["_abs_dev"]},
+            )
+        else:
+            # 上架初期 BB20 尚未形成：保留在主頁，但不製造假的中軌/型態訊號。
+            flags = {
+                "analysis_ready": False,
+                "latest_color": "unknown",
+                "latest_color_emoji": "—",
+                "latest_pct_vs_midline": None,
+                "ladder_trigger_state": "red",
+                "ladder_trigger_label": "等待BB20",
+                "ladder_trigger_light": "red",
+                "ladder_trigger_active": False,
+                "yellow_run_length": 0,
+            }
+            pattern_hint = "BB20尚未形成"
+            machine_score = 0
         record["_pattern_flags"] = flags
-        record["_pattern_type_hint"] = classify_pattern(flags)
-        record["_machine_score_hint_0_100"] = score_hint(
-            flags,
-            {"abs_dev": record["_abs_dev"]},
-        )
+        record["_pattern_type_hint"] = pattern_hint
+        record["_machine_score_hint_0_100"] = machine_score
         record["_ladder_trigger_state"] = flags.get(
             "ladder_trigger_state",
             "red",
@@ -389,8 +455,8 @@ def annotate(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         # 新版主判斷：只評估做多「機會位置」，不把趨勢強弱等同進場價值。
         record["_long_opportunity"] = build_long_opportunity(
-            record,
-            preview_ladder_history(record),
+            scoring_record,
+            scoring_history,
         )
         opp = record["_long_opportunity"]
         live_state = str(opp.get("market_state_id") or "OTHER")

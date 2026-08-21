@@ -324,6 +324,12 @@ export default {
       ctx.waitUntil(dispatchDailyLearning(env, source));
       return;
     }
+    // 22:00 UTC = 台灣時間隔日 06:00。Cloudflare 負責排程；
+    // GitHub Actions 只作為 Python runner，不使用 GitHub schedule。
+    if (controller.cron === "0 22 * * *") {
+      ctx.waitUntil(dispatchUsStockSymbolSync(env, source));
+      return;
+    }
     console.log(`Unhandled cron trigger: ${controller.cron}`);
   }
 };
@@ -2827,6 +2833,36 @@ async function writeAutomationStatus(env, payload) {
   });
   return normalized;
 }
+
+async function dispatchUsStockSymbolSync(env, source = "cron") {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
+    throw httpError(500, "Worker 缺少 GITHUB_TOKEN 或 GITHUB_REPOSITORY");
+  }
+
+  const endpoint = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/workflows/us-stock-symbol-sync.yml/dispatches`;
+  const gh = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Accept": "application/vnd.github+json",
+      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+      "X-GitHub-Api-Version": "2026-03-10",
+      "User-Agent": "SStateMarketTerminal-SymbolSync-Worker",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ref: env.GITHUB_BRANCH || "main",
+    }),
+  });
+
+  if (!gh.ok) {
+    const text = await gh.text();
+    throw httpError(502, `US-stock symbol sync workflow_dispatch 失敗：${gh.status} ${text}`);
+  }
+
+  console.log(`US-stock symbol sync dispatched by ${source}`);
+  return { ok: true, source };
+}
+
 
 async function dispatchAutoBatch(env, mode, source = "cron") {
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {

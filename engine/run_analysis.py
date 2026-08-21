@@ -14,7 +14,8 @@ import requests
 from analysis_core import analyze_symbol, annotate
 from get import build_snapshot_payload
 from github_sync import serialize_snapshot_json
-from symbols_config import get_symbols_config
+from symbols_config import get_rwa_symbol_source, get_symbols_config
+from us_stock_symbols_sync import sync_us_stock_symbols_to_r2
 
 TW_TZ = timezone(timedelta(hours=8))
 
@@ -68,16 +69,61 @@ def main() -> int:
     selection = config["selection"]
     filename = config["filename"]
 
-    groups = get_symbols_config()
-    symbols = list(groups.get(selection) or [])
-    if not symbols:
-        raise RuntimeError(f"No symbols configured for {selection}")
-
     output_dir = (Path(__file__).resolve().parent / args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / filename
 
     started_at = datetime.now(TW_TZ).isoformat()
+    symbol_sync = {"status": "NOT_APPLICABLE"}
+
+    if args.market == "us-stock":
+        write_progress(args.progress_file, {
+            "status": "RUNNING",
+            "market": args.market,
+            "phase": "SYNC_US_STOCK_SYMBOLS",
+            "message": "Pionex 最新美股/RWA 清單 + 實際 49 根日K門禁",
+            "completed": 0,
+            "total": 0,
+            "percent": 0,
+            "started_at_taiwan": started_at,
+        })
+        try:
+            synced = sync_us_stock_symbols_to_r2(
+                output_path=output_dir / "us_stock_symbols.json",
+            )
+            symbol_sync = {
+                "status": "SUCCESS",
+                "generated_at": synced.get("generated_at"),
+                "candidate_count": synced.get("candidate_count"),
+                "eligible_count": synced.get("eligible_count"),
+                "rejected_count": synced.get("rejected_count"),
+                "check_error_count": synced.get("check_error_count"),
+            }
+            print(
+                "US-stock symbol sync -> "
+                f"eligible={synced.get('eligible_count')} / candidates={synced.get('candidate_count')}"
+            )
+        except Exception as exc:
+            # 不破壞 working baseline：同步失敗時保留上一版 R2；若 R2 也不可用，
+            # symbols_config 會退回 repository fallback，analysis_core 仍會做真實 49 根檢查。
+            symbol_sync = {
+                "status": "FAILED_USING_PREVIOUS_R2_OR_FALLBACK",
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            print(f"WARNING: US-stock symbol sync failed: {symbol_sync['error']}", file=sys.stderr)
+
+    groups = get_symbols_config(
+        force_reload_rwa=args.market == "us-stock",
+        load_remote_rwa=args.market == "us-stock",
+    )
+    symbols = list(groups.get(selection) or [])
+    if not symbols:
+        raise RuntimeError(f"No symbols configured for {selection}")
+
+    if args.market == "us-stock":
+        symbol_sync["config_source"] = get_rwa_symbol_source()
+        symbol_sync["configured_symbols"] = len(symbols)
+
     write_progress(args.progress_file, {
         "status": "RUNNING",
         "market": args.market,
@@ -136,6 +182,7 @@ def main() -> int:
         "runtime": "github-actions-python",
         "streamlit": False,
         "errors": errors,
+        "symbol_sync": symbol_sync,
     }
 
     out_path.write_text(serialize_snapshot_json(snapshot), encoding="utf-8")

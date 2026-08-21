@@ -1,16 +1,15 @@
-name: Daily Pionex US-stock Symbol Sync
+name: Pionex US-stock Symbol Sync Runner
 
 on:
-  schedule:
-    # GitHub Actions cron uses UTC. 22:00 UTC = 06:00 Asia/Taipei (next calendar day).
-    - cron: "0 22 * * *"
+  # 排程由 Cloudflare Worker Cron Trigger 負責。
+  # GitHub Actions 只在收到 workflow_dispatch 後執行 Python。
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: us-stock-symbol-sync-daily
+  group: us-stock-symbol-sync-runner
   cancel-in-progress: false
 
 jobs:

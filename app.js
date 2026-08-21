@@ -1079,7 +1079,18 @@
     const vals=[]; points.forEach(p=>['bb_upper','bb_midline','bb_lower','ha_close'].forEach(k=>{const n=Number(p[k]);if(Number.isFinite(n)) vals.push(n)}));
     let min=Math.min(...vals), max=Math.max(...vals); const pad=(max-min||1)*.08; min-=pad; max+=pad;
     const x=(i)=>L+i*(innerW/(points.length-1)); const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
-    const linePath=(key)=>points.map((p,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+    const linePath=(key)=>{
+      let d='', drawing=false;
+      points.forEach((p,i)=>{
+        const raw=p?.[key];
+        if(raw===null || raw===undefined || raw===''){ drawing=false; return; }
+        const n=Number(raw);
+        if(!Number.isFinite(n)){ drawing=false; return; }
+        d+=`${drawing?'L':'M'}${x(i).toFixed(1)},${y(n).toFixed(1)}`;
+        drawing=true;
+      });
+      return d;
+    };
     const refPrice=Number(points[points.length-1]?.ha_close || points[points.length-1]?.close || max);
     const tinyExp=chartTinyExponent(refPrice);
     let grids=''; for(let i=0;i<4;i++){const yy=T+i*innerH/3; const val=max-i*(max-min)/3; grids+=`<line class="grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="axis-text" x="2" y="${yy+3}">${escapeHtml(fmtChartPrice(val,tinyExp))}</text>`}

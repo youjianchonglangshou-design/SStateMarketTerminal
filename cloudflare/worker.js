@@ -1,10 +1,11 @@
 
 const PIONEX_RWA_CACHE_KEY = "pionex/cache/rwa_trade_rules.json";
 const PIONEX_RWA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const PIONEX_US_STOCK_SYMBOLS_KEY = "pionex/symbols/us_stock_symbols.json";
 
 // Pionex web endpoints discovered from the live RWA page.
 // Device/fingerprint identifiers are intentionally NOT stored in this public Worker.
-const PIONEX_WEB_VERSION = "20260812.1589.6ae8809";
+const PIONEX_WEB_VERSION = "20260819.1657.89e6310";
 const PIONEX_WEB_COMMON_QUERY =
   `client_id=pionex_web_${PIONEX_WEB_VERSION}&app_ver=${PIONEX_WEB_VERSION}&os=web&tz_name=Asia%2FTaipei&tz_offset=28800&sys_lang=zh-TW&app_lang=zh-TW`;
 const PIONEX_FUTURE_MARKETS_URL =
@@ -31,6 +32,9 @@ export default {
     try {
       if (request.method === "GET" && url.pathname === "/api/health") {
         return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), news_pipeline: RESEARCH_PIPELINE_VERSION }, 200, origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/symbols/us-stock") {
+        return await objectResponse(env, PIONEX_US_STOCK_SYMBOLS_KEY, origin, false, "us_stock_symbols.json");
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -89,6 +93,52 @@ export default {
         const payload = { ...body, batch_id: batchId, source: "AUTO_CRON", updated_at: new Date().toISOString() };
         await writeAutomationStatus(env, payload);
         return json({ ok: true, busy: automationBusy(payload), batch_id: batchId }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/symbols/us-stock") {
+        requireInternal(request, env);
+        const text = await request.text();
+        const parsed = JSON.parse(text);
+        const symbolMap = parsed?.symbol_map;
+        const symbols = parsed?.symbols;
+        const klineGate = String(parsed?.kline_gate || "disabled");
+        if (!symbolMap || typeof symbolMap !== "object" || Array.isArray(symbolMap)) {
+          throw httpError(400, "us-stock symbol_map missing");
+        }
+        if (!Array.isArray(symbols) || symbols.length === 0) {
+          throw httpError(400, "us-stock symbols missing");
+        }
+        const cleanMap = {};
+        for (const [rawKey, rawValue] of Object.entries(symbolMap)) {
+          const key = String(rawKey || "").trim().toUpperCase();
+          const apiSymbol = String(rawValue || "").trim().toUpperCase();
+          if (!/^[A-Z0-9._-]{1,40}$/.test(key)) continue;
+          if (!/^[A-Z0-9._-]+_USDT_PERP$/.test(apiSymbol)) continue;
+          cleanMap[key] = apiSymbol;
+        }
+        const cleanSymbols = [...new Set(symbols.map(x => String(x || "").trim().toUpperCase()))]
+          .filter(x => cleanMap[x])
+          .sort();
+        if (!cleanSymbols.length || cleanSymbols.length !== Object.keys(cleanMap).length) {
+          throw httpError(400, "us-stock symbols/symbol_map mismatch");
+        }
+        const payload = {
+          ...parsed,
+          symbols: cleanSymbols,
+          symbol_map: Object.fromEntries(cleanSymbols.map(symbol => [symbol, cleanMap[symbol]])),
+          eligible_count: cleanSymbols.length,
+          stored_at: new Date().toISOString(),
+        };
+        const normalized = JSON.stringify(payload, null, 2);
+        await env.JSON_BUCKET.put(PIONEX_US_STOCK_SYMBOLS_KEY, normalized, {
+          httpMetadata: { contentType: "application/json; charset=utf-8" },
+        });
+        return json({
+          ok: true,
+          key: PIONEX_US_STOCK_SYMBOLS_KEY,
+          symbols: cleanSymbols.length,
+          kline_gate: klineGate,
+          generated_at: parsed?.generated_at || null,
+        }, 200, origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/research/us-stock/cache") {
         requireInternal(request, env);

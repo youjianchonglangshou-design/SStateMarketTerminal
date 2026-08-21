@@ -320,13 +320,12 @@ export default {
       ctx.waitUntil(dispatchAutoBatch(env, "us-stock-only", source));
       return;
     }
+    // 00:25 UTC = 台灣時間 08:25。共用同一個 Cloudflare Cron：
+    // 1) 每日 AI Learning
+    // 2) 每日 Pionex 美股/RWA 清單同步 -> R2
+    // 兩個工作彼此獨立，任一失敗不阻止另一個被觸發。
     if (controller.cron === "25 0 * * *") {
       ctx.waitUntil(dispatchDailyLearning(env, source));
-      return;
-    }
-    // 22:00 UTC = 台灣時間隔日 06:00。Cloudflare 負責排程；
-    // GitHub Actions 只作為 Python runner，不使用 GitHub schedule。
-    if (controller.cron === "0 22 * * *") {
       ctx.waitUntil(dispatchUsStockSymbolSync(env, source));
       return;
     }

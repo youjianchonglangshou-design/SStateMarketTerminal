@@ -30,8 +30,90 @@ CRYPTO_SECTOR_TAGS = {
     "ASTER": ["交易所/合約", "DeFi"], "W": ["跨鏈", "Oracle/Data"],
 }
 
-# Pionex RWA／美股代幣頁面使用的快速分類：半導體晶片、石油、能源、稀土、量子計算、儲存。
-# 不屬於這六類者統一標示為「美股代幣」。
+# Pionex 每日同步的分類來源是 spot_markets / future_markets 裡的 us_stock_sec_* tags。
+# 這裡只負責把 Pionex tag 翻成主頁顯示文字；不再用這個檔案決定某支美股屬於哪個板塊。
+# 若 Pionex 未來新增未知 tag，仍會顯示 tag 後綴，不會退回「美股代幣」。
+PIONEX_SECTOR_TAG_LABELS = {
+    "us_stock_sec_bank": "銀行",
+    "us_stock_sec_chinese": "中概股",
+    "us_stock_sec_commodities": "大宗商品",
+    "us_stock_sec_consumer": "消費",
+    "us_stock_sec_crypto": "加密概念",
+    "us_stock_sec_energy_storage": "儲能",
+    "us_stock_sec_etf": "ETF",
+    "us_stock_sec_hot": "熱門",
+    "us_stock_sec_industry": "行業指數",
+    "us_stock_sec_military": "軍工",
+    "us_stock_sec_nas_100": "NASDAQ 100",
+    "us_stock_sec_nuclear": "核能",
+    "us_stock_sec_oil": "石油",
+    "us_stock_sec_pharmaceuticals": "生物科技/醫藥",
+    "us_stock_sec_phlx_semi": "費城半導體",
+    "us_stock_sec_quantum": "量子計算",
+    "us_stock_sec_rare_earth": "稀土",
+    "us_stock_sec_real_estate": "房地產",
+    "us_stock_sec_semi": "半導體",
+    "us_stock_sec_space": "航太/太空",
+    "us_stock_sec_us_500": "S&P 500",
+}
+
+# 顯示時讓「真正題材/產業」優先，指數成分與熱門標籤放後面。
+PIONEX_SECTOR_TAG_PRIORITY = [
+    "us_stock_sec_military",
+    "us_stock_sec_space",
+    "us_stock_sec_nuclear",
+    "us_stock_sec_oil",
+    "us_stock_sec_energy_storage",
+    "us_stock_sec_rare_earth",
+    "us_stock_sec_quantum",
+    "us_stock_sec_semi",
+    "us_stock_sec_phlx_semi",
+    "us_stock_sec_pharmaceuticals",
+    "us_stock_sec_bank",
+    "us_stock_sec_consumer",
+    "us_stock_sec_real_estate",
+    "us_stock_sec_crypto",
+    "us_stock_sec_chinese",
+    "us_stock_sec_commodities",
+    "us_stock_sec_industry",
+    "us_stock_sec_etf",
+    "us_stock_sec_nas_100",
+    "us_stock_sec_us_500",
+    "us_stock_sec_hot",
+]
+
+
+def normalize_pionex_sector_tag(tag: str) -> str:
+    value = str(tag or "").strip().lower()
+    if value.startswith("sys_spot_"):
+        value = value[len("sys_spot_"):]
+    return value if value.startswith("us_stock_sec_") else ""
+
+
+def pionex_sector_tags_from_tags(*tag_groups) -> list[str]:
+    found = set()
+    for group in tag_groups:
+        for raw in (group or []):
+            tag = normalize_pionex_sector_tag(raw)
+            if tag:
+                found.add(tag)
+    priority = {tag: index for index, tag in enumerate(PIONEX_SECTOR_TAG_PRIORITY)}
+    return sorted(found, key=lambda tag: (priority.get(tag, 10_000), tag))
+
+
+def pionex_sector_labels_from_tags(*tag_groups) -> list[str]:
+    labels = []
+    for tag in pionex_sector_tags_from_tags(*tag_groups):
+        label = PIONEX_SECTOR_TAG_LABELS.get(tag)
+        if not label:
+            # Pionex 新增 tag 時仍然直接跟進，不再顯示成泛稱「美股代幣」。
+            label = tag.removeprefix("us_stock_sec_").replace("_", " ").strip().title()
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
+# 下方逐股表只保留為 R2 / Pionex 暫時不可用時的 fallback。正常主頁不再以它作為美股分類來源。
 RWA_SECTOR_TAGS = {
     'AAOIX': ['半導體晶片'],
     'AAPLX': ['美股代幣'],

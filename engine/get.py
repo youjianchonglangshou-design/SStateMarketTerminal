@@ -27,6 +27,7 @@ ENGINE_FILES_SYNCED = (
     and all(callable(fn) for fn in (build_long_opportunity, build_pattern_flags, classify_pattern, score_hint))
 )
 from sector_config import SECTOR_TAGS
+from symbols_config import get_rwa_sector_tags, is_rwa_symbol
 from probability_reader import load_probability_model, predict_record
 
 TW_TZ = timezone(timedelta(hours=8))
@@ -898,10 +899,16 @@ def _compact_record(source: dict[str, Any]) -> dict[str, Any]:
     h4_tail = [_color_name(value) for value in list(source.get("_ha4h_color_series") or [])[-4:]]
     h4_pair = _four_h_pair(source.get("4H前"), source.get("4H當"))
 
+    sectors = (
+        get_rwa_sector_tags(symbol)
+        if is_rwa_symbol(symbol)
+        else list(SECTOR_TAGS.get(symbol, ["未分類"]))
+    )
+
     return {
         "symbol": symbol,
         "api_symbol": str(source.get("_api_symbol") or ""),
-        "sectors": list(SECTOR_TAGS.get(symbol, ["未分類"])),
+        "sectors": sectors,
         "price": _round(source.get("_price")),
         "bb_upper_1d": _round(source.get("_bb_upper_1d")),
         "bb_midline_1d": _round(source.get("_bb1d")),

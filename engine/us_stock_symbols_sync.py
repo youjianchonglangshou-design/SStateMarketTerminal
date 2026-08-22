@@ -1,6 +1,6 @@
 """每日同步 Pionex 最新 active RWA/美股永續清單到 R2。
 
-預設由 Cloudflare Worker 每天台灣時間 06:00 觸發 GitHub workflow_dispatch，
+預設由 Cloudflare Worker 每天台灣時間 08:25 與 AI Learning 共用 Cron 觸發 GitHub workflow_dispatch，
 GitHub Actions 只作為 Python runner 執行一次。
 清單層不使用日 K 根數門檻；只要 Pionex future_markets 仍為 active/TRADING
 us_token_contract，就進 R2。完整分析只讀 R2，不再重複向 Pionex 抓市場清單。
@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
+
+from sector_config import pionex_sector_labels_from_tags, pionex_sector_tags_from_tags
 
 TW_TZ = timezone(timedelta(hours=8))
 R2_PUBLIC_PATH = "/api/symbols/us-stock"
@@ -144,6 +146,19 @@ def build_candidate_universe(
         info = {"symbol": base, **future[base]}
         info.update(spot.get(base) or {})
         info["spot_confirmed"] = base in spot
+        raw_sector_tags = pionex_sector_tags_from_tags(
+            info.get("spot_tags"),
+            info.get("future_tags"),
+        )
+        sectors = pionex_sector_labels_from_tags(
+            info.get("spot_tags"),
+            info.get("future_tags"),
+        )
+        # 只有 Pionex 本身真的沒有 us_stock_sec_* 時才標示「其他」；
+        # 不再使用人工的「美股代幣」泛稱覆蓋 Pionex 已提供的分類。
+        info["sector_tags"] = raw_sector_tags
+        info["sectors"] = sectors or ["其他"]
+        info["sector_source"] = "pionex-tags" if sectors else "pionex-no-sector-tag"
         candidates.append(info)
     return candidates
 
@@ -186,6 +201,14 @@ def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dic
         str(item["symbol"]).upper(): str(item["api_symbol"]).upper()
         for item in candidates
     }
+    sector_map = {
+        str(item["symbol"]).upper(): list(item.get("sectors") or ["其他"])
+        for item in candidates
+    }
+    sector_tag_map = {
+        str(item["symbol"]).upper(): list(item.get("sector_tags") or [])
+        for item in candidates
+    }
     if not symbol_map:
         raise RuntimeError("No active Pionex US-stock/RWA contracts found; previous R2 preserved")
 
@@ -195,7 +218,7 @@ def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dic
         for item in candidates
     ]
     payload = {
-        "schema_version": "pionex-us-stock-symbols-v3-live-active",
+        "schema_version": "pionex-us-stock-symbols-v4-live-active-sectors",
         "generated_at": now.isoformat(),
         "source": "Pionex spot_markets + future_markets",
         "kline_gate": "disabled",
@@ -208,6 +231,9 @@ def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dic
         "check_error_count": 0,
         "symbols": sorted(symbol_map),
         "symbol_map": {key: symbol_map[key] for key in sorted(symbol_map)},
+        # 主頁板塊的權威來源：直接來自 Pionex us_stock_sec_* tags。
+        "sector_map": {key: sector_map[key] for key in sorted(sector_map)},
+        "sector_tag_map": {key: sector_tag_map[key] for key in sorted(sector_tag_map)},
         "active": sorted(active, key=lambda item: str(item.get("symbol"))),
         "eligible": sorted(active, key=lambda item: str(item.get("symbol"))),
         "rejected": [],
@@ -237,6 +263,7 @@ def main() -> int:
         "generated_at": result.get("generated_at"),
         "candidate_count": result.get("candidate_count"),
         "active_count": result.get("active_count"),
+        "sector_count": len(result.get("sector_map") or {}),
         "r2_upload": result.get("r2_upload"),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))

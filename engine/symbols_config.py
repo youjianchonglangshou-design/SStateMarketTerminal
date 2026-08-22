@@ -6,6 +6,8 @@ import threading
 
 import requests
 
+from sector_config import RWA_SECTOR_TAGS, pionex_sector_labels_from_tags
+
 R2_US_STOCK_SYMBOLS_PATH = "/api/symbols/us-stock"
 EXAM_SYMBOLS = ['BTC',
  '1INCH',
@@ -228,6 +230,7 @@ RWA_FALLBACK_EXTRA_SYMBOL_MAP = {'ALABX': 'ALABX_USDT_PERP',
 RWA_FALLBACK_SYMBOL_MAP = {**RWA_FALLBACK_ACTIVE_SYMBOL_MAP, **RWA_FALLBACK_EXTRA_SYMBOL_MAP}
 
 _RUNTIME_RWA_SYMBOL_MAP: dict[str, str] = {}
+_RUNTIME_RWA_SECTOR_MAP: dict[str, list[str]] = {}
 _RUNTIME_RWA_SOURCE = "fallback-static"
 _RUNTIME_LOCK = threading.Lock()
 
@@ -245,10 +248,51 @@ def _normalize_symbol_map(raw: object) -> dict[str, str]:
     return output
 
 
-def _load_r2_symbol_map() -> tuple[dict[str, str], str]:
+def _normalize_sector_map(raw: object) -> dict[str, list[str]]:
+    if not isinstance(raw, dict):
+        return {}
+    output: dict[str, list[str]] = {}
+    for key, value in raw.items():
+        symbol = str(key or "").strip().upper()
+        if not symbol:
+            continue
+        values = value if isinstance(value, list) else [value]
+        labels = []
+        for item in values:
+            label = str(item or "").strip()
+            if label and label not in labels:
+                labels.append(label)
+        if labels:
+            output[symbol] = labels
+    return output
+
+
+def _derive_sector_map_from_active(payload: dict) -> dict[str, list[str]]:
+    """相容舊 R2 JSON：若還沒有 sector_map，從 active 裡保存的 Pionex tags 即時計算。"""
+    output: dict[str, list[str]] = {}
+    rows = payload.get("active") or payload.get("eligible") or []
+    if not isinstance(rows, list):
+        return output
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        labels = pionex_sector_labels_from_tags(row.get("spot_tags"), row.get("future_tags"))
+        if labels:
+            output[symbol] = labels
+    return output
+
+
+def _load_r2_symbol_data() -> tuple[dict[str, str], dict[str, list[str]], str]:
     worker = os.environ.get("WORKER_BASE_URL", "").rstrip("/")
     if not worker:
-        return dict(RWA_FALLBACK_SYMBOL_MAP), "fallback-static:no-worker-url"
+        return (
+            dict(RWA_FALLBACK_SYMBOL_MAP),
+            {key: list(value) for key, value in RWA_SECTOR_TAGS.items()},
+            "fallback-static:no-worker-url",
+        )
 
     try:
         response = requests.get(
@@ -261,19 +305,31 @@ def _load_r2_symbol_map() -> tuple[dict[str, str], str]:
         symbol_map = _normalize_symbol_map(payload.get("symbol_map"))
         if not symbol_map:
             raise ValueError("R2 us-stock symbol_map is empty")
+
+        # v4 直接讀 sector_map；若 R2 還是前一版，active 裡原本就有 spot_tags，
+        # 可先動態還原分類，不必等下一次 08:25 才有板塊。
+        sector_map = _normalize_sector_map(payload.get("sector_map"))
+        if not sector_map:
+            sector_map = _derive_sector_map_from_active(payload)
+
         generated_at = str(payload.get("generated_at") or payload.get("updated_at") or "unknown")
-        return symbol_map, f"r2:{generated_at}"
+        return symbol_map, sector_map, f"r2:{generated_at}"
     except Exception as exc:
-        return dict(RWA_FALLBACK_SYMBOL_MAP), f"fallback-static:{type(exc).__name__}"
+        return (
+            dict(RWA_FALLBACK_SYMBOL_MAP),
+            {key: list(value) for key, value in RWA_SECTOR_TAGS.items()},
+            f"fallback-static:{type(exc).__name__}",
+        )
 
 
 def refresh_rwa_symbol_map(force: bool = False) -> dict[str, str]:
-    global _RUNTIME_RWA_SYMBOL_MAP, _RUNTIME_RWA_SOURCE
+    global _RUNTIME_RWA_SYMBOL_MAP, _RUNTIME_RWA_SECTOR_MAP, _RUNTIME_RWA_SOURCE
     with _RUNTIME_LOCK:
         if _RUNTIME_RWA_SYMBOL_MAP and not force:
             return dict(_RUNTIME_RWA_SYMBOL_MAP)
-        loaded, source = _load_r2_symbol_map()
+        loaded, sectors, source = _load_r2_symbol_data()
         _RUNTIME_RWA_SYMBOL_MAP = loaded
+        _RUNTIME_RWA_SECTOR_MAP = sectors
         _RUNTIME_RWA_SOURCE = source
         return dict(_RUNTIME_RWA_SYMBOL_MAP)
 
@@ -282,6 +338,20 @@ def get_rwa_symbol_source() -> str:
     if not _RUNTIME_RWA_SYMBOL_MAP:
         refresh_rwa_symbol_map(force=False)
     return _RUNTIME_RWA_SOURCE
+
+
+def get_rwa_sector_tags(symbol: str) -> list[str]:
+    """美股/RWA 主頁分類：正常情況直接使用每日 R2 的 Pionex 分類。"""
+    key = str(symbol or "").strip().upper()
+    if not _RUNTIME_RWA_SYMBOL_MAP:
+        refresh_rwa_symbol_map(force=False)
+    labels = list(_RUNTIME_RWA_SECTOR_MAP.get(key) or [])
+    if labels:
+        return labels
+    # Pionex 本身沒有 sector tag 時顯示「其他」；只有整個 R2 失敗時才會走舊 fallback。
+    if _RUNTIME_RWA_SOURCE.startswith("r2:") and key in _RUNTIME_RWA_SYMBOL_MAP:
+        return ["其他"]
+    return list(RWA_SECTOR_TAGS.get(key, ["未分類"]))
 
 
 def resolve_api_symbol(symbol: str) -> str:

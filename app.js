@@ -751,29 +751,60 @@
       <div class="prob-meta">24H ${pct(hp['24h']?.success_probability,0)}｜48H ${pct(hp['48h']?.success_probability,0)}<br>${escapeHtml(featureLine)}</div>
     </div></div>`;
   }
-  function trainingCaseCount() {
-    // Active/Champion API is the authoritative source for total training cases.
-    // Snapshot probability_model intentionally carries model metadata only and
-    // does not include case_count in the current schema.
-    return Number(
-      state.champion?.training?.cases_count ||
-      state.champion?.training?.case_count ||
-      state.snapshot?.batch?.probability_model?.cases_count ||
-      state.snapshot?.batch?.probability_model?.case_count ||
-      0
-    );
-  }
+  const SAMPLE_TIER_RULES = {
+    // Each modeled S-state uses its own historical population as the denominator.
+    // Thresholds are tuned to the actual Level-5 signature distribution so SSR stays selective.
+    'S3': {
+      total: 18190,
+      tiers: [
+        { min: 2300, key: 'ssr', label: 'SSR' },
+        { min: 900,  key: 'sr',  label: 'SR' },
+        { min: 350,  key: 'r',   label: 'R' },
+        { min: 140,  key: 'n',   label: 'N' },
+        { min: 50,   key: 'c',   label: 'C' }
+      ]
+    },
+    'S2': {
+      total: 77690,
+      tiers: [
+        { min: 5000, key: 'ssr', label: 'SSR' },
+        { min: 2500, key: 'sr',  label: 'SR' },
+        { min: 1200, key: 'r',   label: 'R' },
+        { min: 500,  key: 'n',   label: 'N' },
+        { min: 50,   key: 'c',   label: 'C' }
+      ]
+    },
+    'S1': {
+      total: 46810,
+      tiers: [
+        { min: 2600, key: 'ssr', label: 'SSR' },
+        { min: 1500, key: 'sr',  label: 'SR' },
+        { min: 900,  key: 'r',   label: 'R' },
+        { min: 500,  key: 'n',   label: 'N' },
+        { min: 50,   key: 'c',   label: 'C' }
+      ]
+    },
+    'S0.5': {
+      total: 56553,
+      tiers: [
+        { min: 3000, key: 'ssr', label: 'SSR' },
+        { min: 1800, key: 'sr',  label: 'SR' },
+        { min: 1200, key: 'r',   label: 'R' },
+        { min: 600,  key: 'n',   label: 'N' },
+        { min: 50,   key: 'c',   label: 'C' }
+      ]
+    }
+  };
 
-  function sampleTierInfo(matchedSamples, totalCases) {
+  function sampleTierInfo(matchedSamples, marketState) {
     const matched = Number(matchedSamples || 0);
-    const total = Number(totalCases || 0);
-    const ratio = total > 0 ? matched / total : 0;
-    if (matched >= 50 && ratio >= 0.04) return { key: 'ssr', label: 'SSR', ratio };
-    if (matched >= 50 && ratio >= 0.02) return { key: 'sr', label: 'SR', ratio };
-    if (matched >= 50 && ratio >= 0.01) return { key: 'r', label: 'R', ratio };
-    if (matched >= 50 && ratio >= 0.0025) return { key: 'n', label: 'N', ratio };
-    if (matched >= 50) return { key: 'c', label: 'C', ratio };
-    return { key: 'low', label: 'LOW', ratio };
+    const rule = SAMPLE_TIER_RULES[marketState];
+    if (!rule) return { key: 'low', label: 'LOW', ratio: 0, total: 0, min: 0 };
+
+    const ratio = rule.total > 0 ? matched / rule.total : 0;
+    const tier = rule.tiers.find(item => matched >= item.min);
+    if (!tier) return { key: 'low', label: 'LOW', ratio, total: rule.total, min: 50 };
+    return { ...tier, ratio, total: rule.total };
   }
 
   function renderChartQuickStats(r) {
@@ -785,12 +816,13 @@
     const matchedSamples = Number(h72.matched_samples || hp.matched_samples || 0);
     const samples = matchedSamples.toLocaleString();
     const level = h72.level || hp.model_level || "—";
-    const totalCases = trainingCaseCount();
-    const tier = sampleTierInfo(matchedSamples, totalCases);
-    const tierRatio = totalCases > 0 ? `${(tier.ratio * 100).toFixed(2)}%` : '—';
-    const tierTitle = totalCases > 0
-      ? `樣本厚度 ${tier.label}｜匹配 ${samples}｜總訓練 ${totalCases.toLocaleString()}｜占比 ${tierRatio}`
-      : `樣本厚度等待 Champion 資料｜匹配 ${samples}`;
+    const marketState = recordState(r);
+    const tier = sampleTierInfo(matchedSamples, marketState);
+    const tierRatio = tier.total > 0 ? `${(tier.ratio * 100).toFixed(2)}%` : '—';
+    const tierMinRatio = tier.total > 0 && tier.min > 0 ? `${((tier.min / tier.total) * 100).toFixed(2)}%` : '—';
+    const tierTitle = tier.total > 0
+      ? `樣本厚度 ${tier.label}｜${marketState} 匹配 ${samples} / ${tier.total.toLocaleString()}｜占該狀態 ${tierRatio}｜本級門檻 ≥${tier.min.toLocaleString()} (${tierMinRatio})`
+      : `樣本厚度 ${tier.label}｜匹配 ${samples}｜此狀態沒有樣本分級規則`;
     const tierStyle = ({
       ssr: 'background:#facc15;border-color:#fef08a;box-shadow:0 0 10px #facc1588',
       sr:  'background:#a855f7;border-color:#d8b4fe;box-shadow:0 0 10px #a855f788',

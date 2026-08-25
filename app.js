@@ -459,7 +459,7 @@
     state.evaluation = evaluation;
     renderModelBattle();
     updateBattleAttention();
-    // Sample-tier coloring depends on Champion training case count.
+    // Sample-tier coloring depends on each S-state baseline in the active Champion model.
     // loadSnapshot() and loadModelBattle() run in parallel at startup, so repaint
     // the cards once Champion metadata is available.
     if (state.snapshot?.records) renderCards();
@@ -751,60 +751,71 @@
       <div class="prob-meta">24H ${pct(hp['24h']?.success_probability,0)}｜48H ${pct(hp['48h']?.success_probability,0)}<br>${escapeHtml(featureLine)}</div>
     </div></div>`;
   }
-  const SAMPLE_TIER_RULES = {
-    // Each modeled S-state uses its own historical population as the denominator.
-    // Thresholds are tuned to the actual Level-5 signature distribution so SSR stays selective.
-    'S3': {
-      total: 18190,
-      tiers: [
-        { min: 2300, key: 'ssr', label: 'SSR' },
-        { min: 900,  key: 'sr',  label: 'SR' },
-        { min: 350,  key: 'r',   label: 'R' },
-        { min: 140,  key: 'n',   label: 'N' },
-        { min: 50,   key: 'c',   label: 'C' }
-      ]
-    },
-    'S2': {
-      total: 77690,
-      tiers: [
-        { min: 5000, key: 'ssr', label: 'SSR' },
-        { min: 2500, key: 'sr',  label: 'SR' },
-        { min: 1200, key: 'r',   label: 'R' },
-        { min: 500,  key: 'n',   label: 'N' },
-        { min: 50,   key: 'c',   label: 'C' }
-      ]
-    },
-    'S1': {
-      total: 46810,
-      tiers: [
-        { min: 2600, key: 'ssr', label: 'SSR' },
-        { min: 1500, key: 'sr',  label: 'SR' },
-        { min: 900,  key: 'r',   label: 'R' },
-        { min: 500,  key: 'n',   label: 'N' },
-        { min: 50,   key: 'c',   label: 'C' }
-      ]
-    },
-    'S0.5': {
-      total: 56553,
-      tiers: [
-        { min: 3000, key: 'ssr', label: 'SSR' },
-        { min: 1800, key: 'sr',  label: 'SR' },
-        { min: 1200, key: 'r',   label: 'R' },
-        { min: 600,  key: 'n',   label: 'N' },
-        { min: 50,   key: 'c',   label: 'C' }
-      ]
-    }
+  const SAMPLE_TIER_RATIOS = {
+    // Ratios are calibrated from the current Level-5 signature distribution.
+    // The denominator is NOT fixed here: it is read from the active Champion model.
+    'S3': [
+      { ratio: 0.12644310, key: 'ssr', label: 'SSR' },
+      { ratio: 0.04947774, key: 'sr',  label: 'SR' },
+      { ratio: 0.01924134, key: 'r',   label: 'R' },
+      { ratio: 0.00769654, key: 'n',   label: 'N' }
+    ],
+    'S2': [
+      { ratio: 0.06435835, key: 'ssr', label: 'SSR' },
+      { ratio: 0.03217917, key: 'sr',  label: 'SR' },
+      { ratio: 0.01544600, key: 'r',   label: 'R' },
+      { ratio: 0.00643583, key: 'n',   label: 'N' }
+    ],
+    'S1': [
+      { ratio: 0.05554369, key: 'ssr', label: 'SSR' },
+      { ratio: 0.03204443, key: 'sr',  label: 'SR' },
+      { ratio: 0.01922666, key: 'r',   label: 'R' },
+      { ratio: 0.01068148, key: 'n',   label: 'N' }
+    ],
+    'S0.5': [
+      { ratio: 0.05304758, key: 'ssr', label: 'SSR' },
+      { ratio: 0.03182855, key: 'sr',  label: 'SR' },
+      { ratio: 0.02121903, key: 'r',   label: 'R' },
+      { ratio: 0.01060952, key: 'n',   label: 'N' }
+    ]
   };
+
+  function activeStateBaselineSamples(marketState) {
+    const model = state.champion || {};
+    const stateModel = model.states?.[marketState];
+    const horizons = stateModel?.horizons || {};
+    if (!stateModel || !Object.keys(horizons).length) return 0;
+
+    // Follow the Champion model's declared primary swing horizon.
+    const primaryBars = model.primary_swing_horizon_bars;
+    if (primaryBars !== null && primaryBars !== undefined) {
+      const direct = Number(horizons?.[String(primaryBars)]?.baseline?.samples || 0);
+      if (Number.isFinite(direct) && direct > 0) return direct;
+    }
+
+    // Compatibility fallback: locate the horizon declared as 72H by the model itself.
+    const horizonHours = model.horizon_hours || {};
+    const horizonKey = Object.keys(horizonHours).find(k => Number(horizonHours[k]) === 72);
+    const fallback = Number(horizonKey ? horizons?.[horizonKey]?.baseline?.samples : 0);
+    return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+  }
 
   function sampleTierInfo(matchedSamples, marketState) {
     const matched = Number(matchedSamples || 0);
-    const rule = SAMPLE_TIER_RULES[marketState];
-    if (!rule) return { key: 'low', label: 'LOW', ratio: 0, total: 0, min: 0 };
+    const total = activeStateBaselineSamples(marketState);
+    const ratioRules = SAMPLE_TIER_RATIOS[marketState];
+    if (!ratioRules || total <= 0) return { key: 'low', label: 'LOW', ratio: 0, total: 0, min: 0 };
 
-    const ratio = rule.total > 0 ? matched / rule.total : 0;
-    const tier = rule.tiers.find(item => matched >= item.min);
-    if (!tier) return { key: 'low', label: 'LOW', ratio, total: rule.total, min: 50 };
-    return { ...tier, ratio, total: rule.total };
+    const ratio = matched / total;
+    const tiers = ratioRules.map(item => ({
+      ...item,
+      min: Math.max(50, Math.round(total * item.ratio))
+    }));
+    tiers.push({ min: 50, ratio: 50 / total, key: 'c', label: 'C' });
+
+    const tier = tiers.find(item => matched >= item.min);
+    if (!tier) return { key: 'low', label: 'LOW', ratio, total, min: 50 };
+    return { ...tier, ratio, total };
   }
 
   function renderChartQuickStats(r) {

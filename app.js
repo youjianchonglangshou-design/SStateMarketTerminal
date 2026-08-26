@@ -4,7 +4,7 @@
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
   const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -13,9 +13,11 @@
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
     battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
     challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleFlow: $("battle-flow"), battleDetails: $("battle-details"), battleMetrics: $("battle-metrics"),
-    battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body")
+    battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body"),
+    sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
+    sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.52｜NEWS-RUNTIME-CLEAN";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.53｜SECTOR-FLOW-HUD";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -187,6 +189,255 @@
 
   async function fetchOptionalJson(url) {
     try { return await fetchJson(url); } catch (_) { return null; }
+  }
+
+  const SECTOR_ORDER = ["TECH","FIN","HEALTH","CD","CS","COMM","IND","ENERGY","UTIL","RE","MAT"];
+  const SECTOR_LABELS = {
+    TECH:"科技", FIN:"金融", HEALTH:"醫療", CD:"非必需消費", CS:"必需消費", COMM:"通訊",
+    IND:"工業", ENERGY:"能源", UTIL:"公用事業", RE:"房地產", MAT:"原物料"
+  };
+  // ETF Central 是 11 大標準 sector；Pionex 主頁現有分類是 us_stock_sec_* 題材 tag。
+  // 只把有明確父層關係的 Pionex 題材放進 11 大板塊，不對「熱門 / S&P500 / NASDAQ100」做猜測。
+  const PIONEX_PARENT_SECTOR = Object.freeze({
+    "半導體晶片":"TECH", "半導體":"TECH", "費城半導體":"TECH", "量子計算":"TECH",
+    "銀行":"FIN", "生物科技/醫藥":"HEALTH", "消費":"CD", "軍工":"IND", "航太/太空":"IND",
+    "石油":"ENERGY", "核能":"UTIL", "房地產":"RE", "稀土":"MAT", "大宗商品":"MAT"
+  });
+  // 少數 Pionex 個股只有泛用 tag；對常見大型股給標準 GICS 父層，避免熱門/NASDAQ tag 讓它們落到「無對應」。
+  const SYMBOL_PARENT_SECTOR = Object.freeze({
+    AAPLX:"TECH", AMDX:"TECH", AMATX:"TECH", ARMX:"TECH", ASMLX:"TECH", AVGOX:"TECH", CSCOX:"TECH", DELLX:"TECH", IBMX:"TECH", INTCX:"TECH", KLACX:"TECH", LITEX:"TECH", LRCXX:"TECH", MRVLX:"TECH", MSFTX:"TECH", MUX:"TECH", NVDAX:"TECH", ORCLX:"TECH", QCOMX:"TECH", SMCIX:"TECH", SNDKX:"TECH", TSMX:"TECH",
+    COINX:"FIN", HOODX:"FIN", PAYPX:"FIN",
+    HIMSX:"HEALTH", LLYX:"HEALTH", UNHX:"HEALTH",
+    AMZNX:"CD", TSLAX:"CD", GMEX:"CD",
+    METAX:"COMM", GOOGLX:"COMM", NFLXX:"COMM",
+    LMTX:"IND", RKLBX:"IND", RTXX:"IND",
+    CVXX:"ENERGY", LNGX:"ENERGY",
+    CEGX:"UTIL", OKLOX:"UTIL",
+    MPX:"MAT", MOSX:"MAT", NTRX:"MAT", USARX:"MAT"
+  });
+
+  function setSectorFlowExpanded(expanded) {
+    if (!els.sectorFlow || !els.sectorFlowBody || !els.sectorFlowToggle) return;
+    state.sectorFlowExpanded = Boolean(expanded);
+    els.sectorFlow.classList.toggle("collapsed", !state.sectorFlowExpanded);
+    els.sectorFlowBody.classList.toggle("hidden", !state.sectorFlowExpanded);
+    els.sectorFlowToggle.setAttribute("aria-expanded", state.sectorFlowExpanded ? "true" : "false");
+    els.sectorFlowToggle.title = state.sectorFlowExpanded ? "收合美股板塊資金羅盤" : "展開美股板塊資金羅盤";
+    const arrow = els.sectorFlowToggle.querySelector(".sector-flow-arrow");
+    if (arrow) arrow.textContent = state.sectorFlowExpanded ? "▼" : "▶";
+    if (state.sectorFlowExpanded) renderSectorFlow();
+  }
+
+  function sectorById(id) {
+    return (state.sectorFlow?.sectors || []).find(x => String(x?.id || "") === String(id || "")) || null;
+  }
+
+  function formatFlowMoney(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return `${sign}$${(abs/1e9).toFixed(abs >= 1e11 ? 1 : 2)}B`;
+    if (abs >= 1e6) return `${sign}$${(abs/1e6).toFixed(abs >= 1e8 ? 0 : 1)}M`;
+    if (abs >= 1e3) return `${sign}$${(abs/1e3).toFixed(0)}K`;
+    return `${sign}$${abs.toFixed(0)}`;
+  }
+
+  function formatSignedPctPoint(value, digits=3) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    return `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`;
+  }
+
+  function broadSectorsForRecord(r) {
+    const out = new Set();
+    const direct = SYMBOL_PARENT_SECTOR[String(r?.symbol || "").toUpperCase()];
+    if (direct) out.add(direct);
+    for (const label of (Array.isArray(r?.sectors) ? r.sectors : [])) {
+      const mapped = PIONEX_PARENT_SECTOR[String(label || "").trim()];
+      if (mapped) out.add(mapped);
+    }
+    return [...out];
+  }
+
+  function hudOpportunityPriority(r) {
+    const opp = r?.opportunity_long || {};
+    const s = recordState(r);
+    const current = opp.current || {};
+    const bp = Number(current.ha_band_position);
+    const wave2 = opp?.purple_structure?.wave2_pullback || {};
+    const phase = String(wave2.pullback_phase || "");
+    const b = Number.isFinite(bp) ? bp : 9;
+    // 沿用現有 S-state 邏輯：S2 不是固定高於 S1。
+    // S2 已回到 0.50~0.68 中軌回踩區時優先於 S1；高位剛轉紫 early_upper_pullback 則低於健康 S1。
+    if (s === "S3") return 500 + Math.max(0, .75 - b) * 100;
+    if (s === "S0.5") return 420 + Math.max(0, .5 - Math.abs(b-.5)) * 20;
+    if (s === "S2" && phase === "midline_retest_zone") return 390 + Math.max(0, .68 - b) * 120;
+    if (s === "S1") return 360 + Math.max(0, .75 - b) * 70;
+    if (s === "S2") return 330 + Math.max(0, .78 - b) * 30;
+    if (s === "S0") return 200;
+    return 100;
+  }
+
+  function hudOpportunityReason(r) {
+    const opp = r?.opportunity_long || {};
+    const s = recordState(r);
+    const bp = Number(opp?.current?.ha_band_position);
+    const wave2 = opp?.purple_structure?.wave2_pullback || {};
+    const phase = String(wave2.pullback_phase || "");
+    const pos = Number.isFinite(bp) ? `BB ${bp.toFixed(2)}` : "BB —";
+    if (s === "S2" && phase === "midline_retest_zone") return `中軌回踩區｜${pos}｜S2→S3觀察`;
+    if (s === "S2" && phase === "early_upper_pullback") return `高位剛轉紫｜${pos}｜仍離中軌較遠`;
+    if (s === "S1") return `1浪突破｜${pos}`;
+    if (s === "S3") return `3浪啟動｜${pos}`;
+    if (s === "S0.5") return `優質反轉｜${pos}`;
+    return `${escapeHtml(opp.market_state_name || opp.setup_name || s)}｜${pos}`;
+  }
+
+  function sectorTopTokens(sectorId) {
+    if (state.market !== "us-stock") return [];
+    return [...(state.snapshot?.records || [])]
+      .filter(r => broadSectorsForRecord(r).includes(sectorId))
+      .sort((a,b) => hudOpportunityPriority(b) - hudOpportunityPriority(a) || String(a.symbol||"").localeCompare(String(b.symbol||"")))
+      .slice(0,3);
+  }
+
+  function sectorTokenStateClass(s) {
+    return s === "S3" ? "s3" : s === "S0.5" ? "s05" : s === "S2" ? "s2" : s === "S1" ? "s1" : "other";
+  }
+
+  function renderSectorDetail(id) {
+    if (!els.sectorFlowDetail) return;
+    const row = sectorById(id);
+    if (!row) {
+      els.sectorFlowDetail.innerHTML = `<div class="sector-flow-detail-kicker">NO DATA</div><div class="sector-flow-detail-title">尚無板塊資料</div><div class="sector-flow-detail-note">等待下一次 21:31 排程完成。</div>`;
+      return;
+    }
+    const strength = row.flow_strength || {};
+    const flowClass = Number(row.flow_pct) >= 0 ? "up" : "down";
+    const score = strength.available ? Number(strength.score).toFixed(0) : "—";
+    const top = sectorTopTokens(row.id);
+    const tokenHtml = top.length ? top.map((r,i) => {
+      const s = recordState(r);
+      return `<div class="sector-token"><span class="sector-token-rank">${i+1}</span><div class="sector-token-main"><div class="sector-token-symbol">${escapeHtml(r.symbol||"—")}</div><div class="sector-token-reason">${hudOpportunityReason(r)}</div></div><span class="sector-token-state ${sectorTokenStateClass(s)}">${escapeHtml(s)}</span></div>`;
+    }).join("") : `<div class="sector-flow-empty-token">目前 Pionex 分類中沒有可明確對應到此 11 大板塊的美股代幣；不使用「熱門 / 指數成分」標籤硬猜。</div>`;
+    els.sectorFlowDetail.innerHTML = `
+      <div class="sector-flow-detail-kicker">${escapeHtml(row.id)} · ETF CENTRAL</div>
+      <div class="sector-flow-detail-title">${escapeHtml(row.label || SECTOR_LABELS[row.id] || row.name || row.id)}</div>
+      <div class="sector-flow-detail-note">資料日 ${escapeHtml(row.data_as_of || "—")}｜1D 資金先除以板塊 Total AuM，再比較資金強度。</div>
+      <div class="sector-flow-stats">
+        <div class="sector-flow-stat"><span>RAW 1D FLOW</span><strong class="${flowClass}">${formatFlowMoney(row.flow_1d_usd)}</strong></div>
+        <div class="sector-flow-stat"><span>FLOW / AUM</span><strong class="${flowClass}">${formatSignedPctPoint(row.flow_pct)}</strong></div>
+        <div class="sector-flow-stat"><span>FLOW STRENGTH</span><strong>${score}${strength.available ? " / 100" : ""}</strong></div>
+        <div class="sector-flow-stat"><span>1D PERF</span><strong class="${Number(row.perf_1d_pct)>=0?'up':'down'}">${formatSignedPctPoint(row.perf_1d_pct,2)}</strong></div>
+      </div>
+      <div class="sector-sample">20D 基準樣本 <b>${Number(strength.sample_prior || 0)} / ${Number(strength.sample_target || 20)}</b>${strength.available ? `｜Z ${Number(strength.z).toFixed(2)}` : "｜累積中"}</div>
+      <div class="sector-top-title">PIONEX｜目前板塊 TOP 3（沿用 S-state + S2 BB 位置）</div>
+      <div class="sector-token-list">${tokenHtml}</div>`;
+  }
+
+  function polar(cx, cy, r, angleDeg) {
+    const a = (angleDeg - 90) * Math.PI / 180;
+    return {x: cx + r * Math.cos(a), y: cy + r * Math.sin(a)};
+  }
+
+  function sectorSlicePath(cx, cy, r, start, end) {
+    const p1 = polar(cx,cy,r,end), p2 = polar(cx,cy,r,start);
+    const large = end - start <= 180 ? 0 : 1;
+    return `M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${large} 0 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`;
+  }
+
+  function renderSectorWheel() {
+    if (!els.sectorWheel) return;
+    const flow = state.sectorFlow;
+    const rows = Array.isArray(flow?.sectors) ? flow.sectors : [];
+    if (rows.length !== 11) {
+      els.sectorWheel.innerHTML = `<div class="sector-flow-empty-token">尚無完整 11 大板塊資料。部署 Worker + sector-flow workflow 後，下一次 21:31 會自動建立。</div>`;
+      return;
+    }
+    const map = Object.fromEntries(rows.map(x => [x.id,x]));
+    const leaderId = String(flow.leader || "");
+    const leaderIndex = Math.max(0, SECTOR_ORDER.indexOf(leaderId));
+    const step = 360 / SECTOR_ORDER.length;
+    const cx=260, cy=260, r=232;
+    let paths="", labels="";
+    SECTOR_ORDER.forEach((id,index)=>{
+      const row=map[id]||{};
+      const start=index*step, end=(index+1)*step;
+      const mid=(start+end)/2;
+      const lp=polar(cx,cy,184,mid);
+      const positive=Number(row.flow_pct)>0, negative=Number(row.flow_pct)<0;
+      const klass = id===leaderId ? "leader" : positive ? "positive" : negative ? "negative" : "neutral";
+      paths += `<path class="sector-slice ${klass}" data-sector="${escapeHtml(id)}" d="${sectorSlicePath(cx,cy,r,start,end)}"></path>`;
+      labels += `<text class="sector-label" x="${lp.x.toFixed(1)}" y="${(lp.y-5).toFixed(1)}">${escapeHtml(id)}</text><text class="sector-label-sub" x="${lp.x.toFixed(1)}" y="${(lp.y+11).toFixed(1)}">${escapeHtml(SECTOR_LABELS[id]||"")}</text>`;
+    });
+    const leaderAngle = leaderIndex*step + step/2;
+    const end = polar(cx,cy,151,leaderAngle);
+    const left = polar(end.x,end.y,15,leaderAngle-145);
+    const right = polar(end.x,end.y,15,leaderAngle+145);
+    const leaderRow=map[leaderId]||{};
+    const strength=leaderRow.flow_strength||{};
+    const centerValue = strength.available ? `${Number(strength.score).toFixed(0)}` : formatSignedPctPoint(leaderRow.flow_pct,2);
+    const centerSub = strength.available ? "FLOW STRENGTH" : "FLOW / AUM";
+    els.sectorWheel.innerHTML = `<svg viewBox="0 0 520 520" role="img" aria-label="美股11大板塊資金流向">
+      ${paths}${labels}
+      <line class="sector-pointer" x1="260" y1="260" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}"></line>
+      <polygon class="sector-pointer-head" points="${end.x.toFixed(1)},${end.y.toFixed(1)} ${left.x.toFixed(1)},${left.y.toFixed(1)} ${right.x.toFixed(1)},${right.y.toFixed(1)}"></polygon>
+      <circle class="sector-center-ring" cx="260" cy="260" r="69"></circle>
+      <circle class="sector-center-dot" cx="260" cy="260" r="8"></circle>
+      <text class="sector-center-title" x="260" y="230">${escapeHtml(leaderId||"—")}</text>
+      <text class="sector-center-value" x="260" y="286">${escapeHtml(centerValue)}</text>
+      <text class="sector-center-sub" x="260" y="304">${escapeHtml(centerSub)}</text>
+    </svg>`;
+    els.sectorWheel.querySelectorAll(".sector-slice").forEach(path=>{
+      path.addEventListener("mouseenter",()=>{
+        state.sectorFlowHover=path.dataset.sector||leaderId;
+        els.sectorWheel.querySelectorAll(".sector-slice").forEach(x=>x.classList.toggle("hovered",x===path));
+        renderSectorDetail(state.sectorFlowHover);
+      });
+      path.addEventListener("mouseleave",()=>{
+        els.sectorWheel.querySelectorAll(".sector-slice").forEach(x=>x.classList.remove("hovered"));
+        state.sectorFlowHover=leaderId;
+        renderSectorDetail(leaderId);
+      });
+    });
+  }
+
+  function renderSectorFlow() {
+    if (!els.sectorFlow) return;
+    const show = state.market === "us-stock";
+    els.sectorFlow.classList.toggle("hidden", !show);
+    if (!show) return;
+    const flow = state.sectorFlow;
+    if (!flow || !Array.isArray(flow.sectors) || flow.sectors.length !== 11) {
+      els.sectorFlowCaption.textContent = "尚無 21:31 板塊資金資料｜等待 sector-flow 首次成功排程";
+      els.sectorFlowLeader.textContent = "WAITING";
+      els.sectorFlowLeader.className = "sector-flow-leader waiting";
+      if (state.sectorFlowExpanded) { renderSectorWheel(); renderSectorDetail(""); }
+      return;
+    }
+    const leader = sectorById(flow.leader);
+    const strength = leader?.flow_strength || {};
+    const dates = Array.isArray(flow.data_dates) ? flow.data_dates : [];
+    const dateText = dates.length === 1 ? dates[0] : dates.length ? `${dates[0]} ~ ${dates[dates.length-1]}` : "—";
+    const sample = Number(strength.sample_prior || 0);
+    els.sectorFlowCaption.textContent = `ETF Central｜資料日 ${dateText}｜21:31 TW 自動更新｜20D 樣本 ${sample}/20`;
+    const allOut = String(flow.flow_regime) === "all_non_positive";
+    els.sectorFlowLeader.textContent = allOut ? `全流出｜${flow.leader} 相對最強` : `資金指向｜${flow.leader}`;
+    els.sectorFlowLeader.className = `sector-flow-leader ${allOut ? "outflow" : "ready"}`;
+    state.sectorFlowHover = state.sectorFlowHover && sectorById(state.sectorFlowHover) ? state.sectorFlowHover : flow.leader;
+    if (state.sectorFlowExpanded) {
+      renderSectorWheel();
+      renderSectorDetail(state.sectorFlowHover);
+    }
+  }
+
+  async function loadSectorFlow() {
+    if (state.market !== "us-stock") { renderSectorFlow(); return; }
+    if (!workerUrl) { state.sectorFlow = null; renderSectorFlow(); return; }
+    const payload = await fetchOptionalJson(`${workerUrl}/api/sector-flow?t=${Date.now()}`);
+    if (payload?.sectors?.length === 11) state.sectorFlow = payload;
+    renderSectorFlow();
   }
 
   async function loadUsStockResearch() {
@@ -690,7 +941,7 @@
     const pm = b.probability_model || {};
     els.systemCaption.textContent = `${marketLabel(state.market)}｜UPDATED ${fmtTaiwanTimestamp(b.generated_at_taiwan)}｜ENGINE ${b.engine_version || "—"}｜AI ${b.ai_analysis_layer || "—"}`;
     els.snapshotMeta.textContent = `資料源：${source}｜${b.count ?? snap.records.length} 標的｜Probability ${pm.available ? `${pm.model_id || "active"} / max L${pm.max_level || "?"}` : "未載入"}｜主判定 72H（3日）`;
-    renderFilters(); renderSummary(); renderCards();
+    renderFilters(); renderSummary(); renderCards(); renderSectorFlow();
   }
 
   function renderFilters() {
@@ -1263,6 +1514,7 @@
     state.filter='ALL';
     updateActionState();
     await loadSnapshot();
+    await loadSectorFlow();
   });
   if (els.search) {
     els.search.addEventListener('input', () => { state.searchQuery = els.search.value || ''; renderCards(); });
@@ -1278,9 +1530,13 @@
   }, true);
   els.download.addEventListener('click',downloadCurrentJson);
   els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));
+  if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
   setBattleExpanded(false, false);
+  setSectorFlowExpanded(false);
   updateActionState();
   renderVolumeProgress(0);
   pollAutomationStatus();
-  Promise.all([loadSnapshot(), loadModelBattle()]);
+  clearInterval(state.sectorFlowTimer);
+  state.sectorFlowTimer = setInterval(()=>{ if (state.market === 'us-stock') loadSectorFlow(); }, 30000);
+  Promise.all([loadSnapshot(), loadModelBattle(), loadSectorFlow()]);
 })();

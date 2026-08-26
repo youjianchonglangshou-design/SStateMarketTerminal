@@ -2,6 +2,7 @@
 const PIONEX_RWA_CACHE_KEY = "pionex/cache/rwa_trade_rules.json";
 const PIONEX_RWA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PIONEX_US_STOCK_SYMBOLS_KEY = "pionex/symbols/us_stock_symbols.json";
+const SECTOR_FLOW_KEY = "market/us-stock/sector_flow.json";
 
 // Pionex web endpoints discovered from the live RWA page.
 // Device/fingerprint identifiers are intentionally NOT stored in this public Worker.
@@ -35,6 +36,9 @@ export default {
       }
       if (request.method === "GET" && url.pathname === "/api/symbols/us-stock") {
         return await objectResponse(env, PIONEX_US_STOCK_SYMBOLS_KEY, origin, false, "us_stock_symbols.json");
+      }
+      if (request.method === "GET" && url.pathname === "/api/sector-flow") {
+        return await objectResponse(env, SECTOR_FLOW_KEY, origin, false, "sector_flow.json");
       }
       if (request.method === "GET" && url.pathname === "/api/market/status") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -139,6 +143,22 @@ export default {
           kline_gate: klineGate,
           generated_at: parsed?.generated_at || null,
         }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/sector-flow") {
+        requireInternal(request, env);
+        const text = await request.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || !Array.isArray(parsed.sectors) || parsed.sectors.length !== 11) {
+          throw httpError(400, "sector-flow requires exactly 11 sectors");
+        }
+        const ids = new Set(parsed.sectors.map(x => String(x?.id || "")));
+        if (ids.size !== 11 || !parsed.leader || !ids.has(String(parsed.leader))) {
+          throw httpError(400, "sector-flow leader/sector ids invalid");
+        }
+        await env.JSON_BUCKET.put(SECTOR_FLOW_KEY, text, {
+          httpMetadata: { contentType: "application/json; charset=utf-8" },
+        });
+        return json({ ok: true, key: SECTOR_FLOW_KEY, leader: parsed.leader, generated_at_taiwan: parsed.generated_at_taiwan || null }, 200, origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/research/us-stock/cache") {
         requireInternal(request, env);
@@ -317,7 +337,9 @@ export default {
       return;
     }
     if (controller.cron === "31 13 * * *") {
+      // 台灣 21:31：美股完整分析與板塊資金羅盤分開執行，互不阻塞。
       ctx.waitUntil(dispatchAutoBatch(env, "us-stock-only", source));
+      ctx.waitUntil(dispatchSectorFlow(env, source));
       return;
     }
     // 00:25 UTC = 台灣時間 08:25。共用同一個 Cloudflare Cron：
@@ -2832,6 +2854,31 @@ async function writeAutomationStatus(env, payload) {
   });
   return normalized;
 }
+
+async function dispatchSectorFlow(env, source = "cron") {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
+    throw httpError(500, "Worker 缺少 GITHUB_TOKEN 或 GITHUB_REPOSITORY");
+  }
+  const endpoint = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/workflows/sector-flow.yml/dispatches`;
+  const gh = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Accept": "application/vnd.github+json",
+      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+      "X-GitHub-Api-Version": "2026-03-10",
+      "User-Agent": "SStateMarketTerminal-SectorFlow-Worker",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ref: env.GITHUB_BRANCH || "main" }),
+  });
+  if (!gh.ok) {
+    const text = await gh.text();
+    throw httpError(502, `Sector flow workflow_dispatch 失敗：${gh.status} ${text}`);
+  }
+  console.log(`Sector flow dispatched by ${source}`);
+  return { ok: true, source };
+}
+
 
 async function dispatchUsStockSymbolSync(env, source = "cron") {
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {

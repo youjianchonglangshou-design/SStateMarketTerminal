@@ -67,6 +67,34 @@
       </div>
     </section>
 
+    <section id="sector-flow" class="sector-flow-panel collapsed hidden">
+      <div class="sector-flow-head">
+        <div class="sector-flow-heading-wrap">
+          <button id="sector-flow-toggle" class="sector-flow-toggle" type="button" aria-expanded="false" aria-controls="sector-flow-body" title="展開美股板塊資金羅盤">
+            <span class="sector-flow-arrow">▶</span>
+          </button>
+          <div>
+            <div class="sector-flow-title">🧭 FLOW RADAR｜美股板塊資金羅盤</div>
+            <div id="sector-flow-caption" class="caption">載入 21:31 最新結算板塊資金...</div>
+          </div>
+        </div>
+        <div id="sector-flow-leader" class="sector-flow-leader waiting">WAITING</div>
+      </div>
+      <div id="sector-flow-body" class="sector-flow-body hidden">
+        <div class="sector-flow-layout">
+          <div class="sector-wheel-wrap">
+            <div id="sector-wheel" class="sector-wheel" aria-label="11大美股板塊資金流向圓餅指針圖"></div>
+          </div>
+          <aside id="sector-flow-detail" class="sector-flow-detail">
+            <div class="sector-flow-detail-kicker">HOVER SECTOR</div>
+            <div class="sector-flow-detail-title">滑入任一板塊查看資料</div>
+            <div class="sector-flow-detail-note">指針固定指向目前資金最強板塊；滑鼠只切換右側資訊，不改變指針。</div>
+          </aside>
+        </div>
+        <div class="sector-flow-footnote">FLOW % = 1D Flow ÷ Total AuM。FLOW STRENGTH 需累積 20 個「前一交易日」樣本後啟用；不足 20 天時，指針先依 FLOW % 判定。</div>
+      </div>
+    </section>
+
     <section id="run-panel" class="run-panel hidden">
       <div class="run-line">
         <strong id="run-title">分析準備中</strong>

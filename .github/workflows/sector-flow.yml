@@ -31,7 +31,9 @@ jobs:
           cache-dependency-path: engine/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r engine/requirements.txt
+        run: |
+          pip install -r engine/requirements.txt
+          pip install "selenium>=4.35,<5"
 
       - name: Load previous sector-flow history
         shell: bash

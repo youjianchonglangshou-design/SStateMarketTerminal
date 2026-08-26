@@ -196,7 +196,7 @@
     TECH:"科技", FIN:"金融", HEALTH:"醫療", CD:"非必需消費", CS:"必需消費", COMM:"通訊",
     IND:"工業", ENERGY:"能源", UTIL:"公用事業", RE:"房地產", MAT:"原物料"
   };
-  // ETF Central 是 11 大標準 sector；Pionex 主頁現有分類是 us_stock_sec_* 題材 tag。
+  // State Street Select Sector SPDR 是 11 大標準 sector；Pionex 主頁現有分類是 us_stock_sec_* 題材 tag。
   // 只把有明確父層關係的 Pionex 題材放進 11 大板塊，不對「熱門 / S&P500 / NASDAQ100」做猜測。
   const PIONEX_PARENT_SECTOR = Object.freeze({
     "半導體晶片":"TECH", "半導體":"TECH", "費城半導體":"TECH", "量子計算":"TECH",
@@ -322,14 +322,14 @@
       return `<div class="sector-token"><span class="sector-token-rank">${i+1}</span><div class="sector-token-main"><div class="sector-token-symbol">${escapeHtml(r.symbol||"—")}</div><div class="sector-token-reason">${hudOpportunityReason(r)}</div></div><span class="sector-token-state ${sectorTokenStateClass(s)}">${escapeHtml(s)}</span></div>`;
     }).join("") : `<div class="sector-flow-empty-token">目前 Pionex 分類中沒有可明確對應到此 11 大板塊的美股代幣；不使用「熱門 / 指數成分」標籤硬猜。</div>`;
     els.sectorFlowDetail.innerHTML = `
-      <div class="sector-flow-detail-kicker">${escapeHtml(row.id)} · ETF CENTRAL</div>
+      <div class="sector-flow-detail-kicker">${escapeHtml(row.id)} · STATE STREET SPDR</div>
       <div class="sector-flow-detail-title">${escapeHtml(row.label || SECTOR_LABELS[row.id] || row.name || row.id)}</div>
-      <div class="sector-flow-detail-note">資料日 ${escapeHtml(row.data_as_of || "—")}｜1D 資金先除以板塊 Total AuM，再比較資金強度。</div>
+      <div class="sector-flow-detail-note">資料日 ${escapeHtml(row.data_as_of || "—")}｜Δ Shares × NAV 推算 1D 資金，再除以前一交易日 AUM。</div>
       <div class="sector-flow-stats">
         <div class="sector-flow-stat"><span>RAW 1D FLOW</span><strong class="${flowClass}">${formatFlowMoney(row.flow_1d_usd)}</strong></div>
         <div class="sector-flow-stat"><span>FLOW / AUM</span><strong class="${flowClass}">${formatSignedPctPoint(row.flow_pct)}</strong></div>
         <div class="sector-flow-stat"><span>FLOW STRENGTH</span><strong>${score}${strength.available ? " / 100" : ""}</strong></div>
-        <div class="sector-flow-stat"><span>1D PERF</span><strong class="${Number(row.perf_1d_pct)>=0?'up':'down'}">${formatSignedPctPoint(row.perf_1d_pct,2)}</strong></div>
+        <div class="sector-flow-stat"><span>NAV 1D</span><strong class="${Number(row.perf_1d_pct)>=0?'up':'down'}">${formatSignedPctPoint(row.perf_1d_pct,2)}</strong></div>
       </div>
       <div class="sector-sample">20D 基準樣本 <b>${Number(strength.sample_prior || 0)} / ${Number(strength.sample_target || 20)}</b>${strength.available ? `｜Z ${Number(strength.z).toFixed(2)}` : "｜累積中"}</div>
       <div class="sector-top-title">PIONEX｜目前板塊 TOP 3（沿用 S-state + S2 BB 位置）</div>
@@ -421,7 +421,7 @@
     const dates = Array.isArray(flow.data_dates) ? flow.data_dates : [];
     const dateText = dates.length === 1 ? dates[0] : dates.length ? `${dates[0]} ~ ${dates[dates.length-1]}` : "—";
     const sample = Number(strength.sample_prior || 0);
-    els.sectorFlowCaption.textContent = `ETF Central｜資料日 ${dateText}｜21:31 TW 自動更新｜20D 樣本 ${sample}/20`;
+    els.sectorFlowCaption.textContent = `State Street SPDR｜資料日 ${dateText}｜21:31 TW 自動更新｜20D 樣本 ${sample}/20`;
     const allOut = String(flow.flow_regime) === "all_non_positive";
     els.sectorFlowLeader.textContent = allOut ? `全流出｜${flow.leader} 相對最強` : `資金指向｜${flow.leader}`;
     els.sectorFlowLeader.className = `sector-flow-leader ${allOut ? "outflow" : "ready"}`;

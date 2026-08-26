@@ -102,22 +102,34 @@ def _normalize_nav_row(raw: dict[str, Any]) -> dict[str, Any]:
     if nav <= 0 or shares_raw <= 0 or assets_raw <= 0:
         raise ValueError("NAV history row has non-positive values")
 
-    # SSGA spreadsheet cells can be stored either as whole units or as values
-    # displayed in millions.  Infer the unit combination from NAV * shares ~= AUM
-    # instead of assuming one fixed workbook representation.
-    candidates = []
-    for share_scale in (1.0, 1_000_000.0):
-        for asset_scale in (1.0, 1_000_000.0):
-            shares = shares_raw * share_scale
-            assets = assets_raw * asset_scale
-            ratio = nav * shares / assets
-            candidates.append((abs(ratio - 1.0), ratio, shares, assets))
-    _, ratio, shares, assets = min(candidates, key=lambda x: x[0])
+    # State Street NAV-history workbooks can expose the displayed ``M`` unit in
+    # two different ways: some cells contain full units (e.g. 165,450,000),
+    # while others contain the displayed numeric value (e.g. 165.45 for 165.45M).
+    #
+    # IMPORTANT: do NOT choose between (1,1) and (1e6,1e6) by whichever makes
+    # NAV * Shares / AUM closest to 1.0.  Scaling both fields by 1e6 leaves that
+    # ratio mathematically unchanged; tiny floating-point differences can make
+    # adjacent days randomly flip scale and create quadrillion-dollar fake flows.
+    # Use deterministic magnitude normalization instead.  _num() has already
+    # expanded explicit text suffixes such as "165.45 M" to 165,450,000.
+    shares = shares_raw * 1_000_000.0 if shares_raw < 1_000_000.0 else shares_raw
+    assets = assets_raw * 1_000_000.0 if assets_raw < 100_000_000.0 else assets_raw
+
+    ratio = nav * shares / assets
     if not (0.90 <= ratio <= 1.10):
         raise ValueError(
-            f"NAV history unit check failed: best nav*shares/assets={ratio:.4f} "
-            f"(nav={nav}, shares_raw={shares_raw}, assets_raw={assets_raw})"
+            f"NAV history unit check failed: nav*shares/assets={ratio:.4f} "
+            f"(nav={nav}, shares_raw={shares_raw}, assets_raw={assets_raw}, "
+            f"shares={shares}, assets={assets})"
         )
+
+    # These bounds are intentionally broad for the 11 Select Sector SPDRs, but
+    # prevent a future workbook-format change from publishing obviously corrupt
+    # 1e14-share / 1e16-dollar values to the HUD.
+    if not (1_000_000.0 <= shares <= 5_000_000_000.0):
+        raise ValueError(f"State Street shares_outstanding out of range: {shares}")
+    if not (100_000_000.0 <= assets <= 1_000_000_000_000.0):
+        raise ValueError(f"State Street total_net_assets out of range: {assets}")
     return {
         "date": d.isoformat(),
         "nav": nav,

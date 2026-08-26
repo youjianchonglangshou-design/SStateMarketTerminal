@@ -39,7 +39,7 @@ PIONEX_SECTOR_TAG_LABELS = {
     "us_stock_sec_commodities": "大宗商品",
     "us_stock_sec_consumer": "消費",
     "us_stock_sec_crypto": "加密概念",
-    "us_stock_sec_energy_storage": "儲能",
+    "us_stock_sec_energy_storage": "儲存",
     "us_stock_sec_etf": "ETF",
     "us_stock_sec_hot": "熱門",
     "us_stock_sec_industry": "行業指數",

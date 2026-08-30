@@ -1,12 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.59｜ADX-STEP-DOMINANCE",
-  "stage": "ADX-STEP-DOMINANCE",
+  "app_version": "TERMINAL v0.1.60｜ADX-STATE-VISUAL",
+  "stage": "ADX-STATE-VISUAL",
   "features": [
-    "ADX is now rendered in the existing 30-day DMI panel as a Pine-style stepline using the ADX values already produced by analysis_core.py",
-    "ADX step segments are green (#26A69A) when ADX rises versus the prior day, red (#EF5350) when ADX falls, and neutral gray when flat",
-    "A new live/hover dominance capsule summarizes DI controller plus ADX direction: bullish/bearish control with strengthening or weakening trend strength",
-    "DI+ remains yellow, DI- remains purple, and the white dashed 20 axis remains a reference only",
-    "No Python calculation changes were required because analysis_core.py already computes Pine-equivalent ADX and get.py already emits ADX in chart_30d"
+    "ADX remains rendered as the existing green-rising / red-falling 30-day stepline; no indicator math changed",
+    "The ADX state capsule now uses yellow/purple border, background tint, and text to identify DI+ or DI- as the current controller",
+    "The capsule dot now independently uses green/red to show ADX strengthening or weakening; gray is reserved for flat/unavailable ADX direction",
+    "State text adds arrows: bullish/bearish control with trend strengthening ↑, weakening ↓, or flat →",
+    "Hovering a historical date updates DI values, controller color, ADX-strength dot, and state text together",
+    "No Python, S-state, probability, Worker, or workflow changes were required"
   ],
-  "version": "0.1.59"
+  "version": "0.1.60"
 }

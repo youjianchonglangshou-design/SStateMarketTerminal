@@ -1417,17 +1417,21 @@
 
   function adxDominanceState(plus, minus, adx, previousAdx) {
     const p=Number(plus),m=Number(minus),a=Number(adx),prev=Number(previousAdx);
-    if(!Number.isFinite(p)||!Number.isFinite(m)||!Number.isFinite(a)||!Number.isFinite(prev)||p===m){
-      return { text:"方向膠著｜ADX待確認", className:"adx-state-neutral", trend:"FLAT" };
+    if(!Number.isFinite(p)||!Number.isFinite(m)||p===m){
+      return { text:"方向膠著｜ADX待確認", controllerClass:"adx-controller-neutral", trendClass:"adx-trend-neutral", trend:"FLAT" };
+    }
+    const controllerClass=p>m?'adx-controller-plus':'adx-controller-minus';
+    if(!Number.isFinite(a)||!Number.isFinite(prev)){
+      return { text:`${p>m?'多方':'空方'}控制｜ADX待確認`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
     }
     const rising=a>prev, falling=a<prev;
     if(!rising&&!falling){
-      return { text:`${p>m?'多方':'空方'}控制｜ADX持平`, className:"adx-state-neutral", trend:"FLAT" };
+      return { text:`${p>m?'多方':'空方'}控制｜ADX持平 →`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
     }
-    if(p>m && rising) return { text:"多方控制｜趨勢強度增強", className:"adx-state-rising", trend:"RISING" };
-    if(p>m && falling) return { text:"多方仍控制｜力量衰退", className:"adx-state-falling", trend:"FALLING" };
-    if(p<m && rising) return { text:"空方控制｜趨勢強度增強", className:"adx-state-rising", trend:"RISING" };
-    return { text:"空方仍控制｜力量衰退", className:"adx-state-falling", trend:"FALLING" };
+    if(p>m && rising) return { text:"多方控制｜趨勢強度增強 ↑", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
+    if(p>m && falling) return { text:"多方仍控制｜力量衰退 ↓", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
+    if(p<m && rising) return { text:"空方控制｜趨勢強度增強 ↑", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
+    return { text:"空方仍控制｜力量衰退 ↓", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
   }
 
   function previousFiniteAdx(points,index) {
@@ -1454,7 +1458,7 @@
       <div class="adx-head">
         <span class="adx-title">ADX / DMI 14</span>
         <div class="adx-head-right">
-          <span class="adx-state-pill ${dominance.className}"><span class="adx-state-dot"></span><strong class="adx-state-text">${escapeHtml(dominance.text)}</strong></span>
+          <span class="adx-state-pill ${dominance.controllerClass} ${dominance.trendClass}"><span class="adx-state-dot"></span><strong class="adx-state-text">${escapeHtml(dominance.text)}</strong></span>
           <div class="adx-live-values">
             <span class="adx-live-pill adx-pill-plus ${pillClasses.plus}">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
             <span class="adx-live-pill adx-pill-minus ${pillClasses.minus}">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
@@ -1570,8 +1574,8 @@
         const a=adxs[idx]===null?NaN:Number(adxs[idx]);
         const prev=previousAdxAt(idx);
         const stateInfo=adxDominanceState(p,m,a,prev);
-        statePill.classList.remove('adx-state-rising','adx-state-falling','adx-state-neutral');
-        statePill.classList.add(stateInfo.className);
+        statePill.classList.remove('adx-controller-plus','adx-controller-minus','adx-controller-neutral','adx-trend-rising','adx-trend-falling','adx-trend-neutral');
+        statePill.classList.add(stateInfo.controllerClass,stateInfo.trendClass);
         stateText.textContent=stateInfo.text;
       };
       const restore=()=>{

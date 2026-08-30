@@ -93,3 +93,11 @@ automation/latest/status.json
 - The three new model facets (`adx_step_regime`, `adx_step_persistence`, `adx_turn_handover`) can therefore participate in success / survival / true-fail correction when a v2 ADX-Step model is active.
 - `adx_turn_handover` keeps the same 4H DI relation-age guard as training; invalid replay age is never replaced with a daily approximation.
 - This release does not publish or promote a probability model.
+
+
+## ADX state arrow visual (v0.1.63)
+
+- ADX rising state text uses `趨勢強度增強 ↗↗`.
+- ADX falling state text uses `力量衰退 ↘↘`.
+- ADX flat state text uses `力道持平 ←→`.
+- DI controller colors, ADX red/green step colors, probability logic, and Python engine are unchanged.

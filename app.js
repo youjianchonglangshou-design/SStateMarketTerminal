@@ -1426,12 +1426,12 @@
     }
     const rising=a>prev, falling=a<prev;
     if(!rising&&!falling){
-      return { text:`${p>m?'多方':'空方'}控制｜ADX持平 →`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
+      return { text:`${p>m?'多方':'空方'}控制｜力道持平 ←→`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
     }
-    if(p>m && rising) return { text:"多方控制｜趨勢強度增強 ↑", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
-    if(p>m && falling) return { text:"多方仍控制｜力量衰退 ↓", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
-    if(p<m && rising) return { text:"空方控制｜趨勢強度增強 ↑", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
-    return { text:"空方仍控制｜力量衰退 ↓", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
+    if(p>m && rising) return { text:"多方控制｜趨勢強度增強 ↗↗", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
+    if(p>m && falling) return { text:"多方仍控制｜力量衰退 ↘↘", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
+    if(p<m && rising) return { text:"空方控制｜趨勢強度增強 ↗↗", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
+    return { text:"空方仍控制｜力量衰退 ↘↘", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
   }
 
   function previousFiniteAdx(points,index) {

@@ -1,12 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.62｜ADX-STEP-LIVE-FEATURES",
-  "stage": "ADX-STEP-LIVE-FEATURES",
+  "app_version": "TERMINAL v0.1.63｜ADX-ARROW-VISUAL",
+  "stage": "ADX-ARROW-VISUAL",
   "features": [
+    "ADX state pill arrows are strengthened: trend strength ↗↗, weakening ↘↘, flat force ←→",
     "probability_reader.py now derives HistoricalTraining v2 ADX Step live features directly from the existing 30-day ADX series",
     "Adds adx_axis_zone, adx_step_direction, adx_step_age_days/bin, adx_turn_event, adx_step_delta, and dmi_adx_regime",
     "DMI-EXPERT-v2-ADX-STEP can now match adx_step_regime, adx_step_persistence, and adx_turn_handover in addition to the original four DMI facets",
     "cross_momentum and adx_turn_handover are skipped when 4H DI relation-age replay is not verified; no daily substitute is fabricated",
     "No ADX/DI formula, S-state rule, Worker, workflow, or front-end chart logic changed; the new trained model is not auto-published by this patch"
   ],
-  "version": "0.1.62"
+  "version": "0.1.63"
 }

@@ -17,7 +17,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.53｜SECTOR-FLOW-HUD";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.54｜ADX-DMI-30D";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -60,6 +60,7 @@
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (v, digits=1) => Number.isFinite(Number(v)) ? `${(Number(v)*100).toFixed(digits)}%` : "—";
   const num = (v, digits=2) => Number.isFinite(Number(v)) ? Number(v).toFixed(digits) : "—";
+  const finiteIndicator = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
   // generated_at_taiwan is already Taiwan local time. Display it directly without
   // parsing through Date(), so the browser will not apply another timezone shift.
   const fmtTaiwanTimestamp = (v) => {
@@ -979,6 +980,7 @@
     rows.sort((a,b) => stateRank(recordState(a))-stateRank(recordState(b)) || Number(b.historical_probability?.["72h"]?.success_probability||0)-Number(a.historical_probability?.["72h"]?.success_probability||0));
     els.cards.innerHTML = rows.map(renderCard).join("");
     bindChartCrosshairs();
+    bindAdxCrosshairs();
   }
 
   function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
@@ -1294,6 +1296,7 @@
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}${renderResearch(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
       <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderTradeifyMatchBadge(r)}${renderChartQuickStats(r)}</div>
+      ${buildAdxPanel(r.chart_30d||[])}
     </article>`;
   }
 
@@ -1390,7 +1393,6 @@
     let grids=''; for(let i=0;i<4;i++){const yy=T+i*innerH/3; const val=max-i*(max-min)/3; grids+=`<line class="grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="axis-text" x="2" y="${yy+3}">${escapeHtml(fmtChartPrice(val,tinyExp))}</text>`}
     let ladder=''; for(let i=0;i<points.length-1;i++){const p=points[i], q=points[i+1]; const cls=(p.ha_color==='yellow')?'ladder-yellow':'ladder-purple'; const x1=x(i),x2=x(i+1),yy=y(p.ha_close),y2=y(q.ha_close); ladder+=`<path class="${cls}" d="M${x1},${yy} H${x2} V${y2}"/>`;}
     const last=points[points.length-1], lc=last.ha_color==='yellow'?'#fde047':'#bba4e8';
-    const labels=[0,Math.floor((points.length-1)/3),Math.floor((points.length-1)*2/3),points.length-1].map(i=>`<text class="axis-text" x="${x(i)-10}" y="${H-4}" transform="rotate(-35 ${x(i)-10} ${H-4})">${escapeHtml(points[i].date||'')}</text>`).join('');
     const dates=encodeURIComponent(JSON.stringify(points.map(p=>String(p.date||''))));
     const crosshair=`<g class="tv-crosshair" visibility="hidden" pointer-events="none">
       <line class="tv-cross-line tv-cross-v" x1="${L}" y1="${T}" x2="${L}" y2="${H-B}"/>
@@ -1400,7 +1402,123 @@
       <rect class="tv-cross-label tv-date-box" x="${L}" y="${H-B+2}" width="48" height="20" rx="3"/>
       <text class="tv-cross-label-text tv-date-text" x="${L+24}" y="${H-B+15.5}" text-anchor="middle">—</text>
     </g>`;
-    return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-exp="${tinyExp}" data-dates="${dates}">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${labels}${crosshair}</svg>`;
+    return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-exp="${tinyExp}" data-dates="${dates}">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${crosshair}</svg>`;
+  }
+
+  function buildAdxPanel(points) {
+    const usable = Array.isArray(points) ? points : [];
+    const latest = [...usable].reverse().find(p => finiteIndicator(p?.di_plus) && finiteIndicator(p?.di_minus));
+    const latestPlus = latest ? Number(latest.di_plus) : NaN;
+    const latestMinus = latest ? Number(latest.di_minus) : NaN;
+    return `<div class="adx-panel">
+      <div class="adx-head">
+        <span class="adx-title">ADX / DMI 14</span>
+        <div class="adx-live-values">
+          <span class="adx-live-pill adx-pill-plus">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
+          <span class="adx-live-pill adx-pill-minus">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
+        </div>
+      </div>
+      ${buildAdxSvg(usable)}
+    </div>`;
+  }
+
+  function buildAdxSvg(points) {
+    if (!Array.isArray(points) || points.length < 2 || !points.some(p => finiteIndicator(p?.di_plus) || finiteIndicator(p?.di_minus))) {
+      return '<div class="adx-empty">等待下一次完整分析產生 ADX / DMI 14</div>';
+    }
+    const W=760,H=142,L=42,R=14,T=10,B=30, innerW=W-L-R, innerH=H-T-B;
+    const vals=[20];
+    points.forEach(p=>['di_plus','di_minus'].forEach(k=>{const raw=p?.[k];if(finiteIndicator(raw)) vals.push(Number(raw))}));
+    const min=0;
+    const rawMax=Math.max(...vals,40);
+    const max=Math.max(40,Math.ceil(rawMax/10)*10);
+    const x=(i)=>L+i*(innerW/(points.length-1));
+    const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
+    const linePath=(key)=>{
+      let d='',drawing=false;
+      points.forEach((p,i)=>{
+        const raw=p?.[key];
+        if(!finiteIndicator(raw)){drawing=false;return;}
+        const n=Number(raw);
+        d+=`${drawing?'L':'M'}${x(i).toFixed(1)},${y(n).toFixed(1)}`;
+        drawing=true;
+      });
+      return d;
+    };
+    let grids='';
+    for(let i=0;i<=2;i++){
+      const val=max-i*(max/2), yy=y(val);
+      grids+=`<line class="adx-grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="adx-axis-text" x="4" y="${yy+3}">${val.toFixed(0)}</text>`;
+    }
+    const thresholdY=y(20);
+    const threshold=`<line class="adx-threshold-line" x1="${L}" y1="${thresholdY}" x2="${W-R}" y2="${thresholdY}"/><text class="adx-threshold-text" x="4" y="${thresholdY+3}">20</text>`;
+    const labelIdx=[0,Math.floor((points.length-1)/3),Math.floor((points.length-1)*2/3),points.length-1];
+    const labels=[...new Set(labelIdx)].map(i=>`<text class="adx-axis-text adx-date-text" x="${x(i)-8}" y="${H-4}" transform="rotate(-35 ${x(i)-8} ${H-4})">${escapeHtml(points[i]?.date||'')}</text>`).join('');
+    const dates=encodeURIComponent(JSON.stringify(points.map(p=>String(p?.date||''))));
+    const pluses=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.di_plus)?Number(p.di_plus):null)));
+    const minuses=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.di_minus)?Number(p.di_minus):null)));
+    const last=points[points.length-1]||{};
+    const latestPlus=finiteIndicator(last.di_plus)?Number(last.di_plus):NaN, latestMinus=finiteIndicator(last.di_minus)?Number(last.di_minus):NaN;
+    const lastDots=`${Number.isFinite(latestPlus)?`<circle class="adx-last-dot adx-plus-dot" cx="${x(points.length-1)}" cy="${y(latestPlus)}" r="3.5"/>`:''}${Number.isFinite(latestMinus)?`<circle class="adx-last-dot adx-minus-dot" cx="${x(points.length-1)}" cy="${y(latestMinus)}" r="3.5"/>`:''}`;
+    const crosshair=`<g class="adx-crosshair" visibility="hidden" pointer-events="none">
+      <line class="adx-cross-line adx-cross-v" x1="${L}" y1="${T}" x2="${L}" y2="${H-B}"/>
+      <circle class="adx-hover-dot adx-hover-plus" cx="${L}" cy="${T}" r="4" visibility="hidden"/>
+      <circle class="adx-hover-dot adx-hover-minus" cx="${L}" cy="${T}" r="4" visibility="hidden"/>
+      <rect class="tv-cross-label adx-date-box" x="${L}" y="${H-B+2}" width="48" height="20" rx="3"/>
+      <text class="tv-cross-label-text adx-hover-date" x="${L+24}" y="${H-B+15.5}" text-anchor="middle">—</text>
+    </g>`;
+    return `<svg class="adx-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-dates="${dates}" data-plus="${pluses}" data-minus="${minuses}">${grids}${threshold}<path class="adx-di-plus" d="${linePath('di_plus')}"/><path class="adx-di-minus" d="${linePath('di_minus')}"/>${lastDots}${labels}${crosshair}</svg>`;
+  }
+
+  function bindAdxCrosshairs() {
+    els.cards.querySelectorAll('svg.adx-svg').forEach(svg => {
+      const panel=svg.closest('.adx-panel');
+      const plusValue=panel?.querySelector('.adx-pill-plus .adx-pill-value');
+      const minusValue=panel?.querySelector('.adx-pill-minus .adx-pill-value');
+      const latestPlus=plusValue?.textContent||'—';
+      const latestMinus=minusValue?.textContent||'—';
+      const L=Number(svg.dataset.l||42),R=Number(svg.dataset.r||14),T=Number(svg.dataset.t||10),B=Number(svg.dataset.b||30);
+      const W=Number(svg.dataset.w||760),H=Number(svg.dataset.h||142);
+      const min=Number(svg.dataset.min||0),max=Number(svg.dataset.max||40),count=Math.max(2,Number(svg.dataset.count||2));
+      let dates=[],pluses=[],minuses=[];
+      try{dates=JSON.parse(decodeURIComponent(svg.dataset.dates||'%5B%5D'));}catch(_){}
+      try{pluses=JSON.parse(decodeURIComponent(svg.dataset.plus||'%5B%5D'));}catch(_){}
+      try{minuses=JSON.parse(decodeURIComponent(svg.dataset.minus||'%5B%5D'));}catch(_){}
+      const innerW=W-L-R,innerH=H-T-B;
+      const group=svg.querySelector('.adx-crosshair');
+      const vline=svg.querySelector('.adx-cross-v');
+      const dateBox=svg.querySelector('.adx-date-box');
+      const dateText=svg.querySelector('.adx-hover-date');
+      const plusDot=svg.querySelector('.adx-hover-plus');
+      const minusDot=svg.querySelector('.adx-hover-minus');
+      if(!group||!vline||!dateBox||!dateText||!plusDot||!minusDot)return;
+      const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
+      const restore=()=>{
+        group.setAttribute('visibility','hidden');
+        if(plusValue) plusValue.textContent=latestPlus;
+        if(minusValue) minusValue.textContent=latestMinus;
+      };
+      svg.addEventListener('pointerleave',restore);
+      svg.addEventListener('pointermove',ev=>{
+        const rect=svg.getBoundingClientRect();
+        if(!rect.width||!rect.height)return restore();
+        const vx=(ev.clientX-rect.left)/rect.width*W;
+        const vy=(ev.clientY-rect.top)/rect.height*H;
+        if(vx<L||vx>W-R||vy<T||vy>H-B)return restore();
+        const idx=Math.max(0,Math.min(count-1,Math.round((vx-L)/innerW*(count-1))));
+        const snapX=L+idx*(innerW/(count-1));
+        const date=String(dates[idx]||'—');
+        const p=pluses[idx]===null?NaN:Number(pluses[idx]),m=minuses[idx]===null?NaN:Number(minuses[idx]);
+        vline.setAttribute('x1',snapX);vline.setAttribute('x2',snapX);
+        if(Number.isFinite(p)){plusDot.setAttribute('cx',snapX);plusDot.setAttribute('cy',y(p));plusDot.setAttribute('visibility','visible');if(plusValue)plusValue.textContent=p.toFixed(1);}else{plusDot.setAttribute('visibility','hidden');if(plusValue)plusValue.textContent='—';}
+        if(Number.isFinite(m)){minusDot.setAttribute('cx',snapX);minusDot.setAttribute('cy',y(m));minusDot.setAttribute('visibility','visible');if(minusValue)minusValue.textContent=m.toFixed(1);}else{minusDot.setAttribute('visibility','hidden');if(minusValue)minusValue.textContent='—';}
+        const dw=Math.max(46,Math.min(78,date.length*6.2+14));
+        const dx=Math.max(L,Math.min(W-R-dw,snapX-dw/2));
+        dateBox.setAttribute('x',dx);dateBox.setAttribute('width',dw);
+        dateText.setAttribute('x',dx+dw/2);dateText.textContent=date;
+        group.setAttribute('visibility','visible');
+      });
+    });
   }
 
   function renderVolumeProgress(percent) {

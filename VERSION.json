@@ -1,14 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.52｜NEWS-RUNTIME-CLEAN",
-  "stage": "NEWS-RUNTIME-CLEAN",
+  "app_version": "TERMINAL v0.1.54｜ADX-DMI-30D",
+  "stage": "ADX-DMI-30D",
   "features": [
-    "US-stock news runtime is one path only: GitHub Pages app.js → Cloudflare Worker → Tavily Search + Answer → R2 24H cache → research modal",
-    "Use the reviewed 122-symbol US-stock/RWA identity dictionary before Tavily search",
-    "Retired news-provider code and unreachable second-layer filter code are removed from runtime",
-    "Frontend accepts only tavily-search-api with pipeline tavily-answer-direct-zhtw-v9-asset-identity",
-    "R2 research store prunes expired or previous-pipeline entries on the next successful news write",
-    "Tavily remains basic/news/week/max_results=20/include_answer=advanced",
-    "S-state scoring, pattern_options, market analysis, Auto Batch, Daily Learning and Champion/Challenger validation are unchanged"
+    "ADX/DMI 14 is calculated inside engine/analysis_core.py with the supplied TradingView Pine formula; no new Python indicator file was added",
+    "DI+ / DI- / DX / ADX are aligned 1:1 with the existing 30-day daily HA + BB20 chart data",
+    "Frontend adds a lower 30-day DMI panel: DI+ uses SState yellow, DI- uses SState purple, and level 20 is a white dashed line",
+    "Two blue capsules show DI+ and DI-; hovering the DMI panel snaps to the day and updates the displayed values/date",
+    "Static date labels move to the bottom DMI panel; the original price-chart TradingView-like hover remains available",
+    "S-state scoring, probability, Auto Batch, Daily Learning, Worker/R2 routes, sector flow, news and Champion/Challenger logic are unchanged"
   ],
-  "version": "0.1.52"
+  "version": "0.1.54"
 }

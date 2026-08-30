@@ -9,7 +9,9 @@ Schema v3 adds DMI Expert as an *independent correction layer*. It never
 changes S0.5/S1/S2/S3. The legacy BB/HA Level 1-5 match is selected first,
 then eligible DMI facets adjust the four-way outcome distribution using the
 same reliability-weighted geometric-mean combiner used by HistoricalTraining.
-Schema v1/v2 stays backward compatible.
+DMI-EXPERT-v2-ADX-STEP additionally matches the Terminal ADX stepline regime
+(controller x rising/falling), step persistence, axis zone, and turn handover.
+Schema v1/v2 and DMI Expert v1 stay backward compatible.
 """
 
 import json
@@ -119,6 +121,95 @@ def _dmi_axis_zone(di_plus: float | None, di_minus: float | None) -> str:
     if minus_above and not plus_above:
         return "MINUS_ONLY_ABOVE_20"
     return "TOUCHING_20"
+
+
+def _adx_axis_zone(adx: float | None) -> str:
+    if adx is None:
+        return "UNKNOWN"
+    if adx > DMI_AXIS:
+        return "ABOVE_20"
+    if adx < DMI_AXIS:
+        return "BELOW_20"
+    return "TOUCHING_20"
+
+
+def _adx_step_direction(previous: float | None, current: float | None) -> str:
+    if previous is None or current is None:
+        return "UNKNOWN"
+    if current > previous:
+        return "RISING"
+    if current < previous:
+        return "FALLING"
+    return "FLAT"
+
+
+def _adx_step_features(values: list[Any]) -> dict[str, Any]:
+    """Exact HistoricalTraining v2 ADX stepline semantics.
+
+    Daily ADX > previous daily ADX = RISING/green; lower = FALLING/red;
+    equal = FLAT. The live daily array may contain the current partial day,
+    matching the same no-lookahead replay contract used during training.
+    """
+    series = [_safe_float(value) for value in values]
+    if len(series) < 2:
+        return {
+            "adx_step_direction": "UNKNOWN",
+            "adx_step_age_days": 0,
+            "adx_step_age_bin": "UNKNOWN",
+            "adx_turn_event": "UNKNOWN",
+            "adx_step_delta": None,
+        }
+
+    current_direction = _adx_step_direction(series[-2], series[-1])
+    if current_direction == "UNKNOWN":
+        return {
+            "adx_step_direction": "UNKNOWN",
+            "adx_step_age_days": 0,
+            "adx_step_age_bin": "UNKNOWN",
+            "adx_turn_event": "UNKNOWN",
+            "adx_step_delta": None,
+        }
+
+    directions = [
+        _adx_step_direction(series[i - 1], series[i])
+        for i in range(1, len(series))
+    ]
+    age = 1
+    for direction in reversed(directions[:-1]):
+        if direction != current_direction:
+            break
+        age += 1
+
+    previous_direction = directions[-2] if len(directions) >= 2 else "UNKNOWN"
+    if previous_direction == "FALLING" and current_direction == "RISING":
+        turn = "RED_TO_GREEN"
+    elif previous_direction == "RISING" and current_direction == "FALLING":
+        turn = "GREEN_TO_RED"
+    elif previous_direction in {"RISING", "FALLING", "FLAT"} and previous_direction != current_direction:
+        turn = "OTHER_TURN"
+    elif previous_direction == current_direction:
+        turn = "NONE"
+    else:
+        turn = "UNKNOWN"
+
+    previous_value = series[-2]
+    current_value = series[-1]
+    delta = (current_value - previous_value) if previous_value is not None and current_value is not None else None
+    return {
+        "adx_step_direction": current_direction,
+        "adx_step_age_days": int(age),
+        "adx_step_age_bin": _bin_age(int(age)),
+        "adx_turn_event": turn,
+        "adx_step_delta": round(delta, 8) if delta is not None else None,
+    }
+
+
+def _dmi_adx_regime(relation: str, adx_step_direction: str) -> str:
+    if relation not in {"PLUS", "MINUS"}:
+        return "NEUTRAL" if relation == "TIE" else "UNKNOWN"
+    if adx_step_direction not in {"RISING", "FALLING", "FLAT"}:
+        return "UNKNOWN"
+    return f"{relation}_{adx_step_direction}"
 
 
 def _bandwidth_trend(record: dict[str, Any]) -> tuple[str, float]:
@@ -234,6 +325,7 @@ def extract_live_features(record: dict[str, Any], opportunity: dict[str, Any]) -
             gap_series.append(pf - mf)
     gap_slope = _slope_last3(gap_series)
     adx_slope = _slope_last3(adx_series)
+    adx_step = _adx_step_features(adx_series)
 
     # HistoricalTraining measures relation age in consecutive 4H replay cutoffs.
     # analysis_core exports exactly that replayed age. If its replayed relation
@@ -286,7 +378,10 @@ def extract_live_features(record: dict[str, Any], opportunity: dict[str, Any]) -
         "di_gap_slope_3d": round(gap_slope, 8) if gap_slope is not None else None,
         "adx": round(adx, 8) if adx is not None else None,
         "adx_slope_3d": round(adx_slope, 8) if adx_slope is not None else None,
+        "adx_axis_zone": _adx_axis_zone(adx),
+        **adx_step,
         "dmi_relation": relation,
+        "dmi_adx_regime": _dmi_adx_regime(relation, str(adx_step.get("adx_step_direction") or "UNKNOWN")),
         "dmi_axis_zone": _dmi_axis_zone(di_plus, di_minus),
         "dmi_cross_age_bars": int(dmi_age) if dmi_age is not None else None,
         "dmi_cross_age_bin": str(dmi_age_bin) if dmi_age_bin else "UNKNOWN",
@@ -419,10 +514,10 @@ def _lookup_dmi_facets(
     for facet in expert.get("facets") or []:
         name = str(facet.get("name") or "facet")
         fields = list(facet.get("fields") or [])
-        # Training cross_momentum requires 4H relation-age semantics. If the
-        # live replay age could not be verified, skip this one facet rather
-        # than manufacturing a daily-age substitute.
-        if name == "cross_momentum" and not bool(features.get("dmi_cross_age_valid")):
+        # cross_momentum and adx_turn_handover both require HistoricalTraining's
+        # 4H relation-age semantics. If live replay age cannot be verified,
+        # skip those facets instead of manufacturing a daily-age substitute.
+        if name in {"cross_momentum", "adx_turn_handover"} and not bool(features.get("dmi_cross_age_valid")):
             continue
         sig = _signature(enriched, fields)
         rule = _find_rule(list(facet.get("rules") or []), sig, min_samples)
@@ -558,8 +653,15 @@ def _dmi_prediction_payload(
             "matched_facet_count": len(audit),
             "blend_strength": round(blend_strength, 6),
             "bins": {
-                q_field: enriched_features.get(q_field)
-                for q_field in DMI_QUANTILE_FIELDS.values()
+                **{
+                    q_field: enriched_features.get(q_field)
+                    for q_field in DMI_QUANTILE_FIELDS.values()
+                },
+                "dmi_adx_regime": enriched_features.get("dmi_adx_regime"),
+                "adx_axis_zone": enriched_features.get("adx_axis_zone"),
+                "adx_step_direction": enriched_features.get("adx_step_direction"),
+                "adx_step_age_bin": enriched_features.get("adx_step_age_bin"),
+                "adx_turn_event": enriched_features.get("adx_turn_event"),
             },
         },
     }
@@ -609,8 +711,15 @@ def lookup_probability(
                 "matched_facet_count": 0,
                 "blend_strength": 0.0,
                 "bins": {
-                    q_field: enriched.get(q_field)
-                    for q_field in DMI_QUANTILE_FIELDS.values()
+                    **{
+                        q_field: enriched.get(q_field)
+                        for q_field in DMI_QUANTILE_FIELDS.values()
+                    },
+                    "dmi_adx_regime": enriched.get("dmi_adx_regime"),
+                    "adx_axis_zone": enriched.get("adx_axis_zone"),
+                    "adx_step_direction": enriched.get("adx_step_direction"),
+                    "adx_step_age_bin": enriched.get("adx_step_age_bin"),
+                    "adx_turn_event": enriched.get("adx_turn_event"),
                 },
             },
         }
@@ -712,6 +821,13 @@ def human_feature_summary(features: dict[str, Any]) -> str:
         if cross_age and cross_age != "UNKNOWN":
             relation_zh += f"({cross_age})"
         parts.append(relation_zh)
+    step_direction = str(features.get("adx_step_direction") or "UNKNOWN")
+    if step_direction in {"RISING", "FALLING", "FLAT"}:
+        step_zh = {"RISING": "ADX綠階梯↑", "FALLING": "ADX紅階梯↓", "FLAT": "ADX階梯持平"}[step_direction]
+        step_age = str(features.get("adx_step_age_bin") or "UNKNOWN")
+        if step_age != "UNKNOWN":
+            step_zh += f"({step_age})"
+        parts.append(step_zh)
     return "｜".join(parts)
 
 

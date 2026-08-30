@@ -145,6 +145,8 @@ CHART_SEMANTICS = {
     "source": "same_30_daily_points_used_by_streamlit_chart",
     "price_axis": "actual_price",
     "bb_formula": "ordinary_daily_close_SMA20_plus_minus_2_population_std",
+    "adx_dmi_formula": "Pine-equivalent period14: Wilder recursive TR/DM smoothing; DI+/DI-; DX; ADX=SMA14(DX)",
+    "adx_display": "same 30 daily dates as chart_30d; DI+=yellow, DI-=purple, threshold=20 white dashed",
     "ha_ladder": "daily_heikin_ashi_open_close; yellow=close>open, purple=close<open",
     "real_daily_candle": "ordinary daily OHLC aligned 1:1 with each HA/BB point; used for structural 1.236 invalidation",
     "ha_vs_midline_pct": "(HA_close-BB_midline)/BB_midline*100",
@@ -358,6 +360,10 @@ def _build_chart_30d(record: dict[str, Any]) -> list[dict[str, Any]]:
     raw_highs = list(record.get("_raw_highs_last30") or record.get("_raw_highs_last20") or [])
     raw_lows = list(record.get("_raw_lows_last30") or record.get("_raw_lows_last20") or [])
     raw_closes = list(record.get("_raw_closes_last30") or record.get("_raw_closes_last20") or [])
+    di_pluses = list(record.get("_di_plus_last30") or [])
+    di_minuses = list(record.get("_di_minus_last30") or [])
+    dx_values = list(record.get("_dx_last30") or [])
+    adx_values = list(record.get("_adx_last30") or [])
 
     count = min(
         30,
@@ -382,6 +388,10 @@ def _build_chart_30d(record: dict[str, Any]) -> list[dict[str, Any]]:
     raw_highs = raw_highs[-count:] if len(raw_highs) >= count else []
     raw_lows = raw_lows[-count:] if len(raw_lows) >= count else []
     raw_closes = raw_closes[-count:] if len(raw_closes) >= count else []
+    di_pluses = di_pluses[-count:] if len(di_pluses) >= count else [None] * count
+    di_minuses = di_minuses[-count:] if len(di_minuses) >= count else [None] * count
+    dx_values = dx_values[-count:] if len(dx_values) >= count else [None] * count
+    adx_values = adx_values[-count:] if len(adx_values) >= count else [None] * count
 
     output: list[dict[str, Any]] = []
     for index in range(count):
@@ -433,6 +443,10 @@ def _build_chart_30d(record: dict[str, Any]) -> list[dict[str, Any]]:
                 "real_high": _round(raw_highs[index]) if raw_highs else None,
                 "real_low": _round(raw_lows[index]) if raw_lows else None,
                 "real_close": _round(raw_closes[index]) if raw_closes else None,
+                "di_plus": _round(di_pluses[index], 6),
+                "di_minus": _round(di_minuses[index], 6),
+                "dx": _round(dx_values[index], 6),
+                "adx": _round(adx_values[index], 6),
             }
         )
     return output
@@ -934,7 +948,7 @@ def _compact_record(source: dict[str, Any]) -> dict[str, Any]:
         "s3_room": _build_s3_room(opportunity),
         # 最近8日階梯摘要保留，方便 AI 快速閱讀；權威資料仍是 chart_30d。
         "ladder_tail": history[-8:],
-        # 30 日視覺等價資料：與 Streamlit 圖表使用完全相同的 HA + BB20 序列。
+        # 30 日視覺等價資料：HA + BB20 + 同日對齊的 DI+/DI-/DX/ADX。
         "chart_30d": chart_30d,
         # 人眼會判斷的斜率、擴張/收縮、方向。
         "visual_summary": visual_summary,

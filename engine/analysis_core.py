@@ -25,6 +25,7 @@ score_hint = getattr(_scoring_engine, "score_hint", None)
 
 STRUCTURE_WINDOW_DAYS = 30
 BB_PERIOD = 20
+ADX_PERIOD = 14
 MIN_DAILY_BARS = 1  # 清單不設成熟度門檻；有 1 根日K就可進主頁，BB20 之後自然長出。
 MIN_4H_BARS = 1
 _PIONEX_RATE_LOCK = threading.Lock()
@@ -120,6 +121,91 @@ def calculate_bollinger_basis(klines: list[dict], period: int = 20):
     """保留舊介面；中軌仍採普通日 K close 的 SMA。"""
     basis, _, _ = calculate_bollinger_bands(klines, period=period)
     return basis
+
+def calculate_adx_dmi(klines: list[dict], period: int = ADX_PERIOD) -> list[dict[str, Any]]:
+    """依使用者提供的 TradingView Pine Script 計算 DI+ / DI- / DX / ADX。
+
+    平滑方式刻意維持 Pine 原式：prev - prev / period + current，
+    ADX 則是 DX 的 period 根簡單移動平均。這個函式和 HA / BB 一樣
+    直接放在 analysis_core.py，避免增加第二套 Python 指標引擎。
+    """
+    if not klines:
+        return []
+    if period <= 0:
+        raise ValueError("ADX period must be positive")
+
+    smoothed_true_range = 0.0
+    smoothed_dm_plus = 0.0
+    smoothed_dm_minus = 0.0
+    dx_window: list[float] = []
+    output: list[dict[str, Any]] = []
+
+    for index, candle in enumerate(klines):
+        high = float(candle["high"])
+        low = float(candle["low"])
+        previous = klines[index - 1] if index > 0 else None
+        previous_close = float(previous["close"]) if previous is not None else 0.0
+        previous_high = float(previous["high"]) if previous is not None else 0.0
+        previous_low = float(previous["low"]) if previous is not None else 0.0
+
+        true_range = max(
+            high - low,
+            abs(high - previous_close),
+            abs(low - previous_close),
+        )
+        up_move = high - previous_high
+        down_move = previous_low - low
+        directional_plus = max(up_move, 0.0) if up_move > down_move else 0.0
+        directional_minus = max(down_move, 0.0) if down_move > up_move else 0.0
+
+        smoothed_true_range = (
+            smoothed_true_range
+            - smoothed_true_range / period
+            + true_range
+        )
+        smoothed_dm_plus = (
+            smoothed_dm_plus
+            - smoothed_dm_plus / period
+            + directional_plus
+        )
+        smoothed_dm_minus = (
+            smoothed_dm_minus
+            - smoothed_dm_minus / period
+            + directional_minus
+        )
+
+        if smoothed_true_range > 0:
+            di_plus = smoothed_dm_plus / smoothed_true_range * 100.0
+            di_minus = smoothed_dm_minus / smoothed_true_range * 100.0
+        else:
+            di_plus = None
+            di_minus = None
+
+        denominator = (di_plus or 0.0) + (di_minus or 0.0)
+        dx = (
+            abs(di_plus - di_minus) / denominator * 100.0
+            if di_plus is not None and di_minus is not None and denominator > 0
+            else None
+        )
+
+        if dx is None:
+            dx_window.clear()
+            adx = None
+        else:
+            dx_window.append(dx)
+            if len(dx_window) > period:
+                dx_window.pop(0)
+            adx = float(np.mean(dx_window)) if len(dx_window) == period else None
+
+        output.append({
+            "time": candle.get("time"),
+            "di_plus": di_plus,
+            "di_minus": di_minus,
+            "dx": dx,
+            "adx": adx,
+        })
+
+    return output
 
 def get_bb_signal(ha_close, basis):
     if basis is None:
@@ -219,6 +305,7 @@ def analyze_symbol(symbol: str):
 
         daily_ha = calculate_heikin_ashi(daily_raw)
         four_h_ha = calculate_heikin_ashi(four_h_raw)
+        daily_adx = calculate_adx_dmi(daily_raw, period=ADX_PERIOD)
         basis, upper_band, lower_band = calculate_bollinger_bands(
             daily_raw,
             period=20,
@@ -243,6 +330,7 @@ def analyze_symbol(symbol: str):
         # 直接用 rolling 向量化整段 BB20，避免 30 日視窗逐日重複切 20 根重算。
         last_30 = daily_ha[-STRUCTURE_WINDOW_DAYS:]
         raw_last_30 = daily_raw[-STRUCTURE_WINDOW_DAYS:]
+        adx_last_30 = daily_adx[-len(last_30):]
         raw_closes = pd.Series([item["close"] for item in daily_raw], dtype=float)
         rolling_basis = raw_closes.rolling(BB_PERIOD, min_periods=BB_PERIOD).mean()
         rolling_std = raw_closes.rolling(BB_PERIOD, min_periods=BB_PERIOD).std(ddof=0)
@@ -315,6 +403,10 @@ def analyze_symbol(symbol: str):
             "_raw_highs_last30": [item["high"] for item in raw_last_30],
             "_raw_lows_last30": [item["low"] for item in raw_last_30],
             "_raw_closes_last30": [item["close"] for item in raw_last_30],
+            "_di_plus_last30": [item.get("di_plus") for item in adx_last_30],
+            "_di_minus_last30": [item.get("di_minus") for item in adx_last_30],
+            "_dx_last30": [item.get("dx") for item in adx_last_30],
+            "_adx_last30": [item.get("adx") for item in adx_last_30],
             "_ha4h_color_series": four_h_colors,
             "_ha_threshold": threshold,
         }

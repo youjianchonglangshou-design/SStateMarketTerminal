@@ -1,13 +1,14 @@
 {
-  "app_version": "TERMINAL v0.1.54｜ADX-DMI-30D",
-  "stage": "ADX-DMI-30D",
+  "app_version": "TERMINAL v0.1.55｜ADX-DMI-DOMINANCE",
+  "stage": "ADX-DMI-DOMINANCE",
   "features": [
-    "ADX/DMI 14 is calculated inside engine/analysis_core.py with the supplied TradingView Pine formula; no new Python indicator file was added",
-    "DI+ / DI- / DX / ADX are aligned 1:1 with the existing 30-day daily HA + BB20 chart data",
-    "Frontend adds a lower 30-day DMI panel: DI+ uses SState yellow, DI- uses SState purple, and level 20 is a white dashed line",
-    "Two blue capsules show DI+ and DI-; hovering the DMI panel snaps to the day and updates the displayed values/date",
-    "Static date labels move to the bottom DMI panel; the original price-chart TradingView-like hover remains available",
-    "S-state scoring, probability, Auto Batch, Daily Learning, Worker/R2 routes, sector flow, news and Champion/Challenger logic are unchanged"
+    "DI+ and DI- calculation remains unchanged from v0.1.54; this version changes presentation only",
+    "When DI+ > DI-, only the DI+ capsule is highlighted in SState yellow and DI- stays neutral",
+    "When DI- > DI+, only the DI- capsule is highlighted in SState purple and DI+ stays neutral",
+    "When DI+ equals DI- or either value is unavailable, both capsules stay neutral/uncolored",
+    "Hovering the 30-day DMI panel recalculates the capsule highlight from the hovered day's DI+/DI- values",
+    "DI+ and DI- chart strokes are reduced from 2.15 to 1.45 for a lighter visual weight",
+    "Python engine, indicator formula, S-state scoring, probability, Worker/R2, workflows, sector flow, news and learning logic are unchanged"
   ],
-  "version": "0.1.54"
+  "version": "0.1.55"
 }

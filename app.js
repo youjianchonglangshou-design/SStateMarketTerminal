@@ -17,7 +17,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.54｜ADX-DMI-30D";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.55｜ADX-DMI-DOMINANCE";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -1405,17 +1405,28 @@
     return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-exp="${tinyExp}" data-dates="${dates}">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${crosshair}</svg>`;
   }
 
+  function adxPillStrengthClasses(plus, minus) {
+    const p = Number(plus), m = Number(minus);
+    if (!Number.isFinite(p) || !Number.isFinite(m) || p === m) {
+      return { plus: "adx-pill-neutral", minus: "adx-pill-neutral" };
+    }
+    return p > m
+      ? { plus: "adx-pill-strong-plus", minus: "adx-pill-neutral" }
+      : { plus: "adx-pill-neutral", minus: "adx-pill-strong-minus" };
+  }
+
   function buildAdxPanel(points) {
     const usable = Array.isArray(points) ? points : [];
     const latest = [...usable].reverse().find(p => finiteIndicator(p?.di_plus) && finiteIndicator(p?.di_minus));
     const latestPlus = latest ? Number(latest.di_plus) : NaN;
     const latestMinus = latest ? Number(latest.di_minus) : NaN;
+    const pillClasses = adxPillStrengthClasses(latestPlus, latestMinus);
     return `<div class="adx-panel">
       <div class="adx-head">
         <span class="adx-title">ADX / DMI 14</span>
         <div class="adx-live-values">
-          <span class="adx-live-pill adx-pill-plus">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
-          <span class="adx-live-pill adx-pill-minus">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
+          <span class="adx-live-pill adx-pill-plus ${pillClasses.plus}">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
+          <span class="adx-live-pill adx-pill-minus ${pillClasses.minus}">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
         </div>
       </div>
       ${buildAdxSvg(usable)}
@@ -1473,10 +1484,14 @@
   function bindAdxCrosshairs() {
     els.cards.querySelectorAll('svg.adx-svg').forEach(svg => {
       const panel=svg.closest('.adx-panel');
-      const plusValue=panel?.querySelector('.adx-pill-plus .adx-pill-value');
-      const minusValue=panel?.querySelector('.adx-pill-minus .adx-pill-value');
+      const plusPill=panel?.querySelector('.adx-pill-plus');
+      const minusPill=panel?.querySelector('.adx-pill-minus');
+      const plusValue=plusPill?.querySelector('.adx-pill-value');
+      const minusValue=minusPill?.querySelector('.adx-pill-value');
       const latestPlus=plusValue?.textContent||'—';
       const latestMinus=minusValue?.textContent||'—';
+      const latestPlusNumber=Number(latestPlus);
+      const latestMinusNumber=Number(latestMinus);
       const L=Number(svg.dataset.l||42),R=Number(svg.dataset.r||14),T=Number(svg.dataset.t||10),B=Number(svg.dataset.b||30);
       const W=Number(svg.dataset.w||760),H=Number(svg.dataset.h||142);
       const min=Number(svg.dataset.min||0),max=Number(svg.dataset.max||40),count=Math.max(2,Number(svg.dataset.count||2));
@@ -1493,10 +1508,19 @@
       const minusDot=svg.querySelector('.adx-hover-minus');
       if(!group||!vline||!dateBox||!dateText||!plusDot||!minusDot)return;
       const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
+      const setPillStrength=(p,m)=>{
+        if(!plusPill||!minusPill)return;
+        plusPill.classList.remove('adx-pill-strong-plus','adx-pill-strong-minus','adx-pill-neutral');
+        minusPill.classList.remove('adx-pill-strong-plus','adx-pill-strong-minus','adx-pill-neutral');
+        const classes=adxPillStrengthClasses(p,m);
+        plusPill.classList.add(classes.plus);
+        minusPill.classList.add(classes.minus);
+      };
       const restore=()=>{
         group.setAttribute('visibility','hidden');
         if(plusValue) plusValue.textContent=latestPlus;
         if(minusValue) minusValue.textContent=latestMinus;
+        setPillStrength(latestPlusNumber,latestMinusNumber);
       };
       svg.addEventListener('pointerleave',restore);
       svg.addEventListener('pointermove',ev=>{
@@ -1512,6 +1536,7 @@
         vline.setAttribute('x1',snapX);vline.setAttribute('x2',snapX);
         if(Number.isFinite(p)){plusDot.setAttribute('cx',snapX);plusDot.setAttribute('cy',y(p));plusDot.setAttribute('visibility','visible');if(plusValue)plusValue.textContent=p.toFixed(1);}else{plusDot.setAttribute('visibility','hidden');if(plusValue)plusValue.textContent='—';}
         if(Number.isFinite(m)){minusDot.setAttribute('cx',snapX);minusDot.setAttribute('cy',y(m));minusDot.setAttribute('visibility','visible');if(minusValue)minusValue.textContent=m.toFixed(1);}else{minusDot.setAttribute('visibility','hidden');if(minusValue)minusValue.textContent='—';}
+        setPillStrength(p,m);
         const dw=Math.max(46,Math.min(78,date.length*6.2+14));
         const dx=Math.max(L,Math.min(W-R-dw,snapX-dw/2));
         dateBox.setAttribute('x',dx);dateBox.setAttribute('width',dw);

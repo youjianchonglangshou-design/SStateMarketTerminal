@@ -1,14 +1,15 @@
 {
-  "app_version": "TERMINAL v0.1.55｜ADX-DMI-DOMINANCE",
-  "stage": "ADX-DMI-DOMINANCE",
+  "app_version": "TERMINAL v0.1.56｜DMI-EXPERT-PROBABILITY",
+  "stage": "DMI-EXPERT-PROBABILITY",
   "features": [
-    "DI+ and DI- calculation remains unchanged from v0.1.54; this version changes presentation only",
-    "When DI+ > DI-, only the DI+ capsule is highlighted in SState yellow and DI- stays neutral",
-    "When DI- > DI+, only the DI- capsule is highlighted in SState purple and DI+ stays neutral",
-    "When DI+ equals DI- or either value is unavailable, both capsules stay neutral/uncolored",
-    "Hovering the 30-day DMI panel recalculates the capsule highlight from the hovered day's DI+/DI- values",
-    "DI+ and DI- chart strokes are reduced from 2.15 to 1.45 for a lighter visual weight",
-    "Python engine, indicator formula, S-state scoring, probability, Worker/R2, workflows, sector flow, news and learning logic are unchanged"
+    "HistoricalTraining schema v3 DMI Expert is now consumed by the live probability_reader without changing S0.5/S1/S2/S3 definitions",
+    "Legacy BB/HA Level 1-5 matching remains the base model; DMI Expert independently corrects the four-way success/alive/true-fail/other distribution",
+    "Live DMI features match HistoricalTraining: DI relation, 20-axis zone, DI gap and slopes, ADX and ADX slope, plus 4H DMI relation age for cross_momentum",
+    "DMI magnitude/slope/ADX LOW-MID-HIGH bins come from each state's learned terciles in probability_model.json; no fixed bullish threshold is invented",
+    "DMI facet likelihood ratios use the same reliability-weighted geometric-mean combiner as HistoricalTraining v3",
+    "If a v1/v2 active model is loaded, or a DMI facet cannot be matched safely, probability_reader falls back to the existing legacy probability behavior",
+    "DMI relation age is replayed from recent 4H cutoffs without look-ahead; cross_momentum is skipped if replayed relation disagrees with current DMI relation",
+    "ADX/DMI formula, S-state scoring rules, Worker/R2 routes, scheduling, sector flow, news and Champion/Challenger promotion rules are unchanged"
   ],
-  "version": "0.1.55"
+  "version": "0.1.56"
 }

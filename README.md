@@ -1,6 +1,6 @@
 # SState Market Terminal
 
-**Current version:** `TERMINAL v0.1.52｜NEWS-RUNTIME-CLEAN`
+**Current version:** `TERMINAL v0.1.56｜DMI-EXPERT-PROBABILITY`
 
 ## Current runtime
 
@@ -44,9 +44,9 @@ Tavily request: `search_depth=basic`, `topic=news`, `time_range=week`, `max_resu
 
 Pipeline: `tavily-answer-direct-zhtw-v9-asset-identity`. Both frontend and Worker require this exact pipeline for a 24H hit. Expired or previous-pipeline entries are pruned on the next successful research write.
 
-## Protected in v0.1.52
+## Protected in v0.1.56
 
-This cleanup does not change S-state scoring, `engine/pattern_options.py`, probability model/reader, Pionex market logic, Full Analysis, Auto Batch, Daily Learning, Champion/Challenger validation, or research modal visual design.
+v0.1.56 changes only the live probability-consumption path around the existing model: `engine/probability_reader.py` now consumes HistoricalTraining schema v3 DMI Expert, while `engine/analysis_core.py` supplies the matching live 4H DMI relation age. S-state scoring, `engine/pattern_options.py`, Pionex market logic, Full Analysis, Auto Batch, Daily Learning, Champion/Challenger validation, Worker/R2 routes, and research modal visual design are unchanged.
 
 ## R2 keys
 

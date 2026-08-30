@@ -46,7 +46,7 @@ Pipeline: `tavily-answer-direct-zhtw-v9-asset-identity`. Both frontend and Worke
 
 
 
-## ADX state visual split (v0.1.60)
+## ADX state pill background boost (v0.1.61)
 
 The ADX/DMI state capsule now separates **direction identity** from **trend-strength change**:
 

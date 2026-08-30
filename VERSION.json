@@ -1,6 +1,6 @@
 {
-  "app_version": "TERMINAL v0.1.60｜ADX-STATE-VISUAL",
-  "stage": "ADX-STATE-VISUAL",
+  "app_version": "TERMINAL v0.1.61｜ADX-STATE-BG-BOOST",
+  "stage": "ADX-STATE-BG-BOOST",
   "features": [
     "ADX remains rendered as the existing green-rising / red-falling 30-day stepline; no indicator math changed",
     "The ADX state capsule now uses yellow/purple border, background tint, and text to identify DI+ or DI- as the current controller",
@@ -9,5 +9,5 @@
     "Hovering a historical date updates DI values, controller color, ADX-strength dot, and state text together",
     "No Python, S-state, probability, Worker, or workflow changes were required"
   ],
-  "version": "0.1.60"
+  "version": "0.1.61"
 }

@@ -84,3 +84,12 @@ research/us-stock/cache.json
 research/us-stock/latest.json
 automation/latest/status.json
 ```
+
+
+## ADX Step live probability features (v0.1.62)
+
+- `engine/probability_reader.py` now mirrors HistoricalTraining `DMI-EXPERT-v2-ADX-STEP` live feature semantics.
+- New live fields: `adx_axis_zone`, `adx_step_direction`, `adx_step_age_days`, `adx_step_age_bin`, `adx_turn_event`, `adx_step_delta`, `dmi_adx_regime`.
+- The three new model facets (`adx_step_regime`, `adx_step_persistence`, `adx_turn_handover`) can therefore participate in success / survival / true-fail correction when a v2 ADX-Step model is active.
+- `adx_turn_handover` keeps the same 4H DI relation-age guard as training; invalid replay age is never replaced with a daily approximation.
+- This release does not publish or promote a probability model.

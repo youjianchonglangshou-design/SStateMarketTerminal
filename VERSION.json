@@ -1,13 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.57｜CHALLENGER-SCHEMA-UPGRADE",
-  "stage": "CHALLENGER-SCHEMA-UPGRADE",
+  "app_version": "TERMINAL v0.1.58｜DMI-ACTIVE-PUBLISH",
+  "stage": "DMI-ACTIVE-PUBLISH",
   "features": [
-    "Challenger now upgrades automatically when the latest Candidate has a strictly newer schema version (for example schema v2 -> v3 DMI Expert)",
-    "Same-schema daily Candidates do not replace the current Challenger, preserving the accumulated future OOS evaluation window",
-    "When a schema upgrade supersedes the old Challenger, its candidate status is archived as SUPERSEDED_SCHEMA_UPGRADE and Champion remains unchanged",
-    "New Challenger manifests record schema_version, DMI Expert version and the replaced challenger model id for traceability",
-    "HistoricalTraining daily-learning already calls challenger/ensure after Candidate upload, so no HistoricalTraining workflow change is required",
-    "Existing schema v3 DMI probability_reader integration, S-state rules, ADX/DMI formulas, schedules and promotion/rejection gates are unchanged"
+    "Schema v3 DMI Expert can now be published directly to the R2 Active model through the existing internal model/active endpoint",
+    "Direct Active publication archives the previous Active model before replacement and writes an Active manifest with schema/DMI metadata",
+    "If the newly published Active model is also the current Challenger, that duplicate Challenger slot is cleared automatically",
+    "HistoricalTraining publish-current-model workflow now publishes the already-trained Schema v3 model as Candidate and immediately as Active, then verifies R2 readback",
+    "No 90-symbol historical replay is rerun; S-state rules and DMI formulas are unchanged",
+    "After publication, the next Full Analysis uses probability_reader Schema v3 DMI Expert corrections for success/survival/true-fail probabilities"
   ],
-  "version": "0.1.57"
+  "version": "0.1.58"
 }

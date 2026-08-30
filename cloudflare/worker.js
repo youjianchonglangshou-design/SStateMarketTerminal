@@ -202,9 +202,8 @@ export default {
       if (request.method === "PUT" && url.pathname === "/api/internal/model/active") {
         requireInternal(request, env);
         const text = await request.text();
-        JSON.parse(text);
-        await env.JSON_BUCKET.put("models/active/probability_model.json", text, { httpMetadata: { contentType: "application/json; charset=utf-8" } });
-        return json({ ok: true, key: "models/active/probability_model.json" }, 200, origin);
+        const result = await publishActiveModelDirect(env, text, "internal_model_active_put");
+        return json({ ok: true, ...result }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/model/candidate/latest") {
         return await objectResponse(env, "models/candidates/latest.json", origin, false, "candidate_latest.json");
@@ -3112,6 +3111,74 @@ async function ensureChallenger(env, suppliedLatest = null) {
     env.JSON_BUCKET.put(`models/candidates/${modelId}/status.json`, JSON.stringify(challenger, null, 2), metadata),
   ]);
   return challenger;
+}
+
+async function publishActiveModelDirect(env, modelText, source = "manual_publish") {
+  const parsed = JSON.parse(modelText);
+  const modelId = safeModelId(parsed?.model_id);
+  const schemaVersion = Number(parsed?.schema_version || 0) || null;
+  const dmiExpertVersion = parsed?.dmi_expert_contract?.version || null;
+  const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
+
+  let previousModelId = null;
+  const activeObj = await env.JSON_BUCKET.get("models/active/probability_model.json");
+  if (activeObj) {
+    const oldText = await activeObj.text();
+    const oldModel = JSON.parse(oldText);
+    if (oldModel?.model_id) {
+      previousModelId = safeModelId(oldModel.model_id);
+      if (previousModelId !== modelId) {
+        await env.JSON_BUCKET.put(`models/archive/${previousModelId}/probability_model.json`, oldText, metadata);
+      }
+    }
+  }
+
+  const publishedAt = new Date().toISOString();
+  const activeManifest = {
+    model_id: modelId,
+    previous_model_id: previousModelId,
+    schema_version: schemaVersion,
+    dmi_expert_version: dmiExpertVersion,
+    published_at: publishedAt,
+    source,
+    status: "ACTIVE_CHAMPION"
+  };
+
+  await Promise.all([
+    env.JSON_BUCKET.put("models/active/probability_model.json", modelText, metadata),
+    env.JSON_BUCKET.put("models/active/manifest.json", JSON.stringify(activeManifest, null, 2), metadata),
+  ]);
+
+  // If the exact same model was previously occupying the Challenger slot,
+  // it is no longer a shadow model after direct publication. Clear only that
+  // duplicate challenger; never disturb a different challenger.
+  let clearedDuplicateChallenger = false;
+  const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+  if (currentObj) {
+    const current = JSON.parse(await currentObj.text());
+    if (current?.model_id === modelId) {
+      const candidateStatus = {
+        ...current,
+        status: "PUBLISHED_ACTIVE",
+        published_active_at: publishedAt,
+        previous_model_id: previousModelId,
+      };
+      await env.JSON_BUCKET.put(`models/candidates/${modelId}/status.json`, JSON.stringify(candidateStatus, null, 2), metadata);
+      await env.JSON_BUCKET.delete("models/challenger/current.json");
+      clearedDuplicateChallenger = true;
+    }
+  }
+
+  return {
+    model_id: modelId,
+    previous_model_id: previousModelId,
+    schema_version: schemaVersion,
+    dmi_expert_version: dmiExpertVersion,
+    key: "models/active/probability_model.json",
+    manifest_key: "models/active/manifest.json",
+    cleared_duplicate_challenger: clearedDuplicateChallenger,
+    active_manifest: activeManifest,
+  };
 }
 
 async function promoteChallenger(env, modelId) {

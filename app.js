@@ -17,7 +17,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.55｜ADX-DMI-DOMINANCE";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.59｜ADX-STEP-DOMINANCE";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -1415,18 +1415,50 @@
       : { plus: "adx-pill-neutral", minus: "adx-pill-strong-minus" };
   }
 
+  function adxDominanceState(plus, minus, adx, previousAdx) {
+    const p=Number(plus),m=Number(minus),a=Number(adx),prev=Number(previousAdx);
+    if(!Number.isFinite(p)||!Number.isFinite(m)||!Number.isFinite(a)||!Number.isFinite(prev)||p===m){
+      return { text:"方向膠著｜ADX待確認", className:"adx-state-neutral", trend:"FLAT" };
+    }
+    const rising=a>prev, falling=a<prev;
+    if(!rising&&!falling){
+      return { text:`${p>m?'多方':'空方'}控制｜ADX持平`, className:"adx-state-neutral", trend:"FLAT" };
+    }
+    if(p>m && rising) return { text:"多方控制｜趨勢強度增強", className:"adx-state-rising", trend:"RISING" };
+    if(p>m && falling) return { text:"多方仍控制｜力量衰退", className:"adx-state-falling", trend:"FALLING" };
+    if(p<m && rising) return { text:"空方控制｜趨勢強度增強", className:"adx-state-rising", trend:"RISING" };
+    return { text:"空方仍控制｜力量衰退", className:"adx-state-falling", trend:"FALLING" };
+  }
+
+  function previousFiniteAdx(points,index) {
+    for(let i=index-1;i>=0;i--){
+      if(finiteIndicator(points?.[i]?.adx)) return Number(points[i].adx);
+    }
+    return NaN;
+  }
+
   function buildAdxPanel(points) {
     const usable = Array.isArray(points) ? points : [];
-    const latest = [...usable].reverse().find(p => finiteIndicator(p?.di_plus) && finiteIndicator(p?.di_minus));
+    let latestIndex=-1;
+    for(let i=usable.length-1;i>=0;i--){
+      if(finiteIndicator(usable[i]?.di_plus)&&finiteIndicator(usable[i]?.di_minus)){ latestIndex=i; break; }
+    }
+    const latest=latestIndex>=0?usable[latestIndex]:null;
     const latestPlus = latest ? Number(latest.di_plus) : NaN;
     const latestMinus = latest ? Number(latest.di_minus) : NaN;
+    const latestAdx = latest&&finiteIndicator(latest.adx)?Number(latest.adx):NaN;
+    const latestPreviousAdx = latestIndex>=0?previousFiniteAdx(usable,latestIndex):NaN;
     const pillClasses = adxPillStrengthClasses(latestPlus, latestMinus);
+    const dominance=adxDominanceState(latestPlus,latestMinus,latestAdx,latestPreviousAdx);
     return `<div class="adx-panel">
       <div class="adx-head">
         <span class="adx-title">ADX / DMI 14</span>
-        <div class="adx-live-values">
-          <span class="adx-live-pill adx-pill-plus ${pillClasses.plus}">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
-          <span class="adx-live-pill adx-pill-minus ${pillClasses.minus}">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
+        <div class="adx-head-right">
+          <span class="adx-state-pill ${dominance.className}"><span class="adx-state-dot"></span><strong class="adx-state-text">${escapeHtml(dominance.text)}</strong></span>
+          <div class="adx-live-values">
+            <span class="adx-live-pill adx-pill-plus ${pillClasses.plus}">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
+            <span class="adx-live-pill adx-pill-minus ${pillClasses.minus}">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
+          </div>
         </div>
       </div>
       ${buildAdxSvg(usable)}
@@ -1439,7 +1471,7 @@
     }
     const W=760,H=142,L=42,R=14,T=10,B=30, innerW=W-L-R, innerH=H-T-B;
     const vals=[20];
-    points.forEach(p=>['di_plus','di_minus'].forEach(k=>{const raw=p?.[k];if(finiteIndicator(raw)) vals.push(Number(raw))}));
+    points.forEach(p=>['di_plus','di_minus','adx'].forEach(k=>{const raw=p?.[k];if(finiteIndicator(raw)) vals.push(Number(raw))}));
     const min=0;
     const rawMax=Math.max(...vals,40);
     const max=Math.max(40,Math.ceil(rawMax/10)*10);
@@ -1456,6 +1488,15 @@
       });
       return d;
     };
+    let adxSteps='';
+    for(let i=1;i<points.length;i++){
+      const prev=finiteIndicator(points[i-1]?.adx)?Number(points[i-1].adx):NaN;
+      const curr=finiteIndicator(points[i]?.adx)?Number(points[i].adx):NaN;
+      if(!Number.isFinite(prev)||!Number.isFinite(curr)) continue;
+      const cls=curr>prev?'adx-step-rising':curr<prev?'adx-step-falling':'adx-step-flat';
+      const x0=x(i-1),x1=x(i),y0=y(prev),y1=y(curr);
+      adxSteps+=`<path class="adx-step ${cls}" d="M${x0.toFixed(1)},${y0.toFixed(1)} H${x1.toFixed(1)} V${y1.toFixed(1)}"/>`;
+    }
     let grids='';
     for(let i=0;i<=2;i++){
       const val=max-i*(max/2), yy=y(val);
@@ -1468,6 +1509,7 @@
     const dates=encodeURIComponent(JSON.stringify(points.map(p=>String(p?.date||''))));
     const pluses=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.di_plus)?Number(p.di_plus):null)));
     const minuses=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.di_minus)?Number(p.di_minus):null)));
+    const adxs=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.adx)?Number(p.adx):null)));
     const last=points[points.length-1]||{};
     const latestPlus=finiteIndicator(last.di_plus)?Number(last.di_plus):NaN, latestMinus=finiteIndicator(last.di_minus)?Number(last.di_minus):NaN;
     const lastDots=`${Number.isFinite(latestPlus)?`<circle class="adx-last-dot adx-plus-dot" cx="${x(points.length-1)}" cy="${y(latestPlus)}" r="3.5"/>`:''}${Number.isFinite(latestMinus)?`<circle class="adx-last-dot adx-minus-dot" cx="${x(points.length-1)}" cy="${y(latestMinus)}" r="3.5"/>`:''}`;
@@ -1478,7 +1520,7 @@
       <rect class="tv-cross-label adx-date-box" x="${L}" y="${H-B+2}" width="48" height="20" rx="3"/>
       <text class="tv-cross-label-text adx-hover-date" x="${L+24}" y="${H-B+15.5}" text-anchor="middle">—</text>
     </g>`;
-    return `<svg class="adx-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-dates="${dates}" data-plus="${pluses}" data-minus="${minuses}">${grids}${threshold}<path class="adx-di-plus" d="${linePath('di_plus')}"/><path class="adx-di-minus" d="${linePath('di_minus')}"/>${lastDots}${labels}${crosshair}</svg>`;
+    return `<svg class="adx-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-dates="${dates}" data-plus="${pluses}" data-minus="${minuses}" data-adx="${adxs}">${grids}${threshold}${adxSteps}<path class="adx-di-plus" d="${linePath('di_plus')}"/><path class="adx-di-minus" d="${linePath('di_minus')}"/>${lastDots}${labels}${crosshair}</svg>`;
   }
 
   function bindAdxCrosshairs() {
@@ -1488,6 +1530,8 @@
       const minusPill=panel?.querySelector('.adx-pill-minus');
       const plusValue=plusPill?.querySelector('.adx-pill-value');
       const minusValue=minusPill?.querySelector('.adx-pill-value');
+      const statePill=panel?.querySelector('.adx-state-pill');
+      const stateText=statePill?.querySelector('.adx-state-text');
       const latestPlus=plusValue?.textContent||'—';
       const latestMinus=minusValue?.textContent||'—';
       const latestPlusNumber=Number(latestPlus);
@@ -1495,10 +1539,11 @@
       const L=Number(svg.dataset.l||42),R=Number(svg.dataset.r||14),T=Number(svg.dataset.t||10),B=Number(svg.dataset.b||30);
       const W=Number(svg.dataset.w||760),H=Number(svg.dataset.h||142);
       const min=Number(svg.dataset.min||0),max=Number(svg.dataset.max||40),count=Math.max(2,Number(svg.dataset.count||2));
-      let dates=[],pluses=[],minuses=[];
+      let dates=[],pluses=[],minuses=[],adxs=[];
       try{dates=JSON.parse(decodeURIComponent(svg.dataset.dates||'%5B%5D'));}catch(_){}
       try{pluses=JSON.parse(decodeURIComponent(svg.dataset.plus||'%5B%5D'));}catch(_){}
       try{minuses=JSON.parse(decodeURIComponent(svg.dataset.minus||'%5B%5D'));}catch(_){}
+      try{adxs=JSON.parse(decodeURIComponent(svg.dataset.adx||'%5B%5D'));}catch(_){}
       const innerW=W-L-R,innerH=H-T-B;
       const group=svg.querySelector('.adx-crosshair');
       const vline=svg.querySelector('.adx-cross-v');
@@ -1516,11 +1561,25 @@
         plusPill.classList.add(classes.plus);
         minusPill.classList.add(classes.minus);
       };
+      const previousAdxAt=(idx)=>{
+        for(let i=idx-1;i>=0;i--){const n=Number(adxs[i]);if(adxs[i]!==null&&Number.isFinite(n))return n;}
+        return NaN;
+      };
+      const setDominanceState=(idx,p,m)=>{
+        if(!statePill||!stateText)return;
+        const a=adxs[idx]===null?NaN:Number(adxs[idx]);
+        const prev=previousAdxAt(idx);
+        const stateInfo=adxDominanceState(p,m,a,prev);
+        statePill.classList.remove('adx-state-rising','adx-state-falling','adx-state-neutral');
+        statePill.classList.add(stateInfo.className);
+        stateText.textContent=stateInfo.text;
+      };
       const restore=()=>{
         group.setAttribute('visibility','hidden');
         if(plusValue) plusValue.textContent=latestPlus;
         if(minusValue) minusValue.textContent=latestMinus;
         setPillStrength(latestPlusNumber,latestMinusNumber);
+        setDominanceState(count-1,latestPlusNumber,latestMinusNumber);
       };
       svg.addEventListener('pointerleave',restore);
       svg.addEventListener('pointermove',ev=>{
@@ -1537,6 +1596,7 @@
         if(Number.isFinite(p)){plusDot.setAttribute('cx',snapX);plusDot.setAttribute('cy',y(p));plusDot.setAttribute('visibility','visible');if(plusValue)plusValue.textContent=p.toFixed(1);}else{plusDot.setAttribute('visibility','hidden');if(plusValue)plusValue.textContent='—';}
         if(Number.isFinite(m)){minusDot.setAttribute('cx',snapX);minusDot.setAttribute('cy',y(m));minusDot.setAttribute('visibility','visible');if(minusValue)minusValue.textContent=m.toFixed(1);}else{minusDot.setAttribute('visibility','hidden');if(minusValue)minusValue.textContent='—';}
         setPillStrength(p,m);
+        setDominanceState(idx,p,m);
         const dw=Math.max(46,Math.min(78,date.length*6.2+14));
         const dx=Math.max(L,Math.min(W-R-dw,snapX-dw/2));
         dateBox.setAttribute('x',dx);dateBox.setAttribute('width',dw);

@@ -1,6 +1,6 @@
 # SState Market Terminal
 
-**Current version:** `TERMINAL v0.1.57｜CHALLENGER-SCHEMA-UPGRADE`
+**Current version:** `TERMINAL v0.1.59｜ADX-STEP-DOMINANCE`
 
 ## Current runtime
 
@@ -44,6 +44,10 @@ Tavily request: `search_depth=basic`, `topic=news`, `time_range=week`, `max_resu
 
 Pipeline: `tavily-answer-direct-zhtw-v9-asset-identity`. Both frontend and Worker require this exact pipeline for a 24H hit. Expired or previous-pipeline entries are pruned on the next successful research write.
 
+
+## ADX step dominance display (v0.1.59)
+
+The existing Pine-equivalent ADX values from `engine/analysis_core.py` are now rendered in the 30-day DMI panel as a stepline. Rising ADX segments use `#26A69A`, falling segments use `#EF5350`, and flat segments use neutral gray. The live/hover capsule combines DI controller and ADX direction into four states: bullish control + strengthening, bullish control + weakening, bearish control + strengthening, bearish control + weakening. DI+ remains yellow, DI- remains purple, and the white dashed 20 line remains a reference only. No Python formula changed in v0.1.59.
 
 ## Challenger schema-upgrade policy (v0.1.57)
 

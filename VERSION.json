@@ -1,15 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.56｜DMI-EXPERT-PROBABILITY",
-  "stage": "DMI-EXPERT-PROBABILITY",
+  "app_version": "TERMINAL v0.1.57｜CHALLENGER-SCHEMA-UPGRADE",
+  "stage": "CHALLENGER-SCHEMA-UPGRADE",
   "features": [
-    "HistoricalTraining schema v3 DMI Expert is now consumed by the live probability_reader without changing S0.5/S1/S2/S3 definitions",
-    "Legacy BB/HA Level 1-5 matching remains the base model; DMI Expert independently corrects the four-way success/alive/true-fail/other distribution",
-    "Live DMI features match HistoricalTraining: DI relation, 20-axis zone, DI gap and slopes, ADX and ADX slope, plus 4H DMI relation age for cross_momentum",
-    "DMI magnitude/slope/ADX LOW-MID-HIGH bins come from each state's learned terciles in probability_model.json; no fixed bullish threshold is invented",
-    "DMI facet likelihood ratios use the same reliability-weighted geometric-mean combiner as HistoricalTraining v3",
-    "If a v1/v2 active model is loaded, or a DMI facet cannot be matched safely, probability_reader falls back to the existing legacy probability behavior",
-    "DMI relation age is replayed from recent 4H cutoffs without look-ahead; cross_momentum is skipped if replayed relation disagrees with current DMI relation",
-    "ADX/DMI formula, S-state scoring rules, Worker/R2 routes, scheduling, sector flow, news and Champion/Challenger promotion rules are unchanged"
+    "Challenger now upgrades automatically when the latest Candidate has a strictly newer schema version (for example schema v2 -> v3 DMI Expert)",
+    "Same-schema daily Candidates do not replace the current Challenger, preserving the accumulated future OOS evaluation window",
+    "When a schema upgrade supersedes the old Challenger, its candidate status is archived as SUPERSEDED_SCHEMA_UPGRADE and Champion remains unchanged",
+    "New Challenger manifests record schema_version, DMI Expert version and the replaced challenger model id for traceability",
+    "HistoricalTraining daily-learning already calls challenger/ensure after Candidate upload, so no HistoricalTraining workflow change is required",
+    "Existing schema v3 DMI probability_reader integration, S-state rules, ADX/DMI formulas, schedules and promotion/rejection gates are unchanged"
   ],
-  "version": "0.1.56"
+  "version": "0.1.57"
 }

@@ -1,6 +1,6 @@
 # SState Market Terminal
 
-**Current version:** `TERMINAL v0.1.56｜DMI-EXPERT-PROBABILITY`
+**Current version:** `TERMINAL v0.1.57｜CHALLENGER-SCHEMA-UPGRADE`
 
 ## Current runtime
 
@@ -43,6 +43,11 @@ Variables: GITHUB_REPOSITORY, GITHUB_BRANCH, ALLOWED_ORIGIN
 Tavily request: `search_depth=basic`, `topic=news`, `time_range=week`, `max_results=20`, `include_answer=advanced`.
 
 Pipeline: `tavily-answer-direct-zhtw-v9-asset-identity`. Both frontend and Worker require this exact pipeline for a 24H hit. Expired or previous-pipeline entries are pruned on the next successful research write.
+
+
+## Challenger schema-upgrade policy (v0.1.57)
+
+`cloudflare/worker.js` now allows the current shadow Challenger to be replaced **only when the latest Candidate has a strictly newer model schema** (for example schema v2 -> schema v3 DMI Expert). The superseded Challenger is archived with status `SUPERSEDED_SCHEMA_UPGRADE`; the Active Champion is never changed by this operation. Daily Candidates with the same schema version do not replace the Challenger, so the future OOS evaluation window can continue accumulating normally. HistoricalTraining already calls `/api/internal/model/challenger/ensure` after uploading each Candidate, therefore the next ensure call immediately performs any pending schema upgrade.
 
 ## Protected in v0.1.56
 

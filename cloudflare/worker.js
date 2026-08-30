@@ -254,6 +254,7 @@ export default {
           candidate_key: key,
           generated_at: parsed?.generated_at || null,
           schema_version: parsed?.schema_version || null,
+          dmi_expert_version: parsed?.dmi_expert_contract?.version || null,
           training: parsed?.training || null,
           uploaded_at: new Date().toISOString(),
           status: "CANDIDATE",
@@ -3023,25 +3024,88 @@ async function dispatchDailyLearning(env, source = "cron") {
   return { ok: true, ...queued };
 }
 
+async function challengerSchemaVersion(env, manifest) {
+  const direct = Number(manifest?.schema_version);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const key = String(manifest?.candidate_key || "");
+  if (!key) return null;
+  try {
+    const obj = await env.JSON_BUCKET.get(key);
+    if (!obj) return null;
+    const model = JSON.parse(await obj.text());
+    const schema = Number(model?.schema_version);
+    return Number.isFinite(schema) && schema > 0 ? schema : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function ensureChallenger(env, suppliedLatest = null) {
   const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
-  const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
-  if (currentObj) return JSON.parse(await currentObj.text());
 
   let latest = suppliedLatest;
   if (!latest) {
     const latestObj = await env.JSON_BUCKET.get("models/candidates/latest.json");
-    if (!latestObj) return null;
-    latest = JSON.parse(await latestObj.text());
+    if (latestObj) latest = JSON.parse(await latestObj.text());
   }
+
+  const currentObj = await env.JSON_BUCKET.get("models/challenger/current.json");
+  const current = currentObj ? JSON.parse(await currentObj.text()) : null;
+  if (!latest) return current;
+
   const modelId = safeModelId(latest.model_id);
+  const latestSchema = Number(latest?.schema_version);
+  const normalizedLatestSchema = Number.isFinite(latestSchema) && latestSchema > 0 ? latestSchema : null;
+
+  if (current?.model_id === modelId) {
+    // Backfill schema metadata for challengers created by the pre-v0.1.57 Worker.
+    if (!current.schema_version) {
+      const resolved = normalizedLatestSchema || await challengerSchemaVersion(env, current);
+      if (resolved) {
+        current.schema_version = resolved;
+        current.dmi_expert_version = latest?.dmi_expert_version || current?.dmi_expert_version || null;
+        await env.JSON_BUCKET.put("models/challenger/current.json", JSON.stringify(current, null, 2), metadata);
+      }
+    }
+    return current;
+  }
+
+  let replacedModelId = null;
+  if (current) {
+    const currentSchema = await challengerSchemaVersion(env, current);
+    // A schema upgrade is allowed to replace an older-schema shadow model so the
+    // evaluator can test the new feature contract. Same-schema daily candidates
+    // DO NOT reset the challenger/OOS window.
+    const schemaUpgrade = normalizedLatestSchema != null && (
+      currentSchema == null ? normalizedLatestSchema >= 3 : normalizedLatestSchema > currentSchema
+    );
+    if (!schemaUpgrade) return current;
+
+    replacedModelId = current.model_id;
+    const supersededAt = new Date().toISOString();
+    const superseded = {
+      ...current,
+      schema_version: currentSchema || current.schema_version || null,
+      status: "SUPERSEDED_SCHEMA_UPGRADE",
+      superseded_at: supersededAt,
+      superseded_by_model_id: modelId,
+      superseded_by_schema_version: normalizedLatestSchema,
+      note: "Shadow evaluation stopped because a newer model schema became available. Champion remains unchanged."
+    };
+    await env.JSON_BUCKET.put(`models/candidates/${current.model_id}/status.json`, JSON.stringify(superseded, null, 2), metadata);
+  }
+
   const challenger = {
     model_id: modelId,
     candidate_key: latest.candidate_key || `models/candidates/${modelId}/probability_model.json`,
     generated_at: latest.generated_at || null,
+    schema_version: normalizedLatestSchema,
+    dmi_expert_version: latest?.dmi_expert_version || null,
     assigned_at: new Date().toISOString(),
     status: "SHADOW_EVALUATION",
-    policy: "Evaluate only future settled OOS cases after challenger generated_at; active model remains unchanged until promotion gate passes."
+    replaced_challenger_model_id: replacedModelId,
+    policy: "Evaluate only future settled OOS cases after challenger generated_at; active model remains unchanged until promotion gate passes. A strictly newer schema may replace an older-schema challenger; same-schema daily candidates never reset the OOS window."
   };
   await Promise.all([
     env.JSON_BUCKET.put("models/challenger/current.json", JSON.stringify(challenger, null, 2), metadata),

@@ -207,6 +207,126 @@ def calculate_adx_dmi(klines: list[dict], period: int = ADX_PERIOD) -> list[dict
 
     return output
 
+
+DMI_LIVE_AGE_MAX_BARS = 8  # enough for HistoricalTraining bins 1 / 2-3 / 4-6 / 7+
+TW_OFFSET_MS = 8 * 3600 * 1000
+DAY_MS = 24 * 60 * 60 * 1000
+
+
+def _dmi_relation_value(di_plus: Any, di_minus: Any) -> str:
+    try:
+        plus = float(di_plus)
+        minus = float(di_minus)
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+    if not np.isfinite(plus) or not np.isfinite(minus):
+        return "UNKNOWN"
+    if plus > minus:
+        return "PLUS"
+    if minus > plus:
+        return "MINUS"
+    return "TIE"
+
+
+def _bin_dmi_relation_age(value: int) -> str:
+    if value <= 1:
+        return "1"
+    if value <= 3:
+        return "2_3"
+    if value <= 6:
+        return "4_6"
+    return "7_PLUS"
+
+
+def _utc_day_start_ms(timestamp_ms: int) -> int:
+    return (int(timestamp_ms) // DAY_MS) * DAY_MS
+
+
+def _aggregate_partial_daily(rows_utc: list[dict[str, Any]]) -> dict[str, float] | None:
+    if not rows_utc:
+        return None
+    rows = sorted(rows_utc, key=lambda x: int(x["time"]))
+    first = rows[0]
+    return {
+        "time": _utc_day_start_ms(int(first["time"])),
+        "open": float(first["open"]),
+        "high": max(float(x["high"]) for x in rows),
+        "low": min(float(x["low"]) for x in rows),
+        "close": float(rows[-1]["close"]),
+        "volume": sum(float(x.get("volume", 0.0)) for x in rows),
+    }
+
+
+def compute_live_dmi_relation_age(
+    daily_rows_display: list[dict[str, Any]],
+    four_h_rows_display: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Recreate HistoricalTraining's consecutive-4H DMI relation age.
+
+    HistoricalTraining recalculates the *partial daily candle* at every 4H
+    cutoff, then measures how many consecutive cutoffs DI+ or DI- has led.
+    The live API already gives us the same daily history and recent 4H bars, so
+    we replay only the latest eight cutoffs. No future 4H bar is used for an
+    earlier cutoff.
+    """
+    if len(daily_rows_display) < ADX_PERIOD + 2 or len(four_h_rows_display) < 2:
+        return {"available": False, "reason": "insufficient_history"}
+
+    daily_utc = sorted(
+        [dict(row, time=int(row["time"]) - TW_OFFSET_MS) for row in daily_rows_display],
+        key=lambda x: int(x["time"]),
+    )
+    four_h_utc = sorted(
+        [dict(row, time=int(row["time"]) - TW_OFFSET_MS) for row in four_h_rows_display],
+        key=lambda x: int(x["time"]),
+    )
+
+    relations_newest_first: list[str] = []
+    start = len(four_h_utc) - 1
+    stop = max(-1, start - DMI_LIVE_AGE_MAX_BARS)
+    for idx in range(start, stop, -1):
+        cutoff_time = int(four_h_utc[idx]["time"])
+        day_key = _utc_day_start_ms(cutoff_time)
+        completed_days = [row for row in daily_utc if int(row["time"]) < day_key]
+        current_day_rows = [
+            row for row in four_h_utc[: idx + 1]
+            if _utc_day_start_ms(int(row["time"])) == day_key
+        ]
+        partial = _aggregate_partial_daily(current_day_rows)
+        if partial is None:
+            break
+        daily_window = (completed_days + [partial])[-150:]
+        dmi = calculate_adx_dmi(daily_window, period=ADX_PERIOD)
+        if not dmi:
+            break
+        current = dmi[-1]
+        relation = _dmi_relation_value(current.get("di_plus"), current.get("di_minus"))
+        if relation == "UNKNOWN":
+            break
+        relations_newest_first.append(relation)
+        if len(relations_newest_first) >= 2 and relation != relations_newest_first[0]:
+            break
+
+    if not relations_newest_first:
+        return {"available": False, "reason": "dmi_replay_failed"}
+
+    current_relation = relations_newest_first[0]
+    age = 0
+    for relation in relations_newest_first:
+        if relation != current_relation:
+            break
+        age += 1
+
+    return {
+        "available": True,
+        "relation": current_relation,
+        "dmi_relation_age_bars": int(age),
+        "dmi_relation_age_bin": _bin_dmi_relation_age(int(age)),
+        "trace_newest_first": relations_newest_first,
+        "capped_at": DMI_LIVE_AGE_MAX_BARS,
+    }
+
+
 def get_bb_signal(ha_close, basis):
     if basis is None:
         return "—"
@@ -427,6 +547,23 @@ def analyze_symbol(symbol: str):
             result["_state_age_bin"] = None
             result["_state_age_state"] = None
             result["_state_age_trace"] = []
+
+        # DMI Expert cross_momentum 使用與 HistoricalTraining 相同的「DI領先關係
+        # 連續維持幾根4H cutoff」。只重播最近8根，足夠區分 1/2-3/4-6/7+。
+        try:
+            dmi_age_info = compute_live_dmi_relation_age(daily_raw, four_h_raw)
+        except Exception as dmi_age_exc:
+            dmi_age_info = {"available": False, "reason": f"{type(dmi_age_exc).__name__}:{dmi_age_exc}"}
+        if dmi_age_info.get("available"):
+            result["_dmi_relation_age_bars"] = int(dmi_age_info.get("dmi_relation_age_bars", 1) or 1)
+            result["_dmi_relation_age_bin"] = str(dmi_age_info.get("dmi_relation_age_bin") or "1")
+            result["_dmi_relation_age_relation"] = str(dmi_age_info.get("relation") or "UNKNOWN")
+            result["_dmi_relation_age_trace"] = list(dmi_age_info.get("trace_newest_first") or [])
+        else:
+            result["_dmi_relation_age_bars"] = None
+            result["_dmi_relation_age_bin"] = None
+            result["_dmi_relation_age_relation"] = None
+            result["_dmi_relation_age_trace"] = []
         return result, None
 
     except Exception as exc:

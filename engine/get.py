@@ -31,7 +31,7 @@ from symbols_config import get_rwa_sector_tags, is_rwa_symbol
 from probability_reader import load_probability_model, predict_record
 
 TW_TZ = timezone(timedelta(hours=8))
-SCHEMA_VERSION = "crypto-monitor-ai-v13-level5-probability"
+SCHEMA_VERSION = "crypto-monitor-ai-v14-dmi-expert-probability"
 AI_LAYER_REVISION = "state-first-v5-s3-dashboard-direct-t2-line"
 GROUP_LIMIT = 20
 STATE_HISTORY_LIMIT = 120
@@ -55,7 +55,7 @@ STATE_ACTION_ZH = {
 }
 
 def snapshot_ai_layer_complete(snapshot: Any) -> bool:
-    """確認目前快照已真正輸出 v13 Level-5 probability AI Layer，而不是舊 schema / session cache。
+    """確認目前快照已真正輸出 v14 Level-5 + DMI Expert probability AI Layer，而不是舊 schema / session cache。
 
     這只驗證輸出 schema，不碰 S0/S0.5/S1/S2/S3 判定演算法。
     """
@@ -733,6 +733,20 @@ def _compact_probability_node(node: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(node, dict) or not node.get("available"):
         return {"available": False, "reason": (node or {}).get("reason", "unavailable")}
     late = node.get("late_success_4_7d") or {}
+    dmi = node.get("dmi_expert") or {}
+    matched_facets = []
+    for facet in list(dmi.get("matched_facets") or []):
+        if not isinstance(facet, dict):
+            continue
+        matched_facets.append({
+            "name": str(facet.get("name") or "facet"),
+            "signature": str(facet.get("signature") or ""),
+            "samples": int(facet.get("samples", 0) or 0),
+            "reliability": _round_probability(facet.get("reliability")),
+            "success_probability": _round_probability(facet.get("success_probability")),
+            "structural_survival_probability": _round_probability(facet.get("structural_survival_probability")),
+            "true_fail_probability": _round_probability(facet.get("true_fail_probability")),
+        })
     return {
         "available": True,
         "success_probability": _round_probability(node.get("success_probability", node.get("probability"))),
@@ -740,11 +754,21 @@ def _compact_probability_node(node: dict[str, Any]) -> dict[str, Any]:
         "true_fail_probability": _round_probability(node.get("true_fail_probability")),
         "other_probability": _round_probability(node.get("other_probability")),
         "structural_survival_probability": _round_probability(node.get("structural_survival_probability")),
+        # This remains the legacy BB/HA Level 1-5 matched sample count. DMI
+        # facets overlap, so a fake single intersection sample count is not made up.
         "matched_samples": int(node.get("samples", 0) or 0),
         "wins": int(node.get("wins", 0) or 0),
         "level": int(node.get("level", 0) or 0),
         "fields": list(node.get("fields") or []),
         "fallback": bool(node.get("fallback", False)),
+        "dmi_expert": {
+            "available": bool(dmi.get("available")),
+            "version": dmi.get("version"),
+            "matched_facet_count": int(dmi.get("matched_facet_count", 0) or 0),
+            "blend_strength": _round_probability(dmi.get("blend_strength")),
+            "bins": dict(dmi.get("bins") or {}),
+            "matched_facets": matched_facets,
+        },
         "late_success_4_7d": {
             "eligible_samples": int(late.get("eligible_samples", 0) or 0),
             "count": int(late.get("count", 0) or 0),
@@ -767,6 +791,7 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
         "generated_at": model.get("generated_at"),
         "primary_horizon_hours": 72,
         "max_level": 5,
+        "dmi_expert_version": (model.get("dmi_expert_contract") or {}).get("version"),
     }
     for record in records:
         result = predict_record(record, record.get("opportunity_long") or {})
@@ -789,6 +814,8 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
             "primary_horizon_hours": 72,
             "model_level": int(primary.get("level", 0) or 0),
             "matched_samples": int(primary.get("samples", 0) or 0),
+            "dmi_expert_version": result.get("dmi_expert_version"),
+            "dmi_expert": _compact_probability_node(primary).get("dmi_expert"),
             "features": dict(result.get("features") or {}),
             "24h": _compact_probability_node(predictions.get("6") or {}),
             "48h": _compact_probability_node(predictions.get("12") or {}),
@@ -829,6 +856,7 @@ def _build_ai_state_dashboard(records: list[dict[str, Any]]) -> dict[str, list[d
                 "true_fail_probability": p72.get("true_fail_probability"),
                 "other_probability": p72.get("other_probability"),
                 "structural_survival_probability": p72.get("structural_survival_probability"),
+                "dmi_expert": p72.get("dmi_expert"),
             } if probability.get("available") else None),
         }
 
@@ -941,6 +969,10 @@ def _compact_record(source: dict[str, Any]) -> dict[str, Any]:
         # Level 5：與 HistoricalTraining 同義的 S-state 連續 4H 年齡。
         "state_age_bars": (int(source.get("_state_age_bars")) if source.get("_state_age_bars") is not None else None),
         "state_age_bin": (str(source.get("_state_age_bin")) if source.get("_state_age_bin") else None),
+        # DMI Expert cross_momentum：與 HistoricalTraining 同義的 DI 領先關係 4H 年齡。
+        "dmi_relation_age_bars": (int(source.get("_dmi_relation_age_bars")) if source.get("_dmi_relation_age_bars") is not None else None),
+        "dmi_relation_age_bin": (str(source.get("_dmi_relation_age_bin")) if source.get("_dmi_relation_age_bin") else None),
+        "dmi_relation_age_relation": (str(source.get("_dmi_relation_age_relation")) if source.get("_dmi_relation_age_relation") else None),
         # 新版主判斷：星級代表「做多進場機會」，不是趨勢強弱。
         "opportunity_long": opportunity,
         # AI 快速層：只有對應狀態才有內容；其他狀態為 null，避免噪音。

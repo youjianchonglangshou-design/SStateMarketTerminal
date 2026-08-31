@@ -24,6 +24,50 @@ const MARKET = {
   "us-stock": { latest: "latest/us-stock/snapshot_us_stock_ai.json", filename: "snapshot_us_stock_ai.json" },
 };
 
+const CHAMPION_CHECKPOINT_PREFIX = "runs/champion";
+const FOUR_HOUR_MS = 4 * 60 * 60 * 1000;
+
+function checkpointSnapshotKey(dateTw, market) {
+  const info = MARKET[market];
+  return `${CHAMPION_CHECKPOINT_PREFIX}/${dateTw}_0401/${info.filename}`;
+}
+
+function taiwanCheckpointDateFromScheduledTime(scheduledTime) {
+  const ms = Number(scheduledTime);
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const utc = new Date(ms);
+  // Cloudflare cron uses UTC. 20:01 UTC = Taiwan 04:01 next day.
+  if (utc.getUTCHours() !== 20 || utc.getUTCMinutes() !== 1) return "";
+  const tw = new Date(ms + 8 * 60 * 60 * 1000);
+  const yyyy = tw.getUTCFullYear();
+  const mm = String(tw.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(tw.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function cleanupLegacyRunSnapshots(env) {
+  // Normal 4H/manual snapshots are no longer historical storage. Only the
+  // daily 04:01 Champion checkpoint remains under runs/champion/.
+  const staleKeys = [];
+  let cursor;
+  do {
+    const page = await env.JSON_BUCKET.list({ prefix: "runs/", cursor, limit: 1000 });
+    for (const obj of page.objects || []) {
+      const key = String(obj.key || "");
+      if (key.startsWith(`${CHAMPION_CHECKPOINT_PREFIX}/`)) continue;
+      if (key.endsWith("/snapshot_ai.json") || key.endsWith("/snapshot_us_stock_ai.json")) {
+        staleKeys.push(key);
+      }
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  for (let i = 0; i < staleKeys.length; i += 1000) {
+    await env.JSON_BUCKET.delete(staleKeys.slice(i, i + 1000));
+  }
+  return staleKeys.length;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -50,6 +94,12 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/snapshot") {
         const market = normalizeMarket(url.searchParams.get("market"));
         return await objectResponse(env, MARKET[market].latest, origin, false, MARKET[market].filename);
+      }
+      if (request.method === "GET" && url.pathname === "/api/champion/checkpoint") {
+        const market = normalizeMarket(url.searchParams.get("market"));
+        const dateTw = safeCheckpointDate(url.searchParams.get("date"));
+        const key = checkpointSnapshotKey(dateTw, market);
+        return await objectResponse(env, key, origin, false, MARKET[market].filename);
       }
       if (request.method === "GET" && url.pathname === "/api/download") {
         const market = normalizeMarket(url.searchParams.get("market"));
@@ -180,24 +230,45 @@ export default {
         requireInternal(request, env);
         const market = normalizeMarket(url.searchParams.get("market"));
         const runId = safeRunId(url.searchParams.get("run_id"));
+        const checkpointDateRaw = String(url.searchParams.get("checkpoint_date_tw") || "").trim();
+        const checkpointDateTw = checkpointDateRaw ? safeCheckpointDate(checkpointDateRaw) : "";
         const text = await request.text();
         const parsed = JSON.parse(text); // reject broken snapshots before replacing latest
         if (!parsed || !Array.isArray(parsed.records)) throw new Error("snapshot.records missing");
         const latestKey = MARKET[market].latest;
-        const runKey = `runs/${runId}/${MARKET[market].filename}`;
         const metadata = { httpMetadata: { contentType: "application/json; charset=utf-8" } };
-        await Promise.all([
-          env.JSON_BUCKET.put(latestKey, text, metadata),
-          env.JSON_BUCKET.put(runKey, text, metadata),
-        ]);
+
+        // Every analysis updates latest. Ordinary 4H/manual runs do NOT leave a
+        // full historical snapshot in runs/ anymore.
+        await env.JSON_BUCKET.put(latestKey, text, metadata);
+
+        let checkpointKey = null;
+        let cleanedLegacyRunSnapshots = 0;
+        if (checkpointDateTw) {
+          checkpointKey = checkpointSnapshotKey(checkpointDateTw, market);
+          await env.JSON_BUCKET.put(checkpointKey, text, metadata);
+          // One-time/ongoing cleanup: remove the old large run snapshots while
+          // preserving status JSON and runs/champion/04:01 checkpoints.
+          cleanedLegacyRunSnapshots = await cleanupLegacyRunSnapshots(env);
+        }
+
         const status = {
           run_id: runId, market, status: "SUCCESS", percent: 100,
           records: parsed.records.length, snapshot_key: latestKey,
+          checkpoint_key: checkpointKey,
+          checkpoint_date_tw: checkpointDateTw || null,
           generated_at_taiwan: parsed.batch?.generated_at_taiwan || null,
           updated_at: new Date().toISOString(),
         };
         await env.JSON_BUCKET.put(`runs/${runId}/status.json`, JSON.stringify(status, null, 2), metadata);
-        return json({ ok: true, latest_key: latestKey, run_key: runKey, records: parsed.records.length }, 200, origin);
+        return json({
+          ok: true,
+          latest_key: latestKey,
+          checkpoint_key: checkpointKey,
+          checkpoint_date_tw: checkpointDateTw || null,
+          cleaned_legacy_run_snapshots: cleanedLegacyRunSnapshots,
+          records: parsed.records.length,
+        }, 200, origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/model/active") {
         requireInternal(request, env);
@@ -333,7 +404,8 @@ export default {
   async scheduled(controller, env, ctx) {
     const source = `cron:${controller.cron}`;
     if (controller.cron === "1 */4 * * *") {
-      ctx.waitUntil(dispatchAutoBatch(env, "pair", source));
+      const checkpointDateTw = taiwanCheckpointDateFromScheduledTime(controller.scheduledTime);
+      ctx.waitUntil(dispatchAutoBatch(env, "pair", source, checkpointDateTw));
       return;
     }
     if (controller.cron === "31 13 * * *") {
@@ -2910,7 +2982,7 @@ async function dispatchUsStockSymbolSync(env, source = "cron") {
 }
 
 
-async function dispatchAutoBatch(env, mode, source = "cron") {
+async function dispatchAutoBatch(env, mode, source = "cron", checkpointDateTw = "") {
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
     throw httpError(500, "Worker 缺少 GITHUB_TOKEN 或 GITHUB_REPOSITORY");
   }
@@ -2928,6 +3000,7 @@ async function dispatchAutoBatch(env, mode, source = "cron") {
     mode,
     source: "AUTO_CRON",
     cron: source,
+    checkpoint_date_tw: checkpointDateTw || null,
     status: "QUEUED",
     phase: mode === "pair" ? "CRYPTO" : "US_STOCK",
     message: mode === "pair"
@@ -2948,7 +3021,7 @@ async function dispatchAutoBatch(env, mode, source = "cron") {
     },
     body: JSON.stringify({
       ref: env.GITHUB_BRANCH || "main",
-      inputs: { mode, batch_id: batchId },
+      inputs: { mode, batch_id: batchId, checkpoint_date_tw: checkpointDateTw || "" },
     }),
   });
   if (!gh.ok) {
@@ -3266,6 +3339,7 @@ async function objectResponse(env, key, origin, download, filename) {
   return new Response(obj.body, { status: 200, headers });
 }
 function normalizeMarket(v){ const x=String(v||"crypto"); if(!MARKET[x]) throw httpError(400,"market 必須是 crypto 或 us-stock"); return x; }
+function safeCheckpointDate(v){ const x=String(v||"").trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(x)) throw httpError(400,"invalid checkpoint date"); return x; }
 function safeRunId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.test(x)) throw httpError(400,"invalid run_id"); return x; }
 function safeModelId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.test(x)) throw httpError(400,"invalid model_id"); return x; }
 function requireInternal(request, env){ const auth=request.headers.get("Authorization")||""; if(!env.CALLBACK_TOKEN || auth!==`Bearer ${env.CALLBACK_TOKEN}`) throw httpError(401,"unauthorized"); }

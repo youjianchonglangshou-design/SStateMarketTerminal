@@ -1,7 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.69｜PERFORMANCE-MARKET-TABS",
-  "stage": "PERFORMANCE-MARKET-TABS",
+  "app_version": "TERMINAL v0.1.70｜0401-CHAMPION-CHECKPOINT",
+  "stage": "0401-CHAMPION-CHECKPOINT",
   "features": [
+    "Cloudflare 4H auto analysis still runs every four hours for Crypto + US-stock, but ordinary runs now update latest/ only and no longer keep full snapshot files under runs/.",
+    "The Taiwan 04:01 auto batch is explicitly marked from ScheduledController.scheduledTime and stores the only durable daily market snapshots under runs/champion/YYYY-MM-DD_0401/.",
+    "Adds GET /api/champion/checkpoint?market=crypto|us-stock&date=YYYY-MM-DD for HistoricalTraining 08:25 settlement/freeze ingestion.",
+    "On a 04:01 checkpoint upload, legacy large runs/*/snapshot_ai.json and snapshot_us_stock_ai.json objects are cleaned from R2; small run status JSON remains for runtime diagnostics.",
     "The top-bar 近期戰績 link opens performance.html in a new browser tab via target=_blank.",
     "Performance Center evolution threshold fallback is updated from 200 to 120 settled 72H Frozen Champion cases.",
     "Performance Center adds ALL / CRYPTO / US_STOCK market tabs; S-state cards, probability calibration, daily records, and detail records follow the selected market.",
@@ -16,5 +20,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.68"
+  "version": "0.1.70"
 }

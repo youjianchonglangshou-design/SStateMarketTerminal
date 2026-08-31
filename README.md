@@ -1,3 +1,12 @@
+## TERMINAL v0.1.70｜0401-CHAMPION-CHECKPOINT
+
+- 每 4 小時 Crypto + 美股分析照常執行，所有批次仍更新 `latest/`。
+- 一般 00:01 / 08:01 / 12:01 / 16:01 / 20:01 與手動分析不再把完整 snapshot 永久寫進 `runs/<run_id>/`。
+- 台灣時間 **04:01** 的 Cloudflare 自動批次是唯一每日 Champion checkpoint，存到 `runs/champion/YYYY-MM-DD_0401/`。
+- 新增 `/api/champion/checkpoint?market=...&date=YYYY-MM-DD`，提供 08:25 HistoricalTraining 讀取「Terminal 當時真正顯示過的 Champion 預測」。
+- 04:01 checkpoint 寫入時會清除舊 `runs/` 下的大型普通 snapshot；小型 `status.json` 保留供執行狀態診斷。
+- ADX、S-state、機率模型、主頁與近期戰績頁邏輯未修改。
+
 ## TERMINAL v0.1.69｜PERFORMANCE-MARKET-TABS
 
 - 主頁 `近期戰績` 改為新分頁開啟，不覆蓋目前分析畫面。

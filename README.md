@@ -1,6 +1,6 @@
 # SState Market Terminal
 
-**Current version:** `TERMINAL v0.1.59｜ADX-STEP-DOMINANCE`
+**Current version:** `TERMINAL v0.1.65｜PROPW-CRM-MATCH`
 
 ## Current runtime
 
@@ -101,3 +101,12 @@ automation/latest/status.json
 - ADX falling state text uses `力量衰退 ↘↘`.
 - ADX flat state text uses `力道持平 ←→`.
 - DI controller colors, ADX red/green step colors, probability logic, and Python engine are unchanged.
+
+## PropW PW match badge (v0.1.65)
+
+- The old Tradeify / `DX` match list and badge implementation are removed and replaced in place by PropW / `PW`.
+- `app.js` keeps one current mapping only: `PROPW_PIONEX_SYMBOL_MAP`.
+- A `PW` capsule appears only on the US-stock/RWA page when the current SState/Pionex symbol has a confirmed match in the supplied PropW list.
+- `CRMX → CRM` is now a confirmed PropW match and displays the `PW` capsule.
+- `CRWD` remains unlabeled because this Terminal build still has no confirmed corresponding SState/Pionex symbol identity.
+- No Python engine, Worker, workflow, probability model, ADX/DMI, or S-state logic changes in v0.1.65.

@@ -17,7 +17,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.59｜ADX-STEP-DOMINANCE";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.65｜PROPW-CRM-MATCH";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -25,37 +25,30 @@
   const marketJsonButtonLabel = (market) => market === "us-stock" ? "⬇ 美股 JSON" : "⬇ 加密 JSON";
   const marketJsonButtonBusyLabel = (market) => market === "us-stock" ? "⏳ 美股 JSON" : "⏳ 加密 JSON";
 
-  // Tradeify（dx.tradeifycrypto.co）Stocks 清單 ↔ Pionex 美股代幣對照。
-  // 多數 Pionex xStock 會在原股票 ticker 後加 X；少數採特殊代碼（例如 GME→GMEX、MU→MUX、SPCX→SPCX）。
-  const TRADEIFY_PIONEX_STOCK_MAP = Object.freeze({
+  // PropW 可交易標的 ↔ SState/Pionex RWA symbol 對照。
+  // 只保留目前 Terminal 已確認存在、且能對上 PropW 清單的標的；不猜測尚未存在的 symbol。
+  const PROPW_PIONEX_SYMBOL_MAP = Object.freeze({
+    XAG: "XAG",
+    XAU: "XAU",
     AAPLX: "AAPL",
-    AMDX: "AMD",
-    AMZNX: "AMZN",
-    ARMX: "ARM",
-    COINX: "COIN",
-    CRCLX: "CRCL",
-    CRWVX: "CRWV",
-    GMEX: "GME",
-    GOOGLX: "GOOGL",
-    HIMSX: "HIMS",
-    HOODX: "HOOD",
-    IBMX: "IBM",
-    INTCX: "INTC",
-    LITEX: "LITE",
-    METAX: "META",
-    MRVLX: "MRVL",
-    MSFTX: "MSFT",
-    MSTRX: "MSTR",
-    MUX: "MU",
-    NVDAX: "NVDA",
-    ORCLX: "ORCL",
-    PLTRX: "PLTR",
-    RKLBX: "RKLB",
-    SNDKX: "SNDK",
-    SPCX: "SPCX",
     TSLAX: "TSLA",
-    TSMX: "TSM",
-    USARX: "USAR"
+    INTCX: "INTC",
+    MSTRX: "MSTR",
+    NVDAX: "NVDA",
+    CRCLX: "CRCL",
+    COINX: "COIN",
+    HOODX: "HOOD",
+    AMZNX: "AMZN",
+    GOOGLX: "GOOGL",
+    CRMX: "CRM",
+    MUX: "MU",
+    EWYX: "EWY",
+    AMDX: "AMD",
+    MRVLX: "MRVL",
+    SKHX: "SKHYNIX",
+    SMSN: "SAMSUNG",
+    HYUNDAI: "HYUNDAI",
+    NOWX: "NOW"
   });
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (v, digits=1) => Number.isFinite(Number(v)) ? `${(Number(v)*100).toFixed(digits)}%` : "—";
@@ -1228,12 +1221,12 @@
     </div></div>`;
   }
 
-  function renderTradeifyMatchBadge(r) {
+  function renderPropwMatchBadge(r) {
     if (state.market !== "us-stock") return "";
     const pionexSymbol = String(r?.symbol || "").trim().toUpperCase();
-    const tradeifyTicker = TRADEIFY_PIONEX_STOCK_MAP[pionexSymbol];
-    if (!tradeifyTicker) return "";
-    return `<div class="tradeify-match-badge" title="Tradeify Stocks 清單已對上｜${escapeHtml(tradeifyTicker)} ↔ ${escapeHtml(pionexSymbol)}"><span>DX</span></div>`;
+    const propwSymbol = PROPW_PIONEX_SYMBOL_MAP[pionexSymbol];
+    if (!propwSymbol) return "";
+    return `<div class="propw-match-badge" title="PropW 清單已對上｜${escapeHtml(propwSymbol)} ↔ ${escapeHtml(pionexSymbol)}"><span>PW</span></div>`;
   }
 
   function renderMarketStatusBadge(r) {
@@ -1295,7 +1288,7 @@
     return `<article class="card">
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}${renderResearch(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
-      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderTradeifyMatchBadge(r)}${renderChartQuickStats(r)}</div>
+      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderPropwMatchBadge(r)}${renderChartQuickStats(r)}</div>
       ${buildAdxPanel(r.chart_30d||[])}
     </article>`;
   }

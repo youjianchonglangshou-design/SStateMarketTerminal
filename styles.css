@@ -371,8 +371,8 @@
 }
 
 
-/* v0.1.16 — mark Pionex stock tokens also present in Tradeify Stocks */
-.tradeify-match-badge{
+/* v0.1.64 — mark SState/Pionex RWA symbols also available on PropW */
+.propw-match-badge{
   position:absolute;
   z-index:11;
   top:9px;
@@ -397,11 +397,11 @@
   backdrop-filter:blur(3px);
   -webkit-backdrop-filter:blur(3px);
 }
-.tradeify-match-badge span{
+.propw-match-badge span{
   transform:translateY(.1px);
 }
 @media(max-width:650px){
-  .tradeify-match-badge{
+  .propw-match-badge{
     top:8px;
     right:8px;
     height:19px;

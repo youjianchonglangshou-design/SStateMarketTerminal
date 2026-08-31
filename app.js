@@ -4,20 +4,17 @@
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
   const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, challenger: null, evaluation: null, battleExpanded: false, battleSignature: "", sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
     version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
-    battleCaption: $("battle-caption"), battleDecision: $("battle-decision"), championId: $("champion-id"), championMeta: $("champion-meta"),
-    challengerId: $("challenger-id"), challengerMeta: $("challenger-meta"), battleFlow: $("battle-flow"), battleDetails: $("battle-details"), battleMetrics: $("battle-metrics"),
-    battle: $("model-battle"), battleToggle: $("battle-toggle"), battleBody: $("battle-body"),
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.65｜PROPW-CRM-MATCH";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.68｜CHAMPION-PERFORMANCE";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -114,7 +111,7 @@
     state.autoBatchBusy = Boolean(payload?.busy || ['QUEUED','RUNNING'].includes(String(payload?.status || '').toUpperCase()));
     updateActionState();
     if (wasBusy && !state.autoBatchBusy) {
-      Promise.all([loadSnapshot(), loadModelBattle()]).catch(()=>{});
+      Promise.all([loadSnapshot(), loadChampionModel()]).catch(()=>{});
     }
   }
 
@@ -128,50 +125,6 @@
       // Do not lock the UI merely because the status endpoint is temporarily unreachable.
     }
     state.autoBatchTimer = setTimeout(pollAutomationStatus, 5000);
-  }
-
-  function setBattleExpanded(expanded, markSeen=true) {
-    state.battleExpanded = Boolean(expanded);
-    els.battle.classList.toggle("collapsed", !state.battleExpanded);
-    els.battleBody.classList.toggle("hidden", !state.battleExpanded);
-    els.battleToggle.setAttribute("aria-expanded", state.battleExpanded ? "true" : "false");
-    els.battleToggle.title = state.battleExpanded ? "收合模型競爭資訊" : "展開模型競爭資訊";
-    const arrow = els.battleToggle.querySelector(".battle-arrow");
-    if (arrow) arrow.textContent = state.battleExpanded ? "▼" : "▶";
-    if (state.battleExpanded && markSeen && state.battleSignature) {
-      localStorage.setItem("sstate-battle-seen-signature", state.battleSignature);
-      els.battleToggle.classList.remove("has-update");
-    }
-  }
-
-  function modelBattleSignature(champion, challenger, evaluation) {
-    const ageGate = shadowAgeHours(challenger?.assigned_at || challenger?.generated_at) >= 72 ? 1 : 0;
-    return JSON.stringify({
-      champion: champion?.model_id || "",
-      challenger: challenger?.model_id || "",
-      challenger_status: challenger?.status || "",
-      latest_decision: evaluation?.decision || challenger?.latest_decision || "",
-      evaluated_at: evaluation?.evaluated_at || challenger?.latest_evaluated_at || "",
-      cases: Number(evaluation?.paired_oos_cases || 0),
-      symbols: Number(evaluation?.paired_oos_symbols || 0),
-      age_gate: ageGate,
-    });
-  }
-
-  function updateBattleAttention() {
-    const signature = modelBattleSignature(state.champion, state.challenger, state.evaluation);
-    state.battleSignature = signature;
-    let seen = localStorage.getItem("sstate-battle-seen-signature");
-    if (!seen) {
-      localStorage.setItem("sstate-battle-seen-signature", signature);
-      seen = signature;
-    }
-    const changed = seen !== signature;
-    els.battleToggle.classList.toggle("has-update", changed && !state.battleExpanded);
-    if (state.battleExpanded && changed) {
-      localStorage.setItem("sstate-battle-seen-signature", signature);
-      els.battleToggle.classList.remove("has-update");
-    }
   }
 
   async function fetchJson(url, options={}) {
@@ -661,248 +614,17 @@
     }, 30_000);
   }
 
-  function shortId(v) {
-    const s = String(v || "");
-    return s ? (s.length > 20 ? `${s.slice(0,20)}…` : s) : "—";
-  }
-
-  function ageText(iso) {
-    if (!iso) return "—";
-    const ms = Date.now() - new Date(iso).getTime();
-    if (!Number.isFinite(ms) || ms < 0) return "—";
-    const hours = ms / 3600000;
-    if (hours < 1) return `${Math.max(0, Math.floor(hours * 60))} 分鐘`;
-    if (hours < 48) return `${hours.toFixed(1)} 小時`;
-    return `${(hours / 24).toFixed(1)} 天`;
-  }
-
-  function decisionZh(decision) {
-    return ({
-      WAITING_EVIDENCE: "等待證據",
-      HOLD: "繼續觀察",
-      PROMOTE: "可晉級",
-      REJECT: "淘汰",
-      SHADOW_EVALUATION: "影子評估中"
-    })[decision] || decision || "等待評估";
-  }
-
-  function fmtMetric(v, digits=4) {
-    if (v === null || v === undefined || v === "") return "—";
-    const n = Number(v);
-    return Number.isFinite(n) ? n.toFixed(digits) : "—";
-  }
-
-  async function loadModelBattle() {
-    if (!workerUrl) return renderModelBattle();
-    const [champion, challenger, evaluation] = await Promise.all([
-      fetchOptionalJson(`${workerUrl}/api/model/active?t=${Date.now()}`),
-      fetchOptionalJson(`${workerUrl}/api/model/challenger/current?t=${Date.now()}`),
-      fetchOptionalJson(`${workerUrl}/api/model/evaluation/latest?t=${Date.now()}`)
-    ]);
-    state.champion = champion;
-    state.challenger = challenger;
-    state.evaluation = evaluation;
-    renderModelBattle();
-    updateBattleAttention();
+  async function loadChampionModel() {
+    if (!workerUrl) {
+      state.champion = null;
+      return;
+    }
+    state.champion = await fetchOptionalJson(`${workerUrl}/api/model/active?t=${Date.now()}`);
     // Sample-tier coloring depends on each S-state baseline in the active Champion model.
-    // loadSnapshot() and loadModelBattle() run in parallel at startup, so repaint
-    // the cards once Champion metadata is available.
+    // Snapshot and Champion are loaded in parallel, so repaint once Champion metadata is ready.
     if (state.snapshot?.records) renderCards();
   }
 
-
-  const MODEL_MIN_AGE_HOURS = 72;
-  const MODEL_MIN_CASES = 180;
-  const MODEL_MIN_SYMBOLS = 50;
-
-  function progressPct(value, target) {
-    const v = Math.max(0, Number(value) || 0);
-    const t = Math.max(1, Number(target) || 1);
-    return Math.max(0, Math.min(100, (v / t) * 100));
-  }
-
-  function shadowAgeHours(iso) {
-    if (!iso) return 0;
-    const ts = new Date(iso).getTime();
-    if (!Number.isFinite(ts)) return 0;
-    return Math.max(0, (Date.now() - ts) / 3600000);
-  }
-
-  function remaining72Text(iso) {
-    const remain = Math.max(0, MODEL_MIN_AGE_HOURS - shadowAgeHours(iso));
-    if (remain <= 0) return "已通過 72H";
-    const d = Math.floor(remain / 24);
-    const h = Math.floor(remain % 24);
-    const m = Math.floor((remain * 60) % 60);
-    if (d > 0) return `還剩 ${d}天 ${h}小時 ${m}分`;
-    if (h > 0) return `還剩 ${h}小時 ${m}分`;
-    return `還剩 ${m}分`;
-  }
-
-  function evidenceNextText(cases, symbols) {
-    const parts = [];
-    const caseGap = Math.max(0, MODEL_MIN_CASES - cases);
-    const symbolGap = Math.max(0, MODEL_MIN_SYMBOLS - symbols);
-    if (caseGap > 0) parts.push(`${caseGap.toLocaleString()} Cases`);
-    if (symbolGap > 0) parts.push(`${symbolGap.toLocaleString()} Symbols`);
-    return parts.length
-      ? `下一步：還差 ${parts.join("、")}，達標後自動進入模型對決。`
-      : "下一步：證據已達標，進入 Champion vs Challenger 模型對決。";
-  }
-
-  function validationStep({ number, title, status, body="", next="" }) {
-    const statusText = status === "done" ? "✅ 已通過" : status === "active" ? "← 現在" : "🔒 尚未開始";
-    return `
-      <div class="validation-step ${status}">
-        <div class="validation-step-head">
-          <span class="validation-step-number">${number}</span>
-          <strong>${escapeHtml(title)}</strong>
-          <span class="validation-step-status">${statusText}</span>
-        </div>
-        ${body ? `<div class="validation-step-body">${body}</div>` : ""}
-        ${next ? `<div class="validation-next">${escapeHtml(next)}</div>` : ""}
-      </div>`;
-  }
-
-  function evidenceBar(label, value, target, done=false) {
-    const pctValue = progressPct(value, target);
-    return `
-      <div class="validation-evidence-row ${done ? "done" : ""}">
-        <div class="validation-evidence-head">
-          <span>${escapeHtml(label)}</span>
-          <strong>${Number(value).toLocaleString()} / ${Number(target).toLocaleString()}${done ? "  ✅" : ""}</strong>
-        </div>
-        <div class="validation-track"><div class="validation-fill" style="width:${pctValue.toFixed(1)}%"></div></div>
-      </div>`;
-  }
-
-  function latestReplacementLabel(c, h, e) {
-    if (!e?.challenger_model_id) return "驗證中";
-    if (e.decision === "PROMOTE" && c?.model_id === e.challenger_model_id) return "已完成模型取代";
-    if (e.decision === "REJECT" && e.challenger_model_id !== h?.model_id) return "上一輪未取代";
-    return "驗證中";
-  }
-
-  function renderBattleDetails(e, h, stage) {
-    if (!els.battleDetails || !els.battleMetrics) return;
-    const currentEval = e && h?.model_id && e.challenger_model_id === h.model_id ? e : null;
-    if (!currentEval) {
-      els.battleDetails.classList.add("hidden");
-      els.battleDetails.open = false;
-      els.battleMetrics.innerHTML = "";
-      return;
-    }
-
-    const active = currentEval.active || {};
-    const challenger = currentEval.challenger || {};
-    const pRaw = currentEval.bootstrap_probability_challenger_brier_better;
-    const p = pRaw === null || pRaw === undefined || pRaw === "" ? NaN : Number(pRaw);
-    const oosCases = Number(currentEval.paired_oos_cases || 0);
-    const confidence = oosCases > 0 && Number.isFinite(p) ? pct(p, 1) : "—";
-    const note = stage === 2 ? "目前仍在累積證據，以下數值不是最終判決。" : "模型對決細節。";
-
-    els.battleDetails.classList.remove("hidden");
-    els.battleMetrics.innerHTML = [
-      ["Champion Brier", fmtMetric(active.multiclass_brier)],
-      ["Challenger Brier", fmtMetric(challenger.multiclass_brier)],
-      ["Challenger 較佳信心", confidence],
-      ["系統判定", decisionZh(currentEval.decision)]
-    ].map(([k,v])=>`<div class="battle-metric"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></div>`).join("") +
-      `<div class="battle-detail-note">${escapeHtml(note)}</div>`;
-  }
-
-  function renderModelBattle() {
-    const c = state.champion || {};
-    const h = state.challenger || {};
-    const e = state.evaluation || null;
-
-    els.championId.textContent = shortId(c.model_id);
-    els.championMeta.textContent = c.model_id
-      ? `目前正式使用｜訓練案例 ${Number(c.training?.cases_count || c.training?.case_count || 0).toLocaleString() || "—"}`
-      : "尚未讀到 Active 模型";
-
-    els.challengerId.textContent = shortId(h.model_id);
-    els.challengerMeta.textContent = h.model_id ? "挑戰中｜依序完成驗證關卡" : "目前沒有 Challenger";
-
-    if (!h.model_id) {
-      els.battleCaption.textContent = "目前沒有 Challenger；Champion 維持正式使用。";
-      els.battleDecision.textContent = latestReplacementLabel(c, h, e);
-      els.battleDecision.className = "battle-decision waiting";
-      els.battleFlow.innerHTML = "";
-      els.battleMetrics.innerHTML = "";
-      els.battleDetails?.classList.add("hidden");
-      return;
-    }
-
-    // IMPORTANT: backend promotion_decision() uses Challenger generated_at for the 72H age gate.
-    // The UI must use the same timestamp. assigned_at is only R2 assignment metadata.
-    const validationStart = h.generated_at;
-    const ageH = shadowAgeHours(validationStart);
-    const currentEval = e?.challenger_model_id === h.model_id ? e : null;
-    const oosCases = Number(currentEval?.paired_oos_cases || 0);
-    const oosSymbols = Number(currentEval?.paired_oos_symbols || 0);
-    const decision = currentEval?.decision || h.latest_decision || "WAITING_EVIDENCE";
-    const ageReady = ageH >= MODEL_MIN_AGE_HOURS;
-    const evidenceReady = oosCases >= MODEL_MIN_CASES && oosSymbols >= MODEL_MIN_SYMBOLS;
-    const finalDecision = currentEval && (decision === "PROMOTE" || decision === "REJECT");
-
-    let stage = 1;
-    if (finalDecision) stage = 4;
-    else if (!ageReady) stage = 1;
-    else if (!evidenceReady) stage = 2;
-    else stage = 3;
-
-    const stageNames = {1:"72H 實戰觀察",2:"累積驗證證據",3:"模型對決",4:"最終結果"};
-    els.battleCaption.textContent = `目前進度：第 ${stage} / 4 關｜${stageNames[stage]}`;
-
-    let topLabel = "驗證中";
-    let topClass = "waiting-evidence";
-    if (stage === 4 && decision === "PROMOTE") { topLabel = "挑戰成功"; topClass = "promote"; }
-    else if (stage === 4 && decision === "REJECT") { topLabel = "挑戰失敗"; topClass = "reject"; }
-    else if (stage === 3) { topLabel = "模型對決中"; topClass = "hold"; }
-    else if (stage === 2) { topLabel = "累積證據中"; topClass = "waiting-evidence"; }
-    else { topLabel = "72H 觀察中"; topClass = "shadow-evaluation"; }
-    els.battleDecision.textContent = topLabel;
-    els.battleDecision.className = `battle-decision ${topClass}`;
-
-    const step1Body = stage === 1
-      ? `<div class="validation-main-value">${escapeHtml(remaining72Text(validationStart))}</div>
-         <div class="validation-track"><div class="validation-fill" style="width:${progressPct(ageH, MODEL_MIN_AGE_HOURS).toFixed(1)}%"></div></div>`
-      : "";
-    const step1Next = stage === 1 ? "下一步：完成 72H 後，開始累積驗證證據。" : "";
-
-    const step2Body = stage === 2
-      ? evidenceBar("Cases", oosCases, MODEL_MIN_CASES, oosCases >= MODEL_MIN_CASES) +
-        evidenceBar("Symbols", oosSymbols, MODEL_MIN_SYMBOLS, oosSymbols >= MODEL_MIN_SYMBOLS)
-      : "";
-    const step2Next = stage === 2 ? evidenceNextText(oosCases, oosSymbols) : "";
-
-    let step3Body = "";
-    let step3Next = "";
-    if (stage === 3) {
-      step3Body = `<div class="validation-duel"><span>🏆 Champion</span><b>VS</b><span>🥊 Challenger</span></div>
-                   <div class="validation-main-value">${decision === "HOLD" ? "目前尚未分出明顯勝負" : "正在判斷哪個模型效果較好"}</div>`;
-      step3Next = "下一步：比較完成後，自動決定是否取代 Champion。";
-    }
-
-    let step4Body = "";
-    if (stage === 4) {
-      step4Body = decision === "PROMOTE"
-        ? `<div class="validation-final success">✅ Challenger 勝出<br><strong>取代 Champion</strong></div>`
-        : `<div class="validation-final reject">❌ Challenger 未勝出<br><strong>保留 Champion</strong></div>`;
-    }
-
-    els.battleFlow.innerHTML =
-      validationStep({number:"①", title:"72H 實戰觀察", status: stage > 1 ? "done" : "active", body:step1Body, next:step1Next}) +
-      `<div class="validation-connector">↓</div>` +
-      validationStep({number:"②", title:"累積驗證證據", status: stage > 2 ? "done" : stage === 2 ? "active" : "locked", body:step2Body, next:step2Next}) +
-      `<div class="validation-connector">↓</div>` +
-      validationStep({number:"③", title:"Champion vs Challenger 模型對決", status: stage > 3 ? "done" : stage === 3 ? "active" : "locked", body:step3Body, next:step3Next}) +
-      `<div class="validation-connector">↓</div>` +
-      validationStep({number:"④", title:"最終結果｜是否取代 Champion", status: stage === 4 ? "active" : "locked", body:step4Body});
-
-    renderBattleDetails(currentEval, h, stage);
-  }
 
   async function loadSnapshot() {
     const market = state.market;
@@ -1702,7 +1424,7 @@
       if(s.status==='SUCCESS'){
         state.runId='';
         setAnalysisBusy(false);
-        await Promise.all([loadSnapshot(),loadModelBattle()]);
+        await Promise.all([loadSnapshot(),loadChampionModel()]);
         setRunUi(false,100,'','');
         showToast('完整分析完成，畫面已切換到 R2 最新資料。',7000);
         return;
@@ -1746,14 +1468,12 @@
     queryResearchSymbol(trigger.dataset.researchSymbol || '');
   }, true);
   els.download.addEventListener('click',downloadCurrentJson);
-  els.battleToggle.addEventListener('click',()=>setBattleExpanded(!state.battleExpanded));
   if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
-  setBattleExpanded(false, false);
   setSectorFlowExpanded(false);
   updateActionState();
   renderVolumeProgress(0);
   pollAutomationStatus();
   clearInterval(state.sectorFlowTimer);
   state.sectorFlowTimer = setInterval(()=>{ if (state.market === 'us-stock') loadSectorFlow(); }, 30000);
-  Promise.all([loadSnapshot(), loadModelBattle(), loadSectorFlow()]);
+  Promise.all([loadSnapshot(), loadChampionModel(), loadSectorFlow()]);
 })();

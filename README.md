@@ -123,3 +123,14 @@ automation/latest/status.json
 - `CRMX → CRM` is now a confirmed PropW match and displays the `PW` capsule.
 - `CRWD` remains unlabeled because this Terminal build still has no confirmed corresponding SState/Pionex symbol identity.
 - No Python engine, Worker, workflow, probability model, ADX/DMI, or S-state logic changes in v0.1.65.
+
+## TERMINAL v0.1.68｜CHAMPION-PERFORMANCE
+
+- 主頁移除舊的 `Champion vs Challenger` 模型競爭面板。
+- 主頁右上新增 `📈 近期戰績`，開啟 `performance.html`。
+- 戰績頁只讀 HistoricalTraining 的 Frozen Champion 正式帳本：`data/champion/performance.json` + `data/champion/ledger.jsonl`。
+- 支援近 7 / 14 / 30 / 90 日 / 全部，並分 S0.5 / S1 / S2 / S3 顯示成功、慢速存活、真失敗、其他。
+- 顯示模型預估成功率 ≥60% / ≥65% / ≥70% 後的實際 72H 成功率與校準差。
+- 逐筆表保留 12H / 24H / 48H / 72H 結算、72H S-state 實際路徑、MFE / MAE。
+- 主頁仍只讀 R2 Active Champion 作為正式機率模型；不再抓 Challenger / evaluation。
+- 本版不修改 Cloudflare 08:25 排程、不修改 S-state/ADX/DI 計算、不修改完整分析流程。

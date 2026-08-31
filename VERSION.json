@@ -1,21 +1,16 @@
 {
-  "app_version": "TERMINAL v0.1.67｜MODEL-ADX-MIGRATION",
-  "stage": "MODEL-ADX-MIGRATION",
+  "app_version": "TERMINAL v0.1.68｜CHAMPION-PERFORMANCE",
+  "stage": "CHAMPION-PERFORMANCE",
   "features": [
-    "probability_reader.py now carries both DMI Expert v2 full-precision ADX Step semantics and DMI Expert v3 1-decimal sticky ADX Step semantics",
-    "The loaded model contract selects which ADX Step feature set is matched: Active v2 remains unchanged; DMI-EXPERT-v3-ADX-1DP-STICKY automatically uses rounded-1dp sticky direction after promotion",
-    "This prevents the live probability reader from mismatching the existing Champion while the retrained v3 model is still Candidate/Challenger",
-    "Front-end ADX stepline remains the v0.1.66 1-decimal sticky display rule",
-    "ADX stepline color now compares ADX after rounding to 1 decimal place, matching the revised Pine display rule and suppressing micro-float red/green noise",
-    "When consecutive 1-decimal ADX values are equal, the stepline keeps the previous effective rising/falling color instead of switching to neutral",
-    "Latest and hover ADX/DMI state pills use the same 1-decimal sticky direction as the stepline, so chart color and state text stay consistent",
-    "Replaces the retired Tradeify/DX badge mapping with the PropW/PW mapping; no second legacy mapping is retained",
-    "PW badge is shown only for currently confirmed SState/Pionex RWA symbols that match the supplied PropW instrument list",
-    "Confirmed PropW mapping now contains 21 instruments, including CRMX → CRM (Salesforce); CRWD remains unlabeled because no confirmed Terminal symbol match exists",
-    "ADX state pill arrows are strengthened: trend strength ↗↗, weakening ↘↘, flat force ←→",
-    "Adds adx_axis_zone, adx_step_direction, adx_step_age_days/bin, adx_turn_event, adx_step_delta, and dmi_adx_regime",
-    "cross_momentum and adx_turn_handover are skipped when 4H DI relation-age replay is not verified; no daily substitute is fabricated",
-    "No ADX/DI formula, S-state rule, Worker, workflow, or front-end chart logic changed; the new trained model is not auto-published by this patch"
+    "Removes the Champion vs Challenger competition panel from the main Terminal UI.",
+    "Adds a top-bar 近期戰績 link that opens a dedicated Champion performance center.",
+    "Performance Center reads HistoricalTraining Frozen Champion performance.json and ledger.jsonl without recomputing old predictions.",
+    "Supports 7 / 14 / 30 / 90 day and all-generation views.",
+    "Shows SUCCESS, ALIVE_SLOW, TRUE_FAIL, OTHER, success rate, structural survival rate, and true-fail rate for S0.5 / S1 / S2 / S3.",
+    "Validates predicted success probability thresholds at >=60%, >=65%, and >=70% against actual 72H success.",
+    "Shows per-day settlement records and per-snapshot 12H / 24H / 48H / 72H outcomes, state path, MFE and MAE.",
+    "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
+    "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.67"
+  "version": "0.1.68"
 }

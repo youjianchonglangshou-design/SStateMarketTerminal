@@ -1,7 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.65｜PROPW-CRM-MATCH",
-  "stage": "PROPW-CRM-MATCH",
+  "app_version": "TERMINAL v0.1.66｜ADX-1DP-STICKY",
+  "stage": "ADX-1DP-STICKY",
   "features": [
+    "ADX stepline color now compares ADX after rounding to 1 decimal place, matching the revised Pine display rule and suppressing micro-float red/green noise",
+    "When consecutive 1-decimal ADX values are equal, the stepline keeps the previous effective rising/falling color instead of switching to neutral",
+    "Latest and hover ADX/DMI state pills use the same 1-decimal sticky direction as the stepline, so chart color and state text stay consistent",
+    "Underlying ADX/DI calculation, raw chart values, probability_reader.py model features, HistoricalTraining semantics, S-state rules, Worker, and workflows are unchanged in this UI patch",
     "Replaces the retired Tradeify/DX badge mapping with the PropW/PW mapping; no second legacy mapping is retained",
     "PW badge is shown only for currently confirmed SState/Pionex RWA symbols that match the supplied PropW instrument list",
     "Confirmed PropW mapping now contains 21 instruments, including CRMX → CRM (Salesforce); CRWD remains unlabeled because no confirmed Terminal symbol match exists",
@@ -12,5 +16,5 @@
     "cross_momentum and adx_turn_handover are skipped when 4H DI relation-age replay is not verified; no daily substitute is fabricated",
     "No ADX/DI formula, S-state rule, Worker, workflow, or front-end chart logic changed; the new trained model is not auto-published by this patch"
   ],
-  "version": "0.1.65"
+  "version": "0.1.66"
 }

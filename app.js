@@ -1408,30 +1408,47 @@
       : { plus: "adx-pill-neutral", minus: "adx-pill-strong-minus" };
   }
 
-  function adxDominanceState(plus, minus, adx, previousAdx) {
-    const p=Number(plus),m=Number(minus),a=Number(adx),prev=Number(previousAdx);
+  function roundAdx1(value) {
+    const n=Number(value);
+    return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 10) / 10 : NaN;
+  }
+
+  function adxStickyTrendSeries(values) {
+    const series=Array.isArray(values)?values:[];
+    const trends=new Array(series.length).fill(0);
+    let trend=0;
+    let previousRounded=NaN;
+    for(let i=0;i<series.length;i++){
+      const currentRounded=roundAdx1(series[i]);
+      if(!Number.isFinite(currentRounded)){
+        trends[i]=trend;
+        continue;
+      }
+      if(Number.isFinite(previousRounded)){
+        if(currentRounded>previousRounded) trend=1;
+        else if(currentRounded<previousRounded) trend=-1;
+        // 四捨五入到 1 位後相等：延續上一個有效方向，不切灰、不反轉。
+      }
+      trends[i]=trend;
+      previousRounded=currentRounded;
+    }
+    return trends;
+  }
+
+  function adxDominanceState(plus, minus, adx, trend) {
+    const p=Number(plus),m=Number(minus),a=Number(adx),t=Number(trend);
     if(!Number.isFinite(p)||!Number.isFinite(m)||p===m){
       return { text:"方向膠著｜ADX待確認", controllerClass:"adx-controller-neutral", trendClass:"adx-trend-neutral", trend:"FLAT" };
     }
     const controllerClass=p>m?'adx-controller-plus':'adx-controller-minus';
-    if(!Number.isFinite(a)||!Number.isFinite(prev)){
+    if(!Number.isFinite(a)||!Number.isFinite(t)||t===0){
       return { text:`${p>m?'多方':'空方'}控制｜ADX待確認`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
     }
-    const rising=a>prev, falling=a<prev;
-    if(!rising&&!falling){
-      return { text:`${p>m?'多方':'空方'}控制｜力道持平 ←→`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
-    }
+    const rising=t===1, falling=t===-1;
     if(p>m && rising) return { text:"多方控制｜趨勢強度增強 ↗↗", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
     if(p>m && falling) return { text:"多方仍控制｜力量衰退 ↘↘", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
     if(p<m && rising) return { text:"空方控制｜趨勢強度增強 ↗↗", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
     return { text:"空方仍控制｜力量衰退 ↘↘", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
-  }
-
-  function previousFiniteAdx(points,index) {
-    for(let i=index-1;i>=0;i--){
-      if(finiteIndicator(points?.[i]?.adx)) return Number(points[i].adx);
-    }
-    return NaN;
   }
 
   function buildAdxPanel(points) {
@@ -1444,9 +1461,10 @@
     const latestPlus = latest ? Number(latest.di_plus) : NaN;
     const latestMinus = latest ? Number(latest.di_minus) : NaN;
     const latestAdx = latest&&finiteIndicator(latest.adx)?Number(latest.adx):NaN;
-    const latestPreviousAdx = latestIndex>=0?previousFiniteAdx(usable,latestIndex):NaN;
+    const adxTrends=adxStickyTrendSeries(usable.map(p=>finiteIndicator(p?.adx)?Number(p.adx):null));
+    const latestTrend=latestIndex>=0?Number(adxTrends[latestIndex]||0):0;
     const pillClasses = adxPillStrengthClasses(latestPlus, latestMinus);
-    const dominance=adxDominanceState(latestPlus,latestMinus,latestAdx,latestPreviousAdx);
+    const dominance=adxDominanceState(latestPlus,latestMinus,latestAdx,latestTrend);
     return `<div class="adx-panel">
       <div class="adx-head">
         <span class="adx-title">ADX / DMI 14</span>
@@ -1485,12 +1503,14 @@
       });
       return d;
     };
+    const adxTrendSeries=adxStickyTrendSeries(points.map(p=>finiteIndicator(p?.adx)?Number(p.adx):null));
     let adxSteps='';
     for(let i=1;i<points.length;i++){
       const prev=finiteIndicator(points[i-1]?.adx)?Number(points[i-1].adx):NaN;
       const curr=finiteIndicator(points[i]?.adx)?Number(points[i].adx):NaN;
       if(!Number.isFinite(prev)||!Number.isFinite(curr)) continue;
-      const cls=curr>prev?'adx-step-rising':curr<prev?'adx-step-falling':'adx-step-flat';
+      const trend=Number(adxTrendSeries[i]||0);
+      const cls=trend===1?'adx-step-rising':trend===-1?'adx-step-falling':'adx-step-flat';
       const x0=x(i-1),x1=x(i),y0=y(prev),y1=y(curr);
       adxSteps+=`<path class="adx-step ${cls}" d="M${x0.toFixed(1)},${y0.toFixed(1)} H${x1.toFixed(1)} V${y1.toFixed(1)}"/>`;
     }
@@ -1558,15 +1578,12 @@
         plusPill.classList.add(classes.plus);
         minusPill.classList.add(classes.minus);
       };
-      const previousAdxAt=(idx)=>{
-        for(let i=idx-1;i>=0;i--){const n=Number(adxs[i]);if(adxs[i]!==null&&Number.isFinite(n))return n;}
-        return NaN;
-      };
+      const adxTrends=adxStickyTrendSeries(adxs);
       const setDominanceState=(idx,p,m)=>{
         if(!statePill||!stateText)return;
         const a=adxs[idx]===null?NaN:Number(adxs[idx]);
-        const prev=previousAdxAt(idx);
-        const stateInfo=adxDominanceState(p,m,a,prev);
+        const trend=Number(adxTrends[idx]||0);
+        const stateInfo=adxDominanceState(p,m,a,trend);
         statePill.classList.remove('adx-controller-plus','adx-controller-minus','adx-controller-neutral','adx-trend-rising','adx-trend-falling','adx-trend-neutral');
         statePill.classList.add(stateInfo.controllerClass,stateInfo.trendClass);
         stateText.textContent=stateInfo.text;

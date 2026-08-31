@@ -46,6 +46,14 @@ Pipeline: `tavily-answer-direct-zhtw-v9-asset-identity`. Both frontend and Worke
 
 
 
+
+## ADX 1-decimal sticky stepline (v0.1.66)
+
+- ADX red/green stepline direction now compares values after rounding to **1 decimal place**.
+- If the rounded current ADX equals the rounded previous ADX, the display **keeps the previous effective green/red direction** instead of switching color because of hidden decimal noise.
+- The latest state capsule and synchronized hover capsule use the same sticky direction, so line color and state text remain consistent.
+- Raw ADX/DI calculations and plotted Y-values are unchanged. `engine/probability_reader.py`, HistoricalTraining model semantics, S-state rules, Worker, and workflows are intentionally unchanged in this release.
+
 ## ADX state pill background boost (v0.1.61)
 
 The ADX/DMI state capsule now separates **direction identity** from **trend-strength change**:

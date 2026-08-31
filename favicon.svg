@@ -1,60 +1,25 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Terminal icon with purple downtrend and yellow uptrend step chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="690" viewBox="0 0 600 690" role="img" aria-label="Traced yellow purple S logo">
   <defs>
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#153b8f"/>
-      <stop offset="100%" stop-color="#07225f"/>
+    <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B2A5F"/>
+      <stop offset="100%" stop-color="#0A1D47"/>
     </linearGradient>
-
-    <linearGradient id="panelGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0d2e78"/>
-      <stop offset="100%" stop-color="#08235f"/>
+    <linearGradient id="yellow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFE549"/>
+      <stop offset="100%" stop-color="#F2CF34"/>
     </linearGradient>
-
-    <filter id="cyanGlow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-
-    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="2.2" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C78EFF"/>
+      <stop offset="100%" stop-color="#A879E7"/>
+    </linearGradient>
   </defs>
 
-  <!-- outer shell -->
-  <rect x="14" y="14" width="228" height="228" rx="34" fill="#06173f" stroke="#7FEFF4" stroke-width="12" filter="url(#cyanGlow)"/>
+  <rect x="11" y="13" width="578" height="665" rx="118" fill="#4E6A96"/>
+  <rect x="28" y="30" width="544" height="630" rx="102" fill="url(#navy)"/>
 
-  <!-- inner panel -->
-  <rect x="44" y="44" width="168" height="168" rx="20" fill="url(#panelGrad)" stroke="#204ba2" stroke-width="2"/>
+  <!-- exact yellow contour traced from the selected source image -->
+  <path fill="url(#yellow)" d="M137 289 L190 343 L286 343 L287 307 L331 307 L332 270 L228 270 L227 183 L477 183 L477 140 L443 100 L201 100 L137 163 Z"/>
 
-  <!-- terminal prompt -->
-  <polyline points="64,82 80,98 64,114" fill="none" stroke="#78F3FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" filter="url(#cyanGlow)"/>
-  <line x1="90" y1="114" x2="108" y2="114" stroke="#78F3FF" stroke-width="10" stroke-linecap="round" filter="url(#cyanGlow)"/>
-
-  <!-- bands / guide lines -->
-  <path d="M56 108 C92 110, 122 120, 152 128 C176 134, 196 132, 208 126"
-        fill="none" stroke="#D9DEE8" stroke-width="3" stroke-linecap="round" opacity="0.92" filter="url(#softGlow)"/>
-  <path d="M56 172 C94 182, 126 184, 158 182 C182 180, 196 176, 208 170"
-        fill="none" stroke="#D9DEE8" stroke-width="3" stroke-linecap="round" opacity="0.92" filter="url(#softGlow)"/>
-  <line x1="60" y1="142" x2="204" y2="142" stroke="#6F8FC8" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 10" opacity="0.7"/>
-
-  <!-- purple downtrend steps -->
-  <path d="M60 138 H74 V148 H90 V160 H110 V172 H132 V182 H150"
-        fill="none" stroke="#C38CFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)"/>
-
-  <!-- yellow uptrend steps, connected cleanly from trough -->
-  <path d="M150 182 H166 V168 H184 V154 H198 V140 H210 V126 H220"
-        fill="none" stroke="#FFE63A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)"/>
-
-  <!-- right endpoint -->
-  <circle cx="220" cy="126" r="6.5" fill="#FFF1A0" filter="url(#softGlow)"/>
-
-  <!-- bottom indicator -->
-  <rect x="111" y="220" width="34" height="8" rx="4" fill="#87F6FB" filter="url(#cyanGlow)"/>
+  <!-- exact purple contour traced from the selected source image -->
+  <path fill="url(#purple)" d="M468 376 L419 326 L306 326 L306 362 L270 364 L270 402 L379 402 L380 500 L117 501 L116 542 L155 584 L404 584 L468 521 Z"/>
 </svg>

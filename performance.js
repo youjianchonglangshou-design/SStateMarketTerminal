@@ -10,7 +10,7 @@
     TRUE_FAIL: { label: "真失敗", cls: "fail" },
     OTHER: { label: "其他", cls: "other" },
   };
-  const state = { days: "7", performance: null, ledger: [], currentRows: [], activeModel: null };
+  const state = { days: "7", market: "ALL", performance: null, ledger: [], currentRows: [], activeModel: null };
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (value, digits=1) => Number.isFinite(Number(value)) ? `${(Number(value)*100).toFixed(digits)}%` : "—";
@@ -29,6 +29,17 @@
     const c=currentChampion();
     const modelId=String(c.model_id||""); const generation=Number(c.generation||0);
     return state.ledger.filter(r=>String(r.champion_model_id||"")===modelId && Number(r.generation||0)===generation);
+  }
+  function marketRows(rows) {
+    if(state.market==="ALL") return rows.slice();
+    return rows.filter(r=>String(r.market_type||"CRYPTO").toUpperCase()===state.market);
+  }
+  function scopedRows() {
+    return windowRows(marketRows(state.currentRows),state.days);
+  }
+  function marketLabel(value) {
+    const v=String(value||"CRYPTO").toUpperCase();
+    return v==="US_STOCK" ? "美股" : "Crypto";
   }
   function windowRows(rows, days) {
     if(days==="all") return rows.slice();
@@ -52,7 +63,7 @@
     return `<span class="outcome-pill ${node.cls}">${node.label}</span>`;
   }
   function renderChampion() {
-    const c=currentChampion(); const all=summary(state.currentRows); const threshold=Number(c.evolution_min_settled_72h||200);
+    const c=currentChampion(); const all=summary(state.currentRows); const threshold=Number(c.evolution_min_settled_72h||120);
     $("champion-id").textContent=c.model_id||"—";
     $("generation-badge").textContent=`GEN ${String(c.generation||"—").padStart(3,"0")}`;
     $("snapshot-count").textContent=all.snapshots.toLocaleString();
@@ -74,7 +85,7 @@
     sub.textContent=`成功率 ${pct(node.success_rate)}｜結構存活 ${pct(node.structural_survival_rate)}｜真失敗 ${pct(node.true_fail_rate)}｜待結算 ${node.pending_72h}`;
   }
   function renderSummary() {
-    const rows=windowRows(state.currentRows,state.days); const all=summary(rows);
+    const rows=scopedRows(); const all=summary(rows);
     $("overall-main").textContent=all.settled_72h ? `${all.success} 成功 / ${all.settled_72h} 結算` : "尚無正式結算";
     $("overall-outcomes").innerHTML=`<span class="outcome-success">成功 ${all.success}</span>｜<span class="outcome-alive">存活 ${all.alive_slow}</span>｜<span class="outcome-fail">真失敗 ${all.true_fail}</span>｜<span class="outcome-other">其他 ${all.other}</span>`;
     $("overall-sub").textContent=`成功率 ${pct(all.success_rate)}｜結構存活 ${pct(all.structural_survival_rate)}｜真失敗 ${pct(all.true_fail_rate)}｜快照 ${all.snapshots}｜待結算 ${all.pending_72h}`;
@@ -88,13 +99,13 @@
     return {samples:settled.length,wins,average:avg,actual,gap:actual!=null&&avg!=null?actual-avg:null};
   }
   function renderProbability() {
-    const rows=windowRows(state.currentRows,state.days); const host=$("probability-cards");
+    const rows=scopedRows(); const host=$("probability-cards");
     host.innerHTML=[.60,.65,.70].map(t=>{ const x=thresholdSummary(rows,t); const gapClass=Number(x.gap)>=0?"cal-positive":"cal-negative";
       return `<article class="probability-card ${t===.65?"focus":""}"><div class="probability-label">預估成功率 ≥${Math.round(t*100)}%</div><div class="probability-main">${x.samples?pct(x.actual):"尚無樣本"}</div><div class="probability-sub">${x.samples?`成功 ${x.wins} / ${x.samples}｜平均預估 ${pct(x.average)}<br>校準差 <span class="${gapClass}">${signedPct(x.gap)}</span>`:"等待 72H 正式結算累積"}</div></article>`;
     }).join("");
   }
   function renderDaily() {
-    const rows=windowRows(state.currentRows,state.days); const groups=new Map();
+    const rows=scopedRows(); const groups=new Map();
     for(const r of rows){ const day=String(r.decision_date_tw||String(r.decision_time_tw||"").slice(0,10)); if(!groups.has(day))groups.set(day,[]); groups.get(day).push(r); }
     const days=[...groups.keys()].sort().reverse(); const body=$("daily-body");
     if(!days.length){body.innerHTML='<tr><td colspan="9" class="loading-cell">此範圍尚無 Frozen Snapshot。</td></tr>';return;}
@@ -103,7 +114,7 @@
   function pathText(path) { return Array.isArray(path)&&path.length ? path.map(x=>typeof x==="string"?x:(x?.state||"")).filter(Boolean).join(" → ") : "—"; }
   function horizonCell(r,key){const s=settlement(r,key);return outcomeHtml(s.outcome,s.status)}
   function detailRows() {
-    let rows=windowRows(state.currentRows,state.days);
+    let rows=scopedRows();
     const sf=$("state-filter").value, of=$("outcome-filter").value, pf=$("probability-filter").value, q=$("search-input").value.trim().toUpperCase();
     if(sf!=="ALL") rows=rows.filter(r=>r.state===sf);
     if(of!=="ALL") rows=rows.filter(r=>of==="PENDING"?settlement(r).status!=="SETTLED":settlement(r).status==="SETTLED"&&settlement(r).outcome===of);
@@ -114,9 +125,9 @@
   function stateClass(s){return s==="S0.5"?"s05":s==="S1"?"s1":s==="S2"?"s2":"s3"}
   function renderDetail() {
     const rows=detailRows(); const body=$("detail-body");
-    if(!rows.length){body.innerHTML='<tr><td colspan="10" class="loading-cell">沒有符合篩選條件的紀錄。</td></tr>';$("detail-footer").textContent="0 筆";return;}
+    if(!rows.length){body.innerHTML='<tr><td colspan="11" class="loading-cell">沒有符合篩選條件的紀錄。</td></tr>';$("detail-footer").textContent="0 筆";return;}
     body.innerHTML=rows.slice(0,500).map(r=>{const p=r.prediction||{}, s72=settlement(r), mfe=Number(s72.max_return), mae=Number(s72.max_drawdown);
-      return `<tr><td>${escapeHtml(r.decision_time_tw||"—")}</td><td><b>${escapeHtml(r.symbol||"—")}</b></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
+      return `<tr><td>${escapeHtml(r.decision_time_tw||"—")}</td><td><b>${marketLabel(r.market_type)}</b></td><td><b>${escapeHtml(r.symbol||"—")}</b></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
     }).join("");
     $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 Champion Frozen Snapshot`;
   }
@@ -124,6 +135,14 @@
     renderSummary(); renderProbability(); renderDaily(); renderDetail();
   }
   function bind() {
+    document.querySelectorAll(".market-tab").forEach(btn=>btn.addEventListener("click",()=>{
+      document.querySelectorAll(".market-tab").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+      state.market=btn.dataset.market||"ALL";
+      const labels={ALL:"全部市場戰績",CRYPTO:"Crypto 戰績",US_STOCK:"美股戰績"};
+      $("market-note").textContent=labels[state.market]||"全部市場戰績";
+      renderRange();
+    }));
     document.querySelectorAll(".range-tab").forEach(btn=>btn.addEventListener("click",()=>{document.querySelectorAll(".range-tab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");state.days=btn.dataset.days||"7";renderRange()}));
     ["state-filter","outcome-filter","probability-filter"].forEach(id=>$(id).addEventListener("change",renderDetail));
     $("search-input").addEventListener("input",renderDetail);
@@ -141,7 +160,7 @@
       const generated=perf?.generated_at?new Date(perf.generated_at).toLocaleString("zh-TW",{hour12:false}):"尚未產生正式戰績";
       status.textContent=`戰績資料 ${generated}｜本代 ${state.currentRows.length} 筆 Frozen Snapshot`;
     } catch(err) {
-      console.error(err); status.textContent=`戰績載入失敗：${err.message}`; state.performance={champion:{generation:1,model_id:"—",evolution_min_settled_72h:200}}; state.ledger=[]; state.currentRows=[]; renderChampion(); renderRange();
+      console.error(err); status.textContent=`戰績載入失敗：${err.message}`; state.performance={champion:{generation:1,model_id:"—",evolution_min_settled_72h:120}}; state.ledger=[]; state.currentRows=[]; renderChampion(); renderRange();
     } finally { $("refresh-button").disabled=false; }
   }
   bind(); load();

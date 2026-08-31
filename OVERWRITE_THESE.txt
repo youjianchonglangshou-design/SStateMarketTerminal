@@ -1,0 +1,15 @@
+SStateMarketTerminal v0.1.69｜PERFORMANCE-MARKET-TABS
+
+覆蓋以下 8 個檔案：
+index.html
+performance.html
+performance.js
+performance.css
+config.js
+app.js
+VERSION.json
+README.md
+
+不需要修改 cloudflare/worker.js。
+主頁近期戰績會以新分頁開啟。
+戰績頁門檻改為 120，並新增 全部 / Crypto / 美股 切換。

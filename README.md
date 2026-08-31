@@ -1,3 +1,11 @@
+## TERMINAL v0.1.69｜PERFORMANCE-MARKET-TABS
+
+- 主頁 `近期戰績` 改為新分頁開啟，不覆蓋目前分析畫面。
+- 戰績頁配合 HistoricalTraining v3.3.0：下一代學習門檻顯示 120 筆 72H 正式結算。
+- 新增 `全部 / Crypto / 美股` 市場切換；S-state、機率校準、每日戰績與逐筆 Frozen Snapshot 都會跟著篩選。
+- 逐筆紀錄新增市場欄位。
+- 未修改 ADX、S-state、完整分析或 Cloudflare 08:25 排程。
+
 # SState Market Terminal
 
 ## v0.1.67｜MODEL-ADX-MIGRATION

@@ -1,7 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.68｜CHAMPION-PERFORMANCE",
-  "stage": "CHAMPION-PERFORMANCE",
+  "app_version": "TERMINAL v0.1.69｜PERFORMANCE-MARKET-TABS",
+  "stage": "PERFORMANCE-MARKET-TABS",
   "features": [
+    "The top-bar 近期戰績 link opens performance.html in a new browser tab via target=_blank.",
+    "Performance Center evolution threshold fallback is updated from 200 to 120 settled 72H Frozen Champion cases.",
+    "Performance Center adds ALL / CRYPTO / US_STOCK market tabs; S-state cards, probability calibration, daily records, and detail records follow the selected market.",
+    "Per-snapshot detail table now shows market type so Crypto and US-stock live learning can be audited separately.",
     "Removes the Champion vs Challenger competition panel from the main Terminal UI.",
     "Adds a top-bar 近期戰績 link that opens a dedicated Champion performance center.",
     "Performance Center reads HistoricalTraining Frozen Champion performance.json and ledger.jsonl without recomputing old predictions.",

@@ -1,5 +1,10 @@
 # SState Market Terminal
 
+## v0.1.67｜MODEL-ADX-MIGRATION
+
+`engine/probability_reader.py` now carries both ADX Step contracts during the v2 → v3 migration. R2 Active `DMI-EXPERT-v2-ADX-STEP` continues to use the old full-precision direction features. Only when the loaded model declares `DMI-EXPERT-v3-ADX-1DP-STICKY` does live inference switch to the new one-decimal + equal-value-sticky ADX Step fields. This keeps the current Champion mathematically stable while the new model is retrained/evaluated.
+
+
 **Current version:** `TERMINAL v0.1.65｜PROPW-CRM-MATCH`
 
 ## Current runtime

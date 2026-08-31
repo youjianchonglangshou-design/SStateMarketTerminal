@@ -9,9 +9,12 @@ Schema v3 adds DMI Expert as an *independent correction layer*. It never
 changes S0.5/S1/S2/S3. The legacy BB/HA Level 1-5 match is selected first,
 then eligible DMI facets adjust the four-way outcome distribution using the
 same reliability-weighted geometric-mean combiner used by HistoricalTraining.
-DMI-EXPERT-v2-ADX-STEP additionally matches the Terminal ADX stepline regime
-(controller x rising/falling), step persistence, axis zone, and turn handover.
-Schema v1/v2 and DMI Expert v1 stay backward compatible.
+DMI-EXPERT-v2-ADX-STEP keeps the original full-precision ADX stepline regime.
+DMI-EXPERT-v3-ADX-1DP-STICKY uses the revised Pine/Terminal display semantics:
+round ADX to one decimal first, then keep the previous red/green direction when
+rounded values are equal. The reader carries both feature sets and selects the
+matching semantics from the model contract, so an old Active v2 model remains
+mathematically unchanged until a v3 model is actually promoted.
 """
 
 import json
@@ -133,6 +136,14 @@ def _adx_axis_zone(adx: float | None) -> str:
     return "TOUCHING_20"
 
 
+def _round_adx_1dp(value: float | None) -> float | None:
+    if value is None:
+        return None
+    # ADX is non-negative. This matches Pine/JS math.round(x*10)/10 and avoids
+    # Python's bankers-rounding at exact x.x5 boundaries.
+    return math.floor(float(value) * 10.0 + 0.5) / 10.0
+
+
 def _adx_step_direction(previous: float | None, current: float | None) -> str:
     if previous is None or current is None:
         return "UNKNOWN"
@@ -143,43 +154,20 @@ def _adx_step_direction(previous: float | None, current: float | None) -> str:
     return "FLAT"
 
 
-def _adx_step_features(values: list[Any]) -> dict[str, Any]:
-    """Exact HistoricalTraining v2 ADX stepline semantics.
-
-    Daily ADX > previous daily ADX = RISING/green; lower = FALLING/red;
-    equal = FLAT. The live daily array may contain the current partial day,
-    matching the same no-lookahead replay contract used during training.
-    """
+def _adx_step_features_legacy(values: list[Any]) -> dict[str, Any]:
+    """HistoricalTraining v2 semantics: compare full-precision ADX directly."""
     series = [_safe_float(value) for value in values]
     if len(series) < 2:
-        return {
-            "adx_step_direction": "UNKNOWN",
-            "adx_step_age_days": 0,
-            "adx_step_age_bin": "UNKNOWN",
-            "adx_turn_event": "UNKNOWN",
-            "adx_step_delta": None,
-        }
-
-    current_direction = _adx_step_direction(series[-2], series[-1])
+        return {"adx_step_direction":"UNKNOWN", "adx_step_age_days":0, "adx_step_age_bin":"UNKNOWN", "adx_turn_event":"UNKNOWN", "adx_step_delta":None}
+    directions = [_adx_step_direction(series[i - 1], series[i]) for i in range(1, len(series))]
+    current_direction = directions[-1]
     if current_direction == "UNKNOWN":
-        return {
-            "adx_step_direction": "UNKNOWN",
-            "adx_step_age_days": 0,
-            "adx_step_age_bin": "UNKNOWN",
-            "adx_turn_event": "UNKNOWN",
-            "adx_step_delta": None,
-        }
-
-    directions = [
-        _adx_step_direction(series[i - 1], series[i])
-        for i in range(1, len(series))
-    ]
+        return {"adx_step_direction":"UNKNOWN", "adx_step_age_days":0, "adx_step_age_bin":"UNKNOWN", "adx_turn_event":"UNKNOWN", "adx_step_delta":None}
     age = 1
     for direction in reversed(directions[:-1]):
         if direction != current_direction:
             break
         age += 1
-
     previous_direction = directions[-2] if len(directions) >= 2 else "UNKNOWN"
     if previous_direction == "FALLING" and current_direction == "RISING":
         turn = "RED_TO_GREEN"
@@ -191,17 +179,52 @@ def _adx_step_features(values: list[Any]) -> dict[str, Any]:
         turn = "NONE"
     else:
         turn = "UNKNOWN"
-
     previous_value = series[-2]
     current_value = series[-1]
     delta = (current_value - previous_value) if previous_value is not None and current_value is not None else None
-    return {
-        "adx_step_direction": current_direction,
-        "adx_step_age_days": int(age),
-        "adx_step_age_bin": _bin_age(int(age)),
-        "adx_turn_event": turn,
-        "adx_step_delta": round(delta, 8) if delta is not None else None,
-    }
+    return {"adx_step_direction":current_direction, "adx_step_age_days":int(age), "adx_step_age_bin":_bin_age(int(age)), "adx_turn_event":turn, "adx_step_delta":round(delta,8) if delta is not None else None}
+
+
+def _adx_step_features_1dp_sticky(values: list[Any]) -> dict[str, Any]:
+    """HistoricalTraining v3 semantics: 1dp comparison + equal keeps last color."""
+    series = [_safe_float(value) for value in values]
+    if len(series) < 2:
+        return {"adx_step_direction":"UNKNOWN", "adx_step_age_days":0, "adx_step_age_bin":"UNKNOWN", "adx_turn_event":"UNKNOWN", "adx_step_delta":None}
+    directions: list[str] = []
+    sticky = "UNKNOWN"
+    for i in range(1, len(series)):
+        previous = _round_adx_1dp(series[i - 1])
+        current = _round_adx_1dp(series[i])
+        if previous is None or current is None:
+            direction = sticky if sticky in {"RISING", "FALLING"} else "UNKNOWN"
+        elif current > previous:
+            direction = sticky = "RISING"
+        elif current < previous:
+            direction = sticky = "FALLING"
+        else:
+            direction = sticky if sticky in {"RISING", "FALLING"} else "UNKNOWN"
+        directions.append(direction)
+    current_direction = directions[-1]
+    if current_direction not in {"RISING", "FALLING"}:
+        return {"adx_step_direction":"UNKNOWN", "adx_step_age_days":0, "adx_step_age_bin":"UNKNOWN", "adx_turn_event":"UNKNOWN", "adx_step_delta":None}
+    age = 1
+    for direction in reversed(directions[:-1]):
+        if direction != current_direction:
+            break
+        age += 1
+    previous_direction = directions[-2] if len(directions) >= 2 else "UNKNOWN"
+    if previous_direction == "FALLING" and current_direction == "RISING":
+        turn = "RED_TO_GREEN"
+    elif previous_direction == "RISING" and current_direction == "FALLING":
+        turn = "GREEN_TO_RED"
+    elif previous_direction == current_direction:
+        turn = "NONE"
+    else:
+        turn = "UNKNOWN"
+    previous_value = series[-2]
+    current_value = series[-1]
+    delta = (current_value - previous_value) if previous_value is not None and current_value is not None else None
+    return {"adx_step_direction":current_direction, "adx_step_age_days":int(age), "adx_step_age_bin":_bin_age(int(age)), "adx_turn_event":turn, "adx_step_delta":round(delta,8) if delta is not None else None}
 
 
 def _dmi_adx_regime(relation: str, adx_step_direction: str) -> str:
@@ -325,7 +348,8 @@ def extract_live_features(record: dict[str, Any], opportunity: dict[str, Any]) -
             gap_series.append(pf - mf)
     gap_slope = _slope_last3(gap_series)
     adx_slope = _slope_last3(adx_series)
-    adx_step = _adx_step_features(adx_series)
+    adx_step = _adx_step_features_legacy(adx_series)
+    adx_step_sticky = _adx_step_features_1dp_sticky(adx_series)
 
     # HistoricalTraining measures relation age in consecutive 4H replay cutoffs.
     # analysis_core exports exactly that replayed age. If its replayed relation
@@ -379,9 +403,17 @@ def extract_live_features(record: dict[str, Any], opportunity: dict[str, Any]) -
         "adx": round(adx, 8) if adx is not None else None,
         "adx_slope_3d": round(adx_slope, 8) if adx_slope is not None else None,
         "adx_axis_zone": _adx_axis_zone(adx),
+        # Generic fields stay on v2 semantics while Active is still v2. The
+        # v3 equivalents are carried beside them and selected in lookup_probability
+        # only when the loaded model contract is DMI-EXPERT-v3-ADX-1DP-STICKY.
         **adx_step,
+        "adx_step_direction_1dp_sticky": adx_step_sticky.get("adx_step_direction"),
+        "adx_step_age_days_1dp_sticky": adx_step_sticky.get("adx_step_age_days"),
+        "adx_step_age_bin_1dp_sticky": adx_step_sticky.get("adx_step_age_bin"),
+        "adx_turn_event_1dp_sticky": adx_step_sticky.get("adx_turn_event"),
         "dmi_relation": relation,
         "dmi_adx_regime": _dmi_adx_regime(relation, str(adx_step.get("adx_step_direction") or "UNKNOWN")),
+        "dmi_adx_regime_1dp_sticky": _dmi_adx_regime(relation, str(adx_step_sticky.get("adx_step_direction") or "UNKNOWN")),
         "dmi_axis_zone": _dmi_axis_zone(di_plus, di_minus),
         "dmi_cross_age_bars": int(dmi_age) if dmi_age is not None else None,
         "dmi_cross_age_bin": str(dmi_age_bin) if dmi_age_bin else "UNKNOWN",
@@ -688,9 +720,23 @@ def lookup_probability(
     min_samples = int(model.get("default_min_samples", 50))
     base_node, base_meta = _lookup_base_rule(hnode, features, min_samples, max_level)
 
-    # Schema v1/v2 or v3 horizons without DMI remain exactly backward-compatible.
-    dmi_matches, enriched = _lookup_dmi_facets(state_node, hnode, features, min_samples)
+    # Model-contract-aware ADX semantic bridge. Active v2 continues using the
+    # exact-value fields; v3 swaps only the ADX Step categories to the 1dp sticky
+    # equivalents. Base BB/HA features are unchanged.
     dmi_version = (model.get("dmi_expert_contract") or {}).get("version")
+    model_features = dict(features or {})
+    if dmi_version == "DMI-EXPERT-v3-ADX-1DP-STICKY":
+        mapping = {
+            "adx_step_direction": "adx_step_direction_1dp_sticky",
+            "adx_step_age_days": "adx_step_age_days_1dp_sticky",
+            "adx_step_age_bin": "adx_step_age_bin_1dp_sticky",
+            "adx_turn_event": "adx_turn_event_1dp_sticky",
+            "dmi_adx_regime": "dmi_adx_regime_1dp_sticky",
+        }
+        for target, source in mapping.items():
+            if model_features.get(source) is not None:
+                model_features[target] = model_features.get(source)
+    dmi_matches, enriched = _lookup_dmi_facets(state_node, hnode, model_features, min_samples)
     if not dmi_matches:
         return {
             "available": True,

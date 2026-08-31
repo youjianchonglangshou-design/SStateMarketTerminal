@@ -1,20 +1,21 @@
 {
-  "app_version": "TERMINAL v0.1.66｜ADX-1DP-STICKY",
-  "stage": "ADX-1DP-STICKY",
+  "app_version": "TERMINAL v0.1.67｜MODEL-ADX-MIGRATION",
+  "stage": "MODEL-ADX-MIGRATION",
   "features": [
+    "probability_reader.py now carries both DMI Expert v2 full-precision ADX Step semantics and DMI Expert v3 1-decimal sticky ADX Step semantics",
+    "The loaded model contract selects which ADX Step feature set is matched: Active v2 remains unchanged; DMI-EXPERT-v3-ADX-1DP-STICKY automatically uses rounded-1dp sticky direction after promotion",
+    "This prevents the live probability reader from mismatching the existing Champion while the retrained v3 model is still Candidate/Challenger",
+    "Front-end ADX stepline remains the v0.1.66 1-decimal sticky display rule",
     "ADX stepline color now compares ADX after rounding to 1 decimal place, matching the revised Pine display rule and suppressing micro-float red/green noise",
     "When consecutive 1-decimal ADX values are equal, the stepline keeps the previous effective rising/falling color instead of switching to neutral",
     "Latest and hover ADX/DMI state pills use the same 1-decimal sticky direction as the stepline, so chart color and state text stay consistent",
-    "Underlying ADX/DI calculation, raw chart values, probability_reader.py model features, HistoricalTraining semantics, S-state rules, Worker, and workflows are unchanged in this UI patch",
     "Replaces the retired Tradeify/DX badge mapping with the PropW/PW mapping; no second legacy mapping is retained",
     "PW badge is shown only for currently confirmed SState/Pionex RWA symbols that match the supplied PropW instrument list",
     "Confirmed PropW mapping now contains 21 instruments, including CRMX → CRM (Salesforce); CRWD remains unlabeled because no confirmed Terminal symbol match exists",
     "ADX state pill arrows are strengthened: trend strength ↗↗, weakening ↘↘, flat force ←→",
-    "probability_reader.py now derives HistoricalTraining v2 ADX Step live features directly from the existing 30-day ADX series",
     "Adds adx_axis_zone, adx_step_direction, adx_step_age_days/bin, adx_turn_event, adx_step_delta, and dmi_adx_regime",
-    "DMI-EXPERT-v2-ADX-STEP can now match adx_step_regime, adx_step_persistence, and adx_turn_handover in addition to the original four DMI facets",
     "cross_momentum and adx_turn_handover are skipped when 4H DI relation-age replay is not verified; no daily substitute is fabricated",
     "No ADX/DI formula, S-state rule, Worker, workflow, or front-end chart logic changed; the new trained model is not auto-published by this patch"
   ],
-  "version": "0.1.66"
+  "version": "0.1.67"
 }

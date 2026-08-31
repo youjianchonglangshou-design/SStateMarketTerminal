@@ -15,6 +15,11 @@ on:
         description: "Cloudflare 自動排程 batch_id"
         required: true
         type: string
+      checkpoint_date_tw:
+        description: "只有台灣 04:01 正式 Champion checkpoint 會帶入 YYYY-MM-DD；其他批次為空"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -40,6 +45,7 @@ jobs:
       BATCH_ID: ${{ inputs.batch_id }}
       RUN_ID: ${{ inputs.batch_id }}_crypto
       MARKET: crypto
+      CHECKPOINT_DATE_TW: ${{ inputs.checkpoint_date_tw }}
 
     steps:
       - uses: actions/checkout@v6
@@ -79,11 +85,16 @@ jobs:
       - name: Upload Crypto snapshot to R2
         shell: bash
         run: |
+          URL="$WORKER_BASE_URL/api/internal/snapshot?market=crypto&run_id=$RUN_ID"
+          if [ -n "$CHECKPOINT_DATE_TW" ]; then
+            URL="${URL}&checkpoint_date_tw=${CHECKPOINT_DATE_TW}"
+            echo "04:01 Champion checkpoint: $CHECKPOINT_DATE_TW / Crypto"
+          fi
           curl --fail --silent --show-error -X PUT \
             -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
             -H "Content-Type: application/json" \
             --data-binary "@output/snapshot_ai.json" \
-            "$WORKER_BASE_URL/api/internal/snapshot?market=crypto&run_id=$RUN_ID"
+            "$URL"
 
       - name: Upload Crypto artifact
         if: always()
@@ -110,6 +121,7 @@ jobs:
       RUN_ID: ${{ inputs.batch_id }}_us_stock
       MARKET: us-stock
       MODE: ${{ inputs.mode }}
+      CHECKPOINT_DATE_TW: ${{ inputs.checkpoint_date_tw }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -148,11 +160,16 @@ jobs:
       - name: Upload US-stock snapshot to R2
         shell: bash
         run: |
+          URL="$WORKER_BASE_URL/api/internal/snapshot?market=us-stock&run_id=$RUN_ID"
+          if [ -n "$CHECKPOINT_DATE_TW" ]; then
+            URL="${URL}&checkpoint_date_tw=${CHECKPOINT_DATE_TW}"
+            echo "04:01 Champion checkpoint: $CHECKPOINT_DATE_TW / US-stock"
+          fi
           curl --fail --silent --show-error -X PUT \
             -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
             -H "Content-Type: application/json" \
             --data-binary "@output/snapshot_us_stock_ai.json" \
-            "$WORKER_BASE_URL/api/internal/snapshot?market=us-stock&run_id=$RUN_ID"
+            "$URL"
 
 
       - name: Upload US-stock artifact

@@ -1,3 +1,8 @@
+## TERMINAL v0.1.72｜PERFORMANCE-STATE-COLORS
+
+- 修正近期戰績頁 S-state 膠囊配色，與主頁正式配色完全一致：S3 黃、S2 綠、S1 藍、S0.5 紫。
+- 未修改 Frozen Snapshot、排序、結算、模型、ADX、S-state 計算或 Cloudflare 排程。
+
 ## TERMINAL v0.1.71｜SORTABLE-PERFORMANCE
 
 - `每日 Champion 戰績` 與 `逐筆 Frozen Snapshot 結算` 的欄位標題可點擊排序；再次點擊切換升冪/降冪。

@@ -1,7 +1,8 @@
 {
-  "app_version": "TERMINAL v0.1.71｜SORTABLE-PERFORMANCE",
-  "stage": "SORTABLE-PERFORMANCE",
+  "app_version": "TERMINAL v0.1.72｜PERFORMANCE-STATE-COLORS",
+  "stage": "PERFORMANCE-STATE-COLORS",
   "features": [
+    "Performance Center S-state capsules now use the exact same colors as the main Terminal: S3 yellow, S2 green, S1 blue, S0.5 purple.",
     "Performance Center daily and Frozen Snapshot table headers are clickable sortable columns with ascending/descending indicators.",
     "Frozen Snapshot date display is simplified to M/D (for example 9/1); sorting still uses the full checkpoint timestamp internally.",
     "Cloudflare 4H auto analysis still runs every four hours for Crypto + US-stock, but ordinary runs now update latest/ only and no longer keep full snapshot files under runs/.",

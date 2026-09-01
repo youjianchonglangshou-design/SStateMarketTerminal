@@ -10,7 +10,8 @@
     TRUE_FAIL: { label: "真失敗", cls: "fail" },
     OTHER: { label: "其他", cls: "other" },
   };
-  const state = { days: "7", market: "ALL", performance: null, ledger: [], currentRows: [], activeModel: null };
+  const state = { days: "7", market: "ALL", performance: null, ledger: [], currentRows: [], activeModel: null,
+    dailySort: { key: "date", dir: "desc" }, detailSort: { key: "date", dir: "desc" } };
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (value, digits=1) => Number.isFinite(Number(value)) ? `${(Number(value)*100).toFixed(digits)}%` : "—";
@@ -18,6 +19,30 @@
     const n=Number(value); if(!Number.isFinite(n)) return "—";
     return `${n>0?"+":""}${(n*100).toFixed(digits)}%`;
   };
+  function shortDate(value) {
+    const raw=String(value||"");
+    const m=raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return `${Number(m[2])}/${Number(m[3])}`;
+    const d=new Date(value); return Number.isFinite(d.getTime()) ? `${d.getMonth()+1}/${d.getDate()}` : "—";
+  }
+  function compareValues(a,b,dir="asc") {
+    const an=Number(a), bn=Number(b);
+    let result;
+    if(Number.isFinite(an)&&Number.isFinite(bn)) result=an-bn;
+    else result=String(a??"").localeCompare(String(b??""),"zh-Hant",{numeric:true,sensitivity:"base"});
+    return dir==="desc" ? -result : result;
+  }
+  function outcomeRank(r,key) {
+    const s=settlement(r,key); if(s.status!=="SETTLED") return -1;
+    return {TRUE_FAIL:0,OTHER:1,ALIVE_SLOW:2,SUCCESS_WITHIN_HORIZON:3}[s.outcome] ?? 1;
+  }
+  function updateSortIndicators(tableName) {
+    const sort=tableName==="daily"?state.dailySort:state.detailSort;
+    document.querySelectorAll(`.sort-button[data-sort-table="${tableName}"]`).forEach(btn=>{
+      const active=btn.dataset.sortKey===sort.key; btn.classList.toggle("active",active);
+      const node=btn.querySelector(".sort-indicator"); if(node) node.textContent=active?(sort.dir==="asc"?"▲":"▼"):"";
+    });
+  }
   const bust = url => `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
   async function fetchJson(url) { const r=await fetch(bust(url),{cache:"no-store"}); if(!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); }
   async function fetchText(url) { const r=await fetch(bust(url),{cache:"no-store"}); if(!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.text(); }
@@ -107,9 +132,13 @@
   function renderDaily() {
     const rows=scopedRows(); const groups=new Map();
     for(const r of rows){ const day=String(r.decision_date_tw||String(r.decision_time_tw||"").slice(0,10)); if(!groups.has(day))groups.set(day,[]); groups.get(day).push(r); }
-    const days=[...groups.keys()].sort().reverse(); const body=$("daily-body");
-    if(!days.length){body.innerHTML='<tr><td colspan="9" class="loading-cell">此範圍尚無 Frozen Snapshot。</td></tr>';return;}
-    body.innerHTML=days.map(day=>{const s=summary(groups.get(day));return `<tr><td><b>${escapeHtml(day)}</b></td><td>${s.settled_72h}</td><td class="outcome-success">${s.success}</td><td class="outcome-alive">${s.alive_slow}</td><td class="outcome-fail">${s.true_fail}</td><td>${s.other}</td><td>${pct(s.success_rate)}</td><td>${pct(s.structural_survival_rate)}</td><td>${pct(s.true_fail_rate)}</td></tr>`}).join("");
+    let dayRows=[...groups.entries()].map(([day,items])=>({day,summary:summary(items)})); const body=$("daily-body");
+    if(!dayRows.length){body.innerHTML='<tr><td colspan="9" class="loading-cell">此範圍尚無 Frozen Snapshot。</td></tr>';updateSortIndicators("daily");return;}
+    const sort=state.dailySort;
+    const value=(x)=>({date:x.day,settled:x.summary.settled_72h,success:x.summary.success,alive:x.summary.alive_slow,fail:x.summary.true_fail,other:x.summary.other,success_rate:x.summary.success_rate??-1,survival_rate:x.summary.structural_survival_rate??-1,fail_rate:x.summary.true_fail_rate??-1}[sort.key]);
+    dayRows.sort((a,b)=>compareValues(value(a),value(b),sort.dir));
+    body.innerHTML=dayRows.map(({day,summary:s})=>`<tr><td><b>${escapeHtml(shortDate(day))}</b></td><td>${s.settled_72h}</td><td class="outcome-success">${s.success}</td><td class="outcome-alive">${s.alive_slow}</td><td class="outcome-fail">${s.true_fail}</td><td>${s.other}</td><td>${pct(s.success_rate)}</td><td>${pct(s.structural_survival_rate)}</td><td>${pct(s.true_fail_rate)}</td></tr>`).join("");
+    updateSortIndicators("daily");
   }
   function pathText(path) { return Array.isArray(path)&&path.length ? path.map(x=>typeof x==="string"?x:(x?.state||"")).filter(Boolean).join(" → ") : "—"; }
   function horizonCell(r,key){const s=settlement(r,key);return outcomeHtml(s.outcome,s.status)}
@@ -120,16 +149,30 @@
     if(of!=="ALL") rows=rows.filter(r=>of==="PENDING"?settlement(r).status!=="SETTLED":settlement(r).status==="SETTLED"&&settlement(r).outcome===of);
     if(pf!=="ALL") rows=rows.filter(r=>Number(r?.prediction?.success_probability||0)>=Number(pf));
     if(q) rows=rows.filter(r=>String(r.symbol||"").toUpperCase().includes(q));
-    return rows.sort((a,b)=>Number(b.decision_time||0)-Number(a.decision_time||0));
+    const sort=state.detailSort;
+    const stateRank={"S0.5":0.5,S1:1,S2:2,S3:3};
+    const value=(r)=>{
+      if(sort.key==="date") return Number(r.decision_time||Date.parse(r.checkpoint_time_tw||r.decision_time_tw||0)||0);
+      if(sort.key==="market") return marketLabel(r.market_type);
+      if(sort.key==="symbol") return String(r.symbol||"");
+      if(sort.key==="state") return stateRank[r.state]??99;
+      if(sort.key==="prediction") return Number(r?.prediction?.success_probability||0);
+      if(["12H","24H","48H","72H"].includes(sort.key)) return outcomeRank(r,sort.key);
+      if(sort.key==="path") return pathText(settlement(r).state_path||r.final_path);
+      if(sort.key==="mfe") return Number(settlement(r).max_return ?? -999);
+      return 0;
+    };
+    return rows.sort((a,b)=>compareValues(value(a),value(b),sort.dir));
   }
   function stateClass(s){return s==="S0.5"?"s05":s==="S1"?"s1":s==="S2"?"s2":"s3"}
   function renderDetail() {
     const rows=detailRows(); const body=$("detail-body");
     if(!rows.length){body.innerHTML='<tr><td colspan="11" class="loading-cell">沒有符合篩選條件的紀錄。</td></tr>';$("detail-footer").textContent="0 筆";return;}
     body.innerHTML=rows.slice(0,500).map(r=>{const p=r.prediction||{}, s72=settlement(r), mfe=Number(s72.max_return), mae=Number(s72.max_drawdown);
-      return `<tr><td>${escapeHtml(r.checkpoint_time_tw||r.decision_time_tw||"—")}</td><td><b>${marketLabel(r.market_type)}</b></td><td><b>${escapeHtml(r.symbol||"—")}</b></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
+      return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td><b>${marketLabel(r.market_type)}</b></td><td><b>${escapeHtml(r.symbol||"—")}</b></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
     }).join("");
     $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 Champion Frozen Snapshot`;
+    updateSortIndicators("detail");
   }
   function renderRange() {
     renderSummary(); renderProbability(); renderDaily(); renderDetail();
@@ -144,6 +187,11 @@
       renderRange();
     }));
     document.querySelectorAll(".range-tab").forEach(btn=>btn.addEventListener("click",()=>{document.querySelectorAll(".range-tab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");state.days=btn.dataset.days||"7";renderRange()}));
+    document.querySelectorAll(".sort-button").forEach(btn=>btn.addEventListener("click",()=>{
+      const table=btn.dataset.sortTable, key=btn.dataset.sortKey; const sort=table==="daily"?state.dailySort:state.detailSort;
+      if(sort.key===key) sort.dir=sort.dir==="asc"?"desc":"asc"; else { sort.key=key; sort.dir=(key==="date"?"desc":"asc"); }
+      if(table==="daily") renderDaily(); else renderDetail();
+    }));
     ["state-filter","outcome-filter","probability-filter"].forEach(id=>$(id).addEventListener("change",renderDetail));
     $("search-input").addEventListener("input",renderDetail);
     $("refresh-button").addEventListener("click",load);

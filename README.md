@@ -1,3 +1,9 @@
+## TERMINAL v0.1.71｜SORTABLE-PERFORMANCE
+
+- `每日 Champion 戰績` 與 `逐筆 Frozen Snapshot 結算` 的欄位標題可點擊排序；再次點擊切換升冪/降冪。
+- Frozen Snapshot 日期畫面簡化為 `M/D`（例如 `9/1`），內部仍使用完整 checkpoint timestamp 排序。
+- 未修改 04:01 Champion Checkpoint、08:25 HistoricalTraining、ADX、S-state 或模型機率邏輯。
+
 ## TERMINAL v0.1.70｜0401-CHAMPION-CHECKPOINT
 
 - 每 4 小時 Crypto + 美股分析照常執行，所有批次仍更新 `latest/`。

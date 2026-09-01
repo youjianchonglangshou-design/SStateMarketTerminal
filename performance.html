@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="theme-color" content="#1e293b">
   <title>SStateMarketTerminal｜近期戰績</title>
-  <link rel="stylesheet" href="./performance.css?v=champion-performance-v2">
+  <link rel="stylesheet" href="./performance.css?v=champion-performance-v3">
 </head>
 <body>
   <main class="performance-page">
@@ -113,7 +113,17 @@
       </div>
       <div class="table-wrap">
         <table class="daily-table">
-          <thead><tr><th>日期</th><th>已結算</th><th>成功</th><th>存活</th><th>真失敗</th><th>其他</th><th>成功率</th><th>結構存活率</th><th>真失敗率</th></tr></thead>
+          <thead><tr>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="date" type="button">日期 <span class="sort-indicator">▼</span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="settled" type="button">已結算 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="success" type="button">成功 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="alive" type="button">存活 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="fail" type="button">真失敗 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="other" type="button">其他 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="success_rate" type="button">成功率 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="survival_rate" type="button">結構存活率 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="daily" data-sort-key="fail_rate" type="button">真失敗率 <span class="sort-indicator"></span></button></th>
+          </tr></thead>
           <tbody id="daily-body"><tr><td colspan="9" class="loading-cell">讀取中…</td></tr></tbody>
         </table>
       </div>
@@ -134,7 +144,19 @@
       </div>
       <div class="table-wrap detail-table-wrap">
         <table class="detail-table">
-          <thead><tr><th>日期時間</th><th>市場</th><th>標的</th><th>當時狀態</th><th>Champion 預估</th><th>12H</th><th>24H</th><th>48H</th><th>72H</th><th>72H 實際路徑</th><th>MFE / MAE</th></tr></thead>
+          <thead><tr>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="date" type="button">日期 <span class="sort-indicator">▼</span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="market" type="button">市場 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="symbol" type="button">標的 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="state" type="button">當時狀態 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="prediction" type="button">Champion 預估 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="12H" type="button">12H <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="24H" type="button">24H <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="48H" type="button">48H <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="72H" type="button">72H <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="path" type="button">72H 實際路徑 <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="mfe" type="button">MFE / MAE <span class="sort-indicator"></span></button></th>
+          </tr></thead>
           <tbody id="detail-body"><tr><td colspan="11" class="loading-cell">讀取中…</td></tr></tbody>
         </table>
       </div>
@@ -142,6 +164,6 @@
     </section>
   </main>
   <script src="./config.js"></script>
-  <script src="./performance.js?v=champion-performance-v2" defer></script>
+  <script src="./performance.js?v=champion-performance-v3" defer></script>
 </body>
 </html>

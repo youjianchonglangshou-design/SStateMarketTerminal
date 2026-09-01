@@ -1,7 +1,9 @@
 {
-  "app_version": "TERMINAL v0.1.70｜0401-CHAMPION-CHECKPOINT",
-  "stage": "0401-CHAMPION-CHECKPOINT",
+  "app_version": "TERMINAL v0.1.71｜SORTABLE-PERFORMANCE",
+  "stage": "SORTABLE-PERFORMANCE",
   "features": [
+    "Performance Center daily and Frozen Snapshot table headers are clickable sortable columns with ascending/descending indicators.",
+    "Frozen Snapshot date display is simplified to M/D (for example 9/1); sorting still uses the full checkpoint timestamp internally.",
     "Cloudflare 4H auto analysis still runs every four hours for Crypto + US-stock, but ordinary runs now update latest/ only and no longer keep full snapshot files under runs/.",
     "The Taiwan 04:01 auto batch is explicitly marked from ScheduledController.scheduledTime and stores the only durable daily market snapshots under runs/champion/YYYY-MM-DD_0401/.",
     "Adds GET /api/champion/checkpoint?market=crypto|us-stock&date=YYYY-MM-DD for HistoricalTraining 08:25 settlement/freeze ingestion.",
@@ -20,5 +22,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.70"
+  "version": "0.1.71"
 }

@@ -169,11 +169,31 @@
     const rows=detailRows(); const body=$("detail-body");
     if(!rows.length){body.innerHTML='<tr><td colspan="11" class="loading-cell">沒有符合篩選條件的紀錄。</td></tr>';$("detail-footer").textContent="0 筆";return;}
     body.innerHTML=rows.slice(0,500).map(r=>{const p=r.prediction||{}, s72=settlement(r), mfe=Number(s72.max_return), mae=Number(s72.max_drawdown);
-      return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td><b>${marketLabel(r.market_type)}</b></td><td><b>${escapeHtml(r.symbol||"—")}</b></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
+      const symbol=String(r.symbol||"—"), market=String(r.market_type||"CRYPTO").toUpperCase();
+      return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td><b>${marketLabel(r.market_type)}</b></td><td><button class="symbol-history-link" type="button" data-symbol="${escapeHtml(symbol)}" data-market="${escapeHtml(market)}" title="查看 ${escapeHtml(symbol)} 歷史路徑">${escapeHtml(symbol)}</button></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
     }).join("");
     $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 Champion Frozen Snapshot`;
     updateSortIndicators("detail");
   }
+  function rowTime(r) { return Number(r?.decision_time||Date.parse(r?.checkpoint_time_tw||r?.decision_time_tw||r?.decision_date_tw||0)||0); }
+  function symbolHistoryRows(symbol, market) {
+    const s=String(symbol||"").toUpperCase(), m=String(market||"CRYPTO").toUpperCase();
+    return state.ledger.filter(r=>String(r.symbol||"").toUpperCase()===s && String(r.market_type||"CRYPTO").toUpperCase()===m).sort((a,b)=>rowTime(a)-rowTime(b));
+  }
+  function openSymbolHistory(symbol, market) {
+    const rows=symbolHistoryRows(symbol,market), modal=$("history-modal"), body=$("history-body"), route=$("history-route");
+    $("history-title").textContent=`${symbol}｜歷史路徑`; $("history-market").textContent=marketLabel(market);
+    if(!rows.length){ $("history-meta").textContent="尚無 Frozen Snapshot"; route.textContent="—"; body.innerHTML='<tr><td colspan="10" class="loading-cell">尚無歷史紀錄。</td></tr>'; }
+    else {
+      const first=shortDate(rows[0].checkpoint_time_tw||rows[0].decision_time_tw||rows[0].decision_date_tw), last=shortDate(rows[rows.length-1].checkpoint_time_tw||rows[rows.length-1].decision_time_tw||rows[rows.length-1].decision_date_tw);
+      const gens=[...new Set(rows.map(r=>Number(r.generation||0)).filter(Boolean))];
+      $("history-meta").textContent=`${rows.length} 筆 Frozen Snapshot｜${first} ～ ${last}${gens.length?`｜GEN ${gens.map(x=>String(x).padStart(3,"0")).join(" / ")}`:""}`;
+      route.innerHTML=rows.map((r,i)=>`${i?'<span class="history-route-arrow">→</span>':''}<div class="history-route-node"><span class="history-route-date">${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</span><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span></div>`).join("");
+      body.innerHTML=rows.slice().reverse().map(r=>{ const p=r.prediction||{}, s72=settlement(r,"72H"); return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td>GEN ${String(r.generation||"—").padStart(3,"0")}</td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span></td><td><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td></tr>`; }).join("");
+    }
+    modal.hidden=false; document.body.classList.add("history-modal-open");
+  }
+  function closeSymbolHistory() { const modal=$("history-modal"); if(modal) modal.hidden=true; document.body.classList.remove("history-modal-open"); }
   function renderRange() {
     renderSummary(); renderProbability(); renderDaily(); renderDetail();
   }
@@ -194,6 +214,9 @@
     }));
     ["state-filter","outcome-filter","probability-filter"].forEach(id=>$(id).addEventListener("change",renderDetail));
     $("search-input").addEventListener("input",renderDetail);
+    $("detail-body").addEventListener("click",e=>{ const btn=e.target.closest(".symbol-history-link"); if(btn) openSymbolHistory(btn.dataset.symbol,btn.dataset.market); });
+    document.querySelectorAll("[data-history-close]").forEach(node=>node.addEventListener("click",closeSymbolHistory));
+    document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeSymbolHistory(); });
     $("refresh-button").addEventListener("click",load);
   }
   async function load() {

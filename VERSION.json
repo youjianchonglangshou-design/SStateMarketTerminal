@@ -1,7 +1,8 @@
 {
-  "app_version": "TERMINAL v0.1.72｜PERFORMANCE-STATE-COLORS",
-  "stage": "PERFORMANCE-STATE-COLORS",
+  "app_version": "TERMINAL v0.1.73｜ASSET-HISTORY-PATH",
+  "stage": "ASSET-HISTORY-PATH",
   "features": [
+    "Frozen Snapshot 標的名稱可點擊，開啟該標的跨日期／跨世代歷史路徑視窗，顯示每日 04:01 S-state 路徑與各 horizon 結算。",
     "Performance Center S-state capsules now use the exact same colors as the main Terminal: S3 yellow, S2 green, S1 blue, S0.5 purple.",
     "Performance Center daily and Frozen Snapshot table headers are clickable sortable columns with ascending/descending indicators.",
     "Frozen Snapshot date display is simplified to M/D (for example 9/1); sorting still uses the full checkpoint timestamp internally.",
@@ -23,5 +24,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.71"
+  "version": "0.1.73"
 }

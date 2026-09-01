@@ -4,5 +4,5 @@ window.SSTATE_CONFIG = {
   pollIntervalMs: 4000,
   performanceDataUrl: "https://raw.githubusercontent.com/youjianchonglangshou-design/HistoricalTraining/main/data/champion/performance.json",
   performanceLedgerUrl: "https://raw.githubusercontent.com/youjianchonglangshou-design/HistoricalTraining/main/data/champion/ledger.jsonl",
-  appVersion: "TERMINAL v0.1.72｜PERFORMANCE-STATE-COLORS"
+  appVersion: "TERMINAL v0.1.73｜ASSET-HISTORY-PATH"
 };

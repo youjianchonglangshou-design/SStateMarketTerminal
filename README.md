@@ -1,3 +1,11 @@
+## TERMINAL v0.1.73｜ASSET-HISTORY-PATH
+
+- `逐筆 Frozen Snapshot 結算` 的標的名稱改為可點擊。
+- 點擊後在目前戰績頁開啟歷史路徑視窗，不離開頁面。
+- 路徑視窗會用所有已保存 Frozen Ledger 顯示 `日期 + S-state` 演進，例如 `9/1 S0.5 → 9/2 S1 → 9/3 S2 → 9/4 S3`。
+- 同時列出每一天的 Generation、預測目標、Champion 成功/存活/失敗率，以及 12H / 24H / 48H / 72H 結算與實際路徑。
+- 不修改 HistoricalTraining、Cloudflare Worker、ADX、S-state 或 04:01 / 08:25 排程。
+
 ## TERMINAL v0.1.72｜PERFORMANCE-STATE-COLORS
 
 - 修正近期戰績頁 S-state 膠囊配色，與主頁正式配色完全一致：S3 黃、S2 綠、S1 藍、S0.5 紫。

@@ -180,9 +180,22 @@
     const s=String(symbol||"").toUpperCase(), m=String(market||"CRYPTO").toUpperCase();
     return state.ledger.filter(r=>String(r.symbol||"").toUpperCase()===s && String(r.market_type||"CRYPTO").toUpperCase()===m).sort((a,b)=>rowTime(a)-rowTime(b));
   }
-  function openSymbolHistory(symbol, market) {
-    const rows=symbolHistoryRows(symbol,market), modal=$("history-modal"), body=$("history-body"), route=$("history-route");
+  async function openSymbolHistory(symbol, market) {
+    const modal=$("history-modal"), body=$("history-body"), route=$("history-route");
     $("history-title").textContent=`${symbol}｜歷史路徑`; $("history-market").textContent=marketLabel(market);
+    modal.hidden=false; document.body.classList.add("history-modal-open");
+    $("history-meta").textContent="正在讀取 R2 歷史路徑…"; route.textContent="…"; body.innerHTML='<tr><td colspan="10" class="loading-cell">讀取中…</td></tr>';
+    let rows=[];
+    try{
+      const currentGen=Number(currentChampion()?.generation||1);
+      const previous=(state.performance?.previous_generations||[]).map(x=>Number(x?.generation||0)).filter(Boolean);
+      const generations=[...new Set([...previous,currentGen])].sort((a,b)=>a-b);
+      const payloads=await Promise.all(generations.map(gen=>fetchJson(`${ledgerUrl}?generation=${gen}&days=3650&symbol=${encodeURIComponent(symbol)}`).catch(()=>({rows:[]}))));
+      rows=payloads.flatMap(x=>Array.isArray(x?.rows)?x.rows:[]).filter(r=>String(r.market_type||"CRYPTO").toUpperCase()===String(market||"CRYPTO").toUpperCase()).sort((a,b)=>rowTime(a)-rowTime(b));
+    }catch(err){
+      console.error(err);
+      rows=symbolHistoryRows(symbol,market);
+    }
     if(!rows.length){ $("history-meta").textContent="尚無 Frozen Snapshot"; route.textContent="—"; body.innerHTML='<tr><td colspan="10" class="loading-cell">尚無歷史紀錄。</td></tr>'; }
     else {
       const first=shortDate(rows[0].checkpoint_time_tw||rows[0].decision_time_tw||rows[0].decision_date_tw), last=shortDate(rows[rows.length-1].checkpoint_time_tw||rows[rows.length-1].decision_time_tw||rows[rows.length-1].decision_date_tw);
@@ -191,7 +204,6 @@
       route.innerHTML=rows.map((r,i)=>`${i?'<span class="history-route-arrow">→</span>':''}<div class="history-route-node"><span class="history-route-date">${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</span><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span></div>`).join("");
       body.innerHTML=rows.slice().reverse().map(r=>{ const p=r.prediction||{}, s72=settlement(r,"72H"); return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td>GEN ${String(r.generation||"—").padStart(3,"0")}</td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span></td><td><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td></tr>`; }).join("");
     }
-    modal.hidden=false; document.body.classList.add("history-modal-open");
   }
   function closeSymbolHistory() { const modal=$("history-modal"); if(modal) modal.hidden=true; document.body.classList.remove("history-modal-open"); }
   function renderRange() {
@@ -223,10 +235,11 @@
     const status=$("status-text"); status.textContent="正在讀取 Champion Frozen Snapshot…"; $("refresh-button").disabled=true;
     try {
       if(!performanceUrl||!ledgerUrl) throw new Error("config.js 尚未設定 performanceDataUrl / performanceLedgerUrl");
-      const tasks=[fetchJson(performanceUrl),fetchText(ledgerUrl)];
-      if(workerUrl) tasks.push(fetchJson(`${workerUrl}/api/model/active` ).catch(()=>null));
-      const [perf,text,active]=await Promise.all(tasks);
-      state.performance=perf; state.ledger=parseLedger(text); state.activeModel=active||null; state.currentRows=currentGenerationRows();
+      const perf=await fetchJson(performanceUrl);
+      const generation=Number(perf?.champion?.generation||1);
+      const ledgerPayload=await fetchJson(`${ledgerUrl}?generation=${generation}&days=90`);
+      const active=workerUrl ? await fetchJson(`${workerUrl}/api/model/active`).catch(()=>null) : null;
+      state.performance=perf; state.ledger=Array.isArray(ledgerPayload?.rows)?ledgerPayload.rows:[]; state.activeModel=active||null; state.currentRows=currentGenerationRows();
       renderChampion(); renderRange();
       const generated=perf?.generated_at?new Date(perf.generated_at).toLocaleString("zh-TW",{hour12:false}):"尚未產生正式戰績";
       status.textContent=`戰績資料 ${generated}｜本代 ${state.currentRows.length} 筆 Frozen Snapshot`;

@@ -101,6 +101,16 @@ export default {
         const key = checkpointSnapshotKey(dateTw, market);
         return await objectResponse(env, key, origin, false, MARKET[market].filename);
       }
+      if (request.method === "GET" && url.pathname === "/api/champion/performance") {
+        return await objectResponse(env, "champion/performance/latest.json", origin, false, "champion_performance.json");
+      }
+      if (request.method === "GET" && url.pathname === "/api/champion/ledger/recent") {
+        const generation = safeChampionGeneration(url.searchParams.get("generation"));
+        const days = safeLedgerDays(url.searchParams.get("days"));
+        const symbol = safeOptionalSymbol(url.searchParams.get("symbol"));
+        const payload = await readChampionLedgerRows(env, generation, days, symbol);
+        return json(payload, 200, origin);
+      }
       if (request.method === "GET" && url.pathname === "/api/download") {
         const market = normalizeMarket(url.searchParams.get("market"));
         return await objectResponse(env, MARKET[market].latest, origin, true, MARKET[market].filename);
@@ -269,6 +279,49 @@ export default {
           cleaned_legacy_run_snapshots: cleanedLegacyRunSnapshots,
           records: parsed.records.length,
         }, 200, origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/internal/champion/ledger/export") {
+        requireInternal(request, env);
+        const generation = safeChampionGeneration(url.searchParams.get("generation"));
+        const days = safeLedgerDays(url.searchParams.get("days"));
+        const payload = await readChampionLedgerRows(env, generation, days, "");
+        return json(payload, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/champion/ledger/shard") {
+        requireInternal(request, env);
+        const generation = safeChampionGeneration(url.searchParams.get("generation"));
+        const dateTw = safeCheckpointDate(url.searchParams.get("date"));
+        const text = await request.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || !Array.isArray(parsed.records)) throw httpError(400, "champion ledger shard records missing");
+        if (Number(parsed.generation || generation) !== generation) throw httpError(400, "champion ledger generation mismatch");
+        if (String(parsed.date_tw || dateTw) !== dateTw) throw httpError(400, "champion ledger date mismatch");
+        const key = championLedgerShardKey(generation, dateTw);
+        await env.JSON_BUCKET.put(key, JSON.stringify({ ...parsed, generation, date_tw:dateTw }, null, 2), {
+          httpMetadata: { contentType: "application/json; charset=utf-8" },
+        });
+        return json({ ok:true, key, generation, date_tw:dateTw, records:parsed.records.length }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/champion/performance") {
+        requireInternal(request, env);
+        const text = await request.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== "object" || !parsed.champion) throw httpError(400, "champion performance payload invalid");
+        await env.JSON_BUCKET.put("champion/performance/latest.json", text, {
+          httpMetadata: { contentType: "application/json; charset=utf-8" },
+        });
+        return json({ ok:true, key:"champion/performance/latest.json", generation:parsed.champion?.generation || null }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/champion/evolution") {
+        requireInternal(request, env);
+        const generation = safeChampionGeneration(url.searchParams.get("generation"));
+        const kind = String(url.searchParams.get("kind") || "").trim().toLowerCase();
+        if (!["review","policy"].includes(kind)) throw httpError(400, "kind must be review or policy");
+        const text = await request.text(); JSON.parse(text);
+        const key = `champion/evolution/${championGenerationName(generation)}/${kind}.json`;
+        await env.JSON_BUCKET.put(key, text, { httpMetadata: { contentType:"application/json; charset=utf-8" } });
+        await env.JSON_BUCKET.put(`champion/evolution/latest_${kind}.json`, text, { httpMetadata: { contentType:"application/json; charset=utf-8" } });
+        return json({ ok:true, key, generation, kind }, 200, origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/model/active") {
         requireInternal(request, env);
@@ -3340,6 +3393,46 @@ async function objectResponse(env, key, origin, download, filename) {
 }
 function normalizeMarket(v){ const x=String(v||"crypto"); if(!MARKET[x]) throw httpError(400,"market 必須是 crypto 或 us-stock"); return x; }
 function safeCheckpointDate(v){ const x=String(v||"").trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(x)) throw httpError(400,"invalid checkpoint date"); return x; }
+function safeChampionGeneration(v){ const n=Number(v); if(!Number.isInteger(n)||n<1||n>999999) throw httpError(400,"invalid champion generation"); return n; }
+function championGenerationName(generation){ return `GEN${String(generation).padStart(3,"0")}`; }
+function championLedgerShardKey(generation,dateTw){ return `champion/ledger/${championGenerationName(generation)}/${safeCheckpointDate(dateTw)}.json`; }
+function safeLedgerDays(v){ const n=Number(v||90); if(!Number.isFinite(n)) throw httpError(400,"invalid ledger days"); return Math.max(1,Math.min(3650,Math.floor(n))); }
+function safeOptionalSymbol(v){ const x=String(v||"").trim().toUpperCase(); if(!x) return ""; if(!/^[A-Z0-9._-]{1,40}$/.test(x)) throw httpError(400,"invalid symbol"); return x; }
+async function listAllR2ObjectsByPrefix(env,prefix){
+  const objects=[]; let cursor=undefined;
+  for(let guard=0; guard<100; guard++){
+    const page=await env.JSON_BUCKET.list({prefix,cursor,limit:1000});
+    objects.push(...(page.objects||[]));
+    if(!page.truncated||!page.cursor) break;
+    cursor=page.cursor;
+  }
+  return objects;
+}
+async function readChampionLedgerRows(env,generation,days,symbol=""){
+  const prefix=`champion/ledger/${championGenerationName(generation)}/`;
+  const objects=await listAllR2ObjectsByPrefix(env,prefix);
+  const cutoffMs=Date.now()-days*86400000;
+  const rows=[]; const keys=[];
+  const selected=objects.filter(o=>{
+    const m=/\/(\d{4}-\d{2}-\d{2})\.json$/.exec(o.key||"");
+    if(!m) return false;
+    const t=Date.parse(`${m[1]}T00:00:00Z`);
+    return Number.isFinite(t) && t>=cutoffMs-86400000;
+  }).sort((a,b)=>String(a.key).localeCompare(String(b.key)));
+  for(const item of selected){
+    const obj=await env.JSON_BUCKET.get(item.key);
+    if(!obj) continue;
+    let payload=null;
+    try{ payload=JSON.parse(await obj.text()); }catch(_){ continue; }
+    keys.push(item.key);
+    for(const row of (Array.isArray(payload?.records)?payload.records:[])){
+      if(symbol && String(row?.symbol||"").toUpperCase()!==symbol) continue;
+      rows.push(row);
+    }
+  }
+  rows.sort((a,b)=>(Number(a?.decision_time||0)-Number(b?.decision_time||0))||String(a?.symbol||"").localeCompare(String(b?.symbol||"")));
+  return {ok:true,generation,days,symbol:symbol||null,shards:keys.length,keys,rows};
+}
 function safeRunId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.test(x)) throw httpError(400,"invalid run_id"); return x; }
 function safeModelId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.test(x)) throw httpError(400,"invalid model_id"); return x; }
 function requireInternal(request, env){ const auth=request.headers.get("Authorization")||""; if(!env.CALLBACK_TOKEN || auth!==`Bearer ${env.CALLBACK_TOKEN}`) throw httpError(401,"unauthorized"); }

@@ -1,3 +1,12 @@
+## TERMINAL v0.1.74｜R2-SHARDED-LEDGER
+
+- `performance.html` 不再讀 GitHub `data/champion/ledger.jsonl`，改讀 Worker 的 R2 Champion API。
+- Frozen Ledger 正式路徑：`champion/ledger/GENxxx/YYYY-MM-DD.json`。
+- `champion/performance/latest.json` 提供近期戰績總覽。
+- 點擊標的時，歷史路徑會按 Generation 從 R2 讀取，不受 90 日主表限制。
+- Worker 新增 HistoricalTraining 專用 authenticated PUT：ledger shard / performance / evolution review / evolution policy。
+- 主分析、S-state、ADX、04:01 checkpoint 與 08:25 schedule 均未改動。
+
 ## TERMINAL v0.1.73｜ASSET-HISTORY-PATH
 
 - `逐筆 Frozen Snapshot 結算` 的標的名稱改為可點擊。

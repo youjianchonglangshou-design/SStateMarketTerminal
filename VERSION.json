@@ -1,7 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.73｜ASSET-HISTORY-PATH",
-  "stage": "ASSET-HISTORY-PATH",
+  "app_version": "TERMINAL v0.1.74｜R2-SHARDED-LEDGER",
+  "stage": "R2-SHARDED-LEDGER",
   "features": [
+    "Champion performance and Frozen ledger now load from Cloudflare R2 APIs instead of GitHub raw ledger.jsonl.",
+    "Public R2 ledger API reads Generation/date shards and supports 90-day recent view plus symbol-specific history.",
+    "Worker accepts authenticated HistoricalTraining uploads for champion ledger shards, performance, evolution review and evolution policy.",
     "Frozen Snapshot 標的名稱可點擊，開啟該標的跨日期／跨世代歷史路徑視窗，顯示每日 04:01 S-state 路徑與各 horizon 結算。",
     "Performance Center S-state capsules now use the exact same colors as the main Terminal: S3 yellow, S2 green, S1 blue, S0.5 purple.",
     "Performance Center daily and Frozen Snapshot table headers are clickable sortable columns with ascending/descending indicators.",

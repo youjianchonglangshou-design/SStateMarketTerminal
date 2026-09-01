@@ -2,7 +2,7 @@ window.SSTATE_CONFIG = {
   workerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev",
   defaultMarket: "crypto",
   pollIntervalMs: 4000,
-  performanceDataUrl: "https://raw.githubusercontent.com/youjianchonglangshou-design/HistoricalTraining/main/data/champion/performance.json",
-  performanceLedgerUrl: "https://raw.githubusercontent.com/youjianchonglangshou-design/HistoricalTraining/main/data/champion/ledger.jsonl",
-  appVersion: "TERMINAL v0.1.73｜ASSET-HISTORY-PATH"
+  performanceDataUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/performance",
+  performanceLedgerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/ledger/recent",
+  appVersion: "TERMINAL v0.1.74｜R2-SHARDED-LEDGER"
 };

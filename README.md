@@ -194,3 +194,9 @@ automation/latest/status.json
 - 逐筆表保留 12H / 24H / 48H / 72H 結算、72H S-state 實際路徑、MFE / MAE。
 - 主頁仍只讀 R2 Active Champion 作為正式機率模型；不再抓 Challenger / evaluation。
 - 本版不修改 Cloudflare 08:25 排程、不修改 S-state/ADX/DI 計算、不修改完整分析流程。
+
+
+## v0.1.77｜ONE-EXAM-PER-DAY
+- 同一 Generation／模型／市場／標的／台灣日期，戰績頁只顯示一張 Frozen 考卷。
+- 若同日同標的同時存在正式 08:25 與舊 intraday/repair 紀錄，正式 08:25 為唯一顯示版本。
+- 不影響其他日期，也不改 Champion 預測內容。

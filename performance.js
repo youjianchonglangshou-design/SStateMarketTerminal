@@ -50,12 +50,43 @@
     return String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map((line,i)=>{ try{return JSON.parse(line)}catch(e){console.warn("ledger line parse failed",i+1,e);return null} }).filter(Boolean);
   }
   function currentChampion() { return state.performance?.champion || {}; }
+  function isOfficialDailyRow(r) {
+    return String(r?.frozen_source||"")=="TERMINAL_0825_DAILY_CHECKPOINT" && r?.official_scoring===true;
+  }
+  function dailyExamDate(r) {
+    const explicit=String(r?.decision_date_tw||"").slice(0,10);
+    if(explicit) return explicit;
+    const raw=String(r?.checkpoint_time_tw||r?.decision_time_tw||"");
+    const m=raw.match(/(\d{4}-\d{2}-\d{2})/);
+    return m?m[1]:"";
+  }
+  function dailyExamKey(r) {
+    return [Number(r?.generation||0),String(r?.champion_model_id||""),String(r?.market_type||"CRYPTO").toUpperCase(),String(r?.symbol||"").toUpperCase(),dailyExamDate(r)].join("|");
+  }
+  function rowTime(r) { return Number(r?.decision_time||Date.parse(r?.checkpoint_time_tw||r?.decision_time_tw||r?.decision_date_tw||0)||0); }
+  function collapseSameDayRows(rows) {
+    const groups=new Map();
+    for(const r of rows){
+      const key=dailyExamKey(r);
+      if(!key.endsWith("|")){ if(!groups.has(key)) groups.set(key,[]); groups.get(key).push(r); }
+      else { const fallback=`snapshot|${String(r?.snapshot_id||Math.random())}`; groups.set(fallback,[r]); }
+    }
+    const out=[];
+    for(const group of groups.values()){
+      if(group.length===1){ out.push(group[0]); continue; }
+      const official=group.filter(isOfficialDailyRow);
+      if(!official.length){ out.push(...group); continue; }
+      official.sort((a,b)=>rowTime(b)-rowTime(a));
+      out.push(official[0]);
+    }
+    return out;
+  }
   function currentGenerationRows() {
     const c=currentChampion();
     const modelId=String(c.model_id||""); const generation=Number(c.generation||0);
-    // Frozen Snapshot is an immutable exam record. Never hide an old exam just
-    // because its settlement contract was later corrected.
-    return state.ledger.filter(r=>String(r.champion_model_id||"")===modelId && Number(r.generation||0)===generation);
+    // One symbol gets exactly one visible Frozen exam per Taiwan date.
+    // If a formal 08:25 row exists, it replaces any same-day legacy/intraday copy.
+    return collapseSameDayRows(state.ledger.filter(r=>String(r.champion_model_id||"")===modelId && Number(r.generation||0)===generation));
   }
   function officialGenerationRows() {
     return currentGenerationRows().filter(r=>String(r?.frozen_source||"")==="TERMINAL_0825_DAILY_CHECKPOINT" && r?.official_scoring===true);
@@ -181,10 +212,9 @@
     $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 Champion Frozen Snapshot`;
     updateSortIndicators("detail");
   }
-  function rowTime(r) { return Number(r?.decision_time||Date.parse(r?.checkpoint_time_tw||r?.decision_time_tw||r?.decision_date_tw||0)||0); }
   function symbolHistoryRows(symbol, market) {
     const s=String(symbol||"").toUpperCase(), m=String(market||"CRYPTO").toUpperCase();
-    return state.ledger.filter(r=>String(r.symbol||"").toUpperCase()===s && String(r.market_type||"CRYPTO").toUpperCase()===m).sort((a,b)=>rowTime(a)-rowTime(b));
+    return collapseSameDayRows(state.ledger.filter(r=>String(r.symbol||"").toUpperCase()===s && String(r.market_type||"CRYPTO").toUpperCase()===m)).sort((a,b)=>rowTime(a)-rowTime(b));
   }
   async function openSymbolHistory(symbol, market) {
     const modal=$("history-modal"), body=$("history-body"), route=$("history-route");
@@ -197,7 +227,7 @@
       const previous=(state.performance?.previous_generations||[]).map(x=>Number(x?.generation||0)).filter(Boolean);
       const generations=[...new Set([...previous,currentGen])].sort((a,b)=>a-b);
       const payloads=await Promise.all(generations.map(gen=>fetchJson(`${ledgerUrl}?generation=${gen}&days=3650&symbol=${encodeURIComponent(symbol)}`).catch(()=>({rows:[]}))));
-      rows=payloads.flatMap(x=>Array.isArray(x?.rows)?x.rows:[]).filter(r=>String(r.market_type||"CRYPTO").toUpperCase()===String(market||"CRYPTO").toUpperCase()).sort((a,b)=>rowTime(a)-rowTime(b));
+      rows=collapseSameDayRows(payloads.flatMap(x=>Array.isArray(x?.rows)?x.rows:[]).filter(r=>String(r.market_type||"CRYPTO").toUpperCase()===String(market||"CRYPTO").toUpperCase())).sort((a,b)=>rowTime(a)-rowTime(b));
     }catch(err){
       console.error(err);
       rows=symbolHistoryRows(symbol,market);

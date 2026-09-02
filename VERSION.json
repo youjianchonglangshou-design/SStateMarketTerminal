@@ -1,7 +1,8 @@
 {
-  "app_version": "TERMINAL v0.1.76｜0825-DAILY-CHAMPION",
-  "stage": "0825-DAILY-CHAMPION",
+  "app_version": "TERMINAL v0.1.77｜ONE-EXAM-PER-DAY",
+  "stage": "ONE-EXAM-PER-DAY",
   "features": [
+    "Performance Center collapses same Generation/model/market/symbol/date duplicates to one visible exam; formal 08:25 rows replace same-day legacy copies.",
     "Formal Champion exam is initiated at Taiwan 08:25; Crypto + US-stock checkpoint uploads must finish before HistoricalTraining is triggered.",
     "The normal Taiwan 08:01 pair slot is skipped so total pair analyses remain six/day: 00:01, 04:01, 08:25, 12:01, 16:01, 20:01.",
     "Only runs/champion/YYYY-MM-DD_0825 is durable Champion checkpoint storage; other analyses update latest only.",
@@ -29,5 +30,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.76"
+  "version": "0.1.77"
 }

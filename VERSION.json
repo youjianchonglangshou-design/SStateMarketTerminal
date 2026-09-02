@@ -1,5 +1,5 @@
 {
-  "app_version": "TERMINAL v0.1.75｜0825-DAILY-CHAMPION",
+  "app_version": "TERMINAL v0.1.76｜0825-DAILY-CHAMPION",
   "stage": "0825-DAILY-CHAMPION",
   "features": [
     "Formal Champion exam is initiated at Taiwan 08:25; Crypto + US-stock checkpoint uploads must finish before HistoricalTraining is triggered.",
@@ -29,5 +29,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.75"
+  "version": "0.1.76"
 }

@@ -1,3 +1,9 @@
+## TERMINAL v0.1.76｜PRESERVE-FROZEN-RECORDS
+
+- 戰績明細與標的歷史路徑重新顯示所有本代 Frozen Snapshot，不再因 `official_scoring=false` 把舊考卷整筆隱藏。
+- 120 筆 Evolution 進度仍只計正式 08:25 考卷；舊制資料只是保留與重新批改，不污染正式學習門檻。
+- Frozen Prediction 永遠不改；HistoricalTraining 若發現舊 settlement 用了盤中假 S3，會改 settlement，而不是刪除該筆 Frozen Snapshot。
+
 ## TERMINAL v0.1.75｜0825-DAILY-CHAMPION
 
 - 正式 Champion 考試改為台灣 **08:25**；Cloudflare 08:25 先跑 Crypto + 美股正式分析，兩邊成功後才自動觸發 HistoricalTraining。

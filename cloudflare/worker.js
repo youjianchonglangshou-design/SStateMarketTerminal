@@ -29,15 +29,15 @@ const FOUR_HOUR_MS = 4 * 60 * 60 * 1000;
 
 function checkpointSnapshotKey(dateTw, market) {
   const info = MARKET[market];
-  return `${CHAMPION_CHECKPOINT_PREFIX}/${dateTw}_0401/${info.filename}`;
+  return `${CHAMPION_CHECKPOINT_PREFIX}/${dateTw}_0825/${info.filename}`;
 }
 
-function taiwanCheckpointDateFromScheduledTime(scheduledTime) {
+function taiwanChampionDateFromScheduledTime(scheduledTime) {
   const ms = Number(scheduledTime);
   if (!Number.isFinite(ms) || ms <= 0) return "";
   const utc = new Date(ms);
-  // Cloudflare cron uses UTC. 20:01 UTC = Taiwan 04:01 next day.
-  if (utc.getUTCHours() !== 20 || utc.getUTCMinutes() !== 1) return "";
+  // 00:25 UTC = Taiwan 08:25. This is the one formal Champion exam each day.
+  if (utc.getUTCHours() !== 0 || utc.getUTCMinutes() !== 25) return "";
   const tw = new Date(ms + 8 * 60 * 60 * 1000);
   const yyyy = tw.getUTCFullYear();
   const mm = String(tw.getUTCMonth() + 1).padStart(2, "0");
@@ -45,16 +45,23 @@ function taiwanCheckpointDateFromScheduledTime(scheduledTime) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function isTaiwan0801Slot(scheduledTime) {
+  const ms = Number(scheduledTime);
+  if (!Number.isFinite(ms) || ms <= 0) return false;
+  const utc = new Date(ms);
+  return utc.getUTCHours() === 0 && utc.getUTCMinutes() === 1;
+}
+
 async function cleanupLegacyRunSnapshots(env) {
   // Normal 4H/manual snapshots are no longer historical storage. Only the
-  // daily 04:01 Champion checkpoint remains under runs/champion/.
+  // daily 08:25 formal Champion checkpoint remains under runs/champion/.
   const staleKeys = [];
   let cursor;
   do {
     const page = await env.JSON_BUCKET.list({ prefix: "runs/", cursor, limit: 1000 });
     for (const obj of page.objects || []) {
       const key = String(obj.key || "");
-      if (key.startsWith(`${CHAMPION_CHECKPOINT_PREFIX}/`)) continue;
+      if (key.startsWith(`${CHAMPION_CHECKPOINT_PREFIX}/`) && key.includes("_0825/")) continue;
       if (key.endsWith("/snapshot_ai.json") || key.endsWith("/snapshot_us_stock_ai.json")) {
         staleKeys.push(key);
       }
@@ -258,7 +265,7 @@ export default {
           checkpointKey = checkpointSnapshotKey(checkpointDateTw, market);
           await env.JSON_BUCKET.put(checkpointKey, text, metadata);
           // One-time/ongoing cleanup: remove the old large run snapshots while
-          // preserving status JSON and runs/champion/04:01 checkpoints.
+          // preserving status JSON and runs/champion/08:25 formal checkpoints.
           cleanedLegacyRunSnapshots = await cleanupLegacyRunSnapshots(env);
         }
 
@@ -457,22 +464,27 @@ export default {
   async scheduled(controller, env, ctx) {
     const source = `cron:${controller.cron}`;
     if (controller.cron === "1 */4 * * *") {
-      const checkpointDateTw = taiwanCheckpointDateFromScheduledTime(controller.scheduledTime);
-      ctx.waitUntil(dispatchAutoBatch(env, "pair", source, checkpointDateTw));
+      // Keep six pair analyses/day but replace the old 08:01 slot with the
+      // formal 08:25 Champion batch. The other five 4H slots remain Live only.
+      if (isTaiwan0801Slot(controller.scheduledTime)) {
+        console.log("Skip Taiwan 08:01 live slot; formal 08:25 Champion batch replaces it.");
+        return;
+      }
+      ctx.waitUntil(dispatchAutoBatch(env, "pair", source, "", false));
       return;
     }
     if (controller.cron === "31 13 * * *") {
       // 台灣 21:31：美股完整分析與板塊資金羅盤分開執行，互不阻塞。
-      ctx.waitUntil(dispatchAutoBatch(env, "us-stock-only", source));
+      ctx.waitUntil(dispatchAutoBatch(env, "us-stock-only", source, "", false));
       ctx.waitUntil(dispatchSectorFlow(env, source));
       return;
     }
-    // 00:25 UTC = 台灣時間 08:25。共用同一個 Cloudflare Cron：
-    // 1) 每日 AI Learning
-    // 2) 每日 Pionex 美股/RWA 清單同步 -> R2
-    // 兩個工作彼此獨立，任一失敗不阻止另一個被觸發。
+    // 00:25 UTC = 台灣時間 08:25。先跑正式 Champion Crypto + 美股分析，
+    // 兩邊都成功後 auto-batch workflow 再觸發 HistoricalTraining。
+    // 美股/RWA 清單同步仍可並行。
     if (controller.cron === "25 0 * * *") {
-      ctx.waitUntil(dispatchDailyLearning(env, source));
+      const checkpointDateTw = taiwanChampionDateFromScheduledTime(controller.scheduledTime);
+      ctx.waitUntil(dispatchAutoBatch(env, "pair", source, checkpointDateTw, true));
       ctx.waitUntil(dispatchUsStockSymbolSync(env, source));
       return;
     }
@@ -3035,7 +3047,7 @@ async function dispatchUsStockSymbolSync(env, source = "cron") {
 }
 
 
-async function dispatchAutoBatch(env, mode, source = "cron", checkpointDateTw = "") {
+async function dispatchAutoBatch(env, mode, source = "cron", checkpointDateTw = "", runLearningAfter = false) {
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
     throw httpError(500, "Worker 缺少 GITHUB_TOKEN 或 GITHUB_REPOSITORY");
   }
@@ -3054,6 +3066,7 @@ async function dispatchAutoBatch(env, mode, source = "cron", checkpointDateTw = 
     source: "AUTO_CRON",
     cron: source,
     checkpoint_date_tw: checkpointDateTw || null,
+    run_learning_after: Boolean(runLearningAfter),
     status: "QUEUED",
     phase: mode === "pair" ? "CRYPTO" : "US_STOCK",
     message: mode === "pair"
@@ -3074,7 +3087,7 @@ async function dispatchAutoBatch(env, mode, source = "cron", checkpointDateTw = 
     },
     body: JSON.stringify({
       ref: env.GITHUB_BRANCH || "main",
-      inputs: { mode, batch_id: batchId, checkpoint_date_tw: checkpointDateTw || "" },
+      inputs: { mode, batch_id: batchId, checkpoint_date_tw: checkpointDateTw || "", run_learning_after: runLearningAfter ? "true" : "false" },
     }),
   });
   if (!gh.ok) {

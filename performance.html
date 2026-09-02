@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="theme-color" content="#1e293b">
   <title>SStateMarketTerminal｜近期戰績</title>
-  <link rel="stylesheet" href="./performance.css?v=champion-performance-v4">
+  <link rel="stylesheet" href="./performance.css?v=champion-performance-v5">
 </head>
 <body>
   <main class="performance-page">
@@ -14,7 +14,7 @@
       <div>
         <div class="performance-kicker">📈 SStateMarketTerminal</div>
         <h1>Champion 近期戰績中心</h1>
-        <p>只統計 Champion 當時真正凍結的預測快照；不使用之後的新模型回頭改寫。主判定以 72H 正式結算為準，12H／24H／48H 進度保留在逐筆紀錄。</p>
+        <p>只統計 Champion 當時真正凍結的預測快照；不使用之後的新模型回頭改寫。主判定以 72H 正式結算為準；12H 只做盤中觀察，24H／48H／72H 只認每日 08:00 收線後狀態。</p>
       </div>
       <div class="head-actions">
         <a class="back-link" href="./index.html">← 返回分析系統</a>
@@ -133,7 +133,7 @@
       <div class="panel-head detail-head">
         <div>
           <h2>逐筆 Frozen Snapshot 結算</h2>
-          <p>這張表就是 Champion 的正式考卷：當時預估什麼、12H／24H／48H／72H 後市場走成什麼，全部保留。</p>
+          <p>這張表就是 Champion 的正式考卷：當時預估什麼全部保留；12H 僅觀察，24H／48H／72H 只用完整日線收盤批改。</p>
         </div>
         <div class="detail-filters">
           <select id="state-filter" aria-label="S-state 篩選"><option value="ALL">全部 S-state</option><option value="S0.5">S0.5</option><option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option></select>
@@ -150,7 +150,7 @@
             <th><button class="sort-button" data-sort-table="detail" data-sort-key="symbol" type="button">標的 <span class="sort-indicator"></span></button></th>
             <th><button class="sort-button" data-sort-table="detail" data-sort-key="state" type="button">當時狀態 <span class="sort-indicator"></span></button></th>
             <th><button class="sort-button" data-sort-table="detail" data-sort-key="prediction" type="button">Champion 預估 <span class="sort-indicator"></span></button></th>
-            <th><button class="sort-button" data-sort-table="detail" data-sort-key="12H" type="button">12H <span class="sort-indicator"></span></button></th>
+            <th><button class="sort-button" data-sort-table="detail" data-sort-key="12H" type="button">12H觀察 <span class="sort-indicator"></span></button></th>
             <th><button class="sort-button" data-sort-table="detail" data-sort-key="24H" type="button">24H <span class="sort-indicator"></span></button></th>
             <th><button class="sort-button" data-sort-table="detail" data-sort-key="48H" type="button">48H <span class="sort-indicator"></span></button></th>
             <th><button class="sort-button" data-sort-table="detail" data-sort-key="72H" type="button">72H <span class="sort-indicator"></span></button></th>
@@ -175,18 +175,18 @@
         <button class="history-close" type="button" data-history-close aria-label="關閉">✕</button>
       </header>
       <div class="history-route-wrap">
-        <div class="history-route-title">每日 04:01 Frozen Snapshot 路徑</div>
+        <div class="history-route-title">每日 08:25 正式 Frozen Snapshot 路徑</div>
         <div class="history-route" id="history-route">—</div>
       </div>
       <div class="history-table-wrap">
         <table class="history-table">
-          <thead><tr><th>日期</th><th>世代</th><th>當時狀態</th><th>預測目標</th><th>Champion 預估</th><th>12H</th><th>24H</th><th>48H</th><th>72H</th><th>72H 實際路徑</th></tr></thead>
+          <thead><tr><th>日期</th><th>世代</th><th>當時狀態</th><th>預測目標</th><th>Champion 預估</th><th>12H觀察</th><th>24H</th><th>48H</th><th>72H</th><th>72H 實際路徑</th></tr></thead>
           <tbody id="history-body"><tr><td colspan="10" class="loading-cell">尚無紀錄</td></tr></tbody>
         </table>
       </div>
     </section>
   </div>
   <script src="./config.js"></script>
-  <script src="./performance.js?v=champion-performance-v4" defer></script>
+  <script src="./performance.js?v=champion-performance-v5" defer></script>
 </body>
 </html>

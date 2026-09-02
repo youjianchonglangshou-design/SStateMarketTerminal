@@ -415,10 +415,30 @@ def fetch_klines(symbol: str, interval: str, limit: int = 150):
         raise last_error
     raise RuntimeError(f"Unable to fetch {symbol} {interval} klines")
 
-def analyze_symbol(symbol: str):
+def _rows_through_confirmed_close(rows: list[dict], confirmed_cutoff_utc_ms: int | None) -> list[dict]:
+    """Return only candles fully known at the formal daily-close cutoff.
+
+    Pionex timestamps are shifted +8h for Terminal display.  The underlying
+    candle OPEN in UTC is therefore ``display_time - TW_OFFSET_MS``.  At the
+    formal Taiwan 08:25 Champion exam we intentionally use the just-completed
+    Taiwan 08:00 / UTC 00:00 daily close and exclude the newly opened partial
+    1D/4H candle.  This prevents an intraday yellow/S3 flash from becoming a
+    formal daily state.
+    """
+    if confirmed_cutoff_utc_ms is None:
+        return rows
+    cutoff = int(confirmed_cutoff_utc_ms)
+    return [row for row in rows if int(row.get("time", 0)) - TW_OFFSET_MS < cutoff]
+
+
+def analyze_symbol(symbol: str, confirmed_cutoff_utc_ms: int | None = None):
     try:
         daily_raw = fetch_klines(symbol, "1D")
         four_h_raw = fetch_klines(symbol, "4H")
+
+        if confirmed_cutoff_utc_ms is not None:
+            daily_raw = _rows_through_confirmed_close(daily_raw, confirmed_cutoff_utc_ms)
+            four_h_raw = _rows_through_confirmed_close(four_h_raw, confirmed_cutoff_utc_ms)
 
         if len(daily_raw) < MIN_DAILY_BARS or len(four_h_raw) < MIN_4H_BARS:
             return None, f"{symbol}: 尚無可用K線"

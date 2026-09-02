@@ -36,6 +36,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="../output")
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--progress-file", default="")
+    parser.add_argument(
+        "--confirmed-daily-date-tw",
+        default="",
+        help=(
+            "Formal Champion exam date (YYYY-MM-DD). When set, analysis uses only "
+            "candles fully completed by Taiwan 08:00 / UTC 00:00 of that date; "
+            "the newly opened partial 1D/4H candle is excluded."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -62,8 +71,21 @@ def write_progress(path: str, payload: dict) -> None:
             pass
 
 
+def confirmed_cutoff_utc_ms(date_tw: str) -> int | None:
+    text = str(date_tw or "").strip()
+    if not text:
+        return None
+    try:
+        # Taiwan 08:00 of YYYY-MM-DD is exactly UTC 00:00 of the same date.
+        dt = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise SystemExit(f"invalid --confirmed-daily-date-tw: {text}") from exc
+    return int(dt.timestamp() * 1000)
+
+
 def main() -> int:
     args = parse_args()
+    formal_cutoff_ms = confirmed_cutoff_utc_ms(args.confirmed_daily_date_tw)
     config = MARKET_MAP[args.market]
     selection = config["selection"]
     filename = config["filename"]
@@ -116,7 +138,10 @@ def main() -> int:
     errors = []
     max_workers = max(1, min(int(args.workers), 2, len(symbols)))
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(analyze_symbol, symbol): symbol for symbol in symbols}
+        futures = {
+            pool.submit(analyze_symbol, symbol, formal_cutoff_ms): symbol
+            for symbol in symbols
+        }
         completed = 0
         for future in as_completed(futures):
             symbol = futures[future]
@@ -155,7 +180,8 @@ def main() -> int:
         generated_at=generated_at,
         github_path=filename,
     )
-    snapshot.setdefault("batch", {})["headless_terminal"] = {
+    batch = snapshot.setdefault("batch", {})
+    batch["headless_terminal"] = {
         "app": "SStateMarketTerminal",
         "market": args.market,
         "runtime": "github-actions-python",
@@ -163,6 +189,16 @@ def main() -> int:
         "errors": errors,
         "symbol_sync": symbol_sync,
     }
+    if formal_cutoff_ms is not None:
+        batch["champion_daily_checkpoint"] = {
+            "contract": "TAIWAN_0825_USING_COMPLETED_0800_DAILY_CLOSE",
+            "checkpoint_date_tw": args.confirmed_daily_date_tw,
+            "confirmed_close_cutoff_utc": datetime.fromtimestamp(
+                formal_cutoff_ms / 1000.0, tz=timezone.utc
+            ).isoformat(),
+            "partial_daily_excluded": True,
+            "partial_4h_after_close_excluded": True,
+        }
 
     out_path.write_text(serialize_snapshot_json(snapshot), encoding="utf-8")
     write_progress(args.progress_file, {

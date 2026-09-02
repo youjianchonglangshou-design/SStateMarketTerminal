@@ -33,7 +33,7 @@
     return dir==="desc" ? -result : result;
   }
   function outcomeRank(r,key) {
-    const s=settlement(r,key); if(s.status!=="SETTLED") return -1;
+    const s=settlement(r,key); if(s.status==="OBSERVATION_ONLY") return -0.5; if(s.status!=="SETTLED") return -1;
     return {TRUE_FAIL:0,OTHER:1,ALIVE_SLOW:2,SUCCESS_WITHIN_HORIZON:3}[s.outcome] ?? 1;
   }
   function updateSortIndicators(tableName) {
@@ -83,6 +83,7 @@
       true_fail_rate:settled?fail/settled:null, other_rate:settled?other/settled:null };
   }
   function outcomeHtml(outcome, status="SETTLED") {
+    if(status==="OBSERVATION_ONLY") return '<span class="outcome-pill other">觀察</span>';
     if(status!=="SETTLED") return '<span class="outcome-pill pending">待結算</span>';
     const node=OUTCOME[outcome]||{label:"其他",cls:"other"};
     return `<span class="outcome-pill ${node.cls}">${node.label}</span>`;

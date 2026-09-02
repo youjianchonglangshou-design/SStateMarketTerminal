@@ -1,3 +1,12 @@
+## TERMINAL v0.1.75｜0825-DAILY-CHAMPION
+
+- 正式 Champion 考試改為台灣 **08:25**；Cloudflare 08:25 先跑 Crypto + 美股正式分析，兩邊成功後才自動觸發 HistoricalTraining。
+- 原本每 4H 的台灣 08:01 pair 會跳過，改由 08:25 取代，因此一天仍是 6 次 pair：00:01、04:01、08:25、12:01、16:01、20:01。
+- 唯一永久 Champion checkpoint：`runs/champion/YYYY-MM-DD_0825/`；其餘 Live 分析只更新 `latest/`。
+- `12H` 顯示為「觀察」；24H / 48H / 72H 由 HistoricalTraining 只比較每日正式 checkpoint，盤中暫時轉黃/S3 不得判成功。
+- 新 08:25 checkpoint 寫入時會清理舊普通大型 run snapshot 與過時 `_0401` / `_0801` Champion snapshot；小型 status JSON 保留。
+- R2 Sharded Ledger、排序、標的歷史路徑、ADX / S-state 主分析本身未改。
+
 ## TERMINAL v0.1.74｜R2-SHARDED-LEDGER
 
 - `performance.html` 不再讀 GitHub `data/champion/ledger.jsonl`，改讀 Worker 的 R2 Champion API。

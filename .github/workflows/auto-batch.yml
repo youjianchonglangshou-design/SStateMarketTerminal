@@ -12,13 +12,19 @@ on:
           - pair
           - us-stock-only
       batch_id:
-        description: "Cloudflare 自動排程 batch_id"
-        required: true
+        description: "Cloudflare 自動排程 batch_id；手動執行可直接用預設值"
+        required: false
+        default: "manual_champion_daily"
         type: string
       checkpoint_date_tw:
-        description: "只有台灣 04:01 正式 Champion checkpoint 會帶入 YYYY-MM-DD；其他批次為空"
+        description: "只有台灣 08:25 正式 Champion 分析會帶入 YYYY-MM-DD；其他批次為空"
         required: false
         default: ""
+        type: string
+      run_learning_after:
+        description: "正式 08:25 Champion batch 完成後是否自動觸發 HistoricalTraining"
+        required: false
+        default: "false"
         type: string
 
 permissions:
@@ -78,9 +84,14 @@ jobs:
           if [ -s /tmp/snapshot_ai.json ]; then cp /tmp/snapshot_ai.json engine/snapshot_ai.json; elif [ -f data/bootstrap/snapshot_ai.json ]; then cp data/bootstrap/snapshot_ai.json engine/snapshot_ai.json; fi
 
       - name: Analyze Crypto
+        shell: bash
         run: |
           mkdir -p output
-          python engine/run_analysis.py --market crypto --output-dir ../output --workers 2 --progress-file ../output/progress_crypto.json
+          EXTRA=()
+          if [ -n "$CHECKPOINT_DATE_TW" ]; then
+            EXTRA+=(--confirmed-daily-date-tw "$CHECKPOINT_DATE_TW")
+          fi
+          python engine/run_analysis.py --market crypto --output-dir ../output --workers 2 --progress-file ../output/progress_crypto.json "${EXTRA[@]}"
 
       - name: Upload Crypto snapshot to R2
         shell: bash
@@ -88,7 +99,7 @@ jobs:
           URL="$WORKER_BASE_URL/api/internal/snapshot?market=crypto&run_id=$RUN_ID"
           if [ -n "$CHECKPOINT_DATE_TW" ]; then
             URL="${URL}&checkpoint_date_tw=${CHECKPOINT_DATE_TW}"
-            echo "04:01 Champion checkpoint: $CHECKPOINT_DATE_TW / Crypto"
+            echo "08:25 Champion checkpoint: $CHECKPOINT_DATE_TW / Crypto"
           fi
           curl --fail --silent --show-error -X PUT \
             -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
@@ -153,9 +164,14 @@ jobs:
           if [ -s /tmp/snapshot_us_stock_ai.json ]; then cp /tmp/snapshot_us_stock_ai.json engine/snapshot_us_stock_ai.json; elif [ -f data/bootstrap/snapshot_us_stock_ai.json ]; then cp data/bootstrap/snapshot_us_stock_ai.json engine/snapshot_us_stock_ai.json; fi
 
       - name: Analyze US-stock
+        shell: bash
         run: |
           mkdir -p output
-          python engine/run_analysis.py --market us-stock --output-dir ../output --workers 2 --progress-file ../output/progress_us_stock.json
+          EXTRA=()
+          if [ -n "$CHECKPOINT_DATE_TW" ]; then
+            EXTRA+=(--confirmed-daily-date-tw "$CHECKPOINT_DATE_TW")
+          fi
+          python engine/run_analysis.py --market us-stock --output-dir ../output --workers 2 --progress-file ../output/progress_us_stock.json "${EXTRA[@]}"
 
       - name: Upload US-stock snapshot to R2
         shell: bash
@@ -163,7 +179,7 @@ jobs:
           URL="$WORKER_BASE_URL/api/internal/snapshot?market=us-stock&run_id=$RUN_ID"
           if [ -n "$CHECKPOINT_DATE_TW" ]; then
             URL="${URL}&checkpoint_date_tw=${CHECKPOINT_DATE_TW}"
-            echo "04:01 Champion checkpoint: $CHECKPOINT_DATE_TW / US-stock"
+            echo "08:25 Champion checkpoint: $CHECKPOINT_DATE_TW / US-stock"
           fi
           curl --fail --silent --show-error -X PUT \
             -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
@@ -192,6 +208,7 @@ jobs:
       MODE: ${{ inputs.mode }}
       CRYPTO_RESULT: ${{ needs.crypto.result }}
       STOCK_RESULT: ${{ needs.us_stock.result }}
+      RUN_LEARNING_AFTER: ${{ inputs.run_learning_after }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: "1880226268"
     steps:
@@ -212,6 +229,16 @@ jobs:
             -H "Content-Type: application/json" -d "$BODY" \
             "$WORKER_BASE_URL/api/internal/automation/status" || true
           [ "$SUCCESS" = "true" ]
+
+
+      - name: Trigger HistoricalTraining after formal Champion batch
+        if: ${{ env.RUN_LEARNING_AFTER == 'true' && needs.crypto.result == 'success' && needs.us_stock.result == 'success' }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error -X POST \
+            -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN" \
+            -H "Content-Type: application/json" \
+            "$WORKER_BASE_URL/api/internal/learning/start"
 
       - name: Telegram | Auto batch completed
         if: ${{ success() }}

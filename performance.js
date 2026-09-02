@@ -4,6 +4,7 @@
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const performanceUrl = String(cfg.performanceDataUrl || "");
   const ledgerUrl = String(cfg.performanceLedgerUrl || "");
+  const OFFICIAL_FROZEN_SOURCE = "TERMINAL_0825_DAILY_CHECKPOINT";
   const OUTCOME = {
     SUCCESS_WITHIN_HORIZON: { label: "成功", cls: "success" },
     ALIVE_SLOW: { label: "存活", cls: "alive" },
@@ -50,10 +51,13 @@
     return String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map((line,i)=>{ try{return JSON.parse(line)}catch(e){console.warn("ledger line parse failed",i+1,e);return null} }).filter(Boolean);
   }
   function currentChampion() { return state.performance?.champion || {}; }
+  function isOfficialRecord(r) {
+    return Boolean(r) && r.official_scoring === true && String(r.frozen_source || "") === OFFICIAL_FROZEN_SOURCE;
+  }
   function currentGenerationRows() {
     const c=currentChampion();
     const modelId=String(c.model_id||""); const generation=Number(c.generation||0);
-    return state.ledger.filter(r=>r?.official_scoring!==false && String(r.champion_model_id||"")===modelId && Number(r.generation||0)===generation);
+    return state.ledger.filter(r=>isOfficialRecord(r) && String(r.champion_model_id||"")===modelId && Number(r.generation||0)===generation);
   }
   function marketRows(rows) {
     if(state.market==="ALL") return rows.slice();
@@ -173,13 +177,13 @@
       const symbol=String(r.symbol||"—"), market=String(r.market_type||"CRYPTO").toUpperCase();
       return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td><b>${marketLabel(r.market_type)}</b></td><td><button class="symbol-history-link" type="button" data-symbol="${escapeHtml(symbol)}" data-market="${escapeHtml(market)}" title="查看 ${escapeHtml(symbol)} 歷史路徑">${escapeHtml(symbol)}</button></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
     }).join("");
-    $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 Champion Frozen Snapshot`;
+    $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 08:25 正式 Champion Frozen Snapshot`;
     updateSortIndicators("detail");
   }
   function rowTime(r) { return Number(r?.decision_time||Date.parse(r?.checkpoint_time_tw||r?.decision_time_tw||r?.decision_date_tw||0)||0); }
   function symbolHistoryRows(symbol, market) {
     const s=String(symbol||"").toUpperCase(), m=String(market||"CRYPTO").toUpperCase();
-    return state.ledger.filter(r=>r?.official_scoring!==false && String(r.symbol||"").toUpperCase()===s && String(r.market_type||"CRYPTO").toUpperCase()===m).sort((a,b)=>rowTime(a)-rowTime(b));
+    return state.ledger.filter(r=>isOfficialRecord(r) && String(r.symbol||"").toUpperCase()===s && String(r.market_type||"CRYPTO").toUpperCase()===m).sort((a,b)=>rowTime(a)-rowTime(b));
   }
   async function openSymbolHistory(symbol, market) {
     const modal=$("history-modal"), body=$("history-body"), route=$("history-route");
@@ -192,7 +196,7 @@
       const previous=(state.performance?.previous_generations||[]).map(x=>Number(x?.generation||0)).filter(Boolean);
       const generations=[...new Set([...previous,currentGen])].sort((a,b)=>a-b);
       const payloads=await Promise.all(generations.map(gen=>fetchJson(`${ledgerUrl}?generation=${gen}&days=3650&symbol=${encodeURIComponent(symbol)}`).catch(()=>({rows:[]}))));
-      rows=payloads.flatMap(x=>Array.isArray(x?.rows)?x.rows:[]).filter(r=>String(r.market_type||"CRYPTO").toUpperCase()===String(market||"CRYPTO").toUpperCase()).sort((a,b)=>rowTime(a)-rowTime(b));
+      rows=payloads.flatMap(x=>Array.isArray(x?.rows)?x.rows:[]).filter(r=>isOfficialRecord(r) && String(r.market_type||"CRYPTO").toUpperCase()===String(market||"CRYPTO").toUpperCase()).sort((a,b)=>rowTime(a)-rowTime(b));
     }catch(err){
       console.error(err);
       rows=symbolHistoryRows(symbol,market);

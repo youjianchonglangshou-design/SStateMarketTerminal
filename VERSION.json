@@ -1,8 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.79｜CCI-SYNC-CROSSHAIR",
-  "stage": "CCI-SYNC-CROSSHAIR",
+  "app_version": "TERMINAL v0.1.80｜CCI-CHAMPION",
+  "stage": "CCI-CHAMPION",
   "features": [
-    "Visible ADX / DMI 14 sub-chart is replaced by TradingView-equivalent CCI20 with SMA14 smoothing; the current Champion still retains its existing ADX/DMI model features in the backend.",
+    "Probability inference is upgraded to HistoricalTraining Schema 4 CCI Expert (CCI-EXPERT-v1-HLC3-20-SMA14), replacing the old DMI Expert correction layer while preserving the existing S-state Level 1-5 base model.",
+    "The confirmed v0.1.79 CCI chart, yellow/purple smoothingMA stepline, synchronized crosshair, and main UI are unchanged; this release only connects live probability inference to the new CCI Champion contract.",
+    "No new Python files are added. engine/probability_reader.py and engine/get.py reuse the CCI values already produced by the existing analysis pipeline.",
+    "Visible ADX / DMI 14 sub-chart is replaced by TradingView-equivalent CCI20 with SMA14 smoothing; Schema 4 CCI Expert now supplies the Champion correction layer.",
     "CCI calculation is integrated directly into engine/analysis_core.py; no new CCI Python module is added. The formula remains hlc3 CCI20 using mean absolute deviation, then SMA14 smoothing with yellow/purple direction.",
     "CCI sub-chart renders CCI as a neutral white line, smoothingMA as yellow/purple stepline, and +100 / 0 / -100 reference levels.",
     "Removes the visible ADX dominance capsule; the sub-chart header now shows SMA and CCI capsules only. SMA follows smoothingMA yellow/purple direction while CCI remains neutral.",

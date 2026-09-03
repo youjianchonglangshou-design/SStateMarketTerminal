@@ -1,3 +1,11 @@
+## TERMINAL v0.1.80｜CCI-CHAMPION
+
+- **v0.1.79 已確認的 CCI 圖表與上下同步十字線完全不改。**
+- `engine/probability_reader.py` 改讀 HistoricalTraining Schema 4 的 `CCI-EXPERT-v1-HLC3-20-SMA14`，CCI Expert 正式取代舊 DMI Expert 的第二層機率修正。
+- S-state / Level 1–5 基礎模型仍保留；只把原本 DMI Expert 修正層換成 CCI Expert。
+- `engine/get.py` 的機率輸出改為 `cci_expert` / `cci_expert_version`，供 snapshot 與正式 Champion 考卷保存同一套 CCI 模型資訊。
+- 不新增 Python 檔。這一版只接通新 CCI Champion 模型，不重新改畫面。
+
 ## TERMINAL v0.1.79｜CCI-SYNC-CROSSHAIR
 
 - CCI calculation is integrated into existing `engine/analysis_core.py`; no new Python module is created.
@@ -76,7 +84,7 @@
 `engine/probability_reader.py` now carries both ADX Step contracts during the v2 → v3 migration. R2 Active `DMI-EXPERT-v2-ADX-STEP` continues to use the old full-precision direction features. Only when the loaded model declares `DMI-EXPERT-v3-ADX-1DP-STICKY` does live inference switch to the new one-decimal + equal-value-sticky ADX Step fields. This keeps the current Champion mathematically stable while the new model is retrained/evaluated.
 
 
-**Current version:** `TERMINAL v0.1.79｜CCI-SYNC-CROSSHAIR`
+**Current version:** `TERMINAL v0.1.80｜CCI-CHAMPION`
 
 ## Current runtime
 

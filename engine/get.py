@@ -744,9 +744,9 @@ def _compact_probability_node(node: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(node, dict) or not node.get("available"):
         return {"available": False, "reason": (node or {}).get("reason", "unavailable")}
     late = node.get("late_success_4_7d") or {}
-    dmi = node.get("dmi_expert") or {}
+    cci = node.get("cci_expert") or {}
     matched_facets = []
-    for facet in list(dmi.get("matched_facets") or []):
+    for facet in list(cci.get("matched_facets") or []):
         if not isinstance(facet, dict):
             continue
         matched_facets.append({
@@ -765,19 +765,19 @@ def _compact_probability_node(node: dict[str, Any]) -> dict[str, Any]:
         "true_fail_probability": _round_probability(node.get("true_fail_probability")),
         "other_probability": _round_probability(node.get("other_probability")),
         "structural_survival_probability": _round_probability(node.get("structural_survival_probability")),
-        # This remains the legacy BB/HA Level 1-5 matched sample count. DMI
+        # This remains the legacy BB/HA Level 1-5 matched sample count. CCI
         # facets overlap, so a fake single intersection sample count is not made up.
         "matched_samples": int(node.get("samples", 0) or 0),
         "wins": int(node.get("wins", 0) or 0),
         "level": int(node.get("level", 0) or 0),
         "fields": list(node.get("fields") or []),
         "fallback": bool(node.get("fallback", False)),
-        "dmi_expert": {
-            "available": bool(dmi.get("available")),
-            "version": dmi.get("version"),
-            "matched_facet_count": int(dmi.get("matched_facet_count", 0) or 0),
-            "blend_strength": _round_probability(dmi.get("blend_strength")),
-            "bins": dict(dmi.get("bins") or {}),
+        "cci_expert": {
+            "available": bool(cci.get("available")),
+            "version": cci.get("version"),
+            "matched_facet_count": int(cci.get("matched_facet_count", 0) or 0),
+            "blend_strength": _round_probability(cci.get("blend_strength")),
+            "bins": dict(cci.get("bins") or {}),
             "matched_facets": matched_facets,
         },
         "late_success_4_7d": {
@@ -802,7 +802,7 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
         "generated_at": model.get("generated_at"),
         "primary_horizon_hours": 72,
         "max_level": 5,
-        "dmi_expert_version": (model.get("dmi_expert_contract") or {}).get("version"),
+        "cci_expert_version": (model.get("cci_expert_contract") or {}).get("version"),
     }
     for record in records:
         result = predict_record(record, record.get("opportunity_long") or {})
@@ -825,8 +825,8 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
             "primary_horizon_hours": 72,
             "model_level": int(primary.get("level", 0) or 0),
             "matched_samples": int(primary.get("samples", 0) or 0),
-            "dmi_expert_version": result.get("dmi_expert_version"),
-            "dmi_expert": _compact_probability_node(primary).get("dmi_expert"),
+            "cci_expert_version": result.get("cci_expert_version"),
+            "cci_expert": _compact_probability_node(primary).get("cci_expert"),
             "features": dict(result.get("features") or {}),
             "24h": _compact_probability_node(predictions.get("6") or {}),
             "48h": _compact_probability_node(predictions.get("12") or {}),
@@ -867,7 +867,7 @@ def _build_ai_state_dashboard(records: list[dict[str, Any]]) -> dict[str, list[d
                 "true_fail_probability": p72.get("true_fail_probability"),
                 "other_probability": p72.get("other_probability"),
                 "structural_survival_probability": p72.get("structural_survival_probability"),
-                "dmi_expert": p72.get("dmi_expert"),
+                "cci_expert": p72.get("cci_expert"),
             } if probability.get("available") else None),
         }
 

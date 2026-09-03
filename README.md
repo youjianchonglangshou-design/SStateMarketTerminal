@@ -1,3 +1,14 @@
+## TERMINAL v0.1.79｜CCI-SYNC-CROSSHAIR
+
+- CCI calculation is integrated into existing `engine/analysis_core.py`; no new Python module is created.
+
+- 主頁副圖由 ADX / DMI 14 改為 **CCI 20 + SMA 14 smoothingMA**；CCI 使用 `hlc3` 與 mean absolute deviation，公式對齊使用者提供的 TradingView Pine。
+- CCI 計算直接整合進既有 `engine/analysis_core.py`，由同一檔案產生 30 日 CCI / smoothingMA；不新增任何 Python 檔。
+- CCI 為白色線；smoothingMA 使用黃／紫階梯；保留 +100 / 0 / -100 參考線。
+- 移除畫面上的「多方控制｜趨勢強度增強 ↗↗」ADX 判斷膠囊；副圖只保留 SMA 與 CCI 數值膠囊。SMA 膠囊跟著 smoothingMA 黃／紫，CCI 膠囊維持無色。
+- 主圖與 CCI 副圖十字虛線依同一日期同步；滑鼠在主圖時顯示價格水平線／價格膠囊，滑鼠在 CCI 副圖時顯示 CCI 水平十字線並同步 SMA / CCI 數值。日期統一顯示在下方 CCI pane。
+- **未刪除 ADX / DI 後端資料與現任 Champion DMI Expert 特徵**；本版只替換主頁可視副圖，避免破壞目前機率模型。
+
 ## TERMINAL v0.1.76｜PRESERVE-FROZEN-RECORDS
 
 - 戰績明細與標的歷史路徑重新顯示所有本代 Frozen Snapshot，不再因 `official_scoring=false` 把舊考卷整筆隱藏。
@@ -65,7 +76,7 @@
 `engine/probability_reader.py` now carries both ADX Step contracts during the v2 → v3 migration. R2 Active `DMI-EXPERT-v2-ADX-STEP` continues to use the old full-precision direction features. Only when the loaded model declares `DMI-EXPERT-v3-ADX-1DP-STICKY` does live inference switch to the new one-decimal + equal-value-sticky ADX Step fields. This keeps the current Champion mathematically stable while the new model is retrained/evaluated.
 
 
-**Current version:** `TERMINAL v0.1.65｜PROPW-CRM-MATCH`
+**Current version:** `TERMINAL v0.1.79｜CCI-SYNC-CROSSHAIR`
 
 ## Current runtime
 

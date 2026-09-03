@@ -26,6 +26,8 @@ score_hint = getattr(_scoring_engine, "score_hint", None)
 STRUCTURE_WINDOW_DAYS = 30
 BB_PERIOD = 20
 ADX_PERIOD = 14
+CCI_LENGTH = 20
+CCI_SMOOTHING_LENGTH = 14
 MIN_DAILY_BARS = 1  # 清單不設成熟度門檻；有 1 根日K就可進主頁，BB20 之後自然長出。
 MIN_4H_BARS = 1
 _PIONEX_RATE_LOCK = threading.Lock()
@@ -121,6 +123,81 @@ def calculate_bollinger_basis(klines: list[dict], period: int = 20):
     """保留舊介面；中軌仍採普通日 K close 的 SMA。"""
     basis, _, _ = calculate_bollinger_bands(klines, period=period)
     return basis
+
+def calculate_cci_sma(
+    klines: list[dict[str, Any]],
+    length: int = CCI_LENGTH,
+    smoothing_length: int = CCI_SMOOTHING_LENGTH,
+) -> list[dict[str, Any]]:
+    """TradingView 等價 CCI(hlc3, 20) + SMA14 smoothingMA。
+
+    直接放在 analysis_core.py，因為 CCI 是用來取代目前畫面上的 ADX 副圖，
+    不另外建立新的 Python 指標模組。ta.dev 對應 rolling mean absolute
+    deviation；smoothingMA 上升=yellow、下降=purple、持平/未成熟=gray。
+    """
+    if length <= 0:
+        raise ValueError("CCI length must be positive")
+    if smoothing_length <= 0:
+        raise ValueError("CCI smoothing length must be positive")
+    if not klines:
+        return []
+
+    typical_prices: list[float | None] = []
+    for candle in klines:
+        try:
+            high = float(candle["high"])
+            low = float(candle["low"])
+            close = float(candle["close"])
+        except (KeyError, TypeError, ValueError):
+            typical_prices.append(None)
+            continue
+        if not (np.isfinite(high) and np.isfinite(low) and np.isfinite(close)):
+            typical_prices.append(None)
+            continue
+        typical_prices.append((high + low + close) / 3.0)
+
+    cci_values: list[float | None] = [None] * len(klines)
+    for index in range(length - 1, len(klines)):
+        window = typical_prices[index - length + 1 : index + 1]
+        if len(window) != length or any(value is None for value in window):
+            continue
+        numeric = [float(value) for value in window if value is not None]
+        mean = sum(numeric) / length
+        mean_deviation = sum(abs(value - mean) for value in numeric) / length
+        if mean_deviation <= 0:
+            continue
+        source = typical_prices[index]
+        if source is None:
+            continue
+        cci_values[index] = (source - mean) / (0.015 * mean_deviation)
+
+    smoothing_values: list[float | None] = [None] * len(klines)
+    for index in range(smoothing_length - 1, len(klines)):
+        window = cci_values[index - smoothing_length + 1 : index + 1]
+        if len(window) != smoothing_length or any(value is None for value in window):
+            continue
+        smoothing_values[index] = sum(float(value) for value in window if value is not None) / smoothing_length
+
+    output: list[dict[str, Any]] = []
+    for index, candle in enumerate(klines):
+        smoothing = smoothing_values[index]
+        previous = smoothing_values[index - 1] if index > 0 else None
+        if smoothing is None or previous is None:
+            color = "gray"
+        elif smoothing > previous:
+            color = "yellow"
+        elif smoothing < previous:
+            color = "purple"
+        else:
+            color = "gray"
+        output.append({
+            "time": candle.get("time"),
+            "cci": cci_values[index],
+            "smoothing_ma": smoothing,
+            "smoothing_color": color,
+        })
+    return output
+
 
 def calculate_adx_dmi(klines: list[dict], period: int = ADX_PERIOD) -> list[dict[str, Any]]:
     """依使用者提供的 TradingView Pine Script 計算 DI+ / DI- / DX / ADX。
@@ -446,6 +523,7 @@ def analyze_symbol(symbol: str, confirmed_cutoff_utc_ms: int | None = None):
         daily_ha = calculate_heikin_ashi(daily_raw)
         four_h_ha = calculate_heikin_ashi(four_h_raw)
         daily_adx = calculate_adx_dmi(daily_raw, period=ADX_PERIOD)
+        daily_cci = calculate_cci_sma(daily_raw)
         basis, upper_band, lower_band = calculate_bollinger_bands(
             daily_raw,
             period=20,
@@ -471,6 +549,7 @@ def analyze_symbol(symbol: str, confirmed_cutoff_utc_ms: int | None = None):
         last_30 = daily_ha[-STRUCTURE_WINDOW_DAYS:]
         raw_last_30 = daily_raw[-STRUCTURE_WINDOW_DAYS:]
         adx_last_30 = daily_adx[-len(last_30):]
+        cci_last_30 = daily_cci[-len(last_30):]
         raw_closes = pd.Series([item["close"] for item in daily_raw], dtype=float)
         rolling_basis = raw_closes.rolling(BB_PERIOD, min_periods=BB_PERIOD).mean()
         rolling_std = raw_closes.rolling(BB_PERIOD, min_periods=BB_PERIOD).std(ddof=0)
@@ -547,6 +626,9 @@ def analyze_symbol(symbol: str, confirmed_cutoff_utc_ms: int | None = None):
             "_di_minus_last30": [item.get("di_minus") for item in adx_last_30],
             "_dx_last30": [item.get("dx") for item in adx_last_30],
             "_adx_last30": [item.get("adx") for item in adx_last_30],
+            "_cci_last30": [item.get("cci") for item in cci_last_30],
+            "_cci_smoothing_ma_last30": [item.get("smoothing_ma") for item in cci_last_30],
+            "_cci_smoothing_color_last30": [item.get("smoothing_color") for item in cci_last_30],
             "_ha4h_color_series": four_h_colors,
             "_ha_threshold": threshold,
         }

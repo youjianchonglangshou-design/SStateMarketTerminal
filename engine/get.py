@@ -146,7 +146,9 @@ CHART_SEMANTICS = {
     "price_axis": "actual_price",
     "bb_formula": "ordinary_daily_close_SMA20_plus_minus_2_population_std",
     "adx_dmi_formula": "Pine-equivalent period14: Wilder recursive TR/DM smoothing; DI+/DI-; DX; ADX=SMA14(DX)",
-    "adx_display": "same 30 daily dates as chart_30d; DI+=yellow, DI-=purple, threshold=20 white dashed",
+    "adx_model_features": "retained in chart_30d for the current Champion/DMI Expert; no longer rendered as the visible sub-chart",
+    "cci_formula": "TradingView-equivalent hlc3 CCI20 using mean absolute deviation, then SMA14 smoothing",
+    "cci_display": "same 30 daily dates as chart_30d; CCI=white, smoothingMA=yellow/purple stepline, reference lines=+100/0/-100",
     "ha_ladder": "daily_heikin_ashi_open_close; yellow=close>open, purple=close<open",
     "real_daily_candle": "ordinary daily OHLC aligned 1:1 with each HA/BB point; used for structural 1.236 invalidation",
     "ha_vs_midline_pct": "(HA_close-BB_midline)/BB_midline*100",
@@ -364,6 +366,9 @@ def _build_chart_30d(record: dict[str, Any]) -> list[dict[str, Any]]:
     di_minuses = list(record.get("_di_minus_last30") or [])
     dx_values = list(record.get("_dx_last30") or [])
     adx_values = list(record.get("_adx_last30") or [])
+    cci_values = list(record.get("_cci_last30") or [])
+    cci_smoothing = list(record.get("_cci_smoothing_ma_last30") or [])
+    cci_smoothing_colors = list(record.get("_cci_smoothing_color_last30") or [])
 
     count = min(
         30,
@@ -392,6 +397,9 @@ def _build_chart_30d(record: dict[str, Any]) -> list[dict[str, Any]]:
     di_minuses = di_minuses[-count:] if len(di_minuses) >= count else [None] * count
     dx_values = dx_values[-count:] if len(dx_values) >= count else [None] * count
     adx_values = adx_values[-count:] if len(adx_values) >= count else [None] * count
+    cci_values = cci_values[-count:] if len(cci_values) >= count else [None] * count
+    cci_smoothing = cci_smoothing[-count:] if len(cci_smoothing) >= count else [None] * count
+    cci_smoothing_colors = cci_smoothing_colors[-count:] if len(cci_smoothing_colors) >= count else ["gray"] * count
 
     output: list[dict[str, Any]] = []
     for index in range(count):
@@ -447,6 +455,9 @@ def _build_chart_30d(record: dict[str, Any]) -> list[dict[str, Any]]:
                 "di_minus": _round(di_minuses[index], 6),
                 "dx": _round(dx_values[index], 6),
                 "adx": _round(adx_values[index], 6),
+                "cci": _round(cci_values[index], 6),
+                "cci_smoothing_ma": _round(cci_smoothing[index], 6),
+                "cci_smoothing_color": str(cci_smoothing_colors[index] or "gray"),
             }
         )
     return output
@@ -980,7 +991,7 @@ def _compact_record(source: dict[str, Any]) -> dict[str, Any]:
         "s3_room": _build_s3_room(opportunity),
         # 最近8日階梯摘要保留，方便 AI 快速閱讀；權威資料仍是 chart_30d。
         "ladder_tail": history[-8:],
-        # 30 日視覺等價資料：HA + BB20 + 同日對齊的 DI+/DI-/DX/ADX。
+        # 30 日視覺等價資料：HA + BB20 + CCI20/SMA14；ADX/DMI欄位仍保留給現任 Champion。
         "chart_30d": chart_30d,
         # 人眼會判斷的斜率、擴張/收縮、方向。
         "visual_summary": visual_summary,

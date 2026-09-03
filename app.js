@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.75｜0825-DAILY-CHAMPION";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.78｜CCI-SYNC-CROSSHAIR";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -694,8 +694,7 @@
     }
     rows.sort((a,b) => stateRank(recordState(a))-stateRank(recordState(b)) || Number(b.historical_probability?.["72h"]?.success_probability||0)-Number(a.historical_probability?.["72h"]?.success_probability||0));
     els.cards.innerHTML = rows.map(renderCard).join("");
-    bindChartCrosshairs();
-    bindAdxCrosshairs();
+    bindSynchronizedChartCrosshairs();
   }
 
   function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
@@ -1011,7 +1010,7 @@
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}${renderResearch(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
       <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderPropwMatchBadge(r)}${renderChartQuickStats(r)}</div>
-      ${buildAdxPanel(r.chart_30d||[])}
+      ${buildCciPanel(r.chart_30d||[])}
     </article>`;
   }
 
@@ -1033,56 +1032,6 @@
       return `${s}e-${exponent}`;
     }
     return fmtPrice(n);
-  }
-
-  function bindChartCrosshairs() {
-    els.cards.querySelectorAll('svg.chart-svg').forEach(svg => {
-      const L=Number(svg.dataset.l||42), R=Number(svg.dataset.r||14), T=Number(svg.dataset.t||12), B=Number(svg.dataset.b||24);
-      const W=Number(svg.dataset.w||760), H=Number(svg.dataset.h||260);
-      const min=Number(svg.dataset.min), max=Number(svg.dataset.max), count=Math.max(2,Number(svg.dataset.count||2));
-      const exponent=Number(svg.dataset.exp||0);
-      let dates=[];
-      try { dates=JSON.parse(decodeURIComponent(svg.dataset.dates||'%5B%5D')); } catch (_) {}
-      const innerW=W-L-R, innerH=H-T-B;
-      const group=svg.querySelector('.tv-crosshair');
-      const vline=svg.querySelector('.tv-cross-v');
-      const hline=svg.querySelector('.tv-cross-h');
-      const priceBox=svg.querySelector('.tv-price-box');
-      const priceText=svg.querySelector('.tv-price-text');
-      const dateBox=svg.querySelector('.tv-date-box');
-      const dateText=svg.querySelector('.tv-date-text');
-      if (!group || !vline || !hline || !priceBox || !priceText || !dateBox || !dateText) return;
-
-      const hide=()=>group.setAttribute('visibility','hidden');
-      svg.addEventListener('pointerleave', hide);
-      svg.addEventListener('pointermove', ev => {
-        const rect=svg.getBoundingClientRect();
-        if (!rect.width || !rect.height) return hide();
-        const vx=(ev.clientX-rect.left)/rect.width*W;
-        const vy=(ev.clientY-rect.top)/rect.height*H;
-        if (vx<L || vx>W-R || vy<T || vy>H-B) return hide();
-
-        const idx=Math.max(0,Math.min(count-1,Math.round((vx-L)/innerW*(count-1))));
-        const snapX=L+idx*(innerW/(count-1));
-        const price=max-((vy-T)/innerH)*(max-min);
-        const date=String(dates[idx]||'—');
-        const priceLabel=fmtChartPrice(price,exponent);
-
-        vline.setAttribute('x1',snapX); vline.setAttribute('x2',snapX);
-        hline.setAttribute('y1',vy); hline.setAttribute('y2',vy);
-
-        const pw=Math.max(48,Math.min(88,priceLabel.length*6.2+12));
-        const py=Math.max(T,Math.min(H-B-20,vy-10));
-        priceBox.setAttribute('x',1); priceBox.setAttribute('y',py); priceBox.setAttribute('width',pw);
-        priceText.setAttribute('x',1+pw/2); priceText.setAttribute('y',py+13.5); priceText.textContent=priceLabel;
-
-        const dw=Math.max(46,Math.min(78,date.length*6.2+14));
-        const dx=Math.max(L,Math.min(W-R-dw,snapX-dw/2));
-        dateBox.setAttribute('x',dx); dateBox.setAttribute('y',H-B+2); dateBox.setAttribute('width',dw);
-        dateText.setAttribute('x',dx+dw/2); dateText.setAttribute('y',H-B+15.5); dateText.textContent=date;
-        group.setAttribute('visibility','visible');
-      });
-    });
   }
 
   function buildChartSvg(points) {
@@ -1120,98 +1069,52 @@
     return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-exp="${tinyExp}" data-dates="${dates}">${grids}<path class="bb-line" d="${linePath('bb_upper')}"/><path class="mid-line" d="${linePath('bb_midline')}"/><path class="bb-line" d="${linePath('bb_lower')}"/>${ladder}<circle class="last-dot" cx="${x(points.length-1)}" cy="${y(last.ha_close)}" r="5" fill="${lc}"/>${crosshair}</svg>`;
   }
 
-  function adxPillStrengthClasses(plus, minus) {
-    const p = Number(plus), m = Number(minus);
-    if (!Number.isFinite(p) || !Number.isFinite(m) || p === m) {
-      return { plus: "adx-pill-neutral", minus: "adx-pill-neutral" };
-    }
-    return p > m
-      ? { plus: "adx-pill-strong-plus", minus: "adx-pill-neutral" }
-      : { plus: "adx-pill-neutral", minus: "adx-pill-strong-minus" };
+  function cciSmoothingPillClass(color) {
+    const normalized=String(color||'gray').toLowerCase();
+    if(normalized==='yellow') return 'cci-pill-sma-yellow';
+    if(normalized==='purple') return 'cci-pill-sma-purple';
+    return 'cci-pill-sma-neutral';
   }
 
-  function roundAdx1(value) {
+  function fmtCci(value) {
     const n=Number(value);
-    return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 10) / 10 : NaN;
+    return Number.isFinite(n) ? n.toFixed(1) : '—';
   }
 
-  function adxStickyTrendSeries(values) {
-    const series=Array.isArray(values)?values:[];
-    const trends=new Array(series.length).fill(0);
-    let trend=0;
-    let previousRounded=NaN;
-    for(let i=0;i<series.length;i++){
-      const currentRounded=roundAdx1(series[i]);
-      if(!Number.isFinite(currentRounded)){
-        trends[i]=trend;
-        continue;
-      }
-      if(Number.isFinite(previousRounded)){
-        if(currentRounded>previousRounded) trend=1;
-        else if(currentRounded<previousRounded) trend=-1;
-        // 四捨五入到 1 位後相等：延續上一個有效方向，不切灰、不反轉。
-      }
-      trends[i]=trend;
-      previousRounded=currentRounded;
-    }
-    return trends;
-  }
-
-  function adxDominanceState(plus, minus, adx, trend) {
-    const p=Number(plus),m=Number(minus),a=Number(adx),t=Number(trend);
-    if(!Number.isFinite(p)||!Number.isFinite(m)||p===m){
-      return { text:"方向膠著｜ADX待確認", controllerClass:"adx-controller-neutral", trendClass:"adx-trend-neutral", trend:"FLAT" };
-    }
-    const controllerClass=p>m?'adx-controller-plus':'adx-controller-minus';
-    if(!Number.isFinite(a)||!Number.isFinite(t)||t===0){
-      return { text:`${p>m?'多方':'空方'}控制｜ADX待確認`, controllerClass, trendClass:"adx-trend-neutral", trend:"FLAT" };
-    }
-    const rising=t===1, falling=t===-1;
-    if(p>m && rising) return { text:"多方控制｜趨勢強度增強 ↗↗", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
-    if(p>m && falling) return { text:"多方仍控制｜力量衰退 ↘↘", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
-    if(p<m && rising) return { text:"空方控制｜趨勢強度增強 ↗↗", controllerClass, trendClass:"adx-trend-rising", trend:"RISING" };
-    return { text:"空方仍控制｜力量衰退 ↘↘", controllerClass, trendClass:"adx-trend-falling", trend:"FALLING" };
-  }
-
-  function buildAdxPanel(points) {
-    const usable = Array.isArray(points) ? points : [];
+  function buildCciPanel(points) {
+    const usable=Array.isArray(points)?points:[];
     let latestIndex=-1;
     for(let i=usable.length-1;i>=0;i--){
-      if(finiteIndicator(usable[i]?.di_plus)&&finiteIndicator(usable[i]?.di_minus)){ latestIndex=i; break; }
+      if(finiteIndicator(usable[i]?.cci)||finiteIndicator(usable[i]?.cci_smoothing_ma)){latestIndex=i;break;}
     }
     const latest=latestIndex>=0?usable[latestIndex]:null;
-    const latestPlus = latest ? Number(latest.di_plus) : NaN;
-    const latestMinus = latest ? Number(latest.di_minus) : NaN;
-    const latestAdx = latest&&finiteIndicator(latest.adx)?Number(latest.adx):NaN;
-    const adxTrends=adxStickyTrendSeries(usable.map(p=>finiteIndicator(p?.adx)?Number(p.adx):null));
-    const latestTrend=latestIndex>=0?Number(adxTrends[latestIndex]||0):0;
-    const pillClasses = adxPillStrengthClasses(latestPlus, latestMinus);
-    const dominance=adxDominanceState(latestPlus,latestMinus,latestAdx,latestTrend);
-    return `<div class="adx-panel">
-      <div class="adx-head">
-        <span class="adx-title">ADX / DMI 14</span>
-        <div class="adx-head-right">
-          <span class="adx-state-pill ${dominance.controllerClass} ${dominance.trendClass}"><span class="adx-state-dot"></span><strong class="adx-state-text">${escapeHtml(dominance.text)}</strong></span>
-          <div class="adx-live-values">
-            <span class="adx-live-pill adx-pill-plus ${pillClasses.plus}">DI+ <strong class="adx-pill-value">${Number.isFinite(latestPlus)?latestPlus.toFixed(1):'—'}</strong></span>
-            <span class="adx-live-pill adx-pill-minus ${pillClasses.minus}">DI− <strong class="adx-pill-value">${Number.isFinite(latestMinus)?latestMinus.toFixed(1):'—'}</strong></span>
+    const latestSma=latest&&finiteIndicator(latest.cci_smoothing_ma)?Number(latest.cci_smoothing_ma):NaN;
+    const latestCci=latest&&finiteIndicator(latest.cci)?Number(latest.cci):NaN;
+    const latestColor=latest?.cci_smoothing_color||'gray';
+    return `<div class="cci-panel">
+      <div class="cci-head">
+        <span class="cci-title">CCI 20 / SMA 14</span>
+        <div class="cci-head-right">
+          <div class="cci-live-values">
+            <span class="cci-live-pill cci-pill-sma ${cciSmoothingPillClass(latestColor)}">SMA <strong class="cci-sma-value">${fmtCci(latestSma)}</strong></span>
+            <span class="cci-live-pill cci-pill-cci">CCI <strong class="cci-cci-value">${fmtCci(latestCci)}</strong></span>
           </div>
         </div>
       </div>
-      ${buildAdxSvg(usable)}
+      ${buildCciSvg(usable)}
     </div>`;
   }
 
-  function buildAdxSvg(points) {
-    if (!Array.isArray(points) || points.length < 2 || !points.some(p => finiteIndicator(p?.di_plus) || finiteIndicator(p?.di_minus))) {
-      return '<div class="adx-empty">等待下一次完整分析產生 ADX / DMI 14</div>';
+  function buildCciSvg(points) {
+    if(!Array.isArray(points)||points.length<2||!points.some(p=>finiteIndicator(p?.cci)||finiteIndicator(p?.cci_smoothing_ma))){
+      return '<div class="cci-empty">等待下一次完整分析產生 CCI 20 / SMA 14</div>';
     }
-    const W=760,H=142,L=42,R=14,T=10,B=30, innerW=W-L-R, innerH=H-T-B;
-    const vals=[20];
-    points.forEach(p=>['di_plus','di_minus','adx'].forEach(k=>{const raw=p?.[k];if(finiteIndicator(raw)) vals.push(Number(raw))}));
-    const min=0;
-    const rawMax=Math.max(...vals,40);
-    const max=Math.max(40,Math.ceil(rawMax/10)*10);
+    const W=760,H=150,L=42,R=14,T=10,B=30,innerW=W-L-R,innerH=H-T-B;
+    const vals=[-100,0,100];
+    points.forEach(p=>['cci','cci_smoothing_ma'].forEach(k=>{if(finiteIndicator(p?.[k]))vals.push(Number(p[k]));}));
+    const rawMin=Math.min(...vals),rawMax=Math.max(...vals),range=Math.max(1,rawMax-rawMin),pad=range*.08;
+    const min=Math.min(-150,Math.floor((rawMin-pad)/50)*50);
+    const max=Math.max(150,Math.ceil((rawMax+pad)/50)*50);
     const x=(i)=>L+i*(innerW/(points.length-1));
     const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
     const linePath=(key)=>{
@@ -1225,120 +1128,198 @@
       });
       return d;
     };
-    const adxTrendSeries=adxStickyTrendSeries(points.map(p=>finiteIndicator(p?.adx)?Number(p.adx):null));
-    let adxSteps='';
+    let smoothingSteps='';
     for(let i=1;i<points.length;i++){
-      const prev=finiteIndicator(points[i-1]?.adx)?Number(points[i-1].adx):NaN;
-      const curr=finiteIndicator(points[i]?.adx)?Number(points[i].adx):NaN;
-      if(!Number.isFinite(prev)||!Number.isFinite(curr)) continue;
-      const trend=Number(adxTrendSeries[i]||0);
-      const cls=trend===1?'adx-step-rising':trend===-1?'adx-step-falling':'adx-step-flat';
-      const x0=x(i-1),x1=x(i),y0=y(prev),y1=y(curr);
-      adxSteps+=`<path class="adx-step ${cls}" d="M${x0.toFixed(1)},${y0.toFixed(1)} H${x1.toFixed(1)} V${y1.toFixed(1)}"/>`;
+      const prev=finiteIndicator(points[i-1]?.cci_smoothing_ma)?Number(points[i-1].cci_smoothing_ma):NaN;
+      const curr=finiteIndicator(points[i]?.cci_smoothing_ma)?Number(points[i].cci_smoothing_ma):NaN;
+      if(!Number.isFinite(prev)||!Number.isFinite(curr))continue;
+      const color=String(points[i]?.cci_smoothing_color||'gray').toLowerCase();
+      const cls=color==='yellow'?'cci-sma-yellow':color==='purple'?'cci-sma-purple':'cci-sma-flat';
+      smoothingSteps+=`<path class="cci-sma-step ${cls}" d="M${x(i-1).toFixed(1)},${y(prev).toFixed(1)} H${x(i).toFixed(1)} V${y(curr).toFixed(1)}"/>`;
     }
-    let grids='';
-    for(let i=0;i<=2;i++){
-      const val=max-i*(max/2), yy=y(val);
-      grids+=`<line class="adx-grid-line" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="adx-axis-text" x="4" y="${yy+3}">${val.toFixed(0)}</text>`;
-    }
-    const thresholdY=y(20);
-    const threshold=`<line class="adx-threshold-line" x1="${L}" y1="${thresholdY}" x2="${W-R}" y2="${thresholdY}"/><text class="adx-threshold-text" x="4" y="${thresholdY+3}">20</text>`;
+    const reference=[100,0,-100].map(value=>{
+      const yy=y(value),cls=value===0?'cci-ref-zero':'cci-ref-band';
+      return `<line class="cci-ref-line ${cls}" x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}"/><text class="cci-axis-text" x="4" y="${yy+3}">${value}</text>`;
+    }).join('');
     const labelIdx=[0,Math.floor((points.length-1)/3),Math.floor((points.length-1)*2/3),points.length-1];
-    const labels=[...new Set(labelIdx)].map(i=>`<text class="adx-axis-text adx-date-text" x="${x(i)-8}" y="${H-4}" transform="rotate(-35 ${x(i)-8} ${H-4})">${escapeHtml(points[i]?.date||'')}</text>`).join('');
+    const labels=[...new Set(labelIdx)].map(i=>`<text class="cci-axis-text cci-date-text" x="${x(i)-8}" y="${H-4}" transform="rotate(-35 ${x(i)-8} ${H-4})">${escapeHtml(points[i]?.date||'')}</text>`).join('');
     const dates=encodeURIComponent(JSON.stringify(points.map(p=>String(p?.date||''))));
-    const pluses=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.di_plus)?Number(p.di_plus):null)));
-    const minuses=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.di_minus)?Number(p.di_minus):null)));
-    const adxs=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.adx)?Number(p.adx):null)));
-    const last=points[points.length-1]||{};
-    const latestPlus=finiteIndicator(last.di_plus)?Number(last.di_plus):NaN, latestMinus=finiteIndicator(last.di_minus)?Number(last.di_minus):NaN;
-    const lastDots=`${Number.isFinite(latestPlus)?`<circle class="adx-last-dot adx-plus-dot" cx="${x(points.length-1)}" cy="${y(latestPlus)}" r="3.5"/>`:''}${Number.isFinite(latestMinus)?`<circle class="adx-last-dot adx-minus-dot" cx="${x(points.length-1)}" cy="${y(latestMinus)}" r="3.5"/>`:''}`;
-    const crosshair=`<g class="adx-crosshair" visibility="hidden" pointer-events="none">
-      <line class="adx-cross-line adx-cross-v" x1="${L}" y1="${T}" x2="${L}" y2="${H-B}"/>
-      <circle class="adx-hover-dot adx-hover-plus" cx="${L}" cy="${T}" r="4" visibility="hidden"/>
-      <circle class="adx-hover-dot adx-hover-minus" cx="${L}" cy="${T}" r="4" visibility="hidden"/>
-      <rect class="tv-cross-label adx-date-box" x="${L}" y="${H-B+2}" width="48" height="20" rx="3"/>
-      <text class="tv-cross-label-text adx-hover-date" x="${L+24}" y="${H-B+15.5}" text-anchor="middle">—</text>
+    const ccis=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.cci)?Number(p.cci):null)));
+    const smas=encodeURIComponent(JSON.stringify(points.map(p=>finiteIndicator(p?.cci_smoothing_ma)?Number(p.cci_smoothing_ma):null)));
+    const colors=encodeURIComponent(JSON.stringify(points.map(p=>String(p?.cci_smoothing_color||'gray'))));
+    let lastIndex=-1;
+    for(let i=points.length-1;i>=0;i--){if(finiteIndicator(points[i]?.cci)||finiteIndicator(points[i]?.cci_smoothing_ma)){lastIndex=i;break;}}
+    let lastDots='';
+    if(lastIndex>=0){
+      const last=points[lastIndex];
+      if(finiteIndicator(last.cci)) lastDots+=`<circle class="cci-last-dot cci-line-dot" cx="${x(lastIndex)}" cy="${y(Number(last.cci))}" r="3.5"/>`;
+      if(finiteIndicator(last.cci_smoothing_ma)){
+        const color=String(last.cci_smoothing_color||'gray').toLowerCase();
+        const cls=color==='yellow'?'cci-sma-dot-yellow':color==='purple'?'cci-sma-dot-purple':'cci-sma-dot-neutral';
+        lastDots+=`<circle class="cci-last-dot ${cls}" cx="${x(lastIndex)}" cy="${y(Number(last.cci_smoothing_ma))}" r="3.5"/>`;
+      }
+    }
+    const crosshair=`<g class="cci-crosshair" visibility="hidden" pointer-events="none">
+      <line class="cci-cross-line cci-cross-v" x1="${L}" y1="${T}" x2="${L}" y2="${H-B}"/>
+      <line class="cci-cross-line cci-cross-h" x1="${L}" y1="${T}" x2="${W-R}" y2="${T}"/>
+      <circle class="cci-hover-dot cci-hover-sma" cx="${L}" cy="${T}" r="4" visibility="hidden"/>
+      <circle class="cci-hover-dot cci-hover-cci" cx="${L}" cy="${T}" r="4" visibility="hidden"/>
+      <rect class="tv-cross-label cci-date-box" x="${L}" y="${H-B+2}" width="48" height="20" rx="3"/>
+      <text class="tv-cross-label-text cci-hover-date" x="${L+24}" y="${H-B+15.5}" text-anchor="middle">—</text>
     </g>`;
-    return `<svg class="adx-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-dates="${dates}" data-plus="${pluses}" data-minus="${minuses}" data-adx="${adxs}">${grids}${threshold}${adxSteps}<path class="adx-di-plus" d="${linePath('di_plus')}"/><path class="adx-di-minus" d="${linePath('di_minus')}"/>${lastDots}${labels}${crosshair}</svg>`;
+    return `<svg class="cci-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-w="${W}" data-h="${H}" data-l="${L}" data-r="${R}" data-t="${T}" data-b="${B}" data-min="${min}" data-max="${max}" data-count="${points.length}" data-dates="${dates}" data-cci="${ccis}" data-sma="${smas}" data-colors="${colors}">${reference}${smoothingSteps}<path class="cci-line" d="${linePath('cci')}"/>${lastDots}${labels}${crosshair}</svg>`;
   }
 
-  function bindAdxCrosshairs() {
-    els.cards.querySelectorAll('svg.adx-svg').forEach(svg => {
-      const panel=svg.closest('.adx-panel');
-      const plusPill=panel?.querySelector('.adx-pill-plus');
-      const minusPill=panel?.querySelector('.adx-pill-minus');
-      const plusValue=plusPill?.querySelector('.adx-pill-value');
-      const minusValue=minusPill?.querySelector('.adx-pill-value');
-      const statePill=panel?.querySelector('.adx-state-pill');
-      const stateText=statePill?.querySelector('.adx-state-text');
-      const latestPlus=plusValue?.textContent||'—';
-      const latestMinus=minusValue?.textContent||'—';
-      const latestPlusNumber=Number(latestPlus);
-      const latestMinusNumber=Number(latestMinus);
-      const L=Number(svg.dataset.l||42),R=Number(svg.dataset.r||14),T=Number(svg.dataset.t||10),B=Number(svg.dataset.b||30);
-      const W=Number(svg.dataset.w||760),H=Number(svg.dataset.h||142);
-      const min=Number(svg.dataset.min||0),max=Number(svg.dataset.max||40),count=Math.max(2,Number(svg.dataset.count||2));
-      let dates=[],pluses=[],minuses=[],adxs=[];
-      try{dates=JSON.parse(decodeURIComponent(svg.dataset.dates||'%5B%5D'));}catch(_){}
-      try{pluses=JSON.parse(decodeURIComponent(svg.dataset.plus||'%5B%5D'));}catch(_){}
-      try{minuses=JSON.parse(decodeURIComponent(svg.dataset.minus||'%5B%5D'));}catch(_){}
-      try{adxs=JSON.parse(decodeURIComponent(svg.dataset.adx||'%5B%5D'));}catch(_){}
-      const innerW=W-L-R,innerH=H-T-B;
-      const group=svg.querySelector('.adx-crosshair');
-      const vline=svg.querySelector('.adx-cross-v');
-      const dateBox=svg.querySelector('.adx-date-box');
-      const dateText=svg.querySelector('.adx-hover-date');
-      const plusDot=svg.querySelector('.adx-hover-plus');
-      const minusDot=svg.querySelector('.adx-hover-minus');
-      if(!group||!vline||!dateBox||!dateText||!plusDot||!minusDot)return;
-      const y=(v)=>T+(max-Number(v))/(max-min)*innerH;
-      const setPillStrength=(p,m)=>{
-        if(!plusPill||!minusPill)return;
-        plusPill.classList.remove('adx-pill-strong-plus','adx-pill-strong-minus','adx-pill-neutral');
-        minusPill.classList.remove('adx-pill-strong-plus','adx-pill-strong-minus','adx-pill-neutral');
-        const classes=adxPillStrengthClasses(p,m);
-        plusPill.classList.add(classes.plus);
-        minusPill.classList.add(classes.minus);
+  function bindSynchronizedChartCrosshairs() {
+    els.cards.querySelectorAll('.card').forEach(card=>{
+      const main=card.querySelector('svg.chart-svg');
+      if(!main)return;
+      const cci=card.querySelector('svg.cci-svg');
+
+      const mL=Number(main.dataset.l||42),mR=Number(main.dataset.r||14),mT=Number(main.dataset.t||12),mB=Number(main.dataset.b||24);
+      const mW=Number(main.dataset.w||760),mH=Number(main.dataset.h||260),mMin=Number(main.dataset.min),mMax=Number(main.dataset.max);
+      const mCount=Math.max(2,Number(main.dataset.count||2)),mInnerW=mW-mL-mR,mInnerH=mH-mT-mB;
+      const exponent=Number(main.dataset.exp||0);
+      let mainDates=[];
+      try{mainDates=JSON.parse(decodeURIComponent(main.dataset.dates||'%5B%5D'));}catch(_){}
+      const mainGroup=main.querySelector('.tv-crosshair');
+      const mainV=main.querySelector('.tv-cross-v');
+      const mainHLine=main.querySelector('.tv-cross-h');
+      const priceBox=main.querySelector('.tv-price-box');
+      const priceText=main.querySelector('.tv-price-text');
+      const mainDateBox=main.querySelector('.tv-date-box');
+      const mainDateText=main.querySelector('.tv-date-text');
+      if(!mainGroup||!mainV||!mainHLine||!priceBox||!priceText)return;
+
+      let cL=42,cR=14,cT=10,cB=30,cW=760,cH=150,cMin=-150,cMax=150,cCount=mCount,cInnerW=704,cInnerH=110;
+      let dates=mainDates,ccis=[],smas=[],colors=[];
+      let cciGroup=null,cciV=null,cciHLine=null,cciDateBox=null,cciDateText=null,cciDot=null,smaDot=null;
+      const panel=card.querySelector('.cci-panel');
+      const smaPill=panel?.querySelector('.cci-pill-sma');
+      const cciPill=panel?.querySelector('.cci-pill-cci');
+      const smaValue=panel?.querySelector('.cci-sma-value');
+      const cciValue=panel?.querySelector('.cci-cci-value');
+
+      if(cci){
+        cL=Number(cci.dataset.l||42);cR=Number(cci.dataset.r||14);cT=Number(cci.dataset.t||10);cB=Number(cci.dataset.b||30);
+        cW=Number(cci.dataset.w||760);cH=Number(cci.dataset.h||150);cMin=Number(cci.dataset.min||-150);cMax=Number(cci.dataset.max||150);
+        cCount=Math.max(2,Number(cci.dataset.count||mCount));cInnerW=cW-cL-cR;cInnerH=cH-cT-cB;
+        try{dates=JSON.parse(decodeURIComponent(cci.dataset.dates||'%5B%5D'));}catch(_){}
+        try{ccis=JSON.parse(decodeURIComponent(cci.dataset.cci||'%5B%5D'));}catch(_){}
+        try{smas=JSON.parse(decodeURIComponent(cci.dataset.sma||'%5B%5D'));}catch(_){}
+        try{colors=JSON.parse(decodeURIComponent(cci.dataset.colors||'%5B%5D'));}catch(_){}
+        cciGroup=cci.querySelector('.cci-crosshair');cciV=cci.querySelector('.cci-cross-v');cciHLine=cci.querySelector('.cci-cross-h');
+        cciDateBox=cci.querySelector('.cci-date-box');cciDateText=cci.querySelector('.cci-hover-date');
+        cciDot=cci.querySelector('.cci-hover-cci');smaDot=cci.querySelector('.cci-hover-sma');
+      }
+
+      const setSmaPillColor=(color)=>{
+        if(!smaPill)return;
+        smaPill.classList.remove('cci-pill-sma-yellow','cci-pill-sma-purple','cci-pill-sma-neutral');
+        smaPill.classList.add(cciSmoothingPillClass(color));
       };
-      const adxTrends=adxStickyTrendSeries(adxs);
-      const setDominanceState=(idx,p,m)=>{
-        if(!statePill||!stateText)return;
-        const a=adxs[idx]===null?NaN:Number(adxs[idx]);
-        const trend=Number(adxTrends[idx]||0);
-        const stateInfo=adxDominanceState(p,m,a,trend);
-        statePill.classList.remove('adx-controller-plus','adx-controller-minus','adx-controller-neutral','adx-trend-rising','adx-trend-falling','adx-trend-neutral');
-        statePill.classList.add(stateInfo.controllerClass,stateInfo.trendClass);
-        stateText.textContent=stateInfo.text;
+      const setPills=(idx)=>{
+        if(!cci)return;
+        const cv=ccis[idx]===null?NaN:Number(ccis[idx]);
+        const sv=smas[idx]===null?NaN:Number(smas[idx]);
+        if(cciValue)cciValue.textContent=fmtCci(cv);
+        if(smaValue)smaValue.textContent=fmtCci(sv);
+        setSmaPillColor(colors[idx]||'gray');
+      };
+      let latestIndex=-1;
+      for(let i=Math.min(ccis.length,smas.length,cCount)-1;i>=0;i--){
+        const cv=ccis[i]===null?NaN:Number(ccis[i]),sv=smas[i]===null?NaN:Number(smas[i]);
+        if(Number.isFinite(cv)||Number.isFinite(sv)){latestIndex=i;break;}
+      }
+      const cY=(v)=>cT+(cMax-Number(v))/(cMax-cMin)*cInnerH;
+      const setCciDots=(idx,snapX)=>{
+        if(!cciDot||!smaDot)return;
+        const cv=ccis[idx]===null?NaN:Number(ccis[idx]),sv=smas[idx]===null?NaN:Number(smas[idx]);
+        if(Number.isFinite(cv)){cciDot.setAttribute('cx',snapX);cciDot.setAttribute('cy',cY(cv));cciDot.setAttribute('visibility','visible');}
+        else cciDot.setAttribute('visibility','hidden');
+        if(Number.isFinite(sv)){
+          smaDot.setAttribute('cx',snapX);smaDot.setAttribute('cy',cY(sv));smaDot.setAttribute('visibility','visible');
+          smaDot.setAttribute('class',`cci-hover-dot cci-hover-sma ${colors[idx]==='yellow'?'cci-hover-sma-yellow':colors[idx]==='purple'?'cci-hover-sma-purple':'cci-hover-sma-neutral'}`);
+        }else smaDot.setAttribute('visibility','hidden');
+      };
+      const setBottomDate=(idx,snapX)=>{
+        if(!cciDateBox||!cciDateText)return;
+        const date=String(dates[idx]||mainDates[idx]||'—');
+        const dw=Math.max(46,Math.min(78,date.length*6.2+14));
+        const dx=Math.max(cL,Math.min(cW-cR-dw,snapX-dw/2));
+        cciDateBox.setAttribute('x',dx);cciDateBox.setAttribute('width',dw);
+        cciDateText.setAttribute('x',dx+dw/2);cciDateText.textContent=date;
+      };
+      const setMainFallbackDate=(idx,snapX,visible)=>{
+        if(!mainDateBox||!mainDateText)return;
+        mainDateBox.setAttribute('visibility',visible?'visible':'hidden');
+        mainDateText.setAttribute('visibility',visible?'visible':'hidden');
+        if(!visible)return;
+        const date=String(mainDates[idx]||'—');
+        const dw=Math.max(46,Math.min(78,date.length*6.2+14));
+        const dx=Math.max(mL,Math.min(mW-mR-dw,snapX-dw/2));
+        mainDateBox.setAttribute('x',dx);mainDateBox.setAttribute('width',dw);
+        mainDateText.setAttribute('x',dx+dw/2);mainDateText.textContent=date;
+      };
+      const syncIndex=(idx,source,sourceVy)=>{
+        idx=Math.max(0,Math.min(mCount-1,idx));
+        const mainX=mL+idx*(mInnerW/(mCount-1));
+        mainV.setAttribute('x1',mainX);mainV.setAttribute('x2',mainX);
+        mainGroup.setAttribute('visibility','visible');
+
+        if(source==='main'){
+          const vy=sourceVy;
+          const price=mMax-((vy-mT)/mInnerH)*(mMax-mMin);
+          const priceLabel=fmtChartPrice(price,exponent);
+          mainHLine.setAttribute('y1',vy);mainHLine.setAttribute('y2',vy);mainHLine.setAttribute('visibility','visible');
+          const pw=Math.max(48,Math.min(88,priceLabel.length*6.2+12));
+          const py=Math.max(mT,Math.min(mH-mB-20,vy-10));
+          priceBox.setAttribute('x',1);priceBox.setAttribute('y',py);priceBox.setAttribute('width',pw);priceBox.setAttribute('visibility','visible');
+          priceText.setAttribute('x',1+pw/2);priceText.setAttribute('y',py+13.5);priceText.textContent=priceLabel;priceText.setAttribute('visibility','visible');
+        }else{
+          mainHLine.setAttribute('visibility','hidden');priceBox.setAttribute('visibility','hidden');priceText.setAttribute('visibility','hidden');
+        }
+
+        if(cci&&cciGroup&&cciV){
+          const subIdx=Math.max(0,Math.min(cCount-1,idx));
+          const cciX=cL+subIdx*(cInnerW/(cCount-1));
+          cciV.setAttribute('x1',cciX);cciV.setAttribute('x2',cciX);
+          if(cciHLine){
+            if(source==='cci'){cciHLine.setAttribute('y1',sourceVy);cciHLine.setAttribute('y2',sourceVy);cciHLine.setAttribute('visibility','visible');}
+            else cciHLine.setAttribute('visibility','hidden');
+          }
+          setBottomDate(subIdx,cciX);setCciDots(subIdx,cciX);setPills(subIdx);
+          cciGroup.setAttribute('visibility','visible');
+          setMainFallbackDate(idx,mainX,false);
+        }else{
+          setMainFallbackDate(idx,mainX,true);
+        }
       };
       const restore=()=>{
-        group.setAttribute('visibility','hidden');
-        if(plusValue) plusValue.textContent=latestPlus;
-        if(minusValue) minusValue.textContent=latestMinus;
-        setPillStrength(latestPlusNumber,latestMinusNumber);
-        setDominanceState(count-1,latestPlusNumber,latestMinusNumber);
+        mainGroup.setAttribute('visibility','hidden');
+        if(cciGroup)cciGroup.setAttribute('visibility','hidden');
+        if(latestIndex>=0)setPills(latestIndex);
       };
-      svg.addEventListener('pointerleave',restore);
-      svg.addEventListener('pointermove',ev=>{
+      const pointerIndex=(ev,svg,L,R,T,B,W,H,count)=>{
         const rect=svg.getBoundingClientRect();
-        if(!rect.width||!rect.height)return restore();
-        const vx=(ev.clientX-rect.left)/rect.width*W;
-        const vy=(ev.clientY-rect.top)/rect.height*H;
-        if(vx<L||vx>W-R||vy<T||vy>H-B)return restore();
-        const idx=Math.max(0,Math.min(count-1,Math.round((vx-L)/innerW*(count-1))));
-        const snapX=L+idx*(innerW/(count-1));
-        const date=String(dates[idx]||'—');
-        const p=pluses[idx]===null?NaN:Number(pluses[idx]),m=minuses[idx]===null?NaN:Number(minuses[idx]);
-        vline.setAttribute('x1',snapX);vline.setAttribute('x2',snapX);
-        if(Number.isFinite(p)){plusDot.setAttribute('cx',snapX);plusDot.setAttribute('cy',y(p));plusDot.setAttribute('visibility','visible');if(plusValue)plusValue.textContent=p.toFixed(1);}else{plusDot.setAttribute('visibility','hidden');if(plusValue)plusValue.textContent='—';}
-        if(Number.isFinite(m)){minusDot.setAttribute('cx',snapX);minusDot.setAttribute('cy',y(m));minusDot.setAttribute('visibility','visible');if(minusValue)minusValue.textContent=m.toFixed(1);}else{minusDot.setAttribute('visibility','hidden');if(minusValue)minusValue.textContent='—';}
-        setPillStrength(p,m);
-        setDominanceState(idx,p,m);
-        const dw=Math.max(46,Math.min(78,date.length*6.2+14));
-        const dx=Math.max(L,Math.min(W-R-dw,snapX-dw/2));
-        dateBox.setAttribute('x',dx);dateBox.setAttribute('width',dw);
-        dateText.setAttribute('x',dx+dw/2);dateText.textContent=date;
-        group.setAttribute('visibility','visible');
+        if(!rect.width||!rect.height)return null;
+        const vx=(ev.clientX-rect.left)/rect.width*W,vy=(ev.clientY-rect.top)/rect.height*H;
+        if(vx<L||vx>W-R||vy<T||vy>H-B)return null;
+        const idx=Math.max(0,Math.min(count-1,Math.round((vx-L)/(W-L-R)*(count-1))));
+        return {idx,vy};
+      };
+      main.addEventListener('pointermove',ev=>{
+        const hit=pointerIndex(ev,main,mL,mR,mT,mB,mW,mH,mCount);
+        if(hit)syncIndex(hit.idx,'main',hit.vy);
       });
+      if(cci){
+        cci.addEventListener('pointermove',ev=>{
+          const hit=pointerIndex(ev,cci,cL,cR,cT,cB,cW,cH,cCount);
+          if(hit)syncIndex(hit.idx,'cci',hit.vy);
+        });
+      }
+      card.addEventListener('pointerleave',restore);
+      restore();
     });
   }
 

@@ -1,7 +1,12 @@
 {
-  "app_version": "TERMINAL v0.1.77｜ONE-EXAM-PER-DAY",
-  "stage": "ONE-EXAM-PER-DAY",
+  "app_version": "TERMINAL v0.1.79｜CCI-SYNC-CROSSHAIR",
+  "stage": "CCI-SYNC-CROSSHAIR",
   "features": [
+    "Visible ADX / DMI 14 sub-chart is replaced by TradingView-equivalent CCI20 with SMA14 smoothing; the current Champion still retains its existing ADX/DMI model features in the backend.",
+    "CCI calculation is integrated directly into engine/analysis_core.py; no new CCI Python module is added. The formula remains hlc3 CCI20 using mean absolute deviation, then SMA14 smoothing with yellow/purple direction.",
+    "CCI sub-chart renders CCI as a neutral white line, smoothingMA as yellow/purple stepline, and +100 / 0 / -100 reference levels.",
+    "Removes the visible ADX dominance capsule; the sub-chart header now shows SMA and CCI capsules only. SMA follows smoothingMA yellow/purple direction while CCI remains neutral.",
+    "Main price chart and CCI pane share the same date crosshair: hovering either pane synchronizes the vertical dashed line; main-pane hover shows price, CCI-pane hover updates SMA/CCI values and its own horizontal crosshair.",
     "Performance Center collapses same Generation/model/market/symbol/date duplicates to one visible exam; formal 08:25 rows replace same-day legacy copies.",
     "Formal Champion exam is initiated at Taiwan 08:25; Crypto + US-stock checkpoint uploads must finish before HistoricalTraining is triggered.",
     "The normal Taiwan 08:01 pair slot is skipped so total pair analyses remain six/day: 00:01, 04:01, 08:25, 12:01, 16:01, 20:01.",
@@ -30,5 +35,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.77"
+  "version": "0.1.79"
 }

@@ -1,3 +1,16 @@
+# SStateMarketTerminal v0.1.84 — DESKTOP READABILITY 125
+
+本版把桌面版 **瀏覽器 100%** 的整體可讀尺度調整到接近先前手動縮放 **125%** 的視覺效果，但不是使用 CSS `zoom`，因此不會把圖表線條粗暴放大。
+
+- 桌面仍維持 **一列兩張卡片**（>1100px）。
+- 整體字體、主圖/副圖數據、中文字膠囊、按鈕、篩選器同步放大。
+- 主圖高度由 265px 提升到 **330px**；CCI 圖由 150px 提升到 **188px**，讓一張卡的閱讀密度接近原本 125% 畫面。
+- 軸文字、失敗/存活/樣本統計與 CCI/SMA 數字同步放大。
+- BB / 平均K / CCI 線寬只小幅增加，不使用整頁 transform/zoom，避免線條爆粗。
+- **CCI PRIMARY 模型、評語內容、Champion 機率、十字線、資料與 Action 全部不改。**
+
+---
+
 # SStateMarketTerminal v0.1.83 — CCI PATH COMMENT LARGE
 
 本版只調整 CCI 副圖的「路徑評語膠囊」視覺大小：

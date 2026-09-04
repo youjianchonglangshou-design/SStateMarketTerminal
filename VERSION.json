@@ -1,7 +1,9 @@
 {
-  "app_version": "TERMINAL v0.1.83｜CCI-PATH-COMMENT-LARGE",
-  "stage": "CCI-PATH-COMMENT-LARGE",
+  "app_version": "TERMINAL v0.1.84｜DESKTOP-READABILITY-125",
+  "stage": "DESKTOP-READABILITY-125",
   "features": [
+    "Desktop layout is rescaled for readability so browser 100% visually approximates the former 125% working view while preserving the two-card grid: larger typography, pills, headers, main chart height, CCI pane height, axes and quick stats, with only modest line-width changes and no CSS zoom.",
+    "Desktop cards remain two per row above 1100px; this is a layout/CSS-only change. CCI PRIMARY commentary, Champion probabilities, chart data, synchronized crosshair and all model logic are unchanged.",
     "CCI path-comment capsule typography is enlarged to the same visual scale as the main-chart Chinese pills: 10px text with 5px vertical / 9px horizontal padding. Commentary logic and Champion probabilities are unchanged.",
     "Adds a CCI PRIMARY path-comment capsule in the CCI pane header, occupying the old ADX direction-capsule area. The capsule is a deterministic explainer of the same Schema 5 path features; it does not create a second score or modify probability.",
     "S0.5 comments distinguish first low cross / left-V rebound, second cross / right-V confirmation, midline improvement, yellow-SMA retest/reclaim, and approaching-cross setups.",
@@ -48,5 +50,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.83"
+  "version": "0.1.84"
 }

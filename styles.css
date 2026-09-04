@@ -619,3 +619,70 @@
 /* v0.1.68｜Champion performance link */
 .performance-link{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 13px;border:1px solid #2e8f69;border-radius:9px;background:linear-gradient(180deg,#12372b,#0c251d);color:#7cf0b4;text-decoration:none;font-size:12px;font-weight:900;white-space:nowrap;box-shadow:inset 0 1px 0 #c8ffe622,0 0 15px #2dd98a14}
 .performance-link:hover{border-color:#58d99e;background:linear-gradient(180deg,#174736,#0e2e23);color:#b8ffd9}
+
+/* v0.1.84 — Desktop readability scale: make browser 100% visually match the old ~125% working view without CSS zoom. */
+@media (min-width:1101px){
+  .shell{max-width:none;padding:30px 30px 48px}
+  .topbar{gap:26px;margin-bottom:22px}
+  .title-row{gap:12px}
+  .title-row h1{font-size:27px;letter-spacing:1.25px;margin-bottom:5px}
+  .caption{font-size:13px;line-height:1.6}
+  .chip,.pill{padding:6px 11px;font-size:12px}
+
+  .actions{gap:10px;min-width:760px}
+  .actions select,.actions button{height:44px;border-radius:11px;padding:0 12px;font-size:12px}
+  .search-box{height:44px;border-radius:11px;padding:0 12px;gap:8px}
+  .search-box span{font-size:18px}
+  .search-box input{font-size:13px}
+  .performance-link{height:44px;padding:0 15px;font-size:13px;border-radius:10px}
+
+  .scan-head{gap:20px;padding-top:17px}
+  .scan-head h2{font-size:23px;margin-bottom:5px}
+  .filters{gap:8px}
+  .filter{padding:6px 11px;font-size:12px}
+  .run-panel{padding:14px 16px;margin-bottom:18px}
+  .run-line{font-size:14px}
+
+  .cards{gap:18px}
+  .card{border-radius:14px;padding:18px}
+  .card-header{gap:14px;margin-bottom:10px}
+  .identity{font-size:16px;line-height:1.72}
+  .lights{font-size:13px}
+  .badges{gap:6px;max-width:62%}
+  .badge-row{gap:7px}
+  .prob-pill strong{font-size:14px}
+  .prob-card{width:260px;padding:12px;border-radius:11px}
+  .prob-title{font-size:13px;padding-bottom:7px;margin-bottom:7px}
+  .prob-row{font-size:12px;margin:4px 0}
+  .prob-meta{font-size:11px;line-height:1.55}
+  .research-pill small{font-size:10px}
+
+  .chart{height:330px}
+  .axis-text{font-size:10px}
+  .bb-line{stroke-width:2.25}
+  .mid-line{stroke-width:1.5}
+  .ladder-yellow,.ladder-purple{stroke-width:2.7}
+  .last-dot{stroke-width:2.1}
+
+  .chart-quick-stats{left:52px;bottom:34px;gap:14px;font-size:12px;padding:6px 11px}
+  .chart-stat i{width:10px;height:10px;flex-basis:10px}
+  .chart-stat.level{font-size:12px}
+  .market-session-badge{top:11px;left:58px;height:24px;padding:0 10px;gap:6px;font-size:11px}
+  .market-session-badge i{width:8px;height:8px;flex-basis:8px}
+  .propw-match-badge{top:11px;right:14px;min-width:29px;height:24px;padding:0 8px;font-size:10px}
+
+  .cci-panel{margin-top:5px;padding-top:9px;min-height:220px}
+  .cci-head{height:32px;gap:12px;padding:0 15px 0 52px}
+  .cci-head-right{gap:9px}
+  .cci-title{font-size:11px;letter-spacing:.7px}
+  .cci-path-comment{max-width:390px;padding:6px 11px;font-size:12px}
+  .cci-live-values{gap:8px}
+  .cci-live-pill{min-width:88px;padding:5px 10px;font-size:11px;border-radius:8px}
+  .cci-live-pill strong{font-size:12px}
+  .cci-svg{height:188px}
+  .cci-axis-text,.cci-date-text{font-size:10px}
+  .cci-line{stroke-width:1.65}
+  .cci-sma-step{stroke-width:2.3}
+  .cci-last-dot,.cci-hover-dot{stroke-width:1.35}
+  .cci-empty{height:170px;font-size:11px}
+}

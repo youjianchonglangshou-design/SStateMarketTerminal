@@ -1,3 +1,14 @@
+# SStateMarketTerminal v0.1.83 — CCI PATH COMMENT LARGE
+
+本版只調整 CCI 副圖的「路徑評語膠囊」視覺大小：
+
+- 字級由 9px → **10px**。
+- 上下 padding 由 4px → **5px**，尺寸與主圖上方中文字膠囊接近。
+- 手機版同步放大，避免評語太小。
+- **評語內容、CCI PRIMARY 判斷、Champion 機率、圖表與十字線全部不改。**
+
+---
+
 # SStateMarketTerminal v0.1.82 — CCI PATH COMMENT
 
 本版在 CCI 副圖右上、原本 ADX 方向判斷膠囊的位置，加入 **CCI PRIMARY 路徑評語**。

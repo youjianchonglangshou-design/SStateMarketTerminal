@@ -1,3 +1,18 @@
+# SStateMarketTerminal v0.1.81 — CCI PRIMARY PATH
+
+本版只把 live probability reader 接到 HistoricalTraining Schema 5 `CCI-PRIMARY-v2-PATH-TREE-HLC3-20-SMA14`。
+
+- S-state 只選考題/target。
+- CCI/BB中軌/HA 的 30 日路徑樹直接輸出成功、還活著、真失敗、其他機率。
+- 支援第一次/第二次交叉、交叉距今天數、交叉位置、中軌 phase、approaching/pullback gap、黃/紫 SMA retest/reclaim、斜率/加速度與背離。
+- `market_type` 進模型，因此 Crypto 與 US-stock/RWA 可走不同歷史分支。
+- 圖表完全沿用已確認的 CCI20 / SMA14 + 上下同步十字線，不改 `app.js` / `styles.css` / `analysis_core.py`。
+- `matched_samples` 現在代表實際匹配到的 CCI PRIMARY path node/leaf 樣本，不再是假裝成 CCI 的舊 Level 樣本。
+
+部署本版後，再讓 HistoricalTraining v3.8.0 Action 產生 Schema 5 Active Champion。早上 08:25 舊 Champion 的 checkpoint 不能掛到新 model_id；要用 `Auto Market Batch` 指定同一日期重跑，並設 `run_learning_after=true`。
+
+---
+
 ## TERMINAL v0.1.80｜CCI-CHAMPION
 
 - **v0.1.79 已確認的 CCI 圖表與上下同步十字線完全不改。**

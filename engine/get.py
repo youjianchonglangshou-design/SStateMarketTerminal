@@ -31,7 +31,7 @@ from symbols_config import get_rwa_sector_tags, is_rwa_symbol
 from probability_reader import load_probability_model, predict_record
 
 TW_TZ = timezone(timedelta(hours=8))
-SCHEMA_VERSION = "crypto-monitor-ai-v14-dmi-expert-probability"
+SCHEMA_VERSION = "crypto-monitor-ai-v15-cci-primary-path-probability"
 AI_LAYER_REVISION = "state-first-v5-s3-dashboard-direct-t2-line"
 GROUP_LIMIT = 20
 STATE_HISTORY_LIMIT = 120
@@ -55,7 +55,7 @@ STATE_ACTION_ZH = {
 }
 
 def snapshot_ai_layer_complete(snapshot: Any) -> bool:
-    """確認目前快照已真正輸出 v14 Level-5 + DMI Expert probability AI Layer，而不是舊 schema / session cache。
+    """確認目前快照已真正輸出 v15 CCI PRIMARY path probability AI Layer，而不是舊 schema / session cache。
 
     這只驗證輸出 schema，不碰 S0/S0.5/S1/S2/S3 判定演算法。
     """
@@ -744,20 +744,12 @@ def _compact_probability_node(node: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(node, dict) or not node.get("available"):
         return {"available": False, "reason": (node or {}).get("reason", "unavailable")}
     late = node.get("late_success_4_7d") or {}
-    cci = node.get("cci_expert") or {}
-    matched_facets = []
-    for facet in list(cci.get("matched_facets") or []):
-        if not isinstance(facet, dict):
-            continue
-        matched_facets.append({
-            "name": str(facet.get("name") or "facet"),
-            "signature": str(facet.get("signature") or ""),
-            "samples": int(facet.get("samples", 0) or 0),
-            "reliability": _round_probability(facet.get("reliability")),
-            "success_probability": _round_probability(facet.get("success_probability")),
-            "structural_survival_probability": _round_probability(facet.get("structural_survival_probability")),
-            "true_fail_probability": _round_probability(facet.get("true_fail_probability")),
-        })
+    primary = node.get("cci_primary") or {}
+    legacy_cci = node.get("cci_expert") or {}
+    matched_path = []
+    for item in list(primary.get("matched_path") or []):
+        if isinstance(item, dict):
+            matched_path.append({"field": str(item.get("field") or ""), "value": str(item.get("value") or "")})
     return {
         "available": True,
         "success_probability": _round_probability(node.get("success_probability", node.get("probability"))),
@@ -765,20 +757,30 @@ def _compact_probability_node(node: dict[str, Any]) -> dict[str, Any]:
         "true_fail_probability": _round_probability(node.get("true_fail_probability")),
         "other_probability": _round_probability(node.get("other_probability")),
         "structural_survival_probability": _round_probability(node.get("structural_survival_probability")),
-        # This remains the legacy BB/HA Level 1-5 matched sample count. CCI
-        # facets overlap, so a fake single intersection sample count is not made up.
+        # Schema 5: this is the actual CCI PRIMARY path leaf sample count.
         "matched_samples": int(node.get("samples", 0) or 0),
         "wins": int(node.get("wins", 0) or 0),
         "level": int(node.get("level", 0) or 0),
         "fields": list(node.get("fields") or []),
+        "signature": str(node.get("signature") or ""),
         "fallback": bool(node.get("fallback", False)),
+        "cci_primary": {
+            "available": bool(primary.get("available")),
+            "version": primary.get("version"),
+            "depth": int(primary.get("depth", node.get("level", 0)) or 0),
+            "matched_path_count": int(primary.get("matched_path_count", len(matched_path)) or 0),
+            "matched_path": matched_path,
+            "bins": dict(primary.get("bins") or {}),
+            "path_features": dict(primary.get("path_features") or {}),
+        },
+        # Compatibility alias retained for Frozen-ledger readers that predate Schema 5.
         "cci_expert": {
-            "available": bool(cci.get("available")),
-            "version": cci.get("version"),
-            "matched_facet_count": int(cci.get("matched_facet_count", 0) or 0),
-            "blend_strength": _round_probability(cci.get("blend_strength")),
-            "bins": dict(cci.get("bins") or {}),
-            "matched_facets": matched_facets,
+            "available": bool(legacy_cci.get("available")),
+            "version": legacy_cci.get("version"),
+            "mode": legacy_cci.get("mode"),
+            "matched_facet_count": int(legacy_cci.get("matched_facet_count", 0) or 0),
+            "blend_strength": _round_probability(legacy_cci.get("blend_strength")),
+            "bins": dict(legacy_cci.get("bins") or {}),
         },
         "late_success_4_7d": {
             "eligible_samples": int(late.get("eligible_samples", 0) or 0),
@@ -801,8 +803,9 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
         "model_id": model.get("model_id"),
         "generated_at": model.get("generated_at"),
         "primary_horizon_hours": 72,
-        "max_level": 5,
-        "cci_expert_version": (model.get("cci_expert_contract") or {}).get("version"),
+        "max_level": 6,
+        "cci_primary_version": (model.get("cci_primary_contract") or {}).get("version"),
+        "cci_expert_version": (model.get("cci_primary_contract") or {}).get("version") or (model.get("cci_expert_contract") or {}).get("version"),
     }
     for record in records:
         result = predict_record(record, record.get("opportunity_long") or {})
@@ -825,6 +828,8 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
             "primary_horizon_hours": 72,
             "model_level": int(primary.get("level", 0) or 0),
             "matched_samples": int(primary.get("samples", 0) or 0),
+            "cci_primary_version": result.get("cci_primary_version"),
+            "cci_primary": _compact_probability_node(primary).get("cci_primary"),
             "cci_expert_version": result.get("cci_expert_version"),
             "cci_expert": _compact_probability_node(primary).get("cci_expert"),
             "features": dict(result.get("features") or {}),

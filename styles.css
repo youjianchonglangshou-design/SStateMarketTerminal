@@ -577,12 +577,13 @@
 .cci-head{height:25px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 13px 0 42px}
 .cci-head-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
 .cci-path-comment{display:inline-flex;align-items:center;justify-content:center;max-width:330px;min-width:0;padding:5px 9px;border:1px solid #475569;border-radius:999px;background:#0f172acc;color:#cbd5e1;font-size:10px;font-weight:950;line-height:1;letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 0 0 1px #0f172a44;cursor:help}
-.cci-path-strong{border-color:#22d3ee;color:#cffafe;background:#083344bb;box-shadow:0 0 10px #22d3ee33}
-.cci-path-positive{border-color:#22c55e;color:#bbf7d0;background:#052e16bb;box-shadow:0 0 9px #22c55e2b}
-.cci-path-setup{border-color:#38bdf8;color:#bae6fd;background:#082f49bb}
-.cci-path-caution{border-color:#f59e0b;color:#fde68a;background:#451a03aa}
-.cci-path-risk{border-color:#ef4444;color:#fecaca;background:#450a0aaa;box-shadow:0 0 9px #ef44442b}
-.cci-path-neutral{border-color:#64748b;color:#cbd5e1;background:#0f172aaa}
+/* v0.1.85 — CCI path commentary SSR palette: SSR=gold, SR=purple, R=blue, N=gray/white, caution=orange, risk=red. */
+.cci-path-strong{border-color:#facc15;color:#fef3c7;background:#713f12c7;box-shadow:0 0 11px #facc1540}
+.cci-path-positive{border-color:#a855f7;color:#f3e8ff;background:#581c87b8;box-shadow:0 0 10px #a855f738}
+.cci-path-setup{border-color:#3b82f6;color:#dbeafe;background:#1e3a8ab8;box-shadow:0 0 8px #3b82f62b}
+.cci-path-caution{border-color:#f97316;color:#ffedd5;background:#7c2d12b8;box-shadow:0 0 8px #f973162b}
+.cci-path-risk{border-color:#ef4444;color:#fee2e2;background:#7f1d1db8;box-shadow:0 0 10px #ef444438}
+.cci-path-neutral{border-color:#cbd5e1;color:#f8fafc;background:#334155b8;box-shadow:0 0 0 1px #f8fafc12}
 .cci-title{font-size:9px;font-weight:950;letter-spacing:.65px;color:#94a3b8}
 .cci-live-values{display:flex;align-items:center;gap:7px}
 .cci-live-pill{display:inline-flex;align-items:center;gap:5px;min-width:74px;justify-content:center;padding:4px 8px;border:1px solid #475569;border-radius:7px;background:#0f172a99;color:#94a3b8;font-size:9px;font-weight:950;line-height:1;box-shadow:none;transition:border-color .12s,background .12s,color .12s,box-shadow .12s}

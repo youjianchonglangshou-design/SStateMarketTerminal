@@ -1,7 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.85｜CCI-PATH-SSR-PALETTE",
-  "stage": "CCI-PATH-SSR-PALETTE",
+  "app_version": "TERMINAL v0.1.86｜CCI-ONLY-ENGINE",
+  "stage": "CCI-ONLY-ENGINE",
   "features": [
+    "ADX/DMI is formally retired from the live Terminal engine now that CCI PRIMARY is the accepted production path. engine/analysis_core.py no longer calculates DI+, DI-, DX, ADX or replays 4H DMI relation age.",
+    "Snapshot schema advances to crypto-monitor-ai-v16-cci-only-primary-path-probability / state-first-v7-cci-only-path-comment so older ADX-bearing cached snapshots are invalidated on the next Complete Analysis.",
+    "engine/get.py no longer serializes dmi_relation_age_* or chart_30d.di_plus/di_minus/dx/adx. The current uploaded 127-symbol US-stock pretty JSON would shrink by about 459 KB (8.66%) from ADX/DMI removal alone.",
+    "CCI PRIMARY probability_reader, Champion e321f6d35445798b, S-state rules, BB/HA geometry, CCI chart/crosshair and path-comment logic are unchanged; no HistoricalTraining model retrain is required.",
     "CCI PRIMARY path-comment capsules now use the SSR visual hierarchy without changing model logic: strong=SSR gold/yellow, positive=SR purple, setup=R blue, neutral=N gray/white, caution=orange, risk=red.",
     "README now contains the complete CCI path-comment reference for S0, S0.5, S1, S2, S3 and OTHER, including every label, tone/grade, color meaning and the fact that evaluation is first-match-wins in the existing deterministic explainer.",
     "This release is display/documentation only: Champion e321f6d35445798b, CCI PRIMARY probability inference, path-comment conditions, chart data, crosshair and HistoricalTraining are unchanged.",
@@ -53,5 +57,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.85"
+  "version": "0.1.86"
 }

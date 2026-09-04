@@ -1,4 +1,19 @@
-# SStateMarketTerminal v0.1.85 — CCI PATH SSR PALETTE
+# SStateMarketTerminal v0.1.86 — CCI ONLY ENGINE
+
+## v0.1.86｜ADX / DMI 正式退役
+
+CCI PRIMARY 已正式成為目前唯一的指標路徑，因此這版把舊 ADX / DMI 從 **live engine + snapshot JSON** 拿掉：
+
+- `engine/analysis_core.py` 不再計算 `DI+ / DI- / DX / ADX`，也不再重播 `dmi_relation_age_*`。
+- `engine/get.py` 不再輸出每筆 `dmi_relation_age_bars / bin / relation`。
+- `chart_30d` 不再輸出 `di_plus / di_minus / dx / adx`，只保留 HA、BB20、真實 OHLC、CCI20、CCI SMA14。
+- Snapshot schema 升為 `crypto-monitor-ai-v16-cci-only-primary-path-probability`，AI layer 升為 `state-first-v7-cci-only-path-comment`，下一次完整分析會淘汰舊 ADX 快照。
+- **不改** Champion `e321f6d35445798b`、CCI PRIMARY 機率、S-state、BB/HA 幾何、CCI 評語或十字線。
+
+以 2026-09-04 這份 127 檔美股 snapshot 實測，單純移除 ADX/DMI 欄位可由約 **5.31 MB → 4.85 MB**，減少約 **459 KB（8.66%）**。
+
+> README 下方舊版 ADX 章節保留作為歷史 changelog；從 v0.1.86 起，它們不再代表目前 live engine。
+
 
 本版只把 **CCI PRIMARY 路徑評語膠囊** 改成 SSR 等級色系，並把所有評語完整記錄在 README，避免之後忘記每種顏色與文字代表什麼。
 

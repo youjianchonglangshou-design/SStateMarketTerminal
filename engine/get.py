@@ -32,7 +32,7 @@ from probability_reader import load_probability_model, predict_record
 
 TW_TZ = timezone(timedelta(hours=8))
 SCHEMA_VERSION = "crypto-monitor-ai-v15-cci-primary-path-probability"
-AI_LAYER_REVISION = "state-first-v5-s3-dashboard-direct-t2-line"
+AI_LAYER_REVISION = "state-first-v6-cci-path-comment"
 GROUP_LIMIT = 20
 STATE_HISTORY_LIMIT = 120
 
@@ -82,6 +82,15 @@ def snapshot_ai_layer_complete(snapshot: Any) -> bool:
 
     records = snapshot.get("records") or []
     if records and not all("historical_probability" in record for record in records):
+        return False
+    # v6 requires every record (including S0/OTHER) to carry a CCI path comment.
+    # This intentionally invalidates pre-v0.1.82 snapshots so the new capsule is
+    # never silently missing just because an older R2/session snapshot was reused.
+    if records and not all(
+        isinstance((record.get("historical_probability") or {}).get("path_commentary"), dict)
+        and bool(((record.get("historical_probability") or {}).get("path_commentary") or {}).get("label"))
+        for record in records
+    ):
         return False
 
     records = snapshot.get("records")
@@ -815,6 +824,8 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
                 "state": result.get("state"),
                 "reason": result.get("reason", "not_modeled"),
                 "model_id": model.get("model_id"),
+                "features": dict(result.get("features") or {}),
+                "path_commentary": dict(result.get("path_commentary") or {}),
             }
             continue
         predictions = result.get("predictions") or {}
@@ -833,6 +844,7 @@ def _attach_historical_probability(records: list[dict[str, Any]]) -> dict[str, A
             "cci_expert_version": result.get("cci_expert_version"),
             "cci_expert": _compact_probability_node(primary).get("cci_expert"),
             "features": dict(result.get("features") or {}),
+            "path_commentary": dict(result.get("path_commentary") or {}),
             "24h": _compact_probability_node(predictions.get("6") or {}),
             "48h": _compact_probability_node(predictions.get("12") or {}),
             "72h": _compact_probability_node(predictions.get("18") or {}),

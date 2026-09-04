@@ -1,3 +1,22 @@
+# SStateMarketTerminal v0.1.82 — CCI PATH COMMENT
+
+本版在 CCI 副圖右上、原本 ADX 方向判斷膠囊的位置，加入 **CCI PRIMARY 路徑評語**。
+
+重點：
+
+- 評語不是第二套 AI，也不會重新加分/扣分；只把目前 Champion 已經使用的 CCI PRIMARY Schema 5 路徑翻譯成人話。
+- S0.5：區分左V首次低位上穿、右V二次上穿、中軌改善、黃 SMA 承接/reclaim、CCI逼近SMA。
+- S1：趨勢建立、黃階梯延伸、健康回踩、回踩收復、動能降速。
+- S2：第一次高檔死叉＝二浪回踩候選；第二次死叉＋中軌降速/背離＝衰竭風險；0軸附近再金叉＝重新蓄力候選。
+- S3：三浪延伸、黃階梯續航、高檔回踩、頂背離/二次死叉、成熟段降速。
+- S0 / OTHER：雖不是正式機率考題，仍用同一套 CCI/BB/HA 路徑輸出「結構評語」，不假裝成模型機率。
+- Tooltip 會顯示較完整的解釋；S0.5/S1/S2/S3 另附模型匹配樣本與 path level。
+- 不新增 Python 檔；圖表、十字線、CCI/SMA 算法、Champion 機率本身完全不改。
+
+部署後需要再跑一次 **完整分析 / Auto Market Batch**，讓新的 snapshot 寫入 `historical_probability.path_commentary`；舊 snapshot 會被視為缺少 v0.1.82 AI layer。
+
+---
+
 # SStateMarketTerminal v0.1.81 — CCI PRIMARY PATH
 
 本版只把 live probability reader 接到 HistoricalTraining Schema 5 `CCI-PRIMARY-v2-PATH-TREE-HLC3-20-SMA14`。

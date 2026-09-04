@@ -1,7 +1,15 @@
 {
-  "app_version": "TERMINAL v0.1.81｜CCI-PRIMARY-PATH",
-  "stage": "CCI-PRIMARY-PATH",
+  "app_version": "TERMINAL v0.1.82｜CCI-PATH-COMMENT",
+  "stage": "CCI-PATH-COMMENT",
   "features": [
+    "Adds a CCI PRIMARY path-comment capsule in the CCI pane header, occupying the old ADX direction-capsule area. The capsule is a deterministic explainer of the same Schema 5 path features; it does not create a second score or modify probability.",
+    "S0.5 comments distinguish first low cross / left-V rebound, second cross / right-V confirmation, midline improvement, yellow-SMA retest/reclaim, and approaching-cross setups.",
+    "S1 comments focus on established yellow-SMA trend, healthy retest/reclaim, midline deceleration, and CCI re-acceleration.",
+    "S2 comments distinguish first high dead-cross pullback with rising midline from second dead-cross exhaustion, bearish divergence, flat/falling midline risk, and near-zero CCI restart.",
+    "S3 comments distinguish continued third-wave expansion / yellow-SMA support from mature high-level pullback, second dead-cross, bearish divergence, and midline slowdown.",
+    "S0 and OTHER also receive structure comments from the identical CCI/BB/HA path extractor. They remain outside formal probability targets and the capsule explicitly does not change their probability.",
+    "Every new snapshot must carry path_commentary, invalidating older cached snapshots that lack the capsule explanation; one fresh Complete Analysis repopulates all states.",
+    "No new Python files are added. Existing engine/probability_reader.py produces the path explanation and engine/get.py stores it in historical_probability.path_commentary; app.js only renders that result.",
     "Probability inference now supports HistoricalTraining Schema 5 CCI-PRIMARY-v2-PATH-TREE-HLC3-20-SMA14. S-state selects the target only; the matched CCI/BB/HA path tree directly supplies 4-way probability instead of applying a conservative CCI correction to the legacy Level 1-5 base.",
     "Live CCI path features are kept 1:1 with HistoricalTraining: first/second cross cycle, days since cross, cross location/context, approaching/pullback gap, yellow/purple retest/reclaim, CCI/SMA slopes/acceleration, BB-midline path phase, divergence, HA context, and market_type.",
     "The visible v0.1.79/v0.1.80 CCI chart and synchronized crosshair are unchanged; this release changes probability inference only.",
@@ -39,5 +47,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.81"
+  "version": "0.1.82"
 }

@@ -715,6 +715,334 @@ def _lookup_primary_path(model: dict[str, Any], state_node: dict[str, Any], hnod
     }
 
 
+
+def build_cci_path_commentary(
+    state: str,
+    features: dict[str, Any],
+    primary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Translate the SAME CCI PRIMARY path features into a short UI comment.
+
+    This is deliberately not a second scoring model. It never changes probability;
+    it only explains the current path using features already consumed by Schema 5.
+    S0/OTHER are not probability-modeled, but still receive a mechanical structure
+    comment from the same CCI/BB/HA path extractor.
+    """
+    f = features or {}
+    p = primary or {}
+    st = str(state or "OTHER")
+    mid = str(f.get("midline_path_phase") or "UNKNOWN")
+    cycle = str(f.get("cci_cross_cycle") or "NO_CROSS_30D")
+    retest = str(f.get("cci_retest_state") or "UNKNOWN")
+    gap_motion = str(f.get("cci_gap_motion") or "UNKNOWN")
+    divergence = str(f.get("cci_divergence") or "NONE")
+    sma = str(f.get("cci_smoothing_direction") or "UNKNOWN")
+    turn = str(f.get("cci_smoothing_turn_event") or "UNKNOWN")
+    ha = str(f.get("ha_color") or "unknown").lower()
+    relation = str(f.get("cci_sma_relation") or "UNKNOWN")
+    last_cross_zone = str(f.get("cci_last_cross_zone") or "UNKNOWN")
+    up_count = int(f.get("cci_up_cross_count_21d") or 0)
+    down_count = int(f.get("cci_down_cross_count_21d") or 0)
+    days_since = f.get("cci_days_since_last_cross")
+    try:
+        days_since_n = int(days_since) if days_since is not None else None
+    except (TypeError, ValueError):
+        days_since_n = None
+
+    rising_mid = mid in {"RISING_ACCEL", "RISING_DECEL"}
+    improving_mid = mid in {"FLAT", "FALLING_IMPROVE", "RISING_ACCEL", "RISING_DECEL"}
+    weak_mid = mid in {"FLAT", "FALLING_IMPROVE", "FALLING_WORSEN"}
+    hard_falling = mid == "FALLING_WORSEN"
+    second_up = cycle == "UP_SECOND_PLUS_21D" or (up_count >= 2 and cycle.startswith("POST_UP"))
+    first_up = cycle == "UP_FIRST_21D" or (up_count == 1 and cycle.startswith("POST_UP"))
+    second_down = cycle == "DOWN_SECOND_PLUS_21D" or (down_count >= 2 and cycle.startswith("POST_DOWN"))
+    first_down = cycle == "DOWN_FIRST_21D" or (down_count == 1 and cycle.startswith("POST_DOWN"))
+    deep_low_cross = last_cross_zone in {"LT_NEG150", "NEG150_NEG120", "NEG120_NEG80"}
+    near_zero_cross = last_cross_zone in {"NEG80_0", "0_100"}
+    bullish_ha = ha in {"yellow", "green", "bullish"}
+
+    label = "結構觀察｜等待CCI路徑確認"
+    detail = "目前尚未形成更具辨識度的 CCI PRIMARY 路徑。"
+    tone = "neutral"
+
+    if st == "S0.5":
+        if retest == "YELLOW_RECLAIM_AFTER_BREAK" and rising_mid:
+            label, detail, tone = (
+                "假跌破回收｜多方結構仍在",
+                "CCI 短暫跌破黃色 SMA 後重新站回；布林中軌仍維持上升背景，屬回踩後 reclaim。",
+                "positive",
+            )
+        elif retest == "YELLOW_RETEST_NEAR_SMA" and improving_mid:
+            label, detail, tone = (
+                "黃階梯承接｜右側回踩守住",
+                "CCI 已在黃色 SMA 上方建立距離後回踩接近 SMA，且中軌沒有重新惡化。",
+                "positive",
+            )
+        elif second_up and improving_mid and (sma == "YELLOW" or bullish_ha):
+            label, detail, tone = (
+                "右V共振｜二次上穿・中軌改善",
+                "21 日內已出現第二次以上 CCI 上穿；中軌由下斜改善/走平，並伴隨黃 SMA 或黃平均K共振。",
+                "strong",
+            )
+        elif second_up and improving_mid:
+            label, detail, tone = (
+                "右V確認｜二次上穿・中軌改善",
+                "第二次以上 CCI 上穿出現在較友善的中軌背景，和第一次深跌反彈的左V不同。",
+                "positive",
+            )
+        elif first_up and hard_falling and deep_low_cross:
+            label, detail, tone = (
+                "左V反彈｜首次低位上穿",
+                "CCI 第一次在 -100 附近或更低位置上穿，但布林中軌仍明顯惡化，歷史上更像深跌後反彈。",
+                "caution",
+            )
+        elif first_up and improving_mid:
+            label, detail, tone = (
+                "首次上穿｜反轉仍待二次確認",
+                "CCI 已第一次上穿且中軌背景改善，但尚未形成二次上穿/黃階梯承接等右V確認。",
+                "setup",
+            )
+        elif gap_motion == "BELOW_APPROACHING" and improving_mid:
+            label, detail, tone = (
+                "右V醞釀｜CCI快速逼近SMA",
+                "CCI 尚在 SMA 下方，但 gap 正在收斂；若中軌持續改善，下一次上穿具有較高辨識價值。",
+                "setup",
+            )
+        elif sma == "YELLOW" and relation == "ABOVE":
+            label, detail, tone = (
+                "黃階梯建立｜多方動能接管",
+                "CCI 已站在上升中的 smoothingMA 上方；S0.5 正從築底轉向右側動能確認。",
+                "positive",
+            )
+        elif hard_falling:
+            label, detail, tone = (
+                "築底反彈｜中軌仍有下壓",
+                "目前仍處 S0.5，但布林中軌下斜惡化尚未解除，CCI 訊號先視為反彈而非完整反轉。",
+                "caution",
+            )
+        else:
+            label, detail, tone = (
+                "築底觀察｜等待右V共振",
+                "S0.5 已進入築底區，重點等待二次上穿、中軌改善與黃 SMA/平均K的共振。",
+                "setup",
+            )
+
+    elif st == "S1":
+        if retest == "YELLOW_RECLAIM_AFTER_BREAK" and rising_mid:
+            label, detail, tone = (
+                "回踩收復｜趨勢結構延續",
+                "CCI 跌破黃 SMA 後重新站回，中軌仍上斜，屬趨勢內回踩收復。",
+                "positive",
+            )
+        elif retest == "YELLOW_RETEST_NEAR_SMA" and rising_mid:
+            label, detail, tone = (
+                "健康回踩｜CCI守住黃階梯",
+                "S1 已建立黃 SMA，CCI 回踩接近黃階梯但未破壞上升中軌。",
+                "positive",
+            )
+        elif divergence == "BEARISH_PRICE_HH_CCI_LH" and mid in {"RISING_DECEL", "FLAT"}:
+            label, detail, tone = (
+                "動能放緩｜留意頂背離",
+                "價格高點延伸但 CCI 高點降低，且中軌升勢開始降速/走平；趨勢仍在但動能需留意。",
+                "caution",
+            )
+        elif sma == "YELLOW" and relation == "ABOVE" and rising_mid:
+            label, detail, tone = (
+                "趨勢建立｜黃階梯延伸",
+                "CCI 位於黃色 smoothingMA 上方，布林中軌同步上斜，屬 S1 正常趨勢延伸。",
+                "strong",
+            )
+        elif gap_motion == "BELOW_APPROACHING" and improving_mid:
+            label, detail, tone = (
+                "動能重整｜等待CCI再上穿",
+                "S1 結構仍在，CCI 位於 SMA 下方但正在逼近；等待重新上穿確認續攻。",
+                "setup",
+            )
+        elif mid == "RISING_DECEL":
+            label, detail, tone = (
+                "趨勢續行｜中軌升勢放緩",
+                "中軌仍上斜但速度下降，S1 尚未破壞；重點觀察 CCI 是否維持黃階梯上方。",
+                "setup",
+            )
+        else:
+            label, detail, tone = (
+                "趨勢建立｜觀察CCI延伸",
+                "S1 已完成早期突破，接下來由 CCI/SMA 路徑確認是否持續擴張。",
+                "neutral",
+            )
+
+    elif st == "S2":
+        if second_down and divergence == "BEARISH_PRICE_HH_CCI_LH" and weak_mid:
+            label, detail, tone = (
+                "二次衰竭｜頂背離・中軌降速",
+                "21 日內第二次以上 CCI 死叉，並出現價格新高/CCI低高點；中軌已走平或轉弱，屬末浪衰竭風險。",
+                "risk",
+            )
+        elif second_down and mid in {"FLAT", "FALLING_IMPROVE", "FALLING_WORSEN"}:
+            label, detail, tone = (
+                "二次死叉｜轉弱風險升高",
+                "CCI 已出現第二次以上死叉，而中軌不再維持明顯上斜；S2 由普通回踩轉向真正衰竭風險。",
+                "risk",
+            )
+        elif first_down and rising_mid:
+            label, detail, tone = (
+                "二浪回踩｜中軌仍上斜",
+                "高位第一次 CCI 死叉出現在仍上斜的中軌背景，更接近一浪後普通二浪回踩，不直接視為大跌。",
+                "positive",
+            )
+        elif cycle in {"UP_FIRST_21D", "UP_SECOND_PLUS_21D"} and near_zero_cross and improving_mid:
+            label, detail, tone = (
+                "再蓄力｜CCI零軸附近重上穿",
+                "整理後 CCI 在 -80~+100 區域重新上穿，且中軌未明顯惡化，歷史上屬三浪重新啟動候選。",
+                "strong",
+            )
+        elif retest in {"YELLOW_RETEST_NEAR_SMA", "YELLOW_RECLAIM_AFTER_BREAK"} and rising_mid:
+            label, detail, tone = (
+                "二浪承接｜三浪仍有空間",
+                "CCI 在黃色 SMA 附近完成回踩/收復，布林中軌仍上斜，結構更接近續漲前整理。",
+                "positive",
+            )
+        elif rising_mid:
+            label, detail, tone = (
+                "回踩整理｜上升結構未破",
+                "雖處 S2 回踩階段，但布林中軌仍維持上斜；先視為趨勢內整理，等待下一次 CCI 啟動。",
+                "setup",
+            )
+        elif mid == "FLAT":
+            label, detail, tone = (
+                "高檔整理｜等待再啟動或衰竭",
+                "中軌走平本身不是空頭答案；需由下一次 CCI 金叉/死叉、背離與黃紫 SMA 路徑決定方向。",
+                "neutral",
+            )
+        else:
+            label, detail, tone = (
+                "結構轉弱｜留意二次死叉",
+                "S2 中軌背景已偏弱，若再出現第二次死叉或頂背離，真失敗風險會明顯提高。",
+                "caution",
+            )
+
+    elif st == "S3":
+        if second_down and divergence == "BEARISH_PRICE_HH_CCI_LH":
+            label, detail, tone = (
+                "末浪衰竭｜二次死叉・頂背離",
+                "S3 已在成熟段，CCI 第二次以上死叉又伴隨價格新高/CCI低高點，屬最後一噴後的衰竭警訊。",
+                "risk",
+            )
+        elif divergence == "BEARISH_PRICE_HH_CCI_LH" and mid in {"RISING_DECEL", "FLAT"}:
+            label, detail, tone = (
+                "高檔背離｜末浪動能降速",
+                "價格續創高但 CCI 動能未同步，中軌也開始降速/走平；S3 仍強但不宜忽略衰竭。",
+                "caution",
+            )
+        elif retest in {"YELLOW_RETEST_NEAR_SMA", "YELLOW_RECLAIM_AFTER_BREAK"} and rising_mid:
+            label, detail, tone = (
+                "趨勢續航｜黃階梯回踩承接",
+                "CCI 在黃 SMA 附近完成回踩或 reclaim，中軌仍上斜，S3 屬健康續航。",
+                "positive",
+            )
+        elif sma == "YELLOW" and relation == "ABOVE" and gap_motion == "ABOVE_EXPANDING":
+            label, detail, tone = (
+                "三浪延伸｜CCI動能仍擴張",
+                "CCI 位於黃 SMA 上方且距離持續擴大，S3 尚處動能擴張段。",
+                "strong",
+            )
+        elif sma == "PURPLE" and rising_mid:
+            label, detail, tone = (
+                "高檔回踩｜中軌仍上斜",
+                "CCI smoothingMA 已轉紫，但布林中軌仍上斜；先視為成熟趨勢內回踩，不直接等同反轉。",
+                "setup",
+            )
+        elif mid in {"FLAT", "FALLING_IMPROVE", "FALLING_WORSEN"} and sma == "PURPLE":
+            label, detail, tone = (
+                "高檔降速｜保護既有趨勢成果",
+                "S3 已成熟且 SMA 轉紫，中軌又失去明顯上斜；重點從追漲轉為觀察衰竭。",
+                "caution",
+            )
+        else:
+            label, detail, tone = (
+                "趨勢成熟｜觀察CCI衰竭訊號",
+                "S3 仍屬完成度較高的趨勢段，後續以二次死叉、背離與中軌降速作為主要風險訊號。",
+                "neutral",
+            )
+
+    elif st == "S0":
+        if first_up and hard_falling and deep_low_cross:
+            label, detail, tone = (
+                "左V反彈｜中軌仍明顯下壓",
+                "CCI 第一次低位上穿，但中軌仍惡化；目前只視為 S0 反彈，不升級成反轉。",
+                "caution",
+            )
+        elif second_up and improving_mid:
+            label, detail, tone = (
+                "底部反轉醞釀｜等待升級S0.5",
+                "CCI 已出現第二次以上上穿且中軌背景改善，但價格結構尚未完成 S0.5 條件。",
+                "setup",
+            )
+        elif gap_motion == "BELOW_APPROACHING":
+            label, detail, tone = (
+                "超賣修復｜CCI逼近SMA",
+                "CCI 尚未上穿，但與 SMA 距離快速收斂；先觀察是否形成有效底部交叉。",
+                "setup",
+            )
+        else:
+            label, detail, tone = (
+                "反彈區｜結構尚未升級",
+                "S0 只代表反彈候選；需等待中軌改善、CCI路徑共振與價格結構升級。",
+                "neutral",
+            )
+
+    else:  # OTHER
+        if divergence == "BEARISH_PRICE_HH_CCI_LH" and weak_mid:
+            label, detail, tone = (
+                "未分類弱化｜CCI背離・中軌失速",
+                "目前不符合正式 S-state 考題，但 CCI 背離與中軌失速同時存在，偏向風險結構。",
+                "risk",
+            )
+        elif sma == "YELLOW" and rising_mid:
+            label, detail, tone = (
+                "趨勢存在｜尚未符合S-state考題",
+                "CCI/SMA 與中軌仍偏多，但價格形態沒有落入 S0~S3 的正式掃描條件。",
+                "setup",
+            )
+        elif gap_motion == "BELOW_APPROACHING" or gap_motion == "ABOVE_PULLBACK":
+            label, detail, tone = (
+                "整理等待｜CCI正在接近關鍵交叉",
+                "目前屬 OTHER，但 CCI/SMA 距離正在收斂；等待下一個有效 S-state 或交叉路徑。",
+                "neutral",
+            )
+        else:
+            label, detail, tone = (
+                "結構未分類｜等待有效S-state",
+                "目前沒有落入正式 S0/S0.5/S1/S2/S3 考題，僅保留 CCI/BB 路徑觀察。",
+                "neutral",
+            )
+
+    matched_path = list(((p.get("cci_primary") or {}).get("matched_path") or p.get("matched_path") or []))
+    signature = "｜".join(f"{x.get('field')}={x.get('value')}" for x in matched_path if isinstance(x, dict))
+    return {
+        "version": "CCI-PATH-COMMENT-v1",
+        "state": st,
+        "label": label,
+        "detail": detail,
+        "tone": tone,
+        "mode": "MODEL_PATH_EXPLAINER" if st in {"S0.5", "S1", "S2", "S3"} else "STRUCTURE_ONLY",
+        "matched_samples": int(p.get("samples", 0) or 0),
+        "matched_level": int(p.get("level", 0) or 0),
+        "path_signature": signature,
+        "features": {
+            "midline_path_phase": mid,
+            "cci_cross_cycle": cycle,
+            "cci_last_cross_zone": last_cross_zone,
+            "cci_retest_state": retest,
+            "cci_gap_motion": gap_motion,
+            "cci_divergence": divergence,
+            "cci_smoothing_direction": sma,
+            "cci_smoothing_turn_event": turn,
+            "ha_color": ha,
+            "days_since_last_cross": days_since_n,
+        },
+    }
+
 def _signature(features: dict[str, Any], fields: list[str]) -> str:
     if not fields:
         return "BASELINE"
@@ -776,16 +1104,31 @@ def lookup_probability(model: dict[str, Any], *, state: str, horizon: int, featu
 def predict_record(record: dict[str, Any], opportunity: dict[str, Any] | None = None, horizons: tuple[int, ...] = DISPLAY_HORIZONS) -> dict[str, Any]:
     opp = opportunity or record.get("_long_opportunity") or record.get("opportunity_long") or {}
     state = str(opp.get("market_state_id") or "OTHER")
-    if state not in {"S0.5", "S1", "S2", "S3"}:
-        return {"available": False, "reason": "state_not_modeled", "state": state}
-    model = load_probability_model()
-    if not model.get("available"):
-        return {"available": False, "reason": model.get("reason", "model_unavailable"), "state": state}
+    # Always extract the CCI/BB/HA path so S0/OTHER can receive a mechanical
+    # structure comment even though they are not formal probability targets.
     features = extract_live_features(record, opp)
+    model = load_probability_model()
+
+    if state not in {"S0.5", "S1", "S2", "S3"}:
+        commentary = build_cci_path_commentary(state, features, None)
+        return {
+            "available": False, "reason": "state_not_modeled", "state": state,
+            "features": features, "path_commentary": commentary,
+            "model_id": model.get("model_id") if model.get("available") else None,
+            "schema_version": model.get("schema_version") if model.get("available") else None,
+        }
+    if not model.get("available"):
+        commentary = build_cci_path_commentary(state, features, None)
+        return {
+            "available": False, "reason": model.get("reason", "model_unavailable"), "state": state,
+            "features": features, "path_commentary": commentary,
+        }
+
     predictions = {str(h): lookup_probability(model, state=state, horizon=int(h), features=features, max_level=MAX_PREVIEW_LEVEL) for h in horizons}
     primary = predictions.get(str(PRIMARY_HORIZON)) or {}
     target = ((model.get("states") or {}).get(state) or {}).get("target")
     primary_version = (model.get("cci_primary_contract") or {}).get("version")
+    commentary = build_cci_path_commentary(state, features, primary)
     return {
         "available": bool(primary.get("available")), "state": state, "target": target,
         "features": features, "predictions": predictions, "primary_horizon": PRIMARY_HORIZON,
@@ -793,6 +1136,7 @@ def predict_record(record: dict[str, Any], opportunity: dict[str, Any] | None = 
         "generated_at": model.get("generated_at"), "max_level": MAX_PREVIEW_LEVEL,
         "cci_primary_version": primary_version,
         "cci_expert_version": primary_version or (model.get("cci_expert_contract") or {}).get("version"),
+        "path_commentary": commentary,
     }
 
 

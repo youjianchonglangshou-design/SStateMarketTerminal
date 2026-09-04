@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.78｜CCI-SYNC-CROSSHAIR";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.82｜CCI-PATH-COMMENT";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -1010,7 +1010,7 @@
       <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
       <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}${renderResearch(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
       <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderPropwMatchBadge(r)}${renderChartQuickStats(r)}</div>
-      ${buildCciPanel(r.chart_30d||[])}
+      ${buildCciPanel(r.chart_30d||[], r)}
     </article>`;
   }
 
@@ -1081,7 +1081,26 @@
     return Number.isFinite(n) ? n.toFixed(1) : '—';
   }
 
-  function buildCciPanel(points) {
+  function renderCciPathComment(r) {
+    const hp=r?.historical_probability||{};
+    const c=hp.path_commentary||{};
+    const label=String(c.label||'').trim();
+    if(!label) return '';
+    const tone=String(c.tone||'neutral').toLowerCase().replace(/[^a-z0-9_-]/g,'');
+    const mode=String(c.mode||'');
+    const detail=String(c.detail||'');
+    const samples=Number(c.matched_samples||0);
+    const level=Number(c.matched_level||0);
+    const signature=String(c.path_signature||'');
+    const meta=[];
+    if(detail) meta.push(detail);
+    if(mode==='MODEL_PATH_EXPLAINER'&&samples>0) meta.push(`模型匹配樣本 ${samples.toLocaleString()}｜Path L${level||0}`);
+    if(mode==='STRUCTURE_ONLY') meta.push('S0 / OTHER 尚非正式機率考題；此膠囊只翻譯同一套 CCI/BB/HA 路徑，不改機率');
+    if(signature) meta.push(`模型路徑：${signature}`);
+    return `<span class="cci-path-comment cci-path-${escapeHtml(tone)}" title="${escapeHtml(meta.join('｜'))}">${escapeHtml(label)}</span>`;
+  }
+
+  function buildCciPanel(points, record=null) {
     const usable=Array.isArray(points)?points:[];
     let latestIndex=-1;
     for(let i=usable.length-1;i>=0;i--){
@@ -1095,6 +1114,7 @@
       <div class="cci-head">
         <span class="cci-title">CCI 20 / SMA 14</span>
         <div class="cci-head-right">
+          ${renderCciPathComment(record)}
           <div class="cci-live-values">
             <span class="cci-live-pill cci-pill-sma ${cciSmoothingPillClass(latestColor)}">SMA <strong class="cci-sma-value">${fmtCci(latestSma)}</strong></span>
             <span class="cci-live-pill cci-pill-cci">CCI <strong class="cci-cci-value">${fmtCci(latestCci)}</strong></span>

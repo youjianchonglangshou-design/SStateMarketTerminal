@@ -594,9 +594,16 @@
 .cci-pill-sma.cci-pill-sma-purple strong{color:#c4b5fd}
 .cci-pill-sma.cci-pill-sma-neutral{border-color:#475569;background:#0f172a99;color:#94a3b8;box-shadow:none}
 .cci-pill-sma.cci-pill-sma-neutral strong{color:#cbd5e1}
-/* CCI capsule intentionally stays neutral/uncolored. */
+/* v0.1.87 — CCI value capsule follows the live CCI-vs-SMA relation.
+   CCI>SMA = green, CCI<SMA = red, equal/unavailable = original neutral. */
 .cci-pill-cci{border-color:#475569;background:#0f172a99;color:#94a3b8;box-shadow:none}
 .cci-pill-cci strong{color:#e2e8f0}
+.cci-pill-cci.cci-pill-cci-up{border-color:#22c55e;background:#14532d80;color:#bbf7d0;box-shadow:inset 0 0 0 1px #22c55e18,0 0 9px #22c55e24}
+.cci-pill-cci.cci-pill-cci-up strong{color:#86efac}
+.cci-pill-cci.cci-pill-cci-down{border-color:#ef4444;background:#7f1d1d80;color:#fecaca;box-shadow:inset 0 0 0 1px #ef444418,0 0 9px #ef444424}
+.cci-pill-cci.cci-pill-cci-down strong{color:#fca5a5}
+.cci-pill-cci.cci-pill-cci-neutral{border-color:#475569;background:#0f172a99;color:#94a3b8;box-shadow:none}
+.cci-pill-cci.cci-pill-cci-neutral strong{color:#e2e8f0}
 .cci-svg{display:block;width:100%;height:150px;overflow:visible;cursor:crosshair}
 .cci-axis-text{fill:#7890ad;font-size:8px}
 .cci-date-text{font-size:8px}

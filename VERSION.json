@@ -1,7 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.86｜CCI-ONLY-ENGINE",
-  "stage": "CCI-ONLY-ENGINE",
+  "app_version": "TERMINAL v0.1.87｜CCI-RELATION-PILL",
+  "stage": "CCI-RELATION-PILL",
   "features": [
+    "CCI live-value capsule now shows the CCI-vs-SMA14 relation directly: CCI>SMA is green, CCI<SMA is red, and exact tie/unavailable stays neutral.",
+    "The relation color follows the crosshair-selected historical point as well as the latest point; moving the synchronized CCI crosshair updates both the displayed values and the CCI pill color.",
+    "SMA capsule logic is unchanged: smoothingMA rising=yellow, falling=purple, neutral=gray. Therefore SMA yellow + CCI green visually means rising smoothingMA with CCI already above it.",
+    "This is UI-only. CCI PRIMARY probability, path commentary, Champion e321f6d35445798b, S-state engine, JSON schema and HistoricalTraining are unchanged.",
     "ADX/DMI is formally retired from the live Terminal engine now that CCI PRIMARY is the accepted production path. engine/analysis_core.py no longer calculates DI+, DI-, DX, ADX or replays 4H DMI relation age.",
     "Snapshot schema advances to crypto-monitor-ai-v16-cci-only-primary-path-probability / state-first-v7-cci-only-path-comment so older ADX-bearing cached snapshots are invalidated on the next Complete Analysis.",
     "engine/get.py no longer serializes dmi_relation_age_* or chart_30d.di_plus/di_minus/dx/adx. The current uploaded 127-symbol US-stock pretty JSON would shrink by about 459 KB (8.66%) from ADX/DMI removal alone.",
@@ -57,5 +61,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.86"
+  "version": "0.1.87"
 }

@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.82｜CCI-PATH-COMMENT";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.87｜CCI-RELATION-PILL";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -1081,6 +1081,14 @@
     return Number.isFinite(n) ? n.toFixed(1) : '—';
   }
 
+  function cciRelationPillClass(cciValue, smaValue) {
+    const cci=Number(cciValue), sma=Number(smaValue);
+    if(!Number.isFinite(cci)||!Number.isFinite(sma)) return 'cci-pill-cci-neutral';
+    if(cci>sma) return 'cci-pill-cci-up';
+    if(cci<sma) return 'cci-pill-cci-down';
+    return 'cci-pill-cci-neutral';
+  }
+
   function renderCciPathComment(r) {
     const hp=r?.historical_probability||{};
     const c=hp.path_commentary||{};
@@ -1117,7 +1125,7 @@
           ${renderCciPathComment(record)}
           <div class="cci-live-values">
             <span class="cci-live-pill cci-pill-sma ${cciSmoothingPillClass(latestColor)}">SMA <strong class="cci-sma-value">${fmtCci(latestSma)}</strong></span>
-            <span class="cci-live-pill cci-pill-cci">CCI <strong class="cci-cci-value">${fmtCci(latestCci)}</strong></span>
+            <span class="cci-live-pill cci-pill-cci ${cciRelationPillClass(latestCci,latestSma)}">CCI <strong class="cci-cci-value">${fmtCci(latestCci)}</strong></span>
           </div>
         </div>
       </div>
@@ -1238,6 +1246,11 @@
         smaPill.classList.remove('cci-pill-sma-yellow','cci-pill-sma-purple','cci-pill-sma-neutral');
         smaPill.classList.add(cciSmoothingPillClass(color));
       };
+      const setCciPillColor=(cciValueNow,smaValueNow)=>{
+        if(!cciPill)return;
+        cciPill.classList.remove('cci-pill-cci-up','cci-pill-cci-down','cci-pill-cci-neutral');
+        cciPill.classList.add(cciRelationPillClass(cciValueNow,smaValueNow));
+      };
       const setPills=(idx)=>{
         if(!cci)return;
         const cv=ccis[idx]===null?NaN:Number(ccis[idx]);
@@ -1245,6 +1258,7 @@
         if(cciValue)cciValue.textContent=fmtCci(cv);
         if(smaValue)smaValue.textContent=fmtCci(sv);
         setSmaPillColor(colors[idx]||'gray');
+        setCciPillColor(cv,sv);
       };
       let latestIndex=-1;
       for(let i=Math.min(ccis.length,smas.length,cCount)-1;i>=0;i--){

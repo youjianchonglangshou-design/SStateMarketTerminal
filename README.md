@@ -1,3 +1,24 @@
+# SStateMarketTerminal v0.1.87 — CCI RELATION PILL
+
+## v0.1.87｜CCI 數字膠囊直接顯示 CCI / SMA 關係
+
+本版只調整 CCI 副圖右上角的 **CCI 數字膠囊顏色**：
+
+| CCI 與 SMA14 關係 | CCI 膠囊 | 快速閱讀 |
+|---|---|---|
+| **CCI > SMA** | 🟢 綠色 | CCI 已站在 smoothingMA 上方 |
+| **CCI < SMA** | 🔴 紅色 | CCI 仍在 smoothingMA 下方 |
+| **CCI = SMA** | ⚪ 原本無色 / 中性 | 交會點，暫不給方向色 |
+| 任一數值缺失 | ⚪ 原本無色 / 中性 | 資料不足，不製造方向 |
+
+SMA 膠囊完全維持原規則：**SMA 上升＝黃、SMA 下降＝紫、持平/未成熟＝無色**。因此掃描卡片時，`SMA 黃 + CCI 綠` 可以直接看成「慢線已向上，且 CCI 位於 SMA 上方」。
+
+同步十字線也套用同一條規則：滑到歷史某一天時，SMA / CCI 數字與 CCI 綠紅色會一起切換；滑鼠離開後恢復最新一天。
+
+**沒有修改** CCI PRIMARY Champion、機率、S-state、path commentary、JSON、HistoricalTraining 或任何引擎判斷。純 UI 顯示，不需要重新完整分析。
+
+---
+
 # SStateMarketTerminal v0.1.86 — CCI ONLY ENGINE
 
 ## v0.1.86｜ADX / DMI 正式退役

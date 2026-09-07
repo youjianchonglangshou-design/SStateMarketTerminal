@@ -1,3 +1,19 @@
+# SStateMarketTerminal v0.1.89 — PW FILTER
+
+## v0.1.89｜PW 一鍵篩選膠囊
+
+美股 / RWA 頁面的 S-state 篩選列新增 **`PW 數量`** 膠囊，位置在「全部」前面。
+
+- 點 **PW**：只顯示 `PROPW_PIONEX_SYMBOL_MAP` 內、目前 snapshot 實際存在的 PropW 可交易標的。
+- PW 篩選 **不限制 S-state**，S0 / S0.5 / S1 / S2 / S3 / OTHER 只要屬於 PW 清單都會顯示。
+- 點「全部」或任一 S-state：立即切回原本的篩選方式。
+- PW 膠囊後面的數字會依目前美股 snapshot 動態計算，不寫死。
+- 加密貨幣頁不顯示 PW 篩選。
+
+本版只改前端 `app.js + styles.css` 的篩選顯示；**不改** CCI PRIMARY、Champion、S-state、引擎、JSON、Worker 或 GitHub Actions，也不需要重新完整分析。
+
+---
+
 # SStateMarketTerminal v0.1.87 — CCI RELATION PILL
 
 ## v0.1.87｜CCI 數字膠囊直接顯示 CCI / SMA 關係

@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.88｜PW-BADGE-EXPANSION";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.89｜PW-FILTER";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -666,10 +666,23 @@
     renderFilters(); renderSummary(); renderCards(); renderSectorFlow();
   }
 
+  function isPropwRecord(r) {
+    const pionexSymbol = String(r?.symbol || "").trim().toUpperCase();
+    return Boolean(PROPW_PIONEX_SYMBOL_MAP[pionexSymbol]);
+  }
+
   function renderFilters() {
     const counts = (state.snapshot?.breadth?.market_state) || {};
-    const order = ["ALL","S3","S0.5","S1","S2","S0","OTHER"];
-    els.filters.innerHTML = order.map(k => `<button class="filter ${filterStateClass(k)} ${state.filter===k?'active':''}" data-filter="${k}">${k==='ALL'?'全部':k} ${k==='ALL'?(state.snapshot?.records?.length||0):(counts[k]||0)}</button>`).join("");
+    const records = state.snapshot?.records || [];
+    const pwCount = state.market === "us-stock" ? records.filter(isPropwRecord).length : 0;
+    const order = state.market === "us-stock"
+      ? ["PW","ALL","S3","S0.5","S1","S2","S0","OTHER"]
+      : ["ALL","S3","S0.5","S1","S2","S0","OTHER"];
+    els.filters.innerHTML = order.map(k => {
+      const label = k === "ALL" ? "全部" : k;
+      const count = k === "PW" ? pwCount : (k === "ALL" ? records.length : (counts[k] || 0));
+      return `<button class="filter ${filterStateClass(k)} ${state.filter===k?'active':''}" data-filter="${k}" title="${k==='PW'?'只顯示 PropW 可交易標的':''}">${label} ${count}</button>`;
+    }).join("");
     els.filters.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => { state.filter=btn.dataset.filter; renderFilters(); renderCards(); }));
   }
 
@@ -684,7 +697,8 @@
 
   function renderCards() {
     let rows = [...(state.snapshot?.records || [])];
-    if (state.filter !== "ALL") rows = rows.filter(r => recordState(r) === state.filter);
+    if (state.filter === "PW") rows = rows.filter(isPropwRecord);
+    else if (state.filter !== "ALL") rows = rows.filter(r => recordState(r) === state.filter);
     const q = String(state.searchQuery || "").trim().toLowerCase();
     if (q) {
       rows = rows.filter(r => {
@@ -704,7 +718,7 @@
   }
 
   function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
-  function filterStateClass(s){ return s==='ALL'?'filter-all':stateClass(s); }
+  function filterStateClass(s){ return s==='PW'?'filter-pw':s==='ALL'?'filter-all':stateClass(s); }
   function targetLabel(s){ return s==='S0.5'?'3日內轉強':s==='S2'?'3日內轉S3':s==='S1'?'3日內上攻':'3日內續強'; }
 
   function renderProbability(r) {

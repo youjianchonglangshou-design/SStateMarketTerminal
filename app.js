@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.87｜CCI-RELATION-PILL";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.88｜PW-BADGE-EXPANSION";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -45,7 +45,13 @@
     SKHX: "SKHYNIX",
     SMSN: "SAMSUNG",
     HYUNDAI: "HYUNDAI",
-    NOWX: "NOW"
+    NOWX: "NOW",
+    NATGAS: "NATGAS",
+    XPD: "XPD",
+    XPT: "XPT",
+    COPPER: "COPPER",
+    METAX: "META",
+    WTI: "WTI"
   });
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const pct = (v, digits=1) => Number.isFinite(Number(v)) ? `${(Number(v)*100).toFixed(digits)}%` : "—";

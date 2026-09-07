@@ -408,6 +408,19 @@ automation/latest/status.json
 - This release does not publish or promote a probability model.
 
 
+## TERMINAL v0.1.88｜PW-BADGE-EXPANSION
+
+PropW `PW` 膠囊新增 6 個已確認對應：
+
+- `NATGAS → NATGAS`
+- `XPD → XPD`
+- `XPT → XPT`
+- `COPPER → COPPER`
+- `METAX → META`
+- `WTI → WTI`
+
+只擴充 `PROPW_PIONEX_SYMBOL_MAP` 顯示名單；`PW` 仍只在美股/RWA頁面顯示。沒有修改 Python engine、CCI PRIMARY、Champion、S-state、概率、Worker 或 Actions。
+
 ## ADX state arrow visual (v0.1.63)
 
 - ADX rising state text uses `趨勢強度增強 ↗↗`.

@@ -126,19 +126,37 @@
   }
   function renderChampion() {
     const c=currentChampion(); const allVisible=summary(state.currentRows); const all=summary(officialGenerationRows()); const threshold=Number(c.evolution_min_settled_72h||120);
-    $("champion-id").textContent=c.model_id||"—";
-    $("generation-badge").textContent=`GEN ${String(c.generation||"—").padStart(3,"0")}`;
+    const activeId=String(state.activeModel?.model_id||"");
+    const mismatch=Boolean(activeId && c.model_id && activeId!==c.model_id);
+    const visibleChampionId=activeId||c.model_id||"—";
+
+    $("champion-id").textContent=visibleChampionId;
+    $("generation-badge").textContent=mismatch ? `戰績 GEN ${String(c.generation||"—").padStart(3,"0")}` : `GEN ${String(c.generation||"—").padStart(3,"0")}`;
+
     $("snapshot-count").textContent=allVisible.snapshots.toLocaleString();
     $("settled-count").textContent=all.settled_72h.toLocaleString();
     $("pending-count").textContent=all.pending_72h.toLocaleString();
     $("evolution-count").textContent=`${all.settled_72h.toLocaleString()} / ${threshold.toLocaleString()}`;
     $("evolution-fill").style.width=`${Math.min(100, threshold?all.settled_72h/threshold*100:0).toFixed(1)}%`;
-    const activeId=String(state.activeModel?.model_id||"");
-    const mismatch=activeId && c.model_id && activeId!==c.model_id;
+
+    const snapshotLabel=$("snapshot-count")?.previousElementSibling;
+    const settledLabel=$("settled-count")?.previousElementSibling;
+    const pendingLabel=$("pending-count")?.previousElementSibling;
+    const thresholdLabel=$("evolution-count")?.previousElementSibling;
+    if(snapshotLabel) snapshotLabel.textContent=mismatch ? "歷史凍結快照" : "本代凍結快照";
+    if(settledLabel) settledLabel.textContent=mismatch ? "歷史 72H 已結算" : "72H 已結算";
+    if(pendingLabel) pendingLabel.textContent=mismatch ? "歷史 72H 待結算" : "72H 待結算";
+    if(thresholdLabel) thresholdLabel.textContent=mismatch ? `GEN ${String(c.generation||"—").padStart(3,"0")} 學習門檻` : "下一代學習門檻";
+
     const generated=state.performance?.generated_at ? new Date(state.performance.generated_at).toLocaleString("zh-TW",{hour12:false}) : "—";
-    $("champion-meta").textContent=mismatch ? `⚠ R2 Active ${activeId}｜戰績帳本仍是 ${c.model_id}` : `戰績更新 ${generated}｜Frozen Snapshot 不做賽後回算`;
-    $("champion-meta").classList.toggle("rate-bad",Boolean(mismatch));
-    $("evolution-note").textContent=all.settled_72h>=threshold ? "本代已達學習門檻；HistoricalTraining 將進入下一代 Champion 學習。" : `還差 ${Math.max(0,threshold-all.settled_72h)} 筆正式 72H 結算，觸發下一代學習。`;
+    $("champion-meta").textContent=mismatch
+      ? `目前 R2 Active ${activeId}｜下方保留 GEN ${String(c.generation||"—").padStart(3,"0")} / ${c.model_id} 的歷史戰績`
+      : `戰績更新 ${generated}｜Frozen Snapshot 不做賽後回算`;
+    $("champion-meta").classList.remove("rate-bad");
+
+    $("evolution-note").textContent=mismatch
+      ? `下方 ${allVisible.snapshots.toLocaleString()} 筆為 GEN ${String(c.generation||"—").padStart(3,"0")} / ${c.model_id} 的歷史 Frozen Snapshot；不回算成 ${activeId} 的成績。`
+      : (all.settled_72h>=threshold ? "本代已達學習門檻；HistoricalTraining 將進入下一代 Champion 學習。" : `還差 ${Math.max(0,threshold-all.settled_72h)} 筆正式 72H 結算，觸發下一代學習。`);
   }
   function renderSummaryCard(card, node) {
     const main=card.querySelector(".summary-main"), outcomes=card.querySelector(".summary-outcomes"), sub=card.querySelector(".summary-sub");
@@ -209,7 +227,7 @@
       const symbol=String(r.symbol||"—"), market=String(r.market_type||"CRYPTO").toUpperCase();
       return `<tr><td><b>${escapeHtml(shortDate(r.checkpoint_time_tw||r.decision_time_tw||r.decision_date_tw))}</b></td><td><b>${marketLabel(r.market_type)}</b></td><td><button class="symbol-history-link" type="button" data-symbol="${escapeHtml(symbol)}" data-market="${escapeHtml(market)}" title="查看 ${escapeHtml(symbol)} 歷史路徑">${escapeHtml(symbol)}</button></td><td><span class="state-pill ${stateClass(r.state)}">${escapeHtml(r.state||"—")}</span><span class="target-pill">${escapeHtml(r.target||"—")}</span></td><td><div class="prediction-stack"><b>成功 ${pct(p.success_probability)}</b><span>存活 ${pct(p.structural_survival_probability)}｜失敗 ${pct(p.true_fail_probability)}</span></div></td><td>${horizonCell(r,"12H")}</td><td>${horizonCell(r,"24H")}</td><td>${horizonCell(r,"48H")}</td><td>${horizonCell(r,"72H")}</td><td class="path-cell" title="${escapeHtml(pathText(s72.state_path||r.final_path))}">${escapeHtml(pathText(s72.state_path||r.final_path))}</td><td>${Number.isFinite(mfe)?`<span class="mfe">${signedPct(mfe)}</span>`:"—"} / ${Number.isFinite(mae)?`<span class="mae">${signedPct(mae)}</span>`:"—"}</td></tr>`;
     }).join("");
-    $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜只使用本代 Champion Frozen Snapshot`;
+    $("detail-footer").textContent=`顯示 ${Math.min(500,rows.length)} / ${rows.length} 筆｜戰績帳本 GEN ${String(currentChampion()?.generation||"—").padStart(3,"0")} Frozen Snapshot`;
     updateSortIndicators("detail");
   }
   function symbolHistoryRows(symbol, market) {
@@ -278,7 +296,7 @@
       state.performance=perf; state.ledger=Array.isArray(ledgerPayload?.rows)?ledgerPayload.rows:[]; state.activeModel=active||null; state.currentRows=currentGenerationRows();
       renderChampion(); renderRange();
       const generated=perf?.generated_at?new Date(perf.generated_at).toLocaleString("zh-TW",{hour12:false}):"尚未產生正式戰績";
-      status.textContent=`戰績資料 ${generated}｜本代 ${state.currentRows.length} 筆 Frozen Snapshot`;
+      status.textContent=`戰績資料 ${generated}｜GEN ${String(perf?.champion?.generation||"—").padStart(3,"0")} 歷史 ${state.currentRows.length} 筆 Frozen Snapshot`;
     } catch(err) {
       console.error(err); status.textContent=`戰績載入失敗：${err.message}`; state.performance={champion:{generation:1,model_id:"—",evolution_min_settled_72h:120}}; state.ledger=[]; state.currentRows=[]; renderChampion(); renderRange();
     } finally { $("refresh-button").disabled=false; }

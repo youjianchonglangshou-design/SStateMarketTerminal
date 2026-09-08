@@ -1,7 +1,13 @@
 {
-  "app_version": "TERMINAL v0.1.89｜PW-FILTER",
-  "stage": "PW-FILTER",
+  "app_version": "TERMINAL v0.1.90｜STICKY-SCAN-COMPACT-CARDS",
+  "stage": "STICKY-SCAN-COMPACT-CARDS",
   "features": [
+    "Desktop/mobile navigation is reorganized around a sticky control deck: market selector, search, performance, Complete Analysis, More menu, and the S-state filter row remain available while scrolling through cards.",
+    "US-stock/RWA keeps the PW quick filter inside the sticky S-state row; PW count and existing PROPW_PIONEX_SYMBOL_MAP behavior are unchanged.",
+    "JSON download buttons move into the More menu without changing their existing download handlers or R2/GitHub data source behavior.",
+    "Page title is simplified to SState Market Terminal; the full Heikin-Ashi Ladder Pattern Scoring Engine / HA ladder × CCI PRIMARY path description becomes the subtitle.",
+    "Card headers are compacted into a scan-first layout: symbol/state/sector/research, price/move, 4H/midline context, then 72H success/fail/survival/sample metrics. Existing S-state, research, probability and CCI color semantics are unchanged.",
+    "Main BB/HA chart, CCI chart, synchronized crosshair, CCI relation pills, path commentary, Champion model, engine, JSON schema, Worker and Actions are unchanged.",
     "US-stock/RWA S-state filter row adds a PW capsule before ALL. Clicking PW shows every current record whose symbol exists in PROPW_PIONEX_SYMBOL_MAP, regardless of S0/S0.5/S1/S2/S3 state; other filters remain unchanged.",
     "PropW PW badge mapping expands to NATGAS, XPD, XPT, COPPER, METAX→META, and WTI on the US-stock/RWA page; badge rendering and all market/model logic are unchanged.",
     "CCI live-value capsule now shows the CCI-vs-SMA14 relation directly: CCI>SMA is green, CCI<SMA is red, and exact tie/unavailable stays neutral.",

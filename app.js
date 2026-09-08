@@ -1021,15 +1021,45 @@
     </div>`;
   }
 
+  function renderCompactHeaderMetrics(r) {
+    const hp=r?.historical_probability||{};
+    const h72=hp["72h"]||{};
+    if(!hp.available||!h72.available){
+      return `<div class="card-metrics-row unavailable"><div class="card-metric-wide">目前沒有正式 72H 機率資料</div></div>`;
+    }
+    const matchedSamples=Number(h72.matched_samples||hp.matched_samples||0);
+    const level=h72.level||hp.model_level||'—';
+    return `<div class="card-metrics-row">
+      <div class="card-metric probability-metric">${renderProbability(r)}</div>
+      <div class="card-metric"><span>真失敗</span><strong class="metric-fail">${pct(h72.true_fail_probability)}</strong></div>
+      <div class="card-metric"><span>結構存活</span><strong class="metric-survival">${pct(h72.structural_survival_probability)}</strong></div>
+      <div class="card-metric"><span>樣本</span><strong>${matchedSamples.toLocaleString()} · L${escapeHtml(level)}</strong></div>
+    </div>`;
+  }
+
   function renderCard(r) {
     const opp=r.opportunity_long||{}, s=recordState(r), mid=opp.midline||{}, sectors=(r.sectors||[]).join(' · ')||'未分類';
     const move=Number(r.bb_pct||0); const moveClass=move>=0?'up':'down';
     const h4prev=String(r.h4_prev||''); const h4curr=String(r.h4_curr||'');
     const lamp = (x)=> x==='green'||x==='🟢'?'<span class="g">●</span>':x==='red'||x==='🔴'?'<span class="r">●</span>':'●';
     return `<article class="card">
-      <div class="card-header"><div class="identity"><div>${escapeHtml(r.symbol)}　現價 ${fmtPrice(r.price)}　｜ 日前偏離 <span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div><div class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</div></div>
-      <div class="badges"><div class="badge-row"><span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span><span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span></div><div class="badge-row">${renderProbability(r)}${renderResearch(r)}<span class="pill sector-pill">${escapeHtml(sectors)}</span></div></div></div>
-      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderPropwMatchBadge(r)}${renderChartQuickStats(r)}</div>
+      <div class="card-header compact-card-header">
+        <div class="card-primary-row">
+          <div class="card-symbol-group">
+            <strong class="card-symbol">${escapeHtml(r.symbol)}</strong>
+            <span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span>
+            <span class="pill sector-pill">${escapeHtml(sectors)}</span>
+            ${renderResearch(r)}
+          </div>
+          <div class="card-price-group"><strong>${fmtPrice(r.price)}</strong><span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div>
+          <div class="card-signal-group">
+            <span class="lights">4H前 ${lamp(h4prev)}　｜　4H當 ${lamp(h4curr)}</span>
+            <span class="pill mid-pill">中軌 ${escapeHtml(mid.symbol||'?')} ${escapeHtml(mid.label||'未知')}</span>
+          </div>
+        </div>
+        ${renderCompactHeaderMetrics(r)}
+      </div>
+      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderPropwMatchBadge(r)}</div>
       ${buildCciPanel(r.chart_30d||[], r)}
     </article>`;
   }

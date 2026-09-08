@@ -1,3 +1,21 @@
+# SStateMarketTerminal v0.1.90 — STICKY SCAN + COMPACT CARDS
+
+## v0.1.90｜漂浮搜尋 / S-state 篩選列 + 卡片摘要重排
+
+本版只重整 Terminal 前端閱讀與操作動線：
+
+- 主標題簡化為 **SState Market Terminal**；完整 **Heikin-Ashi Ladder Pattern Scoring Engine｜HA 階梯 × CCI PRIMARY 路徑分析** 移到副標。
+- 市場切換、搜尋、近期戰績、完整分析、更多選單與 S-state 篩選集中到同一個 **sticky 漂浮操作區**。
+- 往下捲到任何一張圖表時，操作區仍固定在視窗上緣，可直接切 **S3 / S0.5 / S1 / S2 / S0 / OTHER**。
+- 切到 **美股 / RWA** 時，既有 **PW 數量** 篩選仍顯示並可一鍵只看 PropW 清單；加密貨幣維持不顯示 PW。
+- 目前市場 JSON 與新聞 JSON 收進 **更多 ⋯**，既有下載事件與資料來源不變。
+- 卡片 Header 改成「先掃摘要、再看圖」：標的 / S-state / 類別 / 新聞 → 現價與日前偏離 → 4H與中軌 → 3日成功、真失敗、結構存活、樣本與 Level。
+- 原本主圖、BB20、HA 黃紫階梯、CCI20 / SMA14、CCI 路徑評語、十字線與所有顏色語意 **完全不改**。
+
+本版 **不修改** `engine/*`、CCI PRIMARY Champion、S-state、Probability、snapshot JSON schema、Cloudflare Worker 或 GitHub Actions；部署後只需重新整理頁面，不需要重新跑完整分析。
+
+---
+
 # SStateMarketTerminal v0.1.89 — PW FILTER
 
 ## v0.1.89｜PW 一鍵篩選膠囊

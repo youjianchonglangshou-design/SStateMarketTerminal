@@ -6,21 +6,24 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="theme-color" content="#1e293b">
   <title>SStateMarketTerminal</title>
-  <link rel="stylesheet" href="styles.css?v=0.1.68">
+  <link rel="stylesheet" href="styles.css?v=0.1.90">
   <link rel="stylesheet" href="research-modal.css">
 </head>
 <body>
   <main class="shell">
-    <header class="topbar">
+    <header class="topbar terminal-heading">
       <div class="brand">
         <div class="title-row">
-          <h1>Heikin-Ashi Ladder Pattern Scoring Engine</h1>
+          <h1>SState Market Terminal</h1>
+          <span class="engine-subtitle">Heikin-Ashi Ladder Pattern Scoring Engine｜HA 階梯 × CCI PRIMARY 路徑分析</span>
           <span id="version-chip" class="chip cyan"></span>
-          <span class="chip purple">S-state AI Terminal</span>
         </div>
         <div id="system-caption" class="caption">載入最後一次分析資料...</div>
       </div>
-      <div class="actions">
+    </header>
+
+    <section class="sticky-control-deck" aria-label="市場搜尋與 S-state 快速篩選">
+      <div class="actions sticky-actions">
         <select id="market-select" aria-label="市場">
           <option value="crypto">加密貨幣</option>
           <option value="us-stock">美股代幣</option>
@@ -28,10 +31,22 @@
         <div class="search-box"><span>⌕</span><input id="symbol-search" type="search" autocomplete="off" spellcheck="false" placeholder="搜尋標的、S-state或產業"></div>
         <a id="performance-link" class="performance-link" href="./performance.html" target="_blank" rel="noopener noreferrer" title="在新分頁查看 Champion 凍結快照正式結算戰績">📈 近期戰績</a>
         <button id="run-button" class="primary">⚡ 完整分析</button>
-        <button id="download-button" title="下載目前選取市場的最新 JSON">⬇ 加密 JSON</button>
-        <button id="research-download-button" class="research-download-button hidden" type="button" title="下載 R2 research/us-stock/latest.json">⬇ 新聞 JSON</button>
+        <details class="more-menu">
+          <summary>更多 ⋯</summary>
+          <div class="more-menu-panel">
+            <button id="download-button" title="下載目前選取市場的最新 JSON">⬇ 加密 JSON</button>
+            <button id="research-download-button" class="research-download-button hidden" type="button" title="下載 R2 research/us-stock/latest.json">⬇ 新聞 JSON</button>
+          </div>
+        </details>
       </div>
-    </header>
+      <div class="sticky-filter-row">
+        <div class="sticky-scan-meta">
+          <strong>快速狀態掃描</strong>
+          <span id="snapshot-meta" class="caption"></span>
+        </div>
+        <div id="state-filters" class="filters"></div>
+      </div>
+    </section>
 
     <section id="sector-flow" class="sector-flow-panel collapsed hidden">
       <div class="sector-flow-head">
@@ -70,14 +85,6 @@
       <div id="run-detail" class="caption"></div>
     </section>
 
-    <section class="scan-head">
-      <div>
-        <h2>📈 快速狀態掃描｜S0 → S0.5 → S1 → S2 → S3</h2>
-        <div id="snapshot-meta" class="caption"></div>
-      </div>
-      <div id="state-filters" class="filters"></div>
-    </section>
-
     <section id="summary-strip" class="summary-strip"></section>
     <section id="cards" class="cards"></section>
 
@@ -88,8 +95,8 @@
   </main>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=0.1.75"></script>
-  <script src="app.js?v=0.1.75"></script>
+  <script src="config.js?v=0.1.90"></script>
+  <script src="app.js?v=0.1.90"></script>
   <script src="research-modal.js"></script>
   <script src="research-download.js"></script>
 </body>

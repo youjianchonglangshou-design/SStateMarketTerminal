@@ -4,5 +4,5 @@ window.SSTATE_CONFIG = {
   pollIntervalMs: 4000,
   performanceDataUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/performance",
   performanceLedgerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/ledger/recent",
-  appVersion: "TERMINAL v0.1.89｜PW-FILTER"
+  appVersion: "TERMINAL v0.1.90｜STICKY-SCAN-COMPACT-CARDS"
 };

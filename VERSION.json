@@ -1,7 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.90｜STICKY-SCAN-COMPACT-CARDS",
-  "stage": "STICKY-SCAN-COMPACT-CARDS",
+  "app_version": "TERMINAL v0.1.91｜STICKY-READABILITY-BOOST",
+  "stage": "STICKY-READABILITY-BOOST",
   "features": [
+    "Sticky scan deck typography is enlarged for desktop readability: market/search/actions, scan label and S-state/PW filters are larger while sticky behavior is unchanged.",
+    "Compact card summary typography is enlarged to better match the approved mockup: symbol/state/sector, price/move, 4H/midline, and probability/fail/survival/sample metrics are larger.",
+    "Main BB/HA chart, CCI chart, axes, line widths, chart heights, CCI path commentary logic, color semantics, Champion, engine and JSON are unchanged.",
     "Desktop/mobile navigation is reorganized around a sticky control deck: market selector, search, performance, Complete Analysis, More menu, and the S-state filter row remain available while scrolling through cards.",
     "US-stock/RWA keeps the PW quick filter inside the sticky S-state row; PW count and existing PROPW_PIONEX_SYMBOL_MAP behavior are unchanged.",
     "JSON download buttons move into the More menu without changing their existing download handlers or R2/GitHub data source behavior.",
@@ -69,5 +72,5 @@
     "Keeps the Active Champion model loaded on the main page for existing probability/sample-tier rendering; only Challenger UI/data polling is retired.",
     "Cloudflare 08:25 scheduling, full-analysis scheduling, ADX 1-decimal sticky semantics, S-state rules, probability engine, and trading scan logic are unchanged."
   ],
-  "version": "0.1.89"
+  "version": "0.1.91"
 }

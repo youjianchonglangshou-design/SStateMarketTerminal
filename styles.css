@@ -819,3 +819,62 @@
   .card-metric:nth-child(2){border-right:0}
   .card-metric:nth-child(-n+2){border-bottom:1px solid #334155}
 }
+
+/* v0.1.91 — Readability boost for the sticky scan deck + compact card summary only.
+   Main BB/HA chart, CCI chart, axes and chart geometry are intentionally unchanged. */
+@media (min-width:1101px){
+  .engine-subtitle{font-size:14px;letter-spacing:.3px}
+
+  .sticky-actions select,
+  .sticky-actions>button,
+  .sticky-actions .performance-link,
+  .more-menu>summary{font-size:14px;font-weight:900}
+  .sticky-actions .search-box input{font-size:14px}
+  .sticky-actions .search-box span{font-size:20px}
+
+  .sticky-filter-row{margin-top:9px;padding-top:9px}
+  .sticky-scan-meta>strong{font-size:15px}
+  .sticky-scan-meta .caption{font-size:12px}
+  .sticky-control-deck .filters{gap:8px}
+  .sticky-control-deck .filter{font-size:13px;padding:7px 13px}
+
+  .compact-card-header{margin-bottom:12px;padding-bottom:11px}
+  .card-primary-row{gap:14px;grid-template-columns:minmax(0,1.52fr) auto minmax(205px,.66fr)}
+  .card-symbol-group{gap:8px}
+  .card-symbol{font-size:24px;letter-spacing:.35px}
+  .card-symbol-group .state-pill,
+  .card-symbol-group .sector-pill,
+  .card-symbol-group .research-pill,
+  .card-symbol-group .research-query-pill{font-size:12px;padding:6px 10px}
+  .card-symbol-group .sector-pill{max-width:280px}
+
+  .card-price-group{gap:9px}
+  .card-price-group>strong{font-size:21px}
+  .card-price-group .move{font-size:15px}
+
+  .card-signal-group{gap:6px}
+  .card-signal-group .lights{font-size:13px}
+  .card-signal-group .mid-pill{font-size:12px;padding:5px 9px}
+
+  .card-metrics-row{margin-top:11px}
+  .card-metric{min-height:44px;padding:9px 12px;font-size:12px}
+  .card-metric>strong{font-size:14px}
+  .card-metric.probability-metric .prob-pill{font-size:12px;padding:5px 2px}
+  .card-metric.probability-metric .prob-pill strong{font-size:15px}
+  .card-metric-wide{font-size:12px}
+}
+
+@media (min-width:761px) and (max-width:1100px){
+  .sticky-scan-meta>strong{font-size:14px}
+  .sticky-control-deck .filter{font-size:12px;padding:6px 11px}
+  .card-symbol{font-size:21px}
+  .card-symbol-group .state-pill,
+  .card-symbol-group .sector-pill,
+  .card-symbol-group .research-pill,
+  .card-symbol-group .research-query-pill{font-size:11px}
+  .card-price-group>strong{font-size:19px}
+  .card-price-group .move{font-size:14px}
+  .card-signal-group .lights{font-size:12px}
+  .card-metric{font-size:11px}
+  .card-metric>strong{font-size:13px}
+}

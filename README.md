@@ -1,3 +1,20 @@
+# SStateMarketTerminal v0.1.91 — STICKY READABILITY BOOST
+
+## v0.1.91｜漂浮操作列 + 卡片摘要文字放大
+
+依照 v0.1.90 實際部署畫面與模擬稿比較，本版只放大 **紅框 sticky 操作區** 與 **綠框卡片摘要 Header** 的文字尺度：
+
+- 市場切換 / 搜尋 / 近期戰績 / 完整分析 / 更多：文字放大。
+- 快速狀態掃描、PW、全部與 S3 / S0.5 / S1 / S2 / S0 / OTHER：文字與膠囊放大。
+- 標的名稱、S-state、產業/研究膠囊、現價、日前偏離、4H、中軌資訊放大。
+- 3日機率、真失敗、結構存活、樣本 / Level 的標題與數值放大。
+- **不修改** BB/HA 主圖、CCI 圖、座標、線條、圖表高度、CCI 評語、顏色語意。
+- Sticky 漂浮行為與美股 PW 篩選完全保留。
+
+本版純前端可讀性調整，不需重新跑完整分析。
+
+---
+
 # SStateMarketTerminal v0.1.90 — STICKY SCAN + COMPACT CARDS
 
 ## v0.1.90｜漂浮搜尋 / S-state 篩選列 + 卡片摘要重排

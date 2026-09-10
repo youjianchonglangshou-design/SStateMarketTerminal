@@ -1005,3 +1005,47 @@
 .card-symbol-group .sector-pill{
   color:#cbd5e1;
 }
+
+
+/* v0.1.94 — requested refinement only: move news capsule to row 2, enlarge state pill, tune sector text. */
+.card-symbol-group .research-wrap,
+.card-symbol-group .research-query-pill{
+  order:10;
+  flex:0 0 100%;
+  margin-top:4px;
+}
+.card-symbol-group .research-wrap{
+  width:100%;
+  display:flex;
+  justify-content:flex-start;
+}
+.card-symbol-group .research-wrap .research-card{
+  left:0;
+  right:auto;
+}
+
+.card-symbol-group .state-pill{
+  font-size:13px;
+  padding:7px 14px;
+  border-radius:999px;
+}
+.card-symbol-group .sector-meta{
+  font-size:10px;
+  color:#94a3b8;
+  font-weight:800;
+}
+
+@media (min-width:1101px){
+  .card-symbol-group .state-pill{font-size:13px;padding:7px 15px}
+  .card-symbol-group .sector-meta{font-size:10px}
+}
+@media (min-width:761px) and (max-width:1100px){
+  .card-symbol-group .state-pill{font-size:12px;padding:6px 13px}
+  .card-symbol-group .sector-meta{font-size:10px}
+}
+@media(max-width:760px){
+  .card-symbol-group .research-wrap,
+  .card-symbol-group .research-query-pill{margin-top:3px}
+  .card-symbol-group .state-pill{font-size:11px;padding:6px 12px}
+  .card-symbol-group .sector-meta{font-size:9px}
+}

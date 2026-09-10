@@ -1,10 +1,11 @@
 {
-  "app_version": "TERMINAL v0.1.93｜FILTER-BORDER-SECTOR-NEUTRAL",
-  "stage": "FILTER-BORDER-SECTOR-NEUTRAL",
+  "app_version": "TERMINAL v0.1.94｜NEWS-ROW-STATE-SIZE-SECTOR-TUNE",
+  "stage": "NEWS-ROW-STATE-SIZE-SECTOR-TUNE",
   "features": [
-    "The sticky quick-filter capsules now keep a visible neutral border, matching the approved reference while preserving the same dot-based state markers and existing filter logic.",
-    "Sector/category text next to each symbol is now fully neutral small text instead of green-accent text, matching the approved reference style.",
-    "No other UI blocks, charts, probability logic, Worker/API behavior, research blocks, PW mapping, or unspecified areas are changed in this release."
+    "Per-symbol news query / news result capsules on Terminal cards now always sit on the second line below the symbol/state/sector row.",
+    "The filled S-state capsule is slightly enlarged to better match the approved reference while keeping the same gradient style and state text.",
+    "Sector/category text is tuned smaller and darker-neutral to better match the approved reference style.",
+    "No chart geometry, probability logic, Worker/API behavior, filters, PW mapping, or any other unspecified UI areas are changed in this release."
   ],
-  "version": "0.1.93"
+  "version": "0.1.94"
 }

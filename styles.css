@@ -1049,3 +1049,26 @@
   .card-symbol-group .state-pill{font-size:11px;padding:6px 12px}
   .card-symbol-group .sector-meta{font-size:9px}
 }
+
+
+/* v0.1.95 — requested only: restore compact query-pill width and give sticky deck subtle visual separation. */
+.card-symbol-group .research-wrap{
+  order:10;
+  flex:0 0 100%;
+  width:100%;
+  margin-top:4px;
+}
+.card-symbol-group .research-query-pill{
+  flex:0 0 auto;
+  width:auto;
+  max-width:max-content;
+  margin-top:0;
+}
+.sticky-control-deck{
+  background:linear-gradient(180deg,rgba(19,35,56,.99),rgba(17,30,49,.985));
+  border-color:#4b607a;
+  box-shadow:0 12px 30px rgba(2,6,23,.46),inset 0 1px 0 rgba(255,255,255,.045);
+}
+@media(max-width:760px){
+  .card-symbol-group .research-wrap{margin-top:3px}
+}

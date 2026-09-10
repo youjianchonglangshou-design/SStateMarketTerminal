@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.92｜CYBER-CAPSULE-REFINE";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.95｜QUERY-WIDTH-STICKY-CONTRAST";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -919,7 +919,7 @@
           : expired
             ? `${symbol} 新聞快取已超過 24 小時｜點擊重新查詢`
             : `${symbol} 尚未查詢｜有興趣再點擊，成功後快取 24 小時`;
-      return `<button type="button" class="pill research-query-pill ${busy?'is-busy':error?'is-error':'is-waiting'}" data-research-symbol="${escapeHtml(symbol)}" title="${escapeHtml(title)}" ${(busy||anotherBusy)?'disabled':''}>${escapeHtml(label)}</button>`;
+      return `<div class="research-wrap research-query-wrap"><button type="button" class="pill research-query-pill ${busy?'is-busy':error?'is-error':'is-waiting'}" data-research-symbol="${escapeHtml(symbol)}" title="${escapeHtml(title)}" ${(busy||anotherBusy)?'disabled':''}>${escapeHtml(label)}</button></div>`;
     }
 
     const info = rawInfo;

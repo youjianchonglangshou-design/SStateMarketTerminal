@@ -1,11 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.94｜NEWS-ROW-STATE-SIZE-SECTOR-TUNE",
-  "stage": "NEWS-ROW-STATE-SIZE-SECTOR-TUNE",
+  "app_version": "TERMINAL v0.1.95｜QUERY-WIDTH-STICKY-CONTRAST",
+  "stage": "QUERY-WIDTH-STICKY-CONTRAST",
   "features": [
-    "Per-symbol news query / news result capsules on Terminal cards now always sit on the second line below the symbol/state/sector row.",
-    "The filled S-state capsule is slightly enlarged to better match the approved reference while keeping the same gradient style and state text.",
-    "Sector/category text is tuned smaller and darker-neutral to better match the approved reference style.",
-    "No chart geometry, probability logic, Worker/API behavior, filters, PW mapping, or any other unspecified UI areas are changed in this release."
+    "The news query capsule remains on the second line but returns to content-width sizing instead of stretching across the card header.",
+    "The sticky search/filter control deck receives a subtle blue-gray background distinction so it remains visually recognizable while charts scroll underneath.",
+    "All other card layout, S-state capsules, sector text, filter pills, charts, CCI, probability logic, Worker/API behavior, and unspecified UI remain unchanged."
   ],
-  "version": "0.1.94"
+  "version": "0.1.95"
 }

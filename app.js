@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.89｜PW-FILTER";
+  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.92｜CYBER-CAPSULE-REFINE";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -88,7 +88,7 @@
     const autoBusy = Boolean(state.autoBatchBusy);
     els.run.disabled = manualBusy || autoBusy;
     els.run.classList.toggle('auto-batch-locked', autoBusy);
-    els.run.textContent = autoBusy ? '⚡🚫 完整分析' : '⚡ 完整分析';
+    els.run.textContent = autoBusy ? '📝🚫 完整分析' : '📝 完整分析';
     els.run.title = autoBusy ? autoBatchTitle() : (manualBusy ? '完整分析執行中' : `只分析目前選取的${marketLabel(state.market)}`);
 
     // Per-symbol Tavily search is an independent event. It never locks the
@@ -681,7 +681,7 @@
     els.filters.innerHTML = order.map(k => {
       const label = k === "ALL" ? "全部" : k;
       const count = k === "PW" ? pwCount : (k === "ALL" ? records.length : (counts[k] || 0));
-      return `<button class="filter ${filterStateClass(k)} ${state.filter===k?'active':''}" data-filter="${k}" title="${k==='PW'?'只顯示 PropW 可交易標的':''}">${label} ${count}</button>`;
+      return `<button class="filter ${filterStateClass(k)} ${state.filter===k?'active':''}" data-filter="${k}" title="${k==='PW'?'只顯示 PropW 可交易標的':''}">${filterDotMarkup(k)}<span class="filter-text">${escapeHtml(label)}</span><span class="filter-count">${escapeHtml(String(count))}</span></button>`;
     }).join("");
     els.filters.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => { state.filter=btn.dataset.filter; renderFilters(); renderCards(); }));
   }
@@ -719,6 +719,10 @@
 
   function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
   function filterStateClass(s){ return s==='PW'?'filter-pw':s==='ALL'?'filter-all':stateClass(s); }
+  function filterDotMarkup(s){
+    const cls = s==='PW' ? 'filter-dot-pw' : s==='S3' ? 'filter-dot-s3' : s==='S0.5' ? 'filter-dot-s05' : s==='S1' ? 'filter-dot-s1' : s==='S2' ? 'filter-dot-s2' : s==='S0' ? 'filter-dot-s0' : s==='OTHER' ? 'filter-dot-other' : '';
+    return cls ? `<span class="filter-dot ${cls}" aria-hidden="true"></span>` : '';
+  }
   function targetLabel(s){ return s==='S0.5'?'3日內轉強':s==='S2'?'3日內轉S3':s==='S1'?'3日內上攻':'3日內續強'; }
 
   function renderProbability(r) {
@@ -1047,8 +1051,8 @@
         <div class="card-primary-row">
           <div class="card-symbol-group">
             <strong class="card-symbol">${escapeHtml(r.symbol)}</strong>
-            <span class="pill state-pill ${stateClass(s)}">${escapeHtml(opp.stars_text||'★☆☆☆☆')} ${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span>
-            <span class="pill sector-pill">${escapeHtml(sectors)}</span>
+            <span class="pill state-pill ${stateClass(s)}">${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span>
+            <span class="sector-meta">${escapeHtml(sectors)}</span>
             ${renderResearch(r)}
           </div>
           <div class="card-price-group"><strong>${fmtPrice(r.price)}</strong><span class="move ${moveClass}">${move>=0?'+':''}${num(move)}%</span></div>

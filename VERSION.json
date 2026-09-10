@@ -1,12 +1,11 @@
 {
-  "app_version": "v0.2.00",
-  "stage": "R2-CYBER-MEMO",
+  "app_version": "v0.2.01",
+  "stage": "R2-CYBER-MEMO-EDIT",
   "features": [
-    "Adds a fixed right-edge MEMO tab that opens a cyberpunk memo drawer without changing existing market cards, charts, filters, analysis or research behavior.",
-    "Memo records contain Taiwan date/time, symbol and free-text note, with checkbox multi-select deletion.",
-    "Memo persistence is server-side through the existing Cloudflare Worker and JSON_BUCKET R2 binding at terminal/memos.json, so records synchronize across devices instead of relying on localStorage.",
-    "Adds GET/POST/DELETE /api/memos endpoints and DELETE CORS support. The memo interface reloads from R2 whenever opened and immediately refreshes after save/delete.",
-    "All unspecified Terminal UI and engine logic remain unchanged."
+    "Adds checkbox-selected memo editing: select exactly one record and press 編輯勾選 to load it into the existing memo form.",
+    "During edit mode SAVE becomes UPDATE; submitting uses PUT /api/memos and overwrites the selected R2 memo while preserving its original id and created_at.",
+    "The edit action can be cancelled without changing R2, and the record being edited is highlighted with the existing cyberpunk visual language.",
+    "Existing cross-device R2 save/load/delete behavior and all unspecified Terminal UI/engine behavior remain unchanged."
   ],
-  "version": "0.2.00"
+  "version": "0.2.01"
 }

@@ -132,6 +132,35 @@ export default {
         await writeMemoPayload(env, payload);
         return json({ ok: true, ...payload, saved: entry }, 200, origin);
       }
+      if (request.method === "PUT" && url.pathname === "/api/memos") {
+        const body = await request.json().catch(() => ({}));
+        const id = safeMemoText(body.id, 80);
+        const datetimeTw = safeMemoDatetime(body.datetime_tw || body.datetime);
+        const symbol = safeMemoText(body.symbol, 30).toUpperCase();
+        const note = safeMemoText(body.note, 1000);
+        if (!id) throw httpError(400, "memo id required");
+        if (!symbol) throw httpError(400, "memo symbol required");
+        if (!note) throw httpError(400, "memo note required");
+        const current = await readMemoPayload(env);
+        const index = current.entries.findIndex(row => String(row?.id || "") === id);
+        if (index < 0) throw httpError(404, "memo not found");
+        const now = new Date().toISOString();
+        const previous = current.entries[index] || {};
+        const updated = {
+          ...previous,
+          id,
+          datetime_tw: datetimeTw,
+          symbol,
+          note,
+          created_at: previous.created_at || now,
+          updated_at: now
+        };
+        const entries = [...current.entries];
+        entries[index] = updated;
+        const payload = { schema_version: "1.1", updated_at: now, entries };
+        await writeMemoPayload(env, payload);
+        return json({ ok: true, ...payload, updated }, 200, origin);
+      }
       if (request.method === "DELETE" && url.pathname === "/api/memos") {
         const body = await request.json().catch(() => ({}));
         const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(x => String(x || "").trim()).filter(Boolean))].slice(0, 100);

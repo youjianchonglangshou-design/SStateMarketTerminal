@@ -1237,3 +1237,14 @@
   .memo-field-note,.memo-save{grid-column:1}
   .memo-drawer-head h2{font-size:20px}
 }
+
+
+/* v0.2.01 — memo selected-entry editing. */
+.memo-list-actions{display:flex;align-items:center;gap:7px}
+.memo-edit{height:30px;padding:0 10px;border:1px solid #0e7490;border-radius:8px;background:#08334466;color:#a5f3fc;font-size:9px;font-weight:900;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.memo-edit:hover:not(:disabled){border-color:#22d3ee;background:#0e749077;color:#ecfeff;box-shadow:0 0 14px rgba(34,211,238,.12)}
+.memo-edit.is-cancel{border-color:#a855f7;background:#581c8766;color:#e9d5ff}
+.memo-edit.is-cancel:hover:not(:disabled){border-color:#c084fc;background:#6b21a877;color:#faf5ff}
+.memo-edit:disabled{opacity:.34;cursor:not-allowed}
+.memo-save.is-editing{border-color:#a855f7;background:linear-gradient(90deg,#6d28d955,#0e749044,#6d28d955);color:#f3e8ff;box-shadow:0 0 20px rgba(168,85,247,.12),inset 0 1px 0 rgba(255,255,255,.08)}
+.memo-entry.is-editing{border-color:#a855f7;box-shadow:0 0 0 1px rgba(168,85,247,.22),0 0 18px rgba(168,85,247,.10),inset 0 1px 0 rgba(255,255,255,.035)}

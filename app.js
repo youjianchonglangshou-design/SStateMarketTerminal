@@ -1540,11 +1540,11 @@
   if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
 
 
-  // v0.2.00 — cross-device cyber memo backed by the existing Worker + R2 JSON_BUCKET.
-  const memoState = { entries: [], selected: new Set(), loaded: false, busy: false };
+  // v0.2.01 — cross-device cyber memo backed by the existing Worker + R2 JSON_BUCKET.
+  const memoState = { entries: [], selected: new Set(), loaded: false, busy: false, editingId: "" };
   const memoEls = {
     tab: $("memo-tab"), tabCount: $("memo-tab-count"), backdrop: $("memo-backdrop"), drawer: $("memo-drawer"), close: $("memo-close"),
-    datetime: $("memo-datetime"), symbol: $("memo-symbol"), note: $("memo-note"), save: $("memo-save"), remove: $("memo-delete"),
+    datetime: $("memo-datetime"), symbol: $("memo-symbol"), note: $("memo-note"), save: $("memo-save"), edit: $("memo-edit"), remove: $("memo-delete"),
     list: $("memo-list"), count: $("memo-record-count"), sync: $("memo-sync-status")
   };
 
@@ -1563,15 +1563,34 @@
   function setMemoBusy(busy, label='') {
     memoState.busy=Boolean(busy);
     if (memoEls.save) memoEls.save.disabled=memoState.busy;
+    if (memoEls.edit) memoEls.edit.disabled=memoState.busy || (!memoState.editingId && memoState.selected.size!==1);
     if (memoEls.remove) memoEls.remove.disabled=memoState.busy || memoState.selected.size===0;
     if (memoEls.sync && label) memoEls.sync.textContent=label;
+  }
+
+  function updateMemoEditUi() {
+    const editing=Boolean(memoState.editingId);
+    if (memoEls.save) {
+      const main=memoEls.save.querySelector('span');
+      const sub=memoEls.save.querySelector('small');
+      if (main) main.textContent=editing?'UPDATE':'SAVE';
+      if (sub) sub.textContent=editing?'覆寫 R2':'寫入 R2';
+      memoEls.save.classList.toggle('is-editing',editing);
+    }
+    if (memoEls.edit) {
+      memoEls.edit.textContent=editing?'取消編輯':'編輯勾選';
+      memoEls.edit.classList.toggle('is-cancel',editing);
+      memoEls.edit.disabled=memoState.busy || (!editing && memoState.selected.size!==1);
+    }
   }
 
   function updateMemoCounters() {
     const n=memoState.entries.length;
     if (memoEls.tabCount) memoEls.tabCount.textContent=String(n);
     if (memoEls.count) memoEls.count.textContent=`${n} RECORD${n===1?'':'S'}`;
+    if (memoEls.edit) memoEls.edit.disabled=memoState.busy || (!memoState.editingId && memoState.selected.size!==1);
     if (memoEls.remove) memoEls.remove.disabled=memoState.busy || memoState.selected.size===0;
+    updateMemoEditUi();
   }
 
   function renderMemoEntries() {
@@ -1585,7 +1604,8 @@
     memoEls.list.innerHTML=rows.map(row=>{
       const id=String(row?.id||'');
       const checked=memoState.selected.has(id)?'checked':'';
-      return `<label class="memo-entry">
+      const editing=memoState.editingId===id?' is-editing':'';
+      return `<label class="memo-entry${editing}">
         <input class="memo-entry-check" type="checkbox" data-memo-id="${escapeHtml(id)}" ${checked}>
         <div class="memo-entry-body">
           <div class="memo-entry-meta"><time>${escapeHtml(memoDisplayDatetime(row?.datetime_tw))}</time><span>${escapeHtml(row?.symbol||'—')}</span></div>
@@ -1607,6 +1627,7 @@
     try {
       const out=await fetchJson(`${workerUrl}/api/memos?t=${Date.now()}`);
       memoState.entries=Array.isArray(out?.entries)?out.entries:[];
+      if (memoState.editingId && ids.includes(memoState.editingId)) memoState.editingId='';
       memoState.selected.clear();
       memoState.loaded=true;
       renderMemoEntries();
@@ -1639,6 +1660,40 @@
     memoEls.backdrop?.setAttribute('aria-hidden','true');
   }
 
+  function clearMemoEditor({clearSelection=false}={}) {
+    memoState.editingId='';
+    if (clearSelection) memoState.selected.clear();
+    if (memoEls.symbol) memoEls.symbol.value='';
+    if (memoEls.note) memoEls.note.value='';
+    if (memoEls.datetime) memoEls.datetime.value=taiwanDatetimeLocal();
+    renderMemoEntries();
+    updateMemoEditUi();
+  }
+
+  function editSelectedMemo() {
+    if (memoState.busy) return;
+    if (memoState.editingId) {
+      clearMemoEditor();
+      if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
+      return;
+    }
+    if (memoState.selected.size!==1) {
+      showToast('請先只勾選 1 筆要編輯的備忘錄。',4500);
+      return;
+    }
+    const id=[...memoState.selected][0];
+    const row=memoState.entries.find(item=>String(item?.id||'')===id);
+    if (!row) { showToast('找不到勾選的備忘錄，請重新同步。',4500); return; }
+    memoState.editingId=id;
+    if (memoEls.datetime) memoEls.datetime.value=String(row.datetime_tw||'').slice(0,16);
+    if (memoEls.symbol) memoEls.symbol.value=String(row.symbol||'');
+    if (memoEls.note) memoEls.note.value=String(row.note||'');
+    if (memoEls.sync) memoEls.sync.textContent='EDIT MODE // 修改後按 UPDATE';
+    renderMemoEntries();
+    updateMemoEditUi();
+    setTimeout(()=>memoEls.note?.focus(),80);
+  }
+
   async function saveMemo() {
     if (memoState.busy) return;
     const datetimeTw=String(memoEls.datetime?.value||'').trim();
@@ -1649,21 +1704,23 @@
       return;
     }
     if (!workerUrl) { showToast('Worker 尚未設定，無法跨裝置寫入 R2。',6000); return; }
-    setMemoBusy(true,'SAVING // R2');
+    setMemoBusy(true,memoState.editingId?'UPDATING // R2':'SAVING // R2');
     try {
+      const editingId=String(memoState.editingId||'');
       const out=await fetchJson(`${workerUrl}/api/memos`,{
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({datetime_tw:datetimeTw,symbol,note})
+        method:editingId?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:editingId||undefined,datetime_tw:datetimeTw,symbol,note})
       });
       memoState.entries=Array.isArray(out?.entries)?out.entries:memoState.entries;
+      memoState.editingId='';
       memoState.selected.clear();
-      renderMemoEntries();
       if (memoEls.symbol) memoEls.symbol.value='';
       if (memoEls.note) memoEls.note.value='';
       if (memoEls.datetime) memoEls.datetime.value=taiwanDatetimeLocal();
+      renderMemoEntries();
       if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
-      showToast(`${symbol}｜備忘錄已同步寫入 R2。`,5000);
+      showToast(editingId?`${symbol}｜備忘錄已更新並同步至 R2。`:`${symbol}｜備忘錄已同步寫入 R2。`,5000);
     } catch(err) {
-      if (memoEls.sync) memoEls.sync.textContent='SAVE ERROR // R2';
+      if (memoEls.sync) memoEls.sync.textContent=memoState.editingId?'UPDATE ERROR // R2':'SAVE ERROR // R2';
       showToast(`備忘錄儲存失敗：${err?.message||err}`,7000);
     } finally {
       setMemoBusy(false);
@@ -1701,6 +1758,7 @@
     memoEls.close?.addEventListener('click',closeMemoDrawer);
     memoEls.backdrop?.addEventListener('click',closeMemoDrawer);
     memoEls.save?.addEventListener('click',saveMemo);
+    memoEls.edit?.addEventListener('click',editSelectedMemo);
     memoEls.remove?.addEventListener('click',deleteSelectedMemos);
     memoEls.list?.addEventListener('change',event=>{
       const box=event.target.closest?.('.memo-entry-check');

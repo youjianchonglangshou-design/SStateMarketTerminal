@@ -1072,3 +1072,15 @@
 @media(max-width:760px){
   .card-symbol-group .research-wrap{margin-top:3px}
 }
+
+
+/* v0.1.96 — requested only: make the sticky search/filter deck visibly distinct while scrolling. */
+.sticky-control-deck{
+  background:linear-gradient(180deg,#18344f 0%,#142a43 100%);
+  border-color:#5d7390;
+  box-shadow:
+    0 14px 28px rgba(2,6,15,.62),
+    0 0 0 1px rgba(96,165,250,.035),
+    inset 0 1px 0 rgba(219,234,254,.075),
+    inset 0 -1px 0 rgba(8,18,31,.72);
+}

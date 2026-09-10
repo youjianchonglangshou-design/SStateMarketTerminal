@@ -1,10 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.95｜QUERY-WIDTH-STICKY-CONTRAST",
-  "stage": "QUERY-WIDTH-STICKY-CONTRAST",
+  "app_version": "TERMINAL v0.1.96｜STICKY-DECK-SEPARATION",
+  "stage": "STICKY-DECK-SEPARATION",
   "features": [
-    "The news query capsule remains on the second line but returns to content-width sizing instead of stretching across the card header.",
-    "The sticky search/filter control deck receives a subtle blue-gray background distinction so it remains visually recognizable while charts scroll underneath.",
-    "All other card layout, S-state capsules, sector text, filter pills, charts, CCI, probability logic, Worker/API behavior, and unspecified UI remain unchanged."
+    "The compact news query capsule remains unchanged from v0.1.95.",
+    "Only the sticky search/filter control deck background is given a clearer blue-gray separation and stronger lower shadow so the floating deck remains visually distinct while charts scroll underneath.",
+    "All other card layout, S-state capsules, sector text, filters, charts, CCI, probability logic, Worker/API behavior, and unspecified UI remain unchanged."
   ],
-  "version": "0.1.95"
+  "version": "0.1.96"
 }

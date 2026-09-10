@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "TERMINAL v0.1.95｜QUERY-WIDTH-STICKY-CONTRAST";
+  els.version.textContent = cfg.appVersion || "v0.1.97";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -655,13 +655,13 @@
     const snap = state.snapshot;
     if (!snap || !Array.isArray(snap.records)) {
       els.cards.innerHTML=""; els.summary.innerHTML=""; els.empty.classList.remove("hidden");
-      els.systemCaption.textContent = `${marketLabel(state.market)}｜尚無最後一次分析資料`;
+      els.systemCaption.textContent = `更新時間 —｜台灣時間`;
       return;
     }
     els.empty.classList.add("hidden");
     const b = snap.batch || {};
     const pm = b.probability_model || {};
-    els.systemCaption.textContent = `${marketLabel(state.market)}｜UPDATED ${fmtTaiwanTimestamp(b.generated_at_taiwan)}｜ENGINE ${b.engine_version || "—"}｜AI ${b.ai_analysis_layer || "—"}`;
+    els.systemCaption.textContent = `更新 ${fmtTaiwanTimestamp(b.generated_at_taiwan)}｜台灣時間`;
     els.snapshotMeta.textContent = `資料源：${source}｜${b.count ?? snap.records.length} 標的｜Probability ${pm.available ? `${pm.model_id || "active"} / max L${pm.max_level || "?"}` : "未載入"}｜主判定 72H（3日）`;
     renderFilters(); renderSummary(); renderCards(); renderSectorFlow();
   }

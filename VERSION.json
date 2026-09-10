@@ -1,10 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.96｜STICKY-DECK-SEPARATION",
-  "stage": "STICKY-DECK-SEPARATION",
+  "app_version": "v0.1.97",
+  "stage": "PREMIUM-MINIMAL-HEADER",
   "features": [
-    "The compact news query capsule remains unchanged from v0.1.95.",
-    "Only the sticky search/filter control deck background is given a clearer blue-gray separation and stronger lower shadow so the floating deck remains visually distinct while charts scroll underneath.",
-    "All other card layout, S-state capsules, sector text, filters, charts, CCI, probability logic, Worker/API behavior, and unspecified UI remain unchanged."
+    "Main Terminal header is simplified to only SState Market Terminal, the concise version number, and the latest Taiwan update time.",
+    "The previous engine/subtitle/model strings are removed from the visible header to reduce visual noise.",
+    "A restrained glass-style version chip and muted timestamp row add hierarchy without changing any controls, filters, cards, charts, analysis logic, or other unspecified UI."
   ],
-  "version": "0.1.96"
+  "version": "0.1.97"
 }

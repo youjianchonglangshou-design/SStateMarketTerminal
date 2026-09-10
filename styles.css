@@ -1086,7 +1086,7 @@
 }
 
 
-/* v0.1.98 — premium minimal header: slightly larger update time for readability. */
+/* v0.1.99 — premium minimal header: brighter aqua update time. */
 .premium-heading{
   margin-bottom:14px;
   align-items:center;
@@ -1129,7 +1129,7 @@
   align-items:center;
   margin-top:6px;
   padding-left:1px;
-  color:#7f91a8;
+  color:#bae6fd;
   font:700 12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   letter-spacing:.18px;
 }
@@ -1139,8 +1139,8 @@
   height:5px;
   margin-right:7px;
   border-radius:50%;
-  background:#64748b;
-  box-shadow:0 0 7px rgba(148,163,184,.24);
+  background:#38bdf8;
+  box-shadow:0 0 8px rgba(56,189,248,.32);
 }
 @media(max-width:760px){
   .premium-title-line{gap:9px}

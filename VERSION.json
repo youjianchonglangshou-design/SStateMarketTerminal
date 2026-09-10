@@ -1,10 +1,10 @@
 {
-  "app_version": "v0.1.98",
-  "stage": "UPDATE-TIME-READABILITY",
+  "app_version": "v0.1.99",
+  "stage": "UPDATE-TIME-AQUA",
   "features": [
-    "The minimal header update-time line is enlarged from 10px to 12px on desktop for clearer readability.",
-    "Mobile update-time text is enlarged from 9px to 11px.",
-    "No other header layout, controls, filters, cards, charts, analysis logic, or unspecified UI is changed."
+    "The minimal header update-time text changes from muted blue-gray to the same aqua family used by the waiting-query capsule for higher visibility.",
+    "The small leading update-status dot is changed to the same aqua accent with a subtle glow.",
+    "Update-time font size, header layout, sticky controls, cards, charts, analysis logic, and all unspecified UI remain unchanged."
   ],
-  "version": "0.1.98"
+  "version": "0.1.99"
 }

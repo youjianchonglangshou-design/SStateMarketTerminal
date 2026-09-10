@@ -880,14 +880,14 @@
 }
 
 
-/* v0.1.92 — requested capsule/style alignment with cyberpunk filled state pills. */
+/* v0.1.93 — refine filter borders and neutralize sector text to match the approved reference. */
 .sticky-control-deck .filters{gap:8px}
 .sticky-control-deck .filter{
   display:inline-flex;
   align-items:center;
   gap:8px;
   padding:7px 13px;
-  border:1px solid transparent;
+  border:1px solid #52657f;
   background:rgba(15,23,42,.88);
   color:#dbe4f0;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 8px 20px rgba(2,6,23,.18);
@@ -896,9 +896,16 @@
 .sticky-control-deck .filter.active{
   background:linear-gradient(180deg,rgba(29,41,63,.98),rgba(18,27,45,.96));
   color:#f8fafc;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px rgba(255,255,255,.06),0 10px 24px rgba(2,6,23,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px rgba(255,255,255,.05),0 10px 24px rgba(2,6,23,.28);
 }
-.sticky-control-deck .filter.filter-all,.sticky-control-deck .filter.filter-pw,.sticky-control-deck .filter.state-s3,.sticky-control-deck .filter.state-s05,.sticky-control-deck .filter.state-s1,.sticky-control-deck .filter.state-s2,.sticky-control-deck .filter.state-s0,.sticky-control-deck .filter.state-other{border-color:transparent;color:#dbe4f0;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.filter-all{border-color:#7b8ba3;color:#e2e8f0;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.filter-pw{border-color:#38bdf8;color:#d9f5ff;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.state-s3{border-color:#facc15;color:#fde68a;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.state-s05{border-color:#a855f7;color:#ead8ff;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.state-s1{border-color:#3b82f6;color:#cfe3ff;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.state-s2{border-color:#22c55e;color:#d4ffe3;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.state-s0{border-color:#cbd5e1;color:#f8fafc;background:rgba(15,23,42,.88)}
+.sticky-control-deck .filter.state-other{border-color:#475569;color:#cbd5e1;background:rgba(15,23,42,.88)}
 .sticky-control-deck .filter.active.filter-all,.sticky-control-deck .filter.active.filter-pw,.sticky-control-deck .filter.active.state-s3,.sticky-control-deck .filter.active.state-s05,.sticky-control-deck .filter.active.state-s1,.sticky-control-deck .filter.active.state-s2,.sticky-control-deck .filter.active.state-s0,.sticky-control-deck .filter.active.state-other{background:linear-gradient(180deg,rgba(29,41,63,.98),rgba(18,27,45,.96));color:#f8fafc}
 .filter-text,.filter-count{display:inline-block;line-height:1}
 .filter-count{opacity:.92}
@@ -940,11 +947,11 @@
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  color:#9fdab4;
+  color:#cbd5e1;
   font-size:12px;
-  font-weight:800;
+  font-weight:700;
 }
-.card-symbol-group .sector-pill{border:none;background:transparent;padding:0;color:#9fdab4;box-shadow:none}
+.card-symbol-group .sector-pill{border:none;background:transparent;padding:0;color:#cbd5e1;box-shadow:none}
 
 .performance-link,.sticky-actions > button.primary{
   border-color:#52657f !important;
@@ -969,4 +976,32 @@
 @media(max-width:760px){
   .sticky-control-deck .filter{padding:6px 11px;gap:7px}
   .card-symbol-group .sector-meta{max-width:100%;font-size:11px}
+}
+
+
+/* v0.1.93 — refine only the two requested items: filter neutral borders + neutral sector text. */
+.sticky-control-deck .filter,
+.sticky-control-deck .filter.filter-all,
+.sticky-control-deck .filter.filter-pw,
+.sticky-control-deck .filter.state-s3,
+.sticky-control-deck .filter.state-s05,
+.sticky-control-deck .filter.state-s1,
+.sticky-control-deck .filter.state-s2,
+.sticky-control-deck .filter.state-s0,
+.sticky-control-deck .filter.state-other{
+  border-color:#475569;
+}
+.sticky-control-deck .filter.active.filter-all,
+.sticky-control-deck .filter.active.filter-pw,
+.sticky-control-deck .filter.active.state-s3,
+.sticky-control-deck .filter.active.state-s05,
+.sticky-control-deck .filter.active.state-s1,
+.sticky-control-deck .filter.active.state-s2,
+.sticky-control-deck .filter.active.state-s0,
+.sticky-control-deck .filter.active.state-other{
+  border-color:#64748b;
+}
+.card-symbol-group .sector-meta,
+.card-symbol-group .sector-pill{
+  color:#cbd5e1;
 }

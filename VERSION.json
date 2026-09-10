@@ -1,12 +1,10 @@
 {
-  "app_version": "TERMINAL v0.1.92｜CYBER-CAPSULE-REFINE",
-  "stage": "CYBER-CAPSULE-REFINE",
+  "app_version": "TERMINAL v0.1.93｜FILTER-BORDER-SECTOR-NEUTRAL",
+  "stage": "FILTER-BORDER-SECTOR-NEUTRAL",
   "features": [
-    "State capsules on the main Terminal cards now remove the star rating and switch to solid filled gradient pills, keeping the original S-state text but upgrading the look to a subtle 3D cyberpunk capsule.",
-    "Sector/category text next to each symbol no longer uses a green capsule. It now renders as compact plain text, matching the approved reference style.",
-    "The sticky top filter row keeps the same filtering logic but switches to neutral capsules with colored status dots: S3 yellow, S0.5 purple, S1 blue, S2 green, S0 white, OTHER dark, while ALL stays text-only and PW remains available for US-stock.",
-    "Top action labels are restyled to neutral emphasis: 近期戰績 uses the 📊 icon, 完整分析 uses the 📝 icon, and both controls remove the previous green accent while keeping existing behavior and availability logic.",
-    "No chart geometry, CCI pane, BB/HA linework, probability logic, Worker/API behavior, research blocks, PW mapping, or other unrequested UI sections are changed in this release."
+    "The sticky quick-filter capsules now keep a visible neutral border, matching the approved reference while preserving the same dot-based state markers and existing filter logic.",
+    "Sector/category text next to each symbol is now fully neutral small text instead of green-accent text, matching the approved reference style.",
+    "No other UI blocks, charts, probability logic, Worker/API behavior, research blocks, PW mapping, or unspecified areas are changed in this release."
   ],
-  "version": "0.1.92"
+  "version": "0.1.93"
 }

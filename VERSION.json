@@ -1,10 +1,10 @@
 {
-  "app_version": "v0.1.97",
-  "stage": "PREMIUM-MINIMAL-HEADER",
+  "app_version": "v0.1.98",
+  "stage": "UPDATE-TIME-READABILITY",
   "features": [
-    "Main Terminal header is simplified to only SState Market Terminal, the concise version number, and the latest Taiwan update time.",
-    "The previous engine/subtitle/model strings are removed from the visible header to reduce visual noise.",
-    "A restrained glass-style version chip and muted timestamp row add hierarchy without changing any controls, filters, cards, charts, analysis logic, or other unspecified UI."
+    "The minimal header update-time line is enlarged from 10px to 12px on desktop for clearer readability.",
+    "Mobile update-time text is enlarged from 9px to 11px.",
+    "No other header layout, controls, filters, cards, charts, analysis logic, or unspecified UI is changed."
   ],
-  "version": "0.1.97"
+  "version": "0.1.98"
 }

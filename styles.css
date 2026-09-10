@@ -1086,7 +1086,7 @@
 }
 
 
-/* v0.1.97 — premium minimal header: title + version + update time only. */
+/* v0.1.98 — premium minimal header: slightly larger update time for readability. */
 .premium-heading{
   margin-bottom:14px;
   align-items:center;
@@ -1130,7 +1130,7 @@
   margin-top:6px;
   padding-left:1px;
   color:#7f91a8;
-  font:700 10px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font:700 12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   letter-spacing:.18px;
 }
 .update-time-line::before{
@@ -1146,5 +1146,5 @@
   .premium-title-line{gap:9px}
   .premium-title-line h1{font-size:22px}
   .version-chip-minimal{min-height:22px;padding:4px 9px;font-size:9px}
-  .update-time-line{font-size:9px;margin-top:5px}
+  .update-time-line{font-size:11px;margin-top:5px}
 }

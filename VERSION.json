@@ -1,10 +1,12 @@
 {
-  "app_version": "v0.1.99",
-  "stage": "UPDATE-TIME-AQUA",
+  "app_version": "v0.2.00",
+  "stage": "R2-CYBER-MEMO",
   "features": [
-    "The minimal header update-time text changes from muted blue-gray to the same aqua family used by the waiting-query capsule for higher visibility.",
-    "The small leading update-status dot is changed to the same aqua accent with a subtle glow.",
-    "Update-time font size, header layout, sticky controls, cards, charts, analysis logic, and all unspecified UI remain unchanged."
+    "Adds a fixed right-edge MEMO tab that opens a cyberpunk memo drawer without changing existing market cards, charts, filters, analysis or research behavior.",
+    "Memo records contain Taiwan date/time, symbol and free-text note, with checkbox multi-select deletion.",
+    "Memo persistence is server-side through the existing Cloudflare Worker and JSON_BUCKET R2 binding at terminal/memos.json, so records synchronize across devices instead of relying on localStorage.",
+    "Adds GET/POST/DELETE /api/memos endpoints and DELETE CORS support. The memo interface reloads from R2 whenever opened and immediately refreshes after save/delete.",
+    "All unspecified Terminal UI and engine logic remain unchanged."
   ],
-  "version": "0.1.99"
+  "version": "0.2.00"
 }

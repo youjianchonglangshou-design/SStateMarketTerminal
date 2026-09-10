@@ -14,7 +14,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "v0.1.99";
+  els.version.textContent = cfg.appVersion || "v0.2.00";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -1538,6 +1538,183 @@
   }, true);
   els.download.addEventListener('click',downloadCurrentJson);
   if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
+
+
+  // v0.2.00 — cross-device cyber memo backed by the existing Worker + R2 JSON_BUCKET.
+  const memoState = { entries: [], selected: new Set(), loaded: false, busy: false };
+  const memoEls = {
+    tab: $("memo-tab"), tabCount: $("memo-tab-count"), backdrop: $("memo-backdrop"), drawer: $("memo-drawer"), close: $("memo-close"),
+    datetime: $("memo-datetime"), symbol: $("memo-symbol"), note: $("memo-note"), save: $("memo-save"), remove: $("memo-delete"),
+    list: $("memo-list"), count: $("memo-record-count"), sync: $("memo-sync-status")
+  };
+
+  function taiwanDatetimeLocal(date=new Date()) {
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone:'Asia/Taipei', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false
+    }).formatToParts(date).reduce((acc,p)=>{ acc[p.type]=p.value; return acc; },{});
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  }
+
+  function memoDisplayDatetime(v) {
+    const s=String(v||'').trim();
+    return s ? s.replace('T',' ').slice(0,16) : '—';
+  }
+
+  function setMemoBusy(busy, label='') {
+    memoState.busy=Boolean(busy);
+    if (memoEls.save) memoEls.save.disabled=memoState.busy;
+    if (memoEls.remove) memoEls.remove.disabled=memoState.busy || memoState.selected.size===0;
+    if (memoEls.sync && label) memoEls.sync.textContent=label;
+  }
+
+  function updateMemoCounters() {
+    const n=memoState.entries.length;
+    if (memoEls.tabCount) memoEls.tabCount.textContent=String(n);
+    if (memoEls.count) memoEls.count.textContent=`${n} RECORD${n===1?'':'S'}`;
+    if (memoEls.remove) memoEls.remove.disabled=memoState.busy || memoState.selected.size===0;
+  }
+
+  function renderMemoEntries() {
+    if (!memoEls.list) return;
+    const rows=[...memoState.entries].sort((a,b)=>String(b?.datetime_tw||b?.created_at||'').localeCompare(String(a?.datetime_tw||a?.created_at||'')));
+    if (!rows.length) {
+      memoEls.list.innerHTML='<div class="memo-empty"><b>NO FIELD NOTES</b><span>尚無紀錄。新增第一筆後會同步寫入 R2。</span></div>';
+      updateMemoCounters();
+      return;
+    }
+    memoEls.list.innerHTML=rows.map(row=>{
+      const id=String(row?.id||'');
+      const checked=memoState.selected.has(id)?'checked':'';
+      return `<label class="memo-entry">
+        <input class="memo-entry-check" type="checkbox" data-memo-id="${escapeHtml(id)}" ${checked}>
+        <div class="memo-entry-body">
+          <div class="memo-entry-meta"><time>${escapeHtml(memoDisplayDatetime(row?.datetime_tw))}</time><span>${escapeHtml(row?.symbol||'—')}</span></div>
+          <div class="memo-entry-note">${escapeHtml(row?.note||'')}</div>
+        </div>
+      </label>`;
+    }).join('');
+    updateMemoCounters();
+  }
+
+  async function loadMemos() {
+    if (!workerUrl) {
+      memoState.entries=[];
+      renderMemoEntries();
+      if (memoEls.sync) memoEls.sync.textContent='R2 SYNC UNAVAILABLE｜Worker 尚未設定';
+      return;
+    }
+    setMemoBusy(true,'SYNCING // R2');
+    try {
+      const out=await fetchJson(`${workerUrl}/api/memos?t=${Date.now()}`);
+      memoState.entries=Array.isArray(out?.entries)?out.entries:[];
+      memoState.selected.clear();
+      memoState.loaded=true;
+      renderMemoEntries();
+      if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
+    } catch(err) {
+      if (memoEls.sync) memoEls.sync.textContent=`SYNC ERROR｜${String(err?.message||err).slice(0,80)}`;
+    } finally {
+      setMemoBusy(false);
+      updateMemoCounters();
+    }
+  }
+
+  function openMemoDrawer() {
+    if (!memoEls.drawer) return;
+    memoEls.drawer.classList.add('open');
+    memoEls.drawer.setAttribute('aria-hidden','false');
+    memoEls.tab?.setAttribute('aria-expanded','true');
+    memoEls.backdrop?.classList.remove('hidden');
+    memoEls.backdrop?.setAttribute('aria-hidden','false');
+    if (memoEls.datetime && !memoEls.datetime.value) memoEls.datetime.value=taiwanDatetimeLocal();
+    loadMemos();
+    setTimeout(()=>memoEls.symbol?.focus(),180);
+  }
+
+  function closeMemoDrawer() {
+    memoEls.drawer?.classList.remove('open');
+    memoEls.drawer?.setAttribute('aria-hidden','true');
+    memoEls.tab?.setAttribute('aria-expanded','false');
+    memoEls.backdrop?.classList.add('hidden');
+    memoEls.backdrop?.setAttribute('aria-hidden','true');
+  }
+
+  async function saveMemo() {
+    if (memoState.busy) return;
+    const datetimeTw=String(memoEls.datetime?.value||'').trim();
+    const symbol=String(memoEls.symbol?.value||'').trim().toUpperCase();
+    const note=String(memoEls.note?.value||'').trim();
+    if (!datetimeTw || !symbol || !note) {
+      showToast('備忘錄需要填寫日期時間、標的與簡單紀錄。',5000);
+      return;
+    }
+    if (!workerUrl) { showToast('Worker 尚未設定，無法跨裝置寫入 R2。',6000); return; }
+    setMemoBusy(true,'SAVING // R2');
+    try {
+      const out=await fetchJson(`${workerUrl}/api/memos`,{
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({datetime_tw:datetimeTw,symbol,note})
+      });
+      memoState.entries=Array.isArray(out?.entries)?out.entries:memoState.entries;
+      memoState.selected.clear();
+      renderMemoEntries();
+      if (memoEls.symbol) memoEls.symbol.value='';
+      if (memoEls.note) memoEls.note.value='';
+      if (memoEls.datetime) memoEls.datetime.value=taiwanDatetimeLocal();
+      if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
+      showToast(`${symbol}｜備忘錄已同步寫入 R2。`,5000);
+    } catch(err) {
+      if (memoEls.sync) memoEls.sync.textContent='SAVE ERROR // R2';
+      showToast(`備忘錄儲存失敗：${err?.message||err}`,7000);
+    } finally {
+      setMemoBusy(false);
+      updateMemoCounters();
+    }
+  }
+
+  async function deleteSelectedMemos() {
+    if (memoState.busy || memoState.selected.size===0) return;
+    const ids=[...memoState.selected];
+    if (!confirm(`確定刪除勾選的 ${ids.length} 筆備忘錄？`)) return;
+    setMemoBusy(true,'DELETING // R2');
+    try {
+      const out=await fetchJson(`${workerUrl}/api/memos`,{
+        method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids})
+      });
+      memoState.entries=Array.isArray(out?.entries)?out.entries:[];
+      memoState.selected.clear();
+      renderMemoEntries();
+      if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
+      showToast(`已刪除 ${Number(out?.deleted||ids.length)} 筆備忘錄。`,5000);
+    } catch(err) {
+      if (memoEls.sync) memoEls.sync.textContent='DELETE ERROR // R2';
+      showToast(`備忘錄刪除失敗：${err?.message||err}`,7000);
+    } finally {
+      setMemoBusy(false);
+      updateMemoCounters();
+    }
+  }
+
+  function initMemo() {
+    if (!memoEls.tab || !memoEls.drawer) return;
+    if (memoEls.datetime) memoEls.datetime.value=taiwanDatetimeLocal();
+    memoEls.tab.addEventListener('click',openMemoDrawer);
+    memoEls.close?.addEventListener('click',closeMemoDrawer);
+    memoEls.backdrop?.addEventListener('click',closeMemoDrawer);
+    memoEls.save?.addEventListener('click',saveMemo);
+    memoEls.remove?.addEventListener('click',deleteSelectedMemos);
+    memoEls.list?.addEventListener('change',event=>{
+      const box=event.target.closest?.('.memo-entry-check');
+      if (!box) return;
+      const id=String(box.dataset.memoId||'');
+      if (box.checked) memoState.selected.add(id); else memoState.selected.delete(id);
+      updateMemoCounters();
+    });
+    document.addEventListener('keydown',event=>{ if(event.key==='Escape' && memoEls.drawer?.classList.contains('open')) closeMemoDrawer(); });
+    // Initial count is synchronized in the background; opening the drawer always reloads from R2 again.
+    loadMemos();
+  }
+
+  initMemo();
   setSectorFlowExpanded(false);
   updateActionState();
   renderVolumeProgress(0);

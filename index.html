@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="theme-color" content="#1e293b">
   <title>SStateMarketTerminal</title>
-  <link rel="stylesheet" href="styles.css?v=0.1.99">
+  <link rel="stylesheet" href="styles.css?v=0.2.00">
   <link rel="stylesheet" href="research-modal.css">
 </head>
 <body>
@@ -93,9 +93,57 @@
     </section>
   </main>
 
+
+
+  <button id="memo-tab" class="memo-tab" type="button" aria-controls="memo-drawer" aria-expanded="false" title="開啟交易備忘錄">
+    <span class="memo-tab-icon">✎</span>
+    <span class="memo-tab-label">MEMO</span>
+    <span id="memo-tab-count" class="memo-tab-count">0</span>
+  </button>
+
+  <div id="memo-backdrop" class="memo-backdrop hidden" aria-hidden="true"></div>
+  <aside id="memo-drawer" class="memo-drawer" aria-hidden="true" aria-label="交易備忘錄">
+    <div class="memo-drawer-glow"></div>
+    <header class="memo-drawer-head">
+      <div>
+        <div class="memo-kicker">FIELD NOTES // R2 SYNC</div>
+        <h2>交易備忘錄</h2>
+        <div id="memo-sync-status" class="memo-sync-status">準備同步...</div>
+      </div>
+      <button id="memo-close" class="memo-close" type="button" aria-label="關閉備忘錄">×</button>
+    </header>
+
+    <div class="memo-form">
+      <label class="memo-field">
+        <span>日期時間</span>
+        <input id="memo-datetime" type="datetime-local" step="60">
+      </label>
+      <label class="memo-field">
+        <span>標的</span>
+        <input id="memo-symbol" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="例如 AAPLX / BTC">
+      </label>
+      <label class="memo-field memo-field-note">
+        <span>簡單紀錄</span>
+        <textarea id="memo-note" maxlength="1000" rows="4" placeholder="記錄進場想法、支撐、風險或之後要回頭確認的事情..."></textarea>
+      </label>
+      <button id="memo-save" class="memo-save" type="button"><span>SAVE</span><small>寫入 R2</small></button>
+    </div>
+
+    <div class="memo-list-head">
+      <div>
+        <strong>紀錄</strong>
+        <span id="memo-record-count">0 RECORDS</span>
+      </div>
+      <button id="memo-delete" class="memo-delete" type="button" disabled>刪除勾選</button>
+    </div>
+    <div id="memo-list" class="memo-list">
+      <div class="memo-empty">尚無紀錄</div>
+    </div>
+  </aside>
+
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=0.1.99"></script>
-  <script src="app.js?v=0.1.99"></script>
+  <script src="config.js?v=0.2.00"></script>
+  <script src="app.js?v=0.2.00"></script>
   <script src="research-modal.js"></script>
   <script src="research-download.js"></script>
 </body>

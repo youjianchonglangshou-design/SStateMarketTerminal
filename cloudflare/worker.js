@@ -3,6 +3,8 @@ const PIONEX_RWA_CACHE_KEY = "pionex/cache/rwa_trade_rules.json";
 const PIONEX_RWA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const PIONEX_US_STOCK_SYMBOLS_KEY = "pionex/symbols/us_stock_symbols.json";
 const SECTOR_FLOW_KEY = "market/us-stock/sector_flow.json";
+const MEMO_KEY = "terminal/memos.json";
+const MEMO_MAX_ENTRIES = 500;
 
 // Pionex web endpoints discovered from the live RWA page.
 // Device/fingerprint identifiers are intentionally NOT stored in this public Worker.
@@ -102,6 +104,47 @@ export default {
         const market = normalizeMarket(url.searchParams.get("market"));
         return await objectResponse(env, MARKET[market].latest, origin, false, MARKET[market].filename);
       }
+      if (request.method === "GET" && url.pathname === "/api/memos") {
+        const payload = await readMemoPayload(env);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/memos") {
+        const body = await request.json().catch(() => ({}));
+        const datetimeTw = safeMemoDatetime(body.datetime_tw || body.datetime);
+        const symbol = safeMemoText(body.symbol, 30).toUpperCase();
+        const note = safeMemoText(body.note, 1000);
+        if (!symbol) throw httpError(400, "memo symbol required");
+        if (!note) throw httpError(400, "memo note required");
+        const current = await readMemoPayload(env);
+        const now = new Date().toISOString();
+        const entry = {
+          id: crypto.randomUUID(),
+          datetime_tw: datetimeTw,
+          symbol,
+          note,
+          created_at: now
+        };
+        const payload = {
+          schema_version: "1.0",
+          updated_at: now,
+          entries: [entry, ...current.entries].slice(0, MEMO_MAX_ENTRIES)
+        };
+        await writeMemoPayload(env, payload);
+        return json({ ok: true, ...payload, saved: entry }, 200, origin);
+      }
+      if (request.method === "DELETE" && url.pathname === "/api/memos") {
+        const body = await request.json().catch(() => ({}));
+        const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(x => String(x || "").trim()).filter(Boolean))].slice(0, 100);
+        if (!ids.length) throw httpError(400, "memo ids required");
+        const remove = new Set(ids);
+        const current = await readMemoPayload(env);
+        const entries = current.entries.filter(row => !remove.has(String(row?.id || "")));
+        const now = new Date().toISOString();
+        const payload = { schema_version: "1.0", updated_at: now, entries };
+        await writeMemoPayload(env, payload);
+        return json({ ok: true, ...payload, deleted: current.entries.length - entries.length }, 200, origin);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/champion/checkpoint") {
         const market = normalizeMarket(url.searchParams.get("market"));
         const dateTw = safeCheckpointDate(url.searchParams.get("date"));
@@ -3446,10 +3489,32 @@ async function readChampionLedgerRows(env,generation,days,symbol=""){
   rows.sort((a,b)=>(Number(a?.decision_time||0)-Number(b?.decision_time||0))||String(a?.symbol||"").localeCompare(String(b?.symbol||"")));
   return {ok:true,generation,days,symbol:symbol||null,shards:keys.length,keys,rows};
 }
+async function readMemoPayload(env){
+  const obj = await env.JSON_BUCKET.get(MEMO_KEY);
+  if (!obj) return { schema_version:"1.0", updated_at:null, entries:[] };
+  try {
+    const parsed = JSON.parse(await obj.text());
+    const entries = Array.isArray(parsed?.entries) ? parsed.entries.filter(row => row && typeof row === "object").slice(0, MEMO_MAX_ENTRIES) : [];
+    return { schema_version:"1.0", updated_at:parsed?.updated_at || null, entries };
+  } catch (_) {
+    return { schema_version:"1.0", updated_at:null, entries:[] };
+  }
+}
+async function writeMemoPayload(env,payload){
+  await env.JSON_BUCKET.put(MEMO_KEY, JSON.stringify(payload,null,2), { httpMetadata:{ contentType:"application/json; charset=utf-8" } });
+}
+function safeMemoText(v,maxLen){
+  return String(v ?? "").replace(/\u0000/g, "").trim().slice(0, maxLen);
+}
+function safeMemoDatetime(v){
+  const x = safeMemoText(v, 32);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(x)) throw httpError(400,"invalid memo datetime");
+  return x;
+}
 function safeRunId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.test(x)) throw httpError(400,"invalid run_id"); return x; }
 function safeModelId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.test(x)) throw httpError(400,"invalid model_id"); return x; }
 function requireInternal(request, env){ const auth=request.headers.get("Authorization")||""; if(!env.CALLBACK_TOKEN || auth!==`Bearer ${env.CALLBACK_TOKEN}`) throw httpError(401,"unauthorized"); }
 function httpError(status,message){ const e=new Error(message); e.status=status; return e; }
 function json(value,status,origin){ const headers=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}); applyCors(headers,origin); return new Response(JSON.stringify(value,null,2),{status,headers}); }
 function cors(response,origin){ const h=new Headers(response.headers); applyCors(h,origin); return new Response(response.body,{status:response.status,headers:h}); }
-function applyCors(headers,origin){ headers.set("Access-Control-Allow-Origin",origin); headers.set("Access-Control-Allow-Methods","GET,POST,PUT,OPTIONS"); headers.set("Access-Control-Allow-Headers","Content-Type,Authorization"); headers.set("Vary","Origin"); }
+function applyCors(headers,origin){ headers.set("Access-Control-Allow-Origin",origin); headers.set("Access-Control-Allow-Methods","GET,POST,PUT,DELETE,OPTIONS"); headers.set("Access-Control-Allow-Headers","Content-Type,Authorization"); headers.set("Vary","Origin"); }

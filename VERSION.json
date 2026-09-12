@@ -1,11 +1,11 @@
 {
-  "app_version": "v0.2.01",
-  "stage": "R2-CYBER-MEMO-EDIT",
+  "app_version": "v0.2.02",
+  "stage": "US-STOCK-7X24-ONLY",
   "features": [
-    "Adds checkbox-selected memo editing: select exactly one record and press 編輯勾選 to load it into the existing memo form.",
-    "During edit mode SAVE becomes UPDATE; submitting uses PUT /api/memos and overwrites the selected R2 memo while preserving its original id and created_at.",
-    "The edit action can be cancelled without changing R2, and the record being edited is highlighted with the existing cyberpunk visual language.",
-    "Existing cross-device R2 save/load/delete behavior and all unspecified Terminal UI/engine behavior remain unchanged."
+    "Every US-stock analysis now reloads the R2 Pionex symbol list and keeps only contracts tagged trade_time_7_24.",
+    "Contracts with 5x7, 5x24, delayed-open/early-close, offline, unknown, or missing 7x24 metadata are excluded from the analysis universe.",
+    "If R2 is temporarily unavailable, the last-known-safe fallback is also restricted to a 7x24 whitelist so休市標的不會混回圖表.",
+    "The per-chart 7×24 market-session capsule and its recurring market-status request are no longer used because every analyzed US-stock chart is now 7×24-only."
   ],
-  "version": "0.2.01"
+  "version": "0.2.02"
 }

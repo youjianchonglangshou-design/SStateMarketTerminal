@@ -647,7 +647,8 @@
       }
     }
     renderAll(source);
-    loadMarketStatuses();
+    // v0.2.02: 美股分析 universe 已在 R2 清單載入時強制限定 trade_time_7_24，
+    // 不再需要另外查詢/顯示每張圖的 7×24 交易時段膠囊。
     loadUsStockResearch();
   }
 
@@ -1063,7 +1064,7 @@
         </div>
         ${renderCompactHeaderMetrics(r)}
       </div>
-      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderMarketStatusBadge(r)}${renderPropwMatchBadge(r)}</div>
+      <div class="chart">${buildChartSvg(r.chart_30d||[])}${renderPropwMatchBadge(r)}</div>
       ${buildCciPanel(r.chart_30d||[], r)}
     </article>`;
   }

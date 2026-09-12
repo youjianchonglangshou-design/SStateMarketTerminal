@@ -1,4 +1,4 @@
-"""市場清單設定：考試幣 + R2 動態 Pionex active 美股/RWA 永續合約。"""
+"""市場清單設定：考試幣 + R2 動態 Pionex 7×24 美股/RWA 永續合約。"""
 from __future__ import annotations
 
 import os
@@ -173,6 +173,97 @@ RWA_FALLBACK_EXTRA_SYMBOL_MAP = {'ALABX': 'ALABX_USDT_PERP',
  'XLVX': 'XLVX_USDT_PERP'}
 RWA_FALLBACK_SYMBOL_MAP = {**RWA_FALLBACK_ACTIVE_SYMBOL_MAP, **RWA_FALLBACK_EXTRA_SYMBOL_MAP}
 
+# 美股完整分析只允許 Pionex 標記為真正 7×24 的合約。
+# 這份 whitelist 只用於 R2 / Worker 暫時不可用時的 last-known-safe fallback；
+# 正常執行仍以每次分析當下從 R2 讀到的 future_tags / trade_tag 為準。
+RWA_FALLBACK_7X24_SYMBOLS = {
+    "AAOIX",
+    "AAPLX",
+    "ALABX",
+    "AMATX",
+    "AMDX",
+    "AMZNX",
+    "ANTHROPIC",
+    "ARMX",
+    "ASMLX",
+    "ASTSX",
+    "AVGOX",
+    "AXTIX",
+    "BEX",
+    "BMNRX",
+    "BRENTOIL",
+    "CBRS",
+    "COHRX",
+    "COINX",
+    "COPPER",
+    "CRCLX",
+    "CRDOX",
+    "CRWVX",
+    "CSCOX",
+    "DELLX",
+    "DRAMX",
+    "EWJX",
+    "EWYX",
+    "FLNCX",
+    "GLWX",
+    "GMEX",
+    "GOOGLX",
+    "HIMSX",
+    "HOODX",
+    "HPEX",
+    "HYUNDAI",
+    "IBMX",
+    "INTCX",
+    "IRENX",
+    "KIOXIA",
+    "KLACX",
+    "LITEX",
+    "LLYX",
+    "LRCXX",
+    "METAX",
+    "MRVLX",
+    "MSFTX",
+    "MSTRX",
+    "MUX",
+    "NATGAS",
+    "NBISX",
+    "NFLXX",
+    "NOKX",
+    "NOWX",
+    "NVDAX",
+    "ONDSX",
+    "OPENAI",
+    "ORCLX",
+    "PAYPX",
+    "PLTRX",
+    "QCOMX",
+    "QNTX",
+    "QQQX",
+    "RKLBX",
+    "SHAZX",
+    "SKHX",
+    "SKHY",
+    "SMCIX",
+    "SMSN",
+    "SNDKX",
+    "SNXXX",
+    "SOXLX",
+    "SOXSX",
+    "SPCX",
+    "SPYX",
+    "STXX",
+    "TSLAX",
+    "TSMX",
+    "URNMX",
+    "USARX",
+    "WDCX",
+    "WTI",
+    "XAG",
+    "XAU",
+    "XPD",
+    "XPT",
+}
+
 _RUNTIME_RWA_SYMBOL_MAP: dict[str, str] = {}
 _RUNTIME_RWA_SECTOR_MAP: dict[str, list[str]] = {}
 _RUNTIME_RWA_SOURCE = "fallback-static"
@@ -211,6 +302,49 @@ def _normalize_sector_map(raw: object) -> dict[str, list[str]]:
     return output
 
 
+def _fallback_7x24_symbol_map() -> dict[str, str]:
+    """R2 失敗時也只保留 last-known-safe 的 7×24 合約，避免休市標的混回圖表。"""
+    return {
+        symbol: api_symbol
+        for symbol, api_symbol in RWA_FALLBACK_SYMBOL_MAP.items()
+        if symbol in RWA_FALLBACK_7X24_SYMBOLS
+    }
+
+
+def _extract_r2_7x24_symbols(payload: dict) -> set[str]:
+    """從 R2 美股清單的交易標籤找出真正 trade_time_7_24 的標的。
+
+    目前 R2 v4 的 active/eligible rows 已保存 Pionex future_tags；
+    同時相容未來若直接增加 trade_tag / trade_tag_map 的格式。
+    """
+    allowed: set[str] = set()
+
+    trade_tag_map = payload.get("trade_tag_map")
+    if isinstance(trade_tag_map, dict):
+        for raw_symbol, raw_tag in trade_tag_map.items():
+            symbol = str(raw_symbol or "").strip().upper()
+            if symbol and str(raw_tag or "").strip() == "trade_time_7_24":
+                allowed.add(symbol)
+
+    rows = payload.get("active") or payload.get("eligible") or []
+    if isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "").strip().upper()
+            if not symbol:
+                continue
+            contract_status = str(row.get("contract_status") or "TRADING").strip().upper()
+            if contract_status not in {"", "TRADING"}:
+                continue
+            trade_tag = str(row.get("trade_tag") or "").strip()
+            future_tags = {str(tag or "").strip() for tag in (row.get("future_tags") or [])}
+            if trade_tag == "trade_time_7_24" or "trade_time_7_24" in future_tags:
+                allowed.add(symbol)
+
+    return allowed
+
+
 def _derive_sector_map_from_active(payload: dict) -> dict[str, list[str]]:
     """相容舊 R2 JSON：若還沒有 sector_map，從 active 裡保存的 Pionex tags 即時計算。"""
     output: dict[str, list[str]] = {}
@@ -231,11 +365,12 @@ def _derive_sector_map_from_active(payload: dict) -> dict[str, list[str]]:
 
 def _load_r2_symbol_data() -> tuple[dict[str, str], dict[str, list[str]], str]:
     worker = os.environ.get("WORKER_BASE_URL", "").rstrip("/")
+    fallback_map = _fallback_7x24_symbol_map()
     if not worker:
         return (
-            dict(RWA_FALLBACK_SYMBOL_MAP),
-            {key: list(value) for key, value in RWA_SECTOR_TAGS.items()},
-            "fallback-static:no-worker-url",
+            fallback_map,
+            {key: list(value) for key, value in RWA_SECTOR_TAGS.items() if key in fallback_map},
+            "fallback-static-7x24:no-worker-url",
         )
 
     try:
@@ -246,23 +381,39 @@ def _load_r2_symbol_data() -> tuple[dict[str, str], dict[str, list[str]], str]:
         )
         response.raise_for_status()
         payload = response.json()
-        symbol_map = _normalize_symbol_map(payload.get("symbol_map"))
-        if not symbol_map:
+        full_symbol_map = _normalize_symbol_map(payload.get("symbol_map"))
+        if not full_symbol_map:
             raise ValueError("R2 us-stock symbol_map is empty")
+
+        allowed_7x24 = _extract_r2_7x24_symbols(payload)
+        if not allowed_7x24:
+            raise ValueError("R2 us-stock list has no trade_time_7_24 metadata")
+
+        # 每次美股分析都在讀取 R2 後重新套用交易時段門禁。
+        # 只讓 Pionex trade_time_7_24 進入分析，5x7 / 5x24 / delayed 等會休市標的一律排除。
+        symbol_map = {
+            symbol: api_symbol
+            for symbol, api_symbol in full_symbol_map.items()
+            if symbol in allowed_7x24
+        }
+        if not symbol_map:
+            raise ValueError("R2 us-stock 7x24 filter produced an empty symbol_map")
 
         # v4 直接讀 sector_map；若 R2 還是前一版，active 裡原本就有 spot_tags，
         # 可先動態還原分類，不必等下一次 08:25 才有板塊。
         sector_map = _normalize_sector_map(payload.get("sector_map"))
         if not sector_map:
             sector_map = _derive_sector_map_from_active(payload)
+        sector_map = {symbol: labels for symbol, labels in sector_map.items() if symbol in symbol_map}
 
         generated_at = str(payload.get("generated_at") or payload.get("updated_at") or "unknown")
-        return symbol_map, sector_map, f"r2:{generated_at}"
+        source = f"r2:{generated_at}:7x24={len(symbol_map)}/{len(full_symbol_map)}"
+        return symbol_map, sector_map, source
     except Exception as exc:
         return (
-            dict(RWA_FALLBACK_SYMBOL_MAP),
-            {key: list(value) for key, value in RWA_SECTOR_TAGS.items()},
-            f"fallback-static:{type(exc).__name__}",
+            fallback_map,
+            {key: list(value) for key, value in RWA_SECTOR_TAGS.items() if key in fallback_map},
+            f"fallback-static-7x24:{type(exc).__name__}",
         )
 
 
@@ -317,7 +468,7 @@ def is_rwa_symbol(symbol: str) -> bool:
 
 
 def get_symbols_config(*, force_reload_rwa: bool = False, load_remote_rwa: bool = True) -> dict[str, list[str]]:
-    """主選單固定兩組；美股分析時清單正常情況直接來自 R2。"""
+    """主選單固定兩組；美股分析時每次從 R2 讀清單後只保留 trade_time_7_24。"""
     if load_remote_rwa:
         rwa_map = refresh_rwa_symbol_map(force=force_reload_rwa)
     else:

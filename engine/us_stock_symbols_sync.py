@@ -26,6 +26,24 @@ R2_INTERNAL_PATH = "/api/internal/symbols/us-stock"
 DEFAULT_PIONEX_WEB_VERSION = "20260819.1657.89e6310"
 
 
+NON_7X24_TRADE_TAGS = (
+    "trade_time_5_24",
+    "trade_time_5_7",
+    "delayed_open_early_close",
+    "korea_trade_time_5_7",
+)
+
+
+def _effective_trade_tag(tags: set[str]) -> str:
+    """將 raw tags 壓成單一交易時段；會休市的 tag 優先，避免誤判成 7×24。"""
+    for tag in NON_7X24_TRADE_TAGS:
+        if tag in tags:
+            return tag
+    if "trade_time_7_24" in tags:
+        return "trade_time_7_24"
+    return ""
+
+
 def _web_common_query() -> dict[str, str]:
     version = os.environ.get("PIONEX_WEB_VERSION", DEFAULT_PIONEX_WEB_VERSION).strip()
     return {
@@ -126,6 +144,7 @@ def parse_future_us_token_contracts(payload: dict[str, Any]) -> dict[str, dict[s
         output[base] = {
             "api_symbol": api_symbol,
             "contract_status": status or "TRADING",
+            "trade_tag": _effective_trade_tag(tags),
             "future_tags": sorted(tags),
         }
     return output
@@ -209,6 +228,10 @@ def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dic
         str(item["symbol"]).upper(): list(item.get("sector_tags") or [])
         for item in candidates
     }
+    trade_tag_map = {
+        str(item["symbol"]).upper(): str(item.get("trade_tag") or "")
+        for item in candidates
+    }
     if not symbol_map:
         raise RuntimeError("No active Pionex US-stock/RWA contracts found; previous R2 preserved")
 
@@ -231,6 +254,9 @@ def sync_us_stock_symbols_to_r2(*, output_path: str | Path | None = None) -> dic
         "check_error_count": 0,
         "symbols": sorted(symbol_map),
         "symbol_map": {key: symbol_map[key] for key in sorted(symbol_map)},
+        # 保留完整美股清單，但同步保存每個商品的單一 effective 交易時段 tag。
+        # 分析引擎會只接受 trade_time_7_24；其他 tag 都留在 R2 但不進分析。
+        "trade_tag_map": {key: trade_tag_map[key] for key in sorted(trade_tag_map)},
         # 主頁板塊的權威來源：直接來自 Pionex us_stock_sec_* tags。
         "sector_map": {key: sector_map[key] for key in sorted(sector_map)},
         "sector_tag_map": {key: sector_tag_map[key] for key in sorted(sector_tag_map)},

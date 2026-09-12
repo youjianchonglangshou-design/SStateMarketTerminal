@@ -311,20 +311,34 @@ def _fallback_7x24_symbol_map() -> dict[str, str]:
     }
 
 
-def _extract_r2_7x24_symbols(payload: dict) -> set[str]:
-    """從 R2 美股清單的交易標籤找出真正 trade_time_7_24 的標的。
+NON_7X24_TRADE_TAGS = {
+    "trade_time_5_24",
+    "trade_time_5_7",
+    "delayed_open_early_close",
+    "korea_trade_time_5_7",
+}
 
-    目前 R2 v4 的 active/eligible rows 已保存 Pionex future_tags；
-    同時相容未來若直接增加 trade_tag / trade_tag_map 的格式。
+
+def _extract_r2_7x24_symbols(payload: dict) -> set[str]:
+    """只保留「純 7×24」標的；任何會休市的交易時段標籤都優先排除。
+
+    Pionex 同一個商品的 raw future_tags 可能同時出現多個交易時段 tag。
+    v0.2.02 只要看到 trade_time_7_24 就放行，會讓同時帶 5x7 / 5x24 / delayed
+    的商品誤混進分析。這裡改成 exclusion-first：只要存在任何會休市 tag 就拒絕。
+    若 R2 已有 trade_tag / trade_tag_map，則以明確的 effective tag 為準。
     """
     allowed: set[str] = set()
+    explicit_tags: dict[str, str] = {}
 
     trade_tag_map = payload.get("trade_tag_map")
     if isinstance(trade_tag_map, dict):
         for raw_symbol, raw_tag in trade_tag_map.items():
             symbol = str(raw_symbol or "").strip().upper()
-            if symbol and str(raw_tag or "").strip() == "trade_time_7_24":
-                allowed.add(symbol)
+            tag = str(raw_tag or "").strip()
+            if symbol:
+                explicit_tags[symbol] = tag
+                if tag == "trade_time_7_24":
+                    allowed.add(symbol)
 
     rows = payload.get("active") or payload.get("eligible") or []
     if isinstance(rows, list):
@@ -334,12 +348,31 @@ def _extract_r2_7x24_symbols(payload: dict) -> set[str]:
             symbol = str(row.get("symbol") or "").strip().upper()
             if not symbol:
                 continue
+
             contract_status = str(row.get("contract_status") or "TRADING").strip().upper()
             if contract_status not in {"", "TRADING"}:
+                allowed.discard(symbol)
                 continue
-            trade_tag = str(row.get("trade_tag") or "").strip()
+
+            # 明確 effective tag 一旦存在，就不能再被 raw future_tags 重新放行。
+            explicit = explicit_tags.get(symbol)
+            row_trade_tag = str(row.get("trade_tag") or "").strip()
+            if explicit:
+                if explicit != "trade_time_7_24":
+                    allowed.discard(symbol)
+                continue
+            if row_trade_tag:
+                if row_trade_tag == "trade_time_7_24":
+                    allowed.add(symbol)
+                else:
+                    allowed.discard(symbol)
+                continue
+
             future_tags = {str(tag or "").strip() for tag in (row.get("future_tags") or [])}
-            if trade_tag == "trade_time_7_24" or "trade_time_7_24" in future_tags:
+            if future_tags & NON_7X24_TRADE_TAGS:
+                allowed.discard(symbol)
+                continue
+            if "trade_time_7_24" in future_tags:
                 allowed.add(symbol)
 
     return allowed
@@ -407,7 +440,7 @@ def _load_r2_symbol_data() -> tuple[dict[str, str], dict[str, list[str]], str]:
         sector_map = {symbol: labels for symbol, labels in sector_map.items() if symbol in symbol_map}
 
         generated_at = str(payload.get("generated_at") or payload.get("updated_at") or "unknown")
-        source = f"r2:{generated_at}:7x24={len(symbol_map)}/{len(full_symbol_map)}"
+        source = f"r2:{generated_at}:strict7x24={len(symbol_map)}/{len(full_symbol_map)}"
         return symbol_map, sector_map, source
     except Exception as exc:
         return (

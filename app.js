@@ -1546,7 +1546,7 @@
   const memoEls = {
     tab: $("memo-tab"), tabCount: $("memo-tab-count"), backdrop: $("memo-backdrop"), drawer: $("memo-drawer"), close: $("memo-close"),
     datetime: $("memo-datetime"), symbol: $("memo-symbol"), note: $("memo-note"), save: $("memo-save"), edit: $("memo-edit"), remove: $("memo-delete"),
-    list: $("memo-list"), count: $("memo-record-count"), sync: $("memo-sync-status")
+    list: $("memo-list"), count: $("memo-record-count"), sync: $("memo-sync-status"), marquee: $("memo-marquee"), marqueeTrack: $("memo-marquee-track")
   };
 
   function taiwanDatetimeLocal(date=new Date()) {
@@ -1559,6 +1559,38 @@
   function memoDisplayDatetime(v) {
     const s=String(v||'').trim();
     return s ? s.replace('T',' ').slice(0,16) : '—';
+  }
+
+  function memoMarqueeDatetime(v) {
+    const s=memoDisplayDatetime(v);
+    if (s==='—') return s;
+    const m=/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(s);
+    return m ? `${m[2]}/${m[3]} ${m[4]}` : s;
+  }
+
+  function renderMemoMarquee() {
+    const track=memoEls.marqueeTrack;
+    if (!track) return;
+    const rows=[...memoState.entries]
+      .sort((a,b)=>String(b?.datetime_tw||b?.created_at||'').localeCompare(String(a?.datetime_tw||a?.created_at||'')))
+      .slice(0,12);
+
+    if (!rows.length) {
+      track.style.removeProperty('--memo-marquee-duration');
+      track.innerHTML='<div class="memo-marquee-placeholder">FIELD NOTES // 尚無近期備忘錄</div>';
+      return;
+    }
+
+    const items=rows.map(row=>`<span class="memo-marquee-item">
+      <time>${escapeHtml(memoMarqueeDatetime(row?.datetime_tw||row?.created_at))}</time>
+      <b>${escapeHtml(row?.symbol||'—')}</b>
+      <span>${escapeHtml(String(row?.note||'').replace(/\s+/g,' ').trim())}</span>
+    </span>`).join('');
+    const sequence=`<div class="memo-marquee-sequence">${items}</div>`;
+    const textLength=rows.reduce((sum,row)=>sum+String(row?.symbol||'').length+String(row?.note||'').length+16,0);
+    const duration=Math.max(26,Math.min(95,Math.round(textLength*0.18)));
+    track.style.setProperty('--memo-marquee-duration',`${duration}s`);
+    track.innerHTML=`<div class="memo-marquee-motion">${sequence}${sequence}</div>`;
   }
 
   function setMemoBusy(busy, label='') {
@@ -1621,6 +1653,7 @@
     if (!workerUrl) {
       memoState.entries=[];
       renderMemoEntries();
+      renderMemoMarquee();
       if (memoEls.sync) memoEls.sync.textContent='R2 SYNC UNAVAILABLE｜Worker 尚未設定';
       return;
     }
@@ -1628,10 +1661,11 @@
     try {
       const out=await fetchJson(`${workerUrl}/api/memos?t=${Date.now()}`);
       memoState.entries=Array.isArray(out?.entries)?out.entries:[];
-      if (memoState.editingId && ids.includes(memoState.editingId)) memoState.editingId='';
+      if (memoState.editingId && !memoState.entries.some(row=>String(row?.id||'')===memoState.editingId)) memoState.editingId='';
       memoState.selected.clear();
       memoState.loaded=true;
       renderMemoEntries();
+      renderMemoMarquee();
       if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
     } catch(err) {
       if (memoEls.sync) memoEls.sync.textContent=`SYNC ERROR｜${String(err?.message||err).slice(0,80)}`;
@@ -1718,6 +1752,7 @@
       if (memoEls.note) memoEls.note.value='';
       if (memoEls.datetime) memoEls.datetime.value=taiwanDatetimeLocal();
       renderMemoEntries();
+      renderMemoMarquee();
       if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
       showToast(editingId?`${symbol}｜備忘錄已更新並同步至 R2。`:`${symbol}｜備忘錄已同步寫入 R2。`,5000);
     } catch(err) {
@@ -1741,6 +1776,7 @@
       memoState.entries=Array.isArray(out?.entries)?out.entries:[];
       memoState.selected.clear();
       renderMemoEntries();
+      renderMemoMarquee();
       if (memoEls.sync) memoEls.sync.textContent=`R2 SYNC ONLINE｜${memoState.entries.length} 筆`;
       showToast(`已刪除 ${Number(out?.deleted||ids.length)} 筆備忘錄。`,5000);
     } catch(err) {

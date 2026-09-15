@@ -1248,3 +1248,86 @@
 .memo-edit:disabled{opacity:.34;cursor:not-allowed}
 .memo-save.is-editing{border-color:#a855f7;background:linear-gradient(90deg,#6d28d955,#0e749044,#6d28d955);color:#f3e8ff;box-shadow:0 0 20px rgba(168,85,247,.12),inset 0 1px 0 rgba(255,255,255,.08)}
 .memo-entry.is-editing{border-color:#a855f7;box-shadow:0 0 0 1px rgba(168,85,247,.22),0 0 18px rgba(168,85,247,.10),inset 0 1px 0 rgba(255,255,255,.035)}
+
+
+/* v0.2.04 — R2 memo marquee: recent field notes visible in the premium header. */
+.premium-heading{
+  display:grid;
+  grid-template-columns:max-content minmax(360px,1fr);
+  align-items:center;
+  column-gap:28px;
+}
+.premium-brand{width:auto;flex:none}
+.memo-marquee{
+  min-width:0;
+  height:54px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  overflow:hidden;
+  border:1px solid rgba(34,211,238,.46);
+  border-radius:13px;
+  background:
+    linear-gradient(90deg,rgba(8,47,73,.62),rgba(15,35,57,.88) 18%,rgba(15,31,52,.92) 82%,rgba(8,47,73,.55)),
+    repeating-linear-gradient(180deg,transparent 0 3px,rgba(103,232,249,.025) 4px);
+  box-shadow:0 0 0 1px rgba(56,189,248,.045),0 0 22px rgba(34,211,238,.08),inset 0 1px 0 rgba(255,255,255,.055);
+  backdrop-filter:blur(8px);
+}
+.memo-marquee-label{
+  align-self:stretch;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:0 13px;
+  border-right:1px solid rgba(34,211,238,.26);
+  background:linear-gradient(90deg,rgba(8,145,178,.16),rgba(14,116,144,.05));
+  color:#67e8f9;
+  font:950 9px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:1px;
+  white-space:nowrap;
+  text-shadow:0 0 10px rgba(34,211,238,.2);
+}
+.memo-marquee-live{
+  width:7px;height:7px;border-radius:50%;background:#22d3ee;
+  box-shadow:0 0 0 2px rgba(34,211,238,.12),0 0 10px rgba(34,211,238,.65);
+  animation:memoMarqueePulse 1.8s ease-in-out infinite;
+}
+.memo-marquee-viewport{min-width:0;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 2%,#000 98%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 2%,#000 98%,transparent)}
+.memo-marquee-track{min-width:100%;overflow:hidden;color:#dbeafe}
+.memo-marquee-motion{
+  display:flex;
+  width:max-content;
+  will-change:transform;
+  animation:memoMarqueeMove var(--memo-marquee-duration,38s) linear infinite;
+}
+.memo-marquee:hover .memo-marquee-motion{animation-play-state:paused}
+.memo-marquee-sequence{display:flex;align-items:center;flex:none;padding-right:42px}
+.memo-marquee-item{
+  position:relative;
+  display:inline-flex;align-items:center;gap:8px;
+  flex:none;white-space:nowrap;
+  padding:0 19px;
+  color:#cbd5e1;
+  font-size:11px;font-weight:760;
+}
+.memo-marquee-item::after{content:"◇";position:absolute;right:-3px;color:#22d3ee88;font-size:8px;text-shadow:0 0 8px rgba(34,211,238,.34)}
+.memo-marquee-item time{color:#6f8ca8;font:800 9px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.memo-marquee-item b{color:#67e8f9;font:950 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.25px;text-shadow:0 0 9px rgba(34,211,238,.2)}
+.memo-marquee-item span{color:#dbeafe}
+.memo-marquee-placeholder{display:flex;align-items:center;height:52px;padding:0 18px;color:#5f7c96;font:850 10px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.55px}
+@keyframes memoMarqueeMove{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes memoMarqueePulse{0%,100%{opacity:.52;transform:scale(.86)}50%{opacity:1;transform:scale(1)}}
+@media(max-width:1000px){
+  .premium-heading{grid-template-columns:1fr;row-gap:12px}
+  .memo-marquee{width:100%;height:48px}
+  .memo-marquee-placeholder{height:46px}
+}
+@media(max-width:650px){
+  .memo-marquee{grid-template-columns:auto minmax(0,1fr);height:44px;border-radius:10px}
+  .memo-marquee-label{padding:0 9px;font-size:8px;letter-spacing:.65px}
+  .memo-marquee-live{width:6px;height:6px}
+  .memo-marquee-item{padding:0 13px;font-size:10px;gap:6px}
+  .memo-marquee-item b{font-size:10px}
+  .memo-marquee-item time{font-size:8px}
+  .memo-marquee-placeholder{height:42px;padding:0 12px;font-size:9px}
+}

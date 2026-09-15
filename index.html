@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="theme-color" content="#1e293b">
   <title>SStateMarketTerminal</title>
-  <link rel="stylesheet" href="styles.css?v=0.2.00">
+  <link rel="stylesheet" href="styles.css?v=0.2.04">
   <link rel="stylesheet" href="research-modal.css">
 </head>
 <body>
@@ -18,6 +18,14 @@
           <span id="version-chip" class="version-chip-minimal"></span>
         </div>
         <div id="system-caption" class="update-time-line">載入更新時間...</div>
+      </div>
+      <div id="memo-marquee" class="memo-marquee" aria-label="R2 近期交易備忘錄提醒">
+        <div class="memo-marquee-label"><span class="memo-marquee-live"></span><b>R2 MEMO</b></div>
+        <div class="memo-marquee-viewport">
+          <div id="memo-marquee-track" class="memo-marquee-track">
+            <div class="memo-marquee-placeholder">SYNCING FIELD NOTES...</div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -145,8 +153,8 @@
   </aside>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=0.2.03"></script>
-  <script src="app.js?v=0.2.02"></script>
+  <script src="config.js?v=0.2.04"></script>
+  <script src="app.js?v=0.2.04"></script>
   <script src="research-modal.js"></script>
   <script src="research-download.js"></script>
 </body>

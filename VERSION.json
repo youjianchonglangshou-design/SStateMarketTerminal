@@ -1,11 +1,11 @@
 {
-  "app_version": "v0.2.03",
-  "stage": "US-STOCK-STRICT-7X24",
+  "app_version": "v0.2.04",
+  "stage": "R2-MEMO-MARQUEE",
   "features": [
-    "Fix v0.2.02 false-positive 7x24 filtering: any 5x7, 5x24, delayed-open/early-close, or Korea 5x7 tag now overrides a raw trade_time_7_24 tag and excludes the symbol from analysis.",
-    "R2 continues to preserve the complete Pionex US-stock/RWA universe; the daily sync now also stores one effective trade_tag per symbol plus trade_tag_map metadata.",
-    "US-stock analysis accepts only explicit/pure trade_time_7_24 entries; explicit non-7x24 tags cannot be re-added by raw future_tags.",
-    "No chart, CCI, probability, memo, filter, research, or unrelated UI logic is changed."
+    "Add a cyberpunk aqua marquee in the open header area that reads the existing cross-device R2 memo JSON and continuously surfaces recent field notes on the main page.",
+    "The marquee shows recent memo date/time, symbol, and note text, so watched assets and recorded price/target notes are visible without opening the memo drawer.",
+    "Marquee data refreshes from the same /api/memos source on initial page load and immediately after memo save, update, or delete; no new R2 object or Worker endpoint is required.",
+    "No chart, CCI, probability, market filter, research, memo storage/editing behavior, or unrelated engine logic is changed."
   ],
-  "version": "0.2.03"
+  "version": "0.2.04"
 }

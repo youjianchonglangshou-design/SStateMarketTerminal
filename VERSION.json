@@ -1,11 +1,11 @@
 {
-  "app_version": "v0.2.06",
-  "stage": "SIGNAL-MATRIX-CHART-JUMP",
+  "app_version": "v0.2.07",
+  "stage": "SIGNAL-MATRIX-RETURN",
   "features": [
-    "Make every symbol name in SIGNAL MATRIX clickable; clicking a symbol smoothly jumps to that symbol's real chart card below.",
-    "If the current S-state filter or search hides the selected symbol, the page automatically reveals that symbol before jumping so the navigation does not dead-end.",
-    "Briefly highlight the destination card with the existing cyan cyber accent so the located chart is immediately obvious.",
-    "No matrix calculations, sorting logic, chart data, engine, Worker/R2, memo, research, filters, or sector-flow calculations are changed."
+    "Add a floating return button directly above the existing MEMO tab after a SIGNAL MATRIX symbol is used to jump to a chart.",
+    "The return button restores the expanded SIGNAL MATRIX and returns to the same page/table scroll position that was active before the chart jump.",
+    "The previous search text and S-state filter context are restored when returning to the table.",
+    "No matrix calculations, sorting, chart data, memo/R2 behavior, Worker, engine, research, filters, or sector-flow calculations are changed."
   ],
-  "version": "0.2.06"
+  "version": "0.2.07"
 }

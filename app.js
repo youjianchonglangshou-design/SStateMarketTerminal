@@ -4,18 +4,18 @@
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
   const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, signalMatrixExpanded: false, signalMatrixSort: { key: "state", dir: "asc" }, sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, signalMatrixExpanded: false, signalMatrixSort: { key: "state", dir: "asc" }, signalMatrixReturn: null, sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
     version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
-    signalMatrix: $("signal-matrix"), signalMatrixToggle: $("signal-matrix-toggle"), signalMatrixBody: $("signal-matrix-body"), signalMatrixCaption: $("signal-matrix-caption"), signalMatrixSummary: $("signal-matrix-summary"), signalMatrixTableWrap: $("signal-matrix-table-wrap"),
+    signalMatrix: $("signal-matrix"), signalMatrixToggle: $("signal-matrix-toggle"), signalMatrixBody: $("signal-matrix-body"), signalMatrixCaption: $("signal-matrix-caption"), signalMatrixSummary: $("signal-matrix-summary"), signalMatrixTableWrap: $("signal-matrix-table-wrap"), signalMatrixReturn: $("signal-matrix-return"),
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "v0.2.06";
+  els.version.textContent = cfg.appVersion || "v0.2.07";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -301,9 +301,50 @@
     return "—";
   }
 
+  function setSignalMatrixReturnAvailable(available) {
+    if (!els.signalMatrixReturn) return;
+    const on = Boolean(available);
+    els.signalMatrixReturn.classList.toggle("hidden", !on);
+    els.signalMatrixReturn.disabled = !on;
+    els.signalMatrixReturn.setAttribute("aria-hidden", on ? "false" : "true");
+  }
+
+  function returnToSignalMatrix() {
+    const target = state.signalMatrixReturn;
+    if (!target || !els.signalMatrix) return;
+
+    // Restore the exact table context that existed before the chart jump.
+    state.filter = target.filter || "ALL";
+    state.searchQuery = target.searchQuery || "";
+    if (els.search) els.search.value = state.searchQuery;
+    renderFilters();
+    renderCards();
+    setSignalMatrixExpanded(true);
+
+    requestAnimationFrame(() => {
+      if (els.signalMatrixTableWrap && Number.isFinite(target.tableScrollTop)) {
+        els.signalMatrixTableWrap.scrollTop = target.tableScrollTop;
+      }
+      const y = Number(target.windowY);
+      if (Number.isFinite(y)) window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+      else els.signalMatrix.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    state.signalMatrixReturn = null;
+    setTimeout(() => setSignalMatrixReturnAvailable(false), 650);
+  }
+
   function jumpToSignalChart(symbol) {
     const wanted = String(symbol || "").trim().toUpperCase();
     if (!wanted || !els.cards) return;
+
+    state.signalMatrixReturn = {
+      windowY: window.scrollY,
+      tableScrollTop: Number(els.signalMatrixTableWrap?.scrollTop || 0),
+      filter: state.filter,
+      searchQuery: state.searchQuery
+    };
+    setSignalMatrixReturnAvailable(true);
 
     const findCard = () => Array.from(els.cards.querySelectorAll('.card[data-symbol]'))
       .find(card => String(card.dataset.symbol || "").toUpperCase() === wanted) || null;
@@ -1742,6 +1783,7 @@
   }, true);
   els.download.addEventListener('click',downloadCurrentJson);
   if (els.signalMatrixToggle) els.signalMatrixToggle.addEventListener('click',()=>setSignalMatrixExpanded(!state.signalMatrixExpanded));
+  if (els.signalMatrixReturn) els.signalMatrixReturn.addEventListener('click',returnToSignalMatrix);
   if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
 
 
@@ -2014,6 +2056,7 @@
   }
 
   initMemo();
+  setSignalMatrixReturnAvailable(false);
   setSignalMatrixExpanded(false);
   setSectorFlowExpanded(false);
   updateActionState();

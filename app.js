@@ -4,17 +4,18 @@
   const workerUrl = String(cfg.workerUrl || "").replace(/\/$/, "");
   const pollInterval = Number(cfg.pollIntervalMs || 4000);
   const RESEARCH_PIPELINE_VERSION = "tavily-answer-direct-zhtw-v9-asset-identity";
-  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
+  const state = { market: localStorage.getItem("sstate-market") || cfg.defaultMarket || "crypto", snapshot: null, filter: "ALL", searchQuery: "", runId: "", pollTimer: null, champion: null, signalMatrixExpanded: false, signalMatrixSort: { key: "state", dir: "asc" }, sectorFlow: null, sectorFlowExpanded: false, sectorFlowHover: "", sectorFlowTimer: null, analysisBusy: false, autoBatchBusy: false, autoBatchStatus: null, autoBatchTimer: null, usStockResearch: null, researchSymbolBusy: new Set(), researchSymbolErrors: Object.create(null), marketStatuses: {}, marketStatusCheckedAt: "", marketStatusTimer: null, marketSockets: [], marketActivity: {}, marketStatusStartedAt: 0, marketStatusReconnectTimer: null, marketStatusRenderTimer: null, marketStatusSource: "" };
 
   const $ = (id) => document.getElementById(id);
   const els = {
     version: $("version-chip"), systemCaption: $("system-caption"), market: $("market-select"), search: $("symbol-search"), run: $("run-button"), download: $("download-button"),
     runPanel: $("run-panel"), runTitle: $("run-title"), runPercent: $("run-percent"), runBar: $("run-bar"), runDetail: $("run-detail"),
     snapshotMeta: $("snapshot-meta"), filters: $("state-filters"), summary: $("summary-strip"), cards: $("cards"), empty: $("empty-state"), toast: $("toast"),
+    signalMatrix: $("signal-matrix"), signalMatrixToggle: $("signal-matrix-toggle"), signalMatrixBody: $("signal-matrix-body"), signalMatrixCaption: $("signal-matrix-caption"), signalMatrixSummary: $("signal-matrix-summary"), signalMatrixTableWrap: $("signal-matrix-table-wrap"),
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "v0.2.00";
+  els.version.textContent = cfg.appVersion || "v0.2.05";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -168,6 +169,173 @@
     CEGX:"UTIL", OKLOX:"UTIL",
     MPX:"MAT", MOSX:"MAT", NTRX:"MAT", USARX:"MAT"
   });
+
+  function setSignalMatrixExpanded(expanded) {
+    if (!els.signalMatrix || !els.signalMatrixBody || !els.signalMatrixToggle) return;
+    state.signalMatrixExpanded = Boolean(expanded);
+    els.signalMatrix.classList.toggle("collapsed", !state.signalMatrixExpanded);
+    els.signalMatrixBody.classList.toggle("hidden", !state.signalMatrixExpanded);
+    els.signalMatrixToggle.setAttribute("aria-expanded", state.signalMatrixExpanded ? "true" : "false");
+    els.signalMatrixToggle.title = state.signalMatrixExpanded ? "收合 S狀態條件觀察表" : "展開 S狀態條件觀察表";
+    const arrow = els.signalMatrixToggle.querySelector(".signal-matrix-arrow");
+    if (arrow) arrow.textContent = state.signalMatrixExpanded ? "▼" : "▶";
+    if (state.signalMatrixExpanded) renderSignalMatrix();
+  }
+
+  function signalMatrixColorLabel(color) {
+    const key=String(color||"").toLowerCase();
+    if (key === "yellow") return "黃";
+    if (key === "purple") return "紫";
+    if (key === "flat" || key === "gray" || key === "grey") return "灰";
+    return "—";
+  }
+
+  function signalMatrixColorRank(color) {
+    const key=String(color||"").toLowerCase();
+    if (key === "yellow") return 0;
+    if (key === "purple") return 1;
+    if (key === "flat" || key === "gray" || key === "grey") return 2;
+    return 9;
+  }
+
+  function signalMatrixColorClass(color) {
+    const key=String(color||"").toLowerCase();
+    if (key === "yellow") return "signal-tone-yellow";
+    if (key === "purple") return "signal-tone-purple";
+    return "signal-tone-neutral";
+  }
+
+  function signalMatrixMidClass(midState) {
+    const key=String(midState||"").toLowerCase();
+    if (key === "rising") return "signal-mid-up";
+    if (key === "falling") return "signal-mid-down";
+    if (key === "flattening") return "signal-mid-warn";
+    return "signal-mid-flat";
+  }
+
+  function signalMatrixRows() {
+    return (state.snapshot?.records || []).map((record,index)=>{
+      const opportunity=record?.opportunity_long||{};
+      const mid=opportunity?.midline||{};
+      const chart=Array.isArray(record?.chart_30d)?record.chart_30d:[];
+      const latest=chart.length?chart[chart.length-1]:{};
+      const hp=record?.historical_probability||{};
+      const h72=hp?.["72h"]||{};
+      const haColor=String(latest?.ha_color||opportunity?.current?.ha_color||"unknown").toLowerCase();
+      const cciColor=String(latest?.cci_smoothing_color||"gray").toLowerCase();
+      return {
+        _index:index,
+        exchange: state.market === "us-stock" ? (isPropwRecord(record) ? "PW" : "—") : "",
+        symbol:String(record?.symbol||""),
+        state:recordState(record),
+        price:Number(record?.price),
+        bbPct:Number(record?.bb_pct),
+        midText:`${String(mid?.symbol||"?")} ${String(mid?.label||"未知")}`,
+        midState:String(mid?.state||"unknown"),
+        midSlope:Number(mid?.recent_5d_slope_pct_per_day),
+        haColor,
+        cciColor,
+        success72:(hp?.available&&h72?.available)?Number(h72?.success_probability):NaN,
+        fail72:(hp?.available&&h72?.available)?Number(h72?.true_fail_probability):NaN,
+        dualYellow:haColor==="yellow"&&cciColor==="yellow"
+      };
+    });
+  }
+
+  function signalMatrixColumns() {
+    const cols=[];
+    if (state.market === "us-stock") cols.push({key:"exchange",label:"交易所",kind:"text",defaultDir:"asc"});
+    cols.push(
+      {key:"symbol",label:"標的",kind:"text",defaultDir:"asc"},
+      {key:"state",label:"S狀態",kind:"state",defaultDir:"asc"},
+      {key:"price",label:"現價",kind:"number",defaultDir:"desc"},
+      {key:"bbPct",label:"中軌差%",kind:"number",defaultDir:"desc"},
+      {key:"midSlope",label:"中軌斜率",kind:"number",defaultDir:"desc"},
+      {key:"haColor",label:"平均K",kind:"color",defaultDir:"asc"},
+      {key:"cciColor",label:"CCI-SMA",kind:"color",defaultDir:"asc"},
+      {key:"success72",label:"3日內上攻",kind:"number",defaultDir:"desc"},
+      {key:"fail72",label:"真失敗",kind:"number",defaultDir:"asc"}
+    );
+    return cols;
+  }
+
+  function signalMatrixSortValue(row,col) {
+    const value=row?.[col.key];
+    if (col.kind === "state") return stateRank(value);
+    if (col.kind === "color") return signalMatrixColorRank(value);
+    if (col.kind === "number") return Number(value);
+    return String(value??"").toUpperCase();
+  }
+
+  function sortSignalMatrixRows(rows,columns) {
+    const sort=state.signalMatrixSort||{key:"state",dir:"asc"};
+    const col=columns.find(item=>item.key===sort.key)||columns.find(item=>item.key==="state")||columns[0];
+    const direction=sort.dir==="desc"?-1:1;
+    return rows.map((row,index)=>({row,index})).sort((left,right)=>{
+      const av=signalMatrixSortValue(left.row,col), bv=signalMatrixSortValue(right.row,col);
+      const aMissing=(typeof av==="number"&&!Number.isFinite(av))||av===""||av==null;
+      const bMissing=(typeof bv==="number"&&!Number.isFinite(bv))||bv===""||bv==null;
+      if (aMissing!==bMissing) return aMissing?1:-1;
+      let result=0;
+      if (typeof av==="number"&&typeof bv==="number") result=av-bv;
+      else result=String(av).localeCompare(String(bv),"zh-Hant",{numeric:true,sensitivity:"base"});
+      return result?result*direction:left.index-right.index;
+    }).map(item=>item.row);
+  }
+
+  function signalMatrixCell(row,key) {
+    if (key === "exchange") return row.exchange==="PW"?'<span class="signal-exchange">PW</span>':'<span class="signal-muted">—</span>';
+    if (key === "symbol") return `<strong class="signal-symbol">${escapeHtml(row.symbol)}</strong>`;
+    if (key === "state") return `<span class="signal-state ${stateClass(row.state)}">${escapeHtml(row.state)}</span>`;
+    if (key === "price") return `<span class="signal-number">${fmtPrice(row.price)}</span>`;
+    if (key === "bbPct") {
+      if(!Number.isFinite(row.bbPct)) return '<span class="signal-muted">—</span>';
+      const cls=row.bbPct>0?'signal-positive':row.bbPct<0?'signal-negative':'signal-muted';
+      return `<span class="${cls}">${row.bbPct>0?'+':''}${num(row.bbPct)}%</span>`;
+    }
+    if (key === "midSlope") return `<span class="signal-mid ${signalMatrixMidClass(row.midState)}" title="5日中軌斜率 ${Number.isFinite(row.midSlope)?`${row.midSlope.toFixed(3)}%/日`:'—'}">${escapeHtml(row.midText)}</span>`;
+    if (key === "haColor") return `<span class="signal-color ${signalMatrixColorClass(row.haColor)}">${signalMatrixColorLabel(row.haColor)}</span>`;
+    if (key === "cciColor") return `<span class="signal-color ${signalMatrixColorClass(row.cciColor)}">${signalMatrixColorLabel(row.cciColor)}</span>`;
+    if (key === "success72") return Number.isFinite(row.success72)?`<span class="signal-success">${(row.success72*100).toFixed(0)}%</span>`:'<span class="signal-muted">—</span>';
+    if (key === "fail72") return Number.isFinite(row.fail72)?`<span class="signal-fail">${(row.fail72*100).toFixed(1)}%</span>`:'<span class="signal-muted">—</span>';
+    return "—";
+  }
+
+  function renderSignalMatrix() {
+    if (!els.signalMatrix) return;
+    const rows=signalMatrixRows();
+    const dualCount=rows.filter(row=>row.dualYellow).length;
+    if (els.signalMatrixCaption) els.signalMatrixCaption.textContent = rows.length
+      ? `${marketLabel(state.market)}｜${rows.length} 標的｜平均K × CCI-SMA 同色觀察｜點欄位排序`
+      : `${marketLabel(state.market)}｜等待最新快照`;
+    if (els.signalMatrixSummary) {
+      els.signalMatrixSummary.textContent = rows.length ? `雙黃 ${dualCount} / ${rows.length}` : "WAITING";
+      els.signalMatrixSummary.className = `signal-matrix-summary ${rows.length ? (dualCount ? "ready" : "neutral") : "waiting"}`;
+    }
+    if (!state.signalMatrixExpanded || !els.signalMatrixTableWrap) return;
+    if (!rows.length) {
+      els.signalMatrixTableWrap.innerHTML='<div class="signal-matrix-empty">目前沒有可顯示的快照資料。</div>';
+      return;
+    }
+    const columns=signalMatrixColumns();
+    const sorted=sortSignalMatrixRows(rows,columns);
+    const sort=state.signalMatrixSort||{};
+    const head=columns.map(col=>{
+      const active=sort.key===col.key;
+      const arrow=active?(sort.dir==="desc"?"▼":"▲"):"↕";
+      return `<th scope="col"><button class="signal-sort ${active?'active':''}" type="button" data-signal-sort="${escapeHtml(col.key)}" title="排序 ${escapeHtml(col.label)}">${escapeHtml(col.label)} <span>${arrow}</span></button></th>`;
+    }).join("");
+    const body=sorted.map(row=>`<tr class="${row.dualYellow?'dual-yellow':''}" title="${row.dualYellow?'平均K × CCI-SMA 雙黃條件':''}">${columns.map(col=>`<td>${signalMatrixCell(row,col.key)}</td>`).join("")}</tr>`).join("");
+    els.signalMatrixTableWrap.innerHTML=`<table class="signal-matrix-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    els.signalMatrixTableWrap.querySelectorAll("[data-signal-sort]").forEach(button=>button.addEventListener("click",()=>{
+      const key=String(button.dataset.signalSort||"");
+      const col=columns.find(item=>item.key===key);
+      if(!col)return;
+      if(state.signalMatrixSort?.key===key) state.signalMatrixSort={key,dir:state.signalMatrixSort.dir==="asc"?"desc":"asc"};
+      else state.signalMatrixSort={key,dir:col.defaultDir||"asc"};
+      renderSignalMatrix();
+    }));
+  }
 
   function setSectorFlowExpanded(expanded) {
     if (!els.sectorFlow || !els.sectorFlowBody || !els.sectorFlowToggle) return;
@@ -657,6 +825,7 @@
     if (!snap || !Array.isArray(snap.records)) {
       els.cards.innerHTML=""; els.summary.innerHTML=""; els.empty.classList.remove("hidden");
       els.systemCaption.textContent = `更新時間 —｜台灣時間`;
+      renderSignalMatrix();
       return;
     }
     els.empty.classList.add("hidden");
@@ -664,7 +833,7 @@
     const pm = b.probability_model || {};
     els.systemCaption.textContent = `更新 ${fmtTaiwanTimestamp(b.generated_at_taiwan)}｜台灣時間`;
     els.snapshotMeta.textContent = `資料源：${source}｜${b.count ?? snap.records.length} 標的｜Probability ${pm.available ? `${pm.model_id || "active"} / max L${pm.max_level || "?"}` : "未載入"}｜主判定 72H（3日）`;
-    renderFilters(); renderSummary(); renderCards(); renderSectorFlow();
+    renderFilters(); renderSummary(); renderCards(); renderSignalMatrix(); renderSectorFlow();
   }
 
   function isPropwRecord(r) {
@@ -1538,6 +1707,7 @@
     queryResearchSymbol(trigger.dataset.researchSymbol || '');
   }, true);
   els.download.addEventListener('click',downloadCurrentJson);
+  if (els.signalMatrixToggle) els.signalMatrixToggle.addEventListener('click',()=>setSignalMatrixExpanded(!state.signalMatrixExpanded));
   if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
 
 
@@ -1810,6 +1980,7 @@
   }
 
   initMemo();
+  setSignalMatrixExpanded(false);
   setSectorFlowExpanded(false);
   updateActionState();
   renderVolumeProgress(0);

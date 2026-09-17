@@ -1,11 +1,11 @@
 {
-  "app_version": "v0.2.04",
-  "stage": "R2-MEMO-MARQUEE",
+  "app_version": "v0.2.05",
+  "stage": "SORTABLE-SIGNAL-MATRIX",
   "features": [
-    "Add a cyberpunk aqua marquee in the open header area that reads the existing cross-device R2 memo JSON and continuously surfaces recent field notes on the main page.",
-    "The marquee shows recent memo date/time, symbol, and note text, so watched assets and recorded price/target notes are visible without opening the memo drawer.",
-    "Marquee data refreshes from the same /api/memos source on initial page load and immediately after memo save, update, or delete; no new R2 object or Worker endpoint is required.",
-    "No chart, CCI, probability, market filter, research, memo storage/editing behavior, or unrelated engine logic is changed."
+    "Add an expandable SIGNAL MATRIX panel directly above the existing US-stock FLOW RADAR; the panel is available for both crypto and US-stock snapshots.",
+    "Render sortable columns for symbol, S-state, current price, midline gap %, midline slope, latest Heikin-Ashi average-K color, latest CCI-SMA smoothing color, 72H success probability, and true-fail probability; US-stock additionally shows the PW exchange column while crypto omits it.",
+    "Preserve existing semantic colors for S-state, yellow/purple technical colors, positive/negative values and probability/failure cues; rows where average-K and CCI-SMA are both yellow receive a subtle scan highlight.",
+    "No engine, probability model, Worker/R2 endpoint, chart, memo, research, filter, or sector-flow calculation is changed; the matrix reads fields already present in the current snapshot JSON."
   ],
-  "version": "0.2.04"
+  "version": "0.2.05"
 }

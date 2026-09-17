@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="theme-color" content="#1e293b">
   <title>SStateMarketTerminal</title>
-  <link rel="stylesheet" href="styles.css?v=0.2.04">
+  <link rel="stylesheet" href="styles.css?v=0.2.05">
   <link rel="stylesheet" href="research-modal.css">
 </head>
 <body>
@@ -52,6 +52,25 @@
           <span id="snapshot-meta" class="caption"></span>
         </div>
         <div id="state-filters" class="filters"></div>
+      </div>
+    </section>
+
+    <section id="signal-matrix" class="signal-matrix-panel collapsed">
+      <div class="signal-matrix-head">
+        <div class="signal-matrix-heading-wrap">
+          <button id="signal-matrix-toggle" class="signal-matrix-toggle" type="button" aria-expanded="false" aria-controls="signal-matrix-body" title="展開 S狀態條件觀察表">
+            <span class="signal-matrix-arrow">▶</span>
+          </button>
+          <div>
+            <div class="signal-matrix-title">📋 SIGNAL MATRIX｜S狀態條件觀察表</div>
+            <div id="signal-matrix-caption" class="caption">載入目前市場快照...</div>
+          </div>
+        </div>
+        <div id="signal-matrix-summary" class="signal-matrix-summary waiting">WAITING</div>
+      </div>
+      <div id="signal-matrix-body" class="signal-matrix-body hidden">
+        <div id="signal-matrix-table-wrap" class="signal-matrix-table-wrap"></div>
+        <div class="signal-matrix-footnote">平均K = 最新日線 Heikin-Ashi 顏色；CCI-SMA = CCI20 的 SMA14 最新階梯顏色。黃色＋黃色可快速辨識「雙黃」條件；所有欄位皆可點擊排序。</div>
       </div>
     </section>
 
@@ -153,8 +172,8 @@
   </aside>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=0.2.04"></script>
-  <script src="app.js?v=0.2.04"></script>
+  <script src="config.js?v=0.2.05"></script>
+  <script src="app.js?v=0.2.05"></script>
   <script src="research-modal.js"></script>
   <script src="research-download.js"></script>
 </body>

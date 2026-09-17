@@ -15,7 +15,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "v0.2.05";
+  els.version.textContent = cfg.appVersion || "v0.2.06";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -285,7 +285,7 @@
 
   function signalMatrixCell(row,key) {
     if (key === "exchange") return row.exchange==="PW"?'<span class="signal-exchange">PW</span>':'<span class="signal-muted">—</span>';
-    if (key === "symbol") return `<strong class="signal-symbol">${escapeHtml(row.symbol)}</strong>`;
+    if (key === "symbol") return `<button class="signal-symbol signal-symbol-link" type="button" data-signal-symbol="${escapeHtml(row.symbol)}" title="跳到 ${escapeHtml(row.symbol)} 圖表">${escapeHtml(row.symbol)}</button>`;
     if (key === "state") return `<span class="signal-state ${stateClass(row.state)}">${escapeHtml(row.state)}</span>`;
     if (key === "price") return `<span class="signal-number">${fmtPrice(row.price)}</span>`;
     if (key === "bbPct") {
@@ -299,6 +299,37 @@
     if (key === "success72") return Number.isFinite(row.success72)?`<span class="signal-success">${(row.success72*100).toFixed(0)}%</span>`:'<span class="signal-muted">—</span>';
     if (key === "fail72") return Number.isFinite(row.fail72)?`<span class="signal-fail">${(row.fail72*100).toFixed(1)}%</span>`:'<span class="signal-muted">—</span>';
     return "—";
+  }
+
+  function jumpToSignalChart(symbol) {
+    const wanted = String(symbol || "").trim().toUpperCase();
+    if (!wanted || !els.cards) return;
+
+    const findCard = () => Array.from(els.cards.querySelectorAll('.card[data-symbol]'))
+      .find(card => String(card.dataset.symbol || "").toUpperCase() === wanted) || null;
+
+    let card = findCard();
+    if (!card) {
+      // If the current S-state filter/search hides the selected symbol, reveal only
+      // that record so the matrix link always reaches the real chart.
+      state.filter = "ALL";
+      state.searchQuery = wanted;
+      if (els.search) els.search.value = wanted;
+      renderFilters();
+      renderCards();
+      card = findCard();
+    }
+    if (!card) {
+      showToast(`找不到 ${wanted} 的圖表資料`);
+      return;
+    }
+
+    card.classList.remove("signal-jump-target");
+    void card.offsetWidth;
+    card.classList.add("signal-jump-target");
+    const chart = card.querySelector(".chart") || card;
+    chart.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => card.classList.remove("signal-jump-target"), 1800);
   }
 
   function renderSignalMatrix() {
@@ -334,6 +365,9 @@
       if(state.signalMatrixSort?.key===key) state.signalMatrixSort={key,dir:state.signalMatrixSort.dir==="asc"?"desc":"asc"};
       else state.signalMatrixSort={key,dir:col.defaultDir||"asc"};
       renderSignalMatrix();
+    }));
+    els.signalMatrixTableWrap.querySelectorAll("[data-signal-symbol]").forEach(button=>button.addEventListener("click",()=>{
+      jumpToSignalChart(button.dataset.signalSymbol);
     }));
   }
 
@@ -1216,7 +1250,7 @@
     const move=Number(r.bb_pct||0); const moveClass=move>=0?'up':'down';
     const h4prev=String(r.h4_prev||''); const h4curr=String(r.h4_curr||'');
     const lamp = (x)=> x==='green'||x==='🟢'?'<span class="g">●</span>':x==='red'||x==='🔴'?'<span class="r">●</span>':'●';
-    return `<article class="card">
+    return `<article class="card" data-symbol="${escapeHtml(r.symbol)}">
       <div class="card-header compact-card-header">
         <div class="card-primary-row">
           <div class="card-symbol-group">

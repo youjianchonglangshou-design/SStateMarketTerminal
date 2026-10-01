@@ -1,0 +1,40 @@
+name: Pionex Monitor Symbol Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pionex-monitor-symbol-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+      WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install requests
+        run: pip install requests
+      - name: Sync current Pionex SPOT/PERP universe to R2
+        run: python engine/pionex_monitor_symbols_sync.py
+      - name: Upload sync artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pionex-monitor-universe-${{ github.run_id }}
+          path: output/pionex_monitor_universe.json
+          if-no-files-found: warn
+          retention-days: 7

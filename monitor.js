@@ -9,7 +9,7 @@
   const SAVE_DEBOUNCE = Number(cfg.monitorSaveDebounceMs || 3000);
   const WS_URL = 'wss://ws.pionex.com/wsPub';
   const WS_CHUNK = 80;
-  const WARM_CONCURRENCY = 2;
+  const WARM_CONCURRENCY = 1;
   const LOCAL_KEY = 'sstate-monitor-watchlist-v1';
   const CLIENT_KEY = 'sstate-monitor-client-id';
 
@@ -25,7 +25,7 @@
   const state = {
     items: [], records: new Map(), universe: [], sort: { key: 'order', dir: 'asc' },
     version: 0, remoteUpdatedAt: null, localDirty: false, saveTimer: null, search: '', marketFilter: 'ALL',
-    sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, lastUiAt: 0
+    sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, universePartial: false, universeSource: '', lastUiAt: 0
   };
 
   const clientId = (() => {
@@ -382,7 +382,7 @@
       while (cursor < queue.length) {
         const item = queue[cursor++];
         await warmSymbol(item, force);
-        await sleep(450);
+        await sleep(1100);
       }
     };
     await Promise.all(Array.from({length: Math.min(WARM_CONCURRENCY,queue.length)}, worker));
@@ -472,35 +472,67 @@
     if (state.universeLoaded && !force) return;
     els.results.innerHTML='<div class="symbol-loading">讀取 Pionex 最新可交易清單...</div>';
     try {
-      const p = await api(`/api/monitor/symbols${force?'?refresh=1':''}`);
+      const p = await api('/api/monitor/symbols');
       state.universe = (p.symbols || []).map(x => ({
         symbol:String(x.symbol||'').toUpperCase(), type:String(x.type||'').toUpperCase(), base:String(x.base||'').toUpperCase(), quote:String(x.quote||'USDT').toUpperCase()
       })).filter(x=>x.symbol && (x.type==='PERP'||x.type==='SPOT'));
-      state.universeLoaded = true; renderSymbolResults();
+      state.universeLoaded = true;
+      state.universePartial = Boolean(p.partial);
+      state.universeSource = String(p.source || '');
+      renderSymbolResults();
     } catch (err) {
-      els.results.innerHTML=`<div class="symbol-empty">清單讀取失敗：${escapeHtml(err.message)}</div>`;
+      // Dialog must remain usable even when the universe endpoint itself is unavailable.
+      state.universe = [];
+      state.universeLoaded = true;
+      state.universePartial = true;
+      state.universeSource = 'offline-manual';
+      renderSymbolResults(`清單暫時無法同步：${err.message}`);
     }
   }
 
-  function renderSymbolResults() {
-    const q=String(els.query.value||'').trim().toUpperCase(); const filter=state.marketFilter;
-    const existing=new Set(state.items.map(x=>x.symbol));
-    const rows=state.universe.filter(x => (filter==='ALL'||x.type===filter) && (!q || x.symbol.includes(q) || x.base.includes(q))).slice(0,120);
-    if(!rows.length){els.results.innerHTML='<div class="symbol-empty">找不到符合的 Pionex 可交易標的</div>';return;}
-    els.results.innerHTML=rows.map(x=>{
-      const used=existing.has(x.symbol); const label=x.base || displaySymbol(x);
-      return `<button class="symbol-option ${used?'already':''}" type="button" data-symbol="${escapeHtml(x.symbol)}" ${used?'disabled':''}>
-        <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(x.symbol)}</small></span><span class="market-tag ${x.type.toLowerCase()}">${x.type}</span>
-      </button>`;
-    }).join('');
-    els.results.querySelectorAll('.symbol-option:not(.already)').forEach(btn=>btn.addEventListener('click',()=>addSymbol(btn.dataset.symbol)));
+  function typedCandidates() {
+    const raw=String(els.query.value||'').trim().toUpperCase();
+    if(!raw) return [];
+    const q=raw.replace(/^PIONEX:/,'').replace(/\.P$/,'').replace(/[^A-Z0-9._\-]/g,'');
+    if(!q) return [];
+    let base=q.replace(/_USDT_PERP$/,'').replace(/_USDT$/,'');
+    if(!base) return [];
+    const rows=[];
+    if(state.marketFilter==='ALL'||state.marketFilter==='PERP') rows.push({symbol:`${base}_USDT_PERP`,type:'PERP',base,direct:true});
+    if(state.marketFilter==='ALL'||state.marketFilter==='SPOT') rows.push({symbol:`${base}_USDT`,type:'SPOT',base,direct:true});
+    return rows;
   }
 
-  async function addSymbol(symbol) {
-    const meta=state.universe.find(x=>x.symbol===symbol); if(!meta || state.items.some(x=>x.symbol===symbol)) return;
+  function renderSymbolResults(errorHint = '') {
+    const q=String(els.query.value||'').trim().toUpperCase(); const filter=state.marketFilter;
+    const existing=new Set(state.items.map(x=>x.symbol));
+    let rows=state.universe.filter(x => (filter==='ALL'||x.type===filter) && (!q || x.symbol.includes(q) || x.base.includes(q))).slice(0,120);
+    const known=new Set(rows.map(x=>x.symbol));
+    for(const x of typedCandidates()) if(!known.has(x.symbol)){rows.unshift(x);known.add(x.symbol);}
+    const notice = errorHint
+      ? `<div class="symbol-notice warn">${escapeHtml(errorHint)}。仍可直接輸入幣種並加入，K 線暖機會再驗證。</div>`
+      : state.universePartial
+        ? `<div class="symbol-notice">目前顯示 R2 尚未完成完整同步時的備援清單；你仍可直接輸入任意 Pionex 幣種加入。</div>`
+        : '';
+    if(!rows.length){els.results.innerHTML=notice+'<div class="symbol-empty">找不到符合的標的；可直接輸入例如 EIGEN、ETHFI、BTC。</div>';return;}
+    els.results.innerHTML=notice+rows.map(x=>{
+      const used=existing.has(x.symbol); const label=x.base || displaySymbol(x);
+      const direct=x.direct ? '<small>直接加入候選；以 K 線暖機驗證</small>' : `<small>${escapeHtml(x.symbol)}</small>`;
+      return `<button class="symbol-option ${used?'already':''}" type="button" data-symbol="${escapeHtml(x.symbol)}" data-type="${x.type}" ${used?'disabled':''}>
+        <span><strong>${escapeHtml(label)}</strong>${direct}</span><span class="market-tag ${x.type.toLowerCase()}">${x.type}</span>
+      </button>`;
+    }).join('');
+    els.results.querySelectorAll('.symbol-option:not(.already)').forEach(btn=>btn.addEventListener('click',()=>addSymbol(btn.dataset.symbol,btn.dataset.type)));
+  }
+
+  async function addSymbol(symbol, typeHint = '') {
+    const meta=state.universe.find(x=>x.symbol===symbol) || {symbol,type:typeHint || (symbol.endsWith('_PERP')?'PERP':'SPOT')};
+    if(state.items.some(x=>x.symbol===symbol)) return;
     const item=cleanItem({symbol, type:meta.type, note:'', order:Math.max(0,...state.items.map(x=>Number(x.order)||0))+1});
     state.items.push(item); recordFor(item); scheduleSave(); closeModal(); renderAll(); rebuildSockets();
     await warmSymbol(item,true); applyOrderAndFilter();
+    const rec=recordFor(item);
+    if(rec.status==='error') toast(`${displaySymbol(item)} 暖機失敗：${rec.error || '無法取得 Pionex K 線'}`,true);
   }
 
   function removeSymbol(symbol) {

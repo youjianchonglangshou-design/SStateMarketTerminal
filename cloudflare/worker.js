@@ -5,6 +5,11 @@ const PIONEX_US_STOCK_SYMBOLS_KEY = "pionex/symbols/us_stock_symbols.json";
 const SECTOR_FLOW_KEY = "market/us-stock/sector_flow.json";
 const MEMO_KEY = "terminal/memos.json";
 const MEMO_MAX_ENTRIES = 500;
+const MONITOR_WATCHLIST_KEY = "terminal/monitor_watchlist.json";
+const MONITOR_UNIVERSE_KEY = "pionex/cache/monitor_universe.json";
+const MONITOR_UNIVERSE_TTL_MS = 5 * 60 * 1000;
+const MONITOR_KLINE_TTL_MS = 30 * 1000;
+const MONITOR_MAX_ITEMS = 500;
 
 // Pionex web endpoints discovered from the live RWA page.
 // Device/fingerprint identifiers are intentionally NOT stored in this public Worker.
@@ -13,6 +18,8 @@ const PIONEX_WEB_COMMON_QUERY =
   `client_id=pionex_web_${PIONEX_WEB_VERSION}&app_ver=${PIONEX_WEB_VERSION}&os=web&tz_name=Asia%2FTaipei&tz_offset=28800&sys_lang=zh-TW&app_lang=zh-TW`;
 const PIONEX_FUTURE_MARKETS_URL =
   `https://www.pionex.com/apis/papi/v1/future_markets/?${PIONEX_WEB_COMMON_QUERY}`;
+const PIONEX_SPOT_MARKETS_URL =
+  `https://www.pionex.com/apis/papi/v1/spot_markets/?${PIONEX_WEB_COMMON_QUERY}`;
 const PIONEX_MARKET_CUSTOMIZED_URL =
   `https://www.pionex.com/apis/menu-api/v1/market_customized?${PIONEX_WEB_COMMON_QUERY}`;
 
@@ -103,6 +110,28 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/snapshot") {
         const market = normalizeMarket(url.searchParams.get("market"));
         return await objectResponse(env, MARKET[market].latest, origin, false, MARKET[market].filename);
+      }
+      if (request.method === "GET" && url.pathname === "/api/monitor/watchlist") {
+        const payload = await readMonitorWatchlist(env);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/monitor/watchlist") {
+        const body = await request.json().catch(() => ({}));
+        const payload = await writeMonitorWatchlist(env, body);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/monitor/symbols") {
+        const force = url.searchParams.get("refresh") === "1";
+        const payload = await loadMonitorUniverse(env, force);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/monitor/klines") {
+        const symbol = safeMonitorSymbol(url.searchParams.get("symbol"));
+        const interval = safeMonitorInterval(url.searchParams.get("interval") || "1D");
+        const limit = safeMonitorLimit(url.searchParams.get("limit") || 180);
+        const force = url.searchParams.get("refresh") === "1";
+        const payload = await loadMonitorKlines(env, symbol, interval, limit, force);
+        return json({ ok: true, ...payload }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/memos") {
         const payload = await readMemoPayload(env);
@@ -3518,6 +3547,136 @@ async function readChampionLedgerRows(env,generation,days,symbol=""){
   rows.sort((a,b)=>(Number(a?.decision_time||0)-Number(b?.decision_time||0))||String(a?.symbol||"").localeCompare(String(b?.symbol||"")));
   return {ok:true,generation,days,symbol:symbol||null,shards:keys.length,keys,rows};
 }
+function monitorDefaultWatchlist(){
+  return { schema_version:"1.0", version:0, updated_at:null, updated_by:null, items:[], sort:{key:"order",dir:"asc"} };
+}
+function safeMonitorSymbol(v){
+  const x=String(v||"").trim().toUpperCase();
+  if(!x || x.length>80 || !x.includes("_USDT") || /[\s/?#&\\]/u.test(x)) throw httpError(400,"invalid monitor symbol");
+  return x;
+}
+function safeMonitorInterval(v){
+  const x=String(v||"1D").trim();
+  if(!["1D","4H"].includes(x)) throw httpError(400,"monitor interval must be 1D or 4H");
+  return x;
+}
+function safeMonitorLimit(v){
+  const n=Number(v||180);
+  if(!Number.isFinite(n)) throw httpError(400,"invalid monitor kline limit");
+  return Math.max(30,Math.min(300,Math.floor(n)));
+}
+function safeMonitorSort(v){
+  const allowed=new Set(["order","note","symbol","day_change_pct","s_state","midline","average_k","cci_sma"]);
+  const key=allowed.has(String(v?.key||""))?String(v.key):"order";
+  const dir=String(v?.dir||"").toLowerCase()==="desc"?"desc":"asc";
+  return {key,dir};
+}
+function cleanMonitorItem(row,index){
+  const symbol=safeMonitorSymbol(row?.symbol);
+  const type=String(row?.type||"").toUpperCase()==="SPOT"?"SPOT":"PERP";
+  const note=safeMemoText(row?.note,120);
+  const orderRaw=Number(row?.order);
+  const order=Number.isFinite(orderRaw)?orderRaw:index+1;
+  return {symbol,type,note,order};
+}
+async function readMonitorWatchlist(env){
+  const obj=await env.JSON_BUCKET.get(MONITOR_WATCHLIST_KEY);
+  if(!obj) return monitorDefaultWatchlist();
+  try{
+    const p=JSON.parse(await obj.text());
+    const items=[];
+    for(const [i,row] of (Array.isArray(p?.items)?p.items:[]).slice(0,MONITOR_MAX_ITEMS).entries()){
+      try{ items.push(cleanMonitorItem(row,i)); }catch(_){}
+    }
+    return {schema_version:"1.0",version:Number(p?.version||0),updated_at:p?.updated_at||null,updated_by:p?.updated_by||null,items,sort:safeMonitorSort(p?.sort)};
+  }catch(_){ return monitorDefaultWatchlist(); }
+}
+async function writeMonitorWatchlist(env,body){
+  const rows=Array.isArray(body?.items)?body.items:[];
+  if(rows.length>MONITOR_MAX_ITEMS) throw httpError(400,`monitor watchlist max ${MONITOR_MAX_ITEMS}`);
+  const seen=new Set(); const items=[];
+  for(const [i,row] of rows.entries()){
+    const item=cleanMonitorItem(row,i);
+    if(seen.has(item.symbol)) continue;
+    seen.add(item.symbol); items.push(item);
+  }
+  const current=await readMonitorWatchlist(env);
+  const now=new Date().toISOString();
+  const payload={schema_version:"1.0",version:Number(current.version||0)+1,updated_at:now,updated_by:safeMemoText(body?.client_id,80)||null,items,sort:safeMonitorSort(body?.sort)};
+  await env.JSON_BUCKET.put(MONITOR_WATCHLIST_KEY,JSON.stringify(payload,null,2),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
+  return payload;
+}
+function monitorUniverseRow(row,type){
+  if(!row||typeof row!=="object") return null;
+  if(row.active===false || row.enable===false) return null;
+  const status=String(row.status||row.contract_status||"").toUpperCase();
+  if(status && !["TRADING","ACTIVE","ONLINE"].includes(status)) return null;
+  let symbol=String(row.display_symbol||row.symbol||row.id||"").trim().toUpperCase().replaceAll("/","_");
+  if(!symbol) return null;
+  if(type==="PERP" && !symbol.endsWith("_PERP") && symbol.endsWith("_USDT")) symbol += "_PERP";
+  const quote=String(row.quote||row.quoteCurrency||row.quote_currency||"").trim().toUpperCase() || (symbol.includes("_USDT")?"USDT":"");
+  if(quote!=="USDT" || !symbol.includes("_USDT")) return null;
+  const base=String(row.base||row.baseCurrency||row.base_currency||"").trim().toUpperCase() || symbol.replace(/_USDT(?:_PERP)?$/,"");
+  return {symbol,type,base,quote:"USDT"};
+}
+function parseMonitorInternal(payload,type){
+  const rows=Array.isArray(payload?.data)?payload.data:[];
+  return rows.map(row=>monitorUniverseRow(row,type)).filter(Boolean);
+}
+async function fetchMonitorPublicSymbols(type){
+  const u=`https://api.pionex.com/api/v1/common/symbols?type=${encodeURIComponent(type)}`;
+  const r=await fetch(u,{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3"}});
+  if(!r.ok) throw httpError(502,`Pionex common/symbols ${type} failed: ${r.status}`);
+  const p=await r.json(); const rows=Array.isArray(p?.data?.symbols)?p.data.symbols:[];
+  return rows.map(row=>monitorUniverseRow(row,type)).filter(Boolean);
+}
+async function refreshMonitorUniverse(env){
+  const all=[]; const errors=[];
+  try{ all.push(...parseMonitorInternal(await fetchPionexWebJson(PIONEX_FUTURE_MARKETS_URL),"PERP")); }catch(e){ errors.push(`future_web:${e?.message||e}`); try{all.push(...await fetchMonitorPublicSymbols("PERP"));}catch(e2){errors.push(`future_public:${e2?.message||e2}`);} }
+  try{ all.push(...parseMonitorInternal(await fetchPionexWebJson(PIONEX_SPOT_MARKETS_URL),"SPOT")); }catch(e){ errors.push(`spot_web:${e?.message||e}`); try{all.push(...await fetchMonitorPublicSymbols("SPOT"));}catch(e2){errors.push(`spot_public:${e2?.message||e2}`);} }
+  const map=new Map(); for(const row of all) if(row?.symbol) map.set(`${row.type}:${row.symbol}`,row);
+  const symbols=[...map.values()].sort((a,b)=>a.base.localeCompare(b.base)||a.type.localeCompare(b.type));
+  if(!symbols.length) throw httpError(502,`Pionex monitor universe unavailable: ${errors.join(" | ")}`);
+  const payload={fetched_at:new Date().toISOString(),source:"Pionex live market list",symbols,errors};
+  await env.JSON_BUCKET.put(MONITOR_UNIVERSE_KEY,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
+  return {...payload,cache_state:"REFRESHED"};
+}
+async function loadMonitorUniverse(env,force=false){
+  let cached=null;
+  try{const obj=await env.JSON_BUCKET.get(MONITOR_UNIVERSE_KEY);if(obj)cached=JSON.parse(await obj.text());}catch(_){}
+  if(!force && cached?.fetched_at && Array.isArray(cached?.symbols)){
+    const age=Date.now()-Date.parse(cached.fetched_at); if(Number.isFinite(age)&&age>=0&&age<MONITOR_UNIVERSE_TTL_MS) return {...cached,cache_state:"R2_FRESH"};
+  }
+  try{return await refreshMonitorUniverse(env);}catch(e){if(cached?.symbols?.length)return {...cached,cache_state:"R2_STALE",refresh_error:e?.message||String(e)};throw e;}
+}
+function monitorKlineCacheKey(symbol,interval){return `pionex/cache/monitor_klines/${interval}/${encodeURIComponent(symbol)}.json`;}
+function normalizeMonitorKlines(rows){
+  return (Array.isArray(rows)?rows:[]).map(r=>({time:Number(r?.time),open:Number(r?.open),high:Number(r?.high),low:Number(r?.low),close:Number(r?.close),volume:Number(r?.volume||0)})).filter(r=>Number.isFinite(r.time)&&[r.open,r.high,r.low,r.close].every(Number.isFinite)).sort((a,b)=>a.time-b.time);
+}
+async function fetchMonitorKlines(symbol,interval,limit){
+  const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
+  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3"}});
+  if(!r.ok) throw httpError(r.status===429?429:502,`Pionex klines failed: ${r.status}`);
+  const p=await r.json(); const rows=p?.data?.klines ?? p?.data; const klines=normalizeMonitorKlines(rows);
+  if(!klines.length) throw httpError(502,"Pionex klines returned no data");
+  return klines;
+}
+async function loadMonitorKlines(env,symbol,interval,limit,force=false){
+  const key=monitorKlineCacheKey(symbol,interval); let cached=null;
+  try{const obj=await env.JSON_BUCKET.get(key);if(obj)cached=JSON.parse(await obj.text());}catch(_){}
+  if(!force && cached?.fetched_at && Array.isArray(cached?.klines) && cached.klines.length>=Math.min(limit,30)){
+    const age=Date.now()-Date.parse(cached.fetched_at); if(Number.isFinite(age)&&age>=0&&age<MONITOR_KLINE_TTL_MS) return {...cached,klines:cached.klines.slice(-limit),source:"R2_FRESH"};
+  }
+  try{
+    const klines=await fetchMonitorKlines(symbol,interval,limit); const payload={symbol,interval,fetched_at:new Date().toISOString(),klines};
+    await env.JSON_BUCKET.put(key,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
+    return {...payload,source:"PIONEX_LIVE"};
+  }catch(e){
+    if(cached?.klines?.length) return {...cached,klines:cached.klines.slice(-limit),source:"R2_STALE",refresh_error:e?.message||String(e)};
+    throw e;
+  }
+}
+
 async function readMemoPayload(env){
   const obj = await env.JSON_BUCKET.get(MEMO_KEY);
   if (!obj) return { schema_version:"1.0", updated_at:null, entries:[] };

@@ -1,15 +1,13 @@
 {
-  "app_version": "v0.3.02",
-  "stage": "LIVE-MONITOR-KLINE-CACHE",
+  "app_version": "v0.3.03",
+  "stage": "LIVE-MONITOR-KLINE-RESUME",
   "features": [
-    "Dynamic Pionex SPOT/PERP monitor with R2-synced watchlist, sortable columns and editable notes.",
-    "Live prices from Pionex public WebSocket; 10-second cell-only UI patching without page reload flicker.",
-    "GitHub Actions syncs the full current Pionex USDT universe every 6 hours.",
-    "GitHub Actions prewarms 180 daily klines for every current Pionex USDT SPOT/PERP symbol into R2.",
-    "Monitor warm-up reads R2 kline cache first and no longer forces Cloudflare Worker to hit Pionex per added symbol.",
-    "R2 monitor kline freshness increased to 12 hours to prevent repeated Cloudflare egress 429.",
-    "New authenticated Worker batch endpoint for kline cache ingestion.",
-    "S-State, midline regime, Heikin-Ashi average-K color and CCI-SMA are recalculated from cached daily history plus live prices."
+    "Fix GitHub Actions 35-minute cancellation by raising the sync job timeout to 90 minutes.",
+    "Resume-aware R2 kline sync skips symbols already cached within 10 hours instead of restarting the full universe.",
+    "Current monitor watchlist symbols are always prioritized first, so actively watched symbols become usable before the full universe completes.",
+    "New listings with fewer than 30 daily bars are skipped immediately instead of wasting repeated retries.",
+    "Pionex request pacing increased to 0.85 seconds with shorter adaptive 429 cooldowns.",
+    "Dynamic Pionex SPOT/PERP monitor, R2-synced watchlist, sortable columns, live WebSocket prices and 10-second cell-only updates remain unchanged."
   ],
-  "version": "0.3.02"
+  "version": "0.3.03"
 }

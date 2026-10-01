@@ -15,14 +15,15 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 90
     env:
       WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
       WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
       MONITOR_KLINE_LIMIT: "180"
-      PIONEX_REQUEST_INTERVAL: "0.55"
-      PIONEX_429_COOLDOWN: "70"
+      PIONEX_REQUEST_INTERVAL: "0.85"
+      PIONEX_429_COOLDOWN: "45"
       MONITOR_KLINE_BATCH: "20"
+      MONITOR_CACHE_FRESH_HOURS: "10"
     steps:
       - name: Checkout
         uses: actions/checkout@v6

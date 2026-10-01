@@ -1,3 +1,15 @@
+# v0.3.00｜LIVE-MONITOR
+
+- 主頁新增「📡 即時監控」並以新分頁開啟 `monitor.html`；原「📊 近期戰績」移入「更多 ⋯」。
+- 新監控頁欄位：項次｜備註｜幣種｜現價 + 對比當日開盤漲跌%｜S狀態｜中軌斜率｜平均K｜CCI-SMA。
+- 可從 Pionex 最新 SPOT / PERP 清單動態加入標的；不受 TradingView 40 個 `request.security` 限制。
+- Watchlist、備註與排序設定以 Worker 寫入 R2，自動同步兩台電腦；修改後 3 秒 debounce 自動儲存，30 秒檢查遠端版本。
+- 歷史日 K 由 Worker 暖機並做 R2 快取；盤中價格使用 Pionex Public WebSocket。前端每 10 秒只 patch 有變化的儲存格，不 reload 整頁。
+- `monitor-engine.js` 由既有 SStateMarketTerminal 邏輯移植，盤中更新尚未收線的 UTC 日 K（台灣 08:00 換日）後重新計算 S-State / 中軌 / Heikin-Ashi 平均K / CCI-SMA。
+- **部署時必須同步更新 `cloudflare/worker.js`**，否則 R2 watchlist / Pionex universe / kline warm-up 路由不會存在。
+
+---
+
 # SStateMarketTerminal v0.1.91 — STICKY READABILITY BOOST
 
 ## v0.1.91｜漂浮操作列 + 卡片摘要文字放大

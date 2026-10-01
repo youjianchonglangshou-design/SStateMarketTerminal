@@ -1,11 +1,13 @@
 {
-  "app_version": "v0.2.07",
-  "stage": "SIGNAL-MATRIX-RETURN",
+  "app_version": "v0.3.00",
+  "stage": "LIVE-MONITOR",
   "features": [
-    "Add a floating return button directly above the existing MEMO tab after a SIGNAL MATRIX symbol is used to jump to a chart.",
-    "The return button restores the expanded SIGNAL MATRIX and returns to the same page/table scroll position that was active before the chart jump.",
-    "The previous search text and S-state filter context are restored when returning to the table.",
-    "No matrix calculations, sorting, chart data, memo/R2 behavior, Worker, engine, research, filters, or sector-flow calculations are changed."
+    "Add a dedicated Pionex Live Monitor page opened from the main navigation in a new tab.",
+    "Move the existing Champion performance page into the More menu without changing its calculations.",
+    "Support dynamic SPOT/PERP watchlist additions, sortable columns, editable notes and R2 cross-device autosave.",
+    "Use Pionex public WebSocket trades for live prices and patch only changed table cells every 10 seconds without page reload flicker.",
+    "Warm each newly added symbol from Pionex daily klines through the Worker/R2 cache and recalculate live S-State, midline regime, Heikin-Ashi average-K color and CCI-SMA color.",
+    "Add Worker routes for monitor watchlist, current Pionex tradable universe and cached kline warm-up."
   ],
-  "version": "0.2.07"
+  "version": "0.3.00"
 }

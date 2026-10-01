@@ -268,9 +268,9 @@
     const item = record.item;
     const tr = ensureRow(item);
     tr.querySelector('[data-field="note"]').textContent = item.note || '';
-    if (record.status === 'error') {
-      tr.querySelector('[data-field="price"]').className = 'price-cell error';
-      tr.querySelector('[data-field="price"]').textContent = '資料讀取失敗';
+    if (record.status === 'error' || record.status === 'waiting') {
+      tr.querySelector('[data-field="price"]').className = `price-cell ${record.status === 'error' ? 'error' : 'waiting'}`;
+      tr.querySelector('[data-field="price"]').textContent = record.status === 'error' ? '資料讀取失敗' : '等待 K 線快取';
       return;
     }
     if (!record.analysis) return;
@@ -363,14 +363,15 @@
     if (!force && r.daily.length >= 40) return;
     state.warming.add(item.symbol); r.status = 'loading'; patchRow(r, true);
     try {
-      const p = await api(`/api/monitor/klines?symbol=${encodeURIComponent(item.symbol)}&interval=1D&limit=180${force?'&refresh=1':''}`);
+      const p = await api(`/api/monitor/klines?symbol=${encodeURIComponent(item.symbol)}&interval=1D&limit=180`);
       r.daily = Engine.normalizeKlines(p.klines || p.data || []);
       if (r.daily.length < 30) throw new Error(`歷史日K不足：${r.daily.length}`);
       r.analysis = Engine.analyze(r.daily);
       r.lastPrice = r.analysis.price; r.previousPrice = r.analysis.price; r.status = 'ok'; r.source = p.source || '';
       patchRow(r, true);
     } catch (err) {
-      r.status = 'error'; r.error = err.message; patchRow(r, true);
+      r.status = /rate-limit|429|temporarily/i.test(String(err?.message||'')) ? 'waiting' : 'error';
+      r.error = err.message; patchRow(r, true);
     } finally { state.warming.delete(item.symbol); }
   }
 
@@ -530,7 +531,7 @@
     if(state.items.some(x=>x.symbol===symbol)) return;
     const item=cleanItem({symbol, type:meta.type, note:'', order:Math.max(0,...state.items.map(x=>Number(x.order)||0))+1});
     state.items.push(item); recordFor(item); scheduleSave(); closeModal(); renderAll(); rebuildSockets();
-    await warmSymbol(item,true); applyOrderAndFilter();
+    await warmSymbol(item,false); applyOrderAndFilter();
     const rec=recordFor(item);
     if(rec.status==='error') toast(`${displaySymbol(item)} 暖機失敗：${rec.error || '無法取得 Pionex K 線'}`,true);
   }

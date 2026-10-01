@@ -1,16 +1,15 @@
 {
-  "app_version": "v0.3.01",
-  "stage": "LIVE-MONITOR",
+  "app_version": "v0.3.02",
+  "stage": "LIVE-MONITOR-KLINE-CACHE",
   "features": [
-    "Add a dedicated Pionex Live Monitor page opened from the main navigation in a new tab.",
-    "Move the existing Champion performance page into the More menu without changing its calculations.",
-    "Support dynamic SPOT/PERP watchlist additions, sortable columns, editable notes and R2 cross-device autosave.",
-    "Use Pionex public WebSocket trades for live prices and patch only changed table cells every 10 seconds without page reload flicker.",
-    "Warm each newly added symbol from Pionex daily klines through the Worker/R2 cache and recalculate live S-State, midline regime, Heikin-Ashi average-K color and CCI-SMA color.",
-    "Add Worker routes for monitor watchlist, current Pionex tradable universe and cached kline warm-up.",
-    "Fix Pionex monitor symbol-list 403/429 by removing live full-universe fetches from the Cloudflare user request path.",
-    "Sync the complete current Pionex SPOT/PERP universe into R2 from a dedicated GitHub Actions job every 6 hours and on demand.",
-    "Keep the add-symbol dialog usable with a fallback list and direct typed symbol candidates even before the first R2 universe sync."
+    "Dynamic Pionex SPOT/PERP monitor with R2-synced watchlist, sortable columns and editable notes.",
+    "Live prices from Pionex public WebSocket; 10-second cell-only UI patching without page reload flicker.",
+    "GitHub Actions syncs the full current Pionex USDT universe every 6 hours.",
+    "GitHub Actions prewarms 180 daily klines for every current Pionex USDT SPOT/PERP symbol into R2.",
+    "Monitor warm-up reads R2 kline cache first and no longer forces Cloudflare Worker to hit Pionex per added symbol.",
+    "R2 monitor kline freshness increased to 12 hours to prevent repeated Cloudflare egress 429.",
+    "New authenticated Worker batch endpoint for kline cache ingestion.",
+    "S-State, midline regime, Heikin-Ashi average-K color and CCI-SMA are recalculated from cached daily history plus live prices."
   ],
-  "version": "0.3.01"
+  "version": "0.3.02"
 }

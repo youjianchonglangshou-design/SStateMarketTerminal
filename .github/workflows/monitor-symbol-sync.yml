@@ -1,9 +1,9 @@
-name: Pionex Monitor Symbol Sync
+name: Pionex Monitor Universe + Kline Sync
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "7 */6 * * *"
 
 permissions:
   contents: read
@@ -15,10 +15,14 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
       WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
+      MONITOR_KLINE_LIMIT: "180"
+      PIONEX_REQUEST_INTERVAL: "0.55"
+      PIONEX_429_COOLDOWN: "70"
+      MONITOR_KLINE_BATCH: "20"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -28,13 +32,15 @@ jobs:
           python-version: "3.12"
       - name: Install requests
         run: pip install requests
-      - name: Sync current Pionex SPOT/PERP universe to R2
+      - name: Sync Pionex universe and prewarm 1D Klines into R2
         run: python engine/pionex_monitor_symbols_sync.py
-      - name: Upload sync artifact
+      - name: Upload sync artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pionex-monitor-universe-${{ github.run_id }}
-          path: output/pionex_monitor_universe.json
+          name: pionex-monitor-sync-${{ github.run_id }}
+          path: |
+            output/pionex_monitor_universe.json
+            output/pionex_monitor_kline_sync_report.json
           if-no-files-found: warn
           retention-days: 7

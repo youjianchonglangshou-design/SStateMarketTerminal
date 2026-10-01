@@ -7,9 +7,15 @@ const MEMO_KEY = "terminal/memos.json";
 const MEMO_MAX_ENTRIES = 500;
 const MONITOR_WATCHLIST_KEY = "terminal/monitor_watchlist.json";
 const MONITOR_UNIVERSE_KEY = "pionex/cache/monitor_universe.json";
-const MONITOR_UNIVERSE_TTL_MS = 5 * 60 * 1000;
+const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MONITOR_KLINE_TTL_MS = 30 * 1000;
 const MONITOR_MAX_ITEMS = 500;
+const MONITOR_FALLBACK_CRYPTO = [
+  "BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","LINK","SUI","TRX","TON","DOT","LTC","BCH","ETC","ATOM","NEAR","ICP","HBAR",
+  "AAVE","UNI","INJ","FET","RENDER","TIA","EIGEN","JTO","PYTH","ONDO","WLD","FIL","ARB","OP","STRK","LDO","MKR","ENA","PENDLE","RUNE",
+  "KAS","TAO","SEI","APT","IMX","GRT","SAND","MANA","STX","SHIB","PEPE","FLOKI","BONK","WIF","JUP","RAY","MANTA","DYDX","SAGA","REZ",
+  "ETHFI","BLUR","TRB","SYRUP","MORPHO","BERA","GRASS","ZRO","IOTA","ALGO","VET","XLM","XMR","ZEC","YFI","SUSHI","YGG","CHZ"
+];
 
 // Pionex web endpoints discovered from the live RWA page.
 // Device/fingerprint identifiers are intentionally NOT stored in this public Worker.
@@ -121,8 +127,9 @@ export default {
         return json({ ok: true, ...payload }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/monitor/symbols") {
-        const force = url.searchParams.get("refresh") === "1";
-        const payload = await loadMonitorUniverse(env, force);
+        // IMPORTANT: UI requests never call Pionex common/symbols directly.
+        // The full universe is synced to R2 by GitHub Actions; this avoids Cloudflare egress 403/429.
+        const payload = await loadMonitorUniverse(env);
         return json({ ok: true, ...payload }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/monitor/klines") {
@@ -311,6 +318,30 @@ export default {
           kline_gate: klineGate,
           generated_at: parsed?.generated_at || null,
         }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/monitor/symbols") {
+        requireInternal(request, env);
+        const body = await request.json().catch(() => ({}));
+        const rows = Array.isArray(body?.symbols) ? body.symbols : [];
+        const map = new Map();
+        for (const row of rows) {
+          const type = String(row?.type || "").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
+          const clean = monitorUniverseRow(row, type);
+          if (!clean) continue;
+          map.set(`${clean.type}:${clean.symbol}`, clean);
+        }
+        const symbols = [...map.values()].sort((a,b)=>a.base.localeCompare(b.base)||a.type.localeCompare(b.type));
+        if (!symbols.length) throw httpError(400, "monitor symbols missing");
+        const payload = {
+          schema_version: "pionex-monitor-universe-v2",
+          fetched_at: body?.fetched_at || new Date().toISOString(),
+          stored_at: new Date().toISOString(),
+          source: safeMemoText(body?.source || "GitHub Actions → Pionex public API", 120),
+          symbols,
+          errors: Array.isArray(body?.errors) ? body.errors.slice(0,20) : []
+        };
+        await env.JSON_BUCKET.put(MONITOR_UNIVERSE_KEY, JSON.stringify(payload), {httpMetadata:{contentType:"application/json; charset=utf-8"}});
+        return json({ok:true,key:MONITOR_UNIVERSE_KEY,symbols:symbols.length,fetched_at:payload.fetched_at},200,origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/sector-flow") {
         requireInternal(request, env);
@@ -3630,33 +3661,47 @@ async function fetchMonitorPublicSymbols(type){
   const p=await r.json(); const rows=Array.isArray(p?.data?.symbols)?p.data.symbols:[];
   return rows.map(row=>monitorUniverseRow(row,type)).filter(Boolean);
 }
-async function refreshMonitorUniverse(env){
-  const all=[]; const errors=[];
-  try{ all.push(...parseMonitorInternal(await fetchPionexWebJson(PIONEX_FUTURE_MARKETS_URL),"PERP")); }catch(e){ errors.push(`future_web:${e?.message||e}`); try{all.push(...await fetchMonitorPublicSymbols("PERP"));}catch(e2){errors.push(`future_public:${e2?.message||e2}`);} }
-  try{ all.push(...parseMonitorInternal(await fetchPionexWebJson(PIONEX_SPOT_MARKETS_URL),"SPOT")); }catch(e){ errors.push(`spot_web:${e?.message||e}`); try{all.push(...await fetchMonitorPublicSymbols("SPOT"));}catch(e2){errors.push(`spot_public:${e2?.message||e2}`);} }
-  const map=new Map(); for(const row of all) if(row?.symbol) map.set(`${row.type}:${row.symbol}`,row);
-  const symbols=[...map.values()].sort((a,b)=>a.base.localeCompare(b.base)||a.type.localeCompare(b.type));
-  if(!symbols.length) throw httpError(502,`Pionex monitor universe unavailable: ${errors.join(" | ")}`);
-  const payload={fetched_at:new Date().toISOString(),source:"Pionex live market list",symbols,errors};
-  await env.JSON_BUCKET.put(MONITOR_UNIVERSE_KEY,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
-  return {...payload,cache_state:"REFRESHED"};
+function monitorFallbackUniverse(){
+  const map=new Map();
+  const add=(symbol,type)=>{
+    const clean=monitorUniverseRow({symbol,quoteCurrency:"USDT",status:"TRADING",enable:true},type);
+    if(clean) map.set(`${clean.type}:${clean.symbol}`,clean);
+  };
+  for(const base of MONITOR_FALLBACK_CRYPTO){ add(`${base}_USDT_PERP`,"PERP"); add(`${base}_USDT`,"SPOT"); }
+  for(const symbol of Object.keys(PIONEX_RWA_SEED_SYMBOLS||{})) add(symbol,"PERP");
+  return [...map.values()].sort((a,b)=>a.base.localeCompare(b.base)||a.type.localeCompare(b.type));
 }
-async function loadMonitorUniverse(env,force=false){
+async function loadMonitorUniverse(env){
   let cached=null;
   try{const obj=await env.JSON_BUCKET.get(MONITOR_UNIVERSE_KEY);if(obj)cached=JSON.parse(await obj.text());}catch(_){}
-  if(!force && cached?.fetched_at && Array.isArray(cached?.symbols)){
-    const age=Date.now()-Date.parse(cached.fetched_at); if(Number.isFinite(age)&&age>=0&&age<MONITOR_UNIVERSE_TTL_MS) return {...cached,cache_state:"R2_FRESH"};
+  if(cached?.symbols?.length){
+    return {...cached,cache_state:"R2",partial:false};
   }
-  try{return await refreshMonitorUniverse(env);}catch(e){if(cached?.symbols?.length)return {...cached,cache_state:"R2_STALE",refresh_error:e?.message||String(e)};throw e;}
+  // Never fail the add-symbol dialog. The fallback is intentionally partial;
+  // the scheduled GitHub sync will replace it with the complete current Pionex list in R2.
+  return {
+    schema_version:"pionex-monitor-universe-fallback-v1",
+    fetched_at:null,
+    source:"embedded fallback (waiting for R2 full-universe sync)",
+    symbols:monitorFallbackUniverse(),
+    errors:["R2 full Pionex universe not seeded yet"],
+    cache_state:"FALLBACK",
+    partial:true
+  };
 }
+const MONITOR_RATE_LIMIT_KEY = "pionex/cache/monitor_rate_limit.json";
 function monitorKlineCacheKey(symbol,interval){return `pionex/cache/monitor_klines/${interval}/${encodeURIComponent(symbol)}.json`;}
 function normalizeMonitorKlines(rows){
   return (Array.isArray(rows)?rows:[]).map(r=>({time:Number(r?.time),open:Number(r?.open),high:Number(r?.high),low:Number(r?.low),close:Number(r?.close),volume:Number(r?.volume||0)})).filter(r=>Number.isFinite(r.time)&&[r.open,r.high,r.low,r.close].every(Number.isFinite)).sort((a,b)=>a.time-b.time);
 }
 async function fetchMonitorKlines(symbol,interval,limit){
   const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
-  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3"}});
-  if(!r.ok) throw httpError(r.status===429?429:502,`Pionex klines failed: ${r.status}`);
+  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.01"}});
+  if(r.status===429){
+    const e=httpError(429,"Pionex klines temporarily rate-limited; retry later");
+    const retry=Number(r.headers.get("Retry-After")||65); e.retryAfter=Number.isFinite(retry)?Math.max(65,retry):65; throw e;
+  }
+  if(!r.ok) throw httpError(502,`Pionex klines failed: ${r.status}`);
   const p=await r.json(); const rows=p?.data?.klines ?? p?.data; const klines=normalizeMonitorKlines(rows);
   if(!klines.length) throw httpError(502,"Pionex klines returned no data");
   return klines;
@@ -3672,6 +3717,10 @@ async function loadMonitorKlines(env,symbol,interval,limit,force=false){
     await env.JSON_BUCKET.put(key,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
     return {...payload,source:"PIONEX_LIVE"};
   }catch(e){
+    if(e?.status===429){
+      const retryAfter=Number(e?.retryAfter||65);
+      try{await env.JSON_BUCKET.put(MONITOR_RATE_LIMIT_KEY,JSON.stringify({until:Date.now()+retryAfter*1000,updated_at:new Date().toISOString()}),{httpMetadata:{contentType:"application/json; charset=utf-8"}});}catch(_){}
+    }
     if(cached?.klines?.length) return {...cached,klines:cached.klines.slice(-limit),source:"R2_STALE",refresh_error:e?.message||String(e)};
     throw e;
   }

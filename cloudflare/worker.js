@@ -319,6 +319,36 @@ export default {
           generated_at: parsed?.generated_at || null,
         }, 200, origin);
       }
+      if (request.method === "POST" && url.pathname === "/api/internal/monitor/klines/status") {
+        requireInternal(request, env);
+        const body = await request.json().catch(() => ({}));
+        const rows = Array.isArray(body?.rows) ? body.rows : [];
+        if (!rows.length || rows.length > 100) throw httpError(400, "monitor kline status requires 1-100 rows");
+        const maxAgeMsRaw = Number(body?.max_age_ms);
+        const maxAgeMs = Number.isFinite(maxAgeMsRaw) && maxAgeMsRaw > 0 ? Math.min(maxAgeMsRaw, 7 * 24 * 60 * 60 * 1000) : MONITOR_KLINE_TTL_MS;
+        const now = Date.now();
+        const fresh = [];
+        const stale = [];
+        const missing = [];
+        for (const row of rows) {
+          try {
+            const symbol = safeMonitorSymbol(row?.symbol);
+            const interval = safeMonitorInterval(row?.interval || "1D");
+            const key = monitorKlineCacheKey(symbol, interval);
+            const obj = await env.JSON_BUCKET.get(key);
+            if (!obj) { missing.push(symbol); continue; }
+            const cached = JSON.parse(await obj.text());
+            const count = Array.isArray(cached?.klines) ? cached.klines.length : 0;
+            const t = Date.parse(cached?.fetched_at || cached?.stored_at || "");
+            const age = Number.isFinite(t) ? now - t : Infinity;
+            if (count >= 30 && age >= 0 && age < maxAgeMs) fresh.push(symbol);
+            else stale.push(symbol);
+          } catch (_) {
+            missing.push(String(row?.symbol || ""));
+          }
+        }
+        return json({ok:true,fresh,stale,missing,max_age_ms:maxAgeMs},200,origin);
+      }
       if (request.method === "PUT" && url.pathname === "/api/internal/monitor/klines/batch") {
         requireInternal(request, env);
         const body = await request.json().catch(() => ({}));
@@ -3725,7 +3755,7 @@ function normalizeMonitorKlines(rows){
 }
 async function fetchMonitorKlines(symbol,interval,limit){
   const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
-  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.02"}});
+  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.03"}});
   if(r.status===429){
     const e=httpError(429,"Pionex klines temporarily rate-limited; retry later");
     const retry=Number(r.headers.get("Retry-After")||65); e.retryAfter=Number.isFinite(retry)?Math.max(65,retry):65; throw e;

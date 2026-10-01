@@ -8,7 +8,7 @@ const MEMO_MAX_ENTRIES = 500;
 const MONITOR_WATCHLIST_KEY = "terminal/monitor_watchlist.json";
 const MONITOR_UNIVERSE_KEY = "pionex/cache/monitor_universe.json";
 const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
-const MONITOR_KLINE_TTL_MS = 30 * 1000;
+const MONITOR_KLINE_TTL_MS = 12 * 60 * 60 * 1000;
 const MONITOR_MAX_ITEMS = 500;
 const MONITOR_FALLBACK_CRYPTO = [
   "BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","LINK","SUI","TRX","TON","DOT","LTC","BCH","ETC","ATOM","NEAR","ICP","HBAR",
@@ -318,6 +318,35 @@ export default {
           kline_gate: klineGate,
           generated_at: parsed?.generated_at || null,
         }, 200, origin);
+      }
+      if (request.method === "PUT" && url.pathname === "/api/internal/monitor/klines/batch") {
+        requireInternal(request, env);
+        const body = await request.json().catch(() => ({}));
+        const rows = Array.isArray(body?.rows) ? body.rows : [];
+        if (!rows.length || rows.length > 50) throw httpError(400, "monitor kline batch must contain 1-50 rows");
+        let stored = 0;
+        const errors = [];
+        for (const row of rows) {
+          try {
+            const symbol = safeMonitorSymbol(row?.symbol);
+            const interval = safeMonitorInterval(row?.interval || "1D");
+            const klines = normalizeMonitorKlines(row?.klines);
+            if (klines.length < 30) throw new Error(`not enough klines: ${klines.length}`);
+            const payload = {
+              symbol,
+              interval,
+              fetched_at: row?.fetched_at || body?.fetched_at || new Date().toISOString(),
+              stored_at: new Date().toISOString(),
+              source: safeMemoText(row?.source || body?.source || "GitHub Actions → Pionex kline prewarm", 120),
+              klines
+            };
+            await env.JSON_BUCKET.put(monitorKlineCacheKey(symbol, interval), JSON.stringify(payload), {httpMetadata:{contentType:"application/json; charset=utf-8"}});
+            stored++;
+          } catch (e) {
+            errors.push(String(e?.message || e));
+          }
+        }
+        return json({ok:true,stored,failed:errors.length,errors:errors.slice(0,10)},200,origin);
       }
       if (request.method === "PUT" && url.pathname === "/api/internal/monitor/symbols") {
         requireInternal(request, env);
@@ -3696,7 +3725,7 @@ function normalizeMonitorKlines(rows){
 }
 async function fetchMonitorKlines(symbol,interval,limit){
   const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
-  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.01"}});
+  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.02"}});
   if(r.status===429){
     const e=httpError(429,"Pionex klines temporarily rate-limited; retry later");
     const retry=Number(r.headers.get("Retry-After")||65); e.retryAfter=Number.isFinite(retry)?Math.max(65,retry):65; throw e;

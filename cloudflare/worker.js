@@ -132,6 +132,12 @@ export default {
         const payload = await loadMonitorUniverse(env);
         return json({ ok: true, ...payload }, 200, origin);
       }
+      if (request.method === "GET" && url.pathname === "/api/monitor/tickers") {
+        const type = String(url.searchParams.get("type") || "PERP").toUpperCase();
+        if (!['PERP','SPOT'].includes(type)) throw httpError(400,"monitor ticker type must be PERP or SPOT");
+        const payload = await loadMonitorTickers(type);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
       if (request.method === "GET" && url.pathname === "/api/monitor/ws") {
         return await proxyPionexPublicWebSocket(request);
       }
@@ -3788,6 +3794,42 @@ async function loadMonitorKlines(env,symbol,interval,limit,force=false){
   }
 }
 
+async function loadMonitorTickers(type){
+  const market=String(type||"PERP").toUpperCase()==="SPOT"?"SPOT":"PERP";
+  const cache=typeof caches!=="undefined"?caches.default:null;
+  const cacheKey=new Request(`https://sstate-monitor-cache.local/tickers?type=${market}`,{method:"GET"});
+  if(cache){
+    try{
+      const hit=await cache.match(cacheKey);
+      if(hit){
+        const p=await hit.json();
+        if(Array.isArray(p?.tickers)&&p.tickers.length) return {...p,source:"WORKER_CACHE"};
+      }
+    }catch(_){}
+  }
+  const u=new URL("https://api.pionex.com/api/v1/market/tickers");
+  u.searchParams.set("type",market);
+  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.05"}});
+  if(r.status===429) throw httpError(429,"Pionex tickers temporarily rate-limited; retry later");
+  if(!r.ok) throw httpError(502,`Pionex tickers failed: ${r.status}`);
+  const p=await r.json();
+  const rows=Array.isArray(p?.data?.tickers)?p.data.tickers:[];
+  const tickers=rows.map(x=>({
+    symbol:String(x?.symbol||"").toUpperCase(),
+    time:Number(x?.time||Date.now()),
+    price:Number(x?.close)
+  })).filter(x=>x.symbol.includes("_USDT")&&Number.isFinite(x.price)&&x.price>0);
+  if(!tickers.length) throw httpError(502,"Pionex tickers returned no usable USDT prices");
+  const payload={type:market,fetched_at:new Date().toISOString(),source:"PIONEX_TICKERS",tickers};
+  if(cache){
+    try{
+      const resp=new Response(JSON.stringify(payload),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"public, max-age=8"}});
+      await cache.put(cacheKey,resp);
+    }catch(_){}
+  }
+  return payload;
+}
+
 async function proxyPionexPublicWebSocket(request){
   const upgrade=String(request.headers.get("Upgrade")||"").toLowerCase();
   if(upgrade!=="websocket") throw httpError(426,"WebSocket upgrade required");
@@ -3826,19 +3868,28 @@ async function proxyPionexPublicWebSocket(request){
   browser.addEventListener("error",()=>closeBoth(1011,"browser socket error"));
 
   upstream.addEventListener("message",event=>{
-    try{
-      if(typeof event.data==="string"){
-        try{
-          const m=JSON.parse(event.data);
-          if(String(m?.op||"").toUpperCase()==="PING"){
-            const pong={op:"PONG"};
-            if(Number.isFinite(Number(m?.timestamp)))pong.timestamp=Number(m.timestamp);
-            upstream.send(JSON.stringify(pong));
-          }
-        }catch(_){}
-      }
-      browser.send(event.data);
-    }catch(_){closeBoth(1011,"browser send failed");}
+    (async()=>{
+      try{
+        let data=event.data;
+        let text=null;
+        if(typeof data==="string") text=data;
+        else if(data instanceof ArrayBuffer) text=new TextDecoder().decode(data);
+        else if(typeof Blob!=="undefined" && data instanceof Blob) text=await data.text();
+        if(text!==null){
+          try{
+            const m=JSON.parse(text);
+            if(String(m?.op||"").toUpperCase()==="PING"){
+              const pong={op:"PONG"};
+              if(Number.isFinite(Number(m?.timestamp)))pong.timestamp=Number(m.timestamp);
+              upstream.send(JSON.stringify(pong));
+            }
+          }catch(_){}
+          browser.send(text);
+        }else{
+          browser.send(data);
+        }
+      }catch(_){closeBoth(1011,"browser send failed");}
+    })();
   });
   upstream.addEventListener("close",()=>closeBoth(1012,"Pionex upstream closed"));
   upstream.addEventListener("error",()=>closeBoth(1011,"Pionex upstream error"));

@@ -132,6 +132,9 @@ export default {
         const payload = await loadMonitorUniverse(env);
         return json({ ok: true, ...payload }, 200, origin);
       }
+      if (request.method === "GET" && url.pathname === "/api/monitor/ws") {
+        return await proxyPionexPublicWebSocket(request);
+      }
       if (request.method === "GET" && url.pathname === "/api/monitor/klines") {
         const symbol = safeMonitorSymbol(url.searchParams.get("symbol"));
         const interval = safeMonitorInterval(url.searchParams.get("interval") || "1D");
@@ -3755,7 +3758,7 @@ function normalizeMonitorKlines(rows){
 }
 async function fetchMonitorKlines(symbol,interval,limit){
   const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
-  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.03"}});
+  const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.04"}});
   if(r.status===429){
     const e=httpError(429,"Pionex klines temporarily rate-limited; retry later");
     const retry=Number(r.headers.get("Retry-After")||65); e.retryAfter=Number.isFinite(retry)?Math.max(65,retry):65; throw e;
@@ -3783,6 +3786,64 @@ async function loadMonitorKlines(env,symbol,interval,limit,force=false){
     if(cached?.klines?.length) return {...cached,klines:cached.klines.slice(-limit),source:"R2_STALE",refresh_error:e?.message||String(e)};
     throw e;
   }
+}
+
+async function proxyPionexPublicWebSocket(request){
+  const upgrade=String(request.headers.get("Upgrade")||"").toLowerCase();
+  if(upgrade!=="websocket") throw httpError(426,"WebSocket upgrade required");
+
+  // A normal browser connection to wss://ws.pionex.com/wsPub carries an Origin header and
+  // Pionex currently rejects that handshake with HTTP 403. An outbound Worker WebSocket
+  // upgrade does not inherit the browser Origin, so it can act as a transparent relay.
+  const upstreamResponse=await fetch("https://ws.pionex.com/wsPub",{headers:{Upgrade:"websocket"}});
+  const upstream=upstreamResponse.webSocket;
+  if(upstreamResponse.status!==101||!upstream){
+    throw httpError(502,`Pionex WebSocket upstream failed: ${upstreamResponse.status}`);
+  }
+  upstream.accept();
+
+  const pair=new WebSocketPair();
+  const client=pair[0], browser=pair[1];
+  browser.accept();
+  let closed=false;
+  const closeBoth=(code=1000,reason="closed")=>{
+    if(closed)return; closed=true;
+    try{browser.close(code,reason);}catch(_){}
+    try{upstream.close(code,reason);}catch(_){}
+  };
+
+  browser.addEventListener("message",event=>{
+    try{
+      // Heartbeat is handled inside the relay; swallowing browser PONG avoids double replies
+      // counting against Pionex's 5 client-messages/sec connection limit.
+      if(typeof event.data==="string"){
+        try{const m=JSON.parse(event.data);if(String(m?.op||"").toUpperCase()==="PONG")return;}catch(_){}
+      }
+      upstream.send(event.data);
+    }catch(_){closeBoth(1011,"upstream send failed");}
+  });
+  browser.addEventListener("close",()=>closeBoth(1000,"browser closed"));
+  browser.addEventListener("error",()=>closeBoth(1011,"browser socket error"));
+
+  upstream.addEventListener("message",event=>{
+    try{
+      if(typeof event.data==="string"){
+        try{
+          const m=JSON.parse(event.data);
+          if(String(m?.op||"").toUpperCase()==="PING"){
+            const pong={op:"PONG"};
+            if(Number.isFinite(Number(m?.timestamp)))pong.timestamp=Number(m.timestamp);
+            upstream.send(JSON.stringify(pong));
+          }
+        }catch(_){}
+      }
+      browser.send(event.data);
+    }catch(_){closeBoth(1011,"browser send failed");}
+  });
+  upstream.addEventListener("close",()=>closeBoth(1012,"Pionex upstream closed"));
+  upstream.addEventListener("error",()=>closeBoth(1011,"Pionex upstream error"));
+
+  return new Response(null,{status:101,webSocket:client});
 }
 
 async function readMemoPayload(env){

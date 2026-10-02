@@ -1,14 +1,14 @@
 {
-  "app_version": "v0.3.04",
-  "stage": "LIVE-MONITOR-WS-PROXY",
+  "app_version": "v0.3.05",
+  "stage": "LIVE-MONITOR-10S-TICKER-POLL",
   "features": [
-    "Fix stale live prices: browser-to-Pionex WebSocket handshakes were rejected with HTTP 403 because browsers send Origin.",
-    "Cloudflare Worker now provides /api/monitor/ws and transparently relays the Pionex public trade WebSocket without propagating the browser Origin.",
-    "Pionex heartbeat PING/PONG is handled inside the Worker proxy, including timestamp echo.",
-    "Subscription pacing is reduced to 4 messages/sec and 100 symbols per connection to remain within Pionex public WebSocket limits.",
-    "Every 10 seconds only changed table cells are patched; the current 1D candle and S-State / midline / average-K / CCI-SMA are recalculated from live trades.",
-    "Includes v0.3.03 resume-aware R2 kline prewarm and 90-minute GitHub Actions timeout fix.",
-    "Adds an hourly GitHub Actions refresh for only the current R2 watchlist so opening the monitor later starts from a recent 1D OHLC baseline before live trades take over."
+    "Fix live prices that remained frozen because the WebSocket relay delivered upstream frames as Blob/binary data and the browser monitor could not parse them reliably.",
+    "Primary live feed is now Pionex market/tickers through the Cloudflare Worker every 10 seconds, exactly matching the requested monitor cadence.",
+    "Worker caches each PERP/SPOT ticker snapshot for 8 seconds, so multiple browsers share the same upstream snapshot instead of multiplying Pionex API traffic.",
+    "Only changed table cells are patched; there is still no page reload or table flash.",
+    "Every 10-second snapshot updates the current live daily candle and immediately recalculates S-State, midline slope, average-K and CCI-SMA.",
+    "The WebSocket relay is retained as a secondary/debug path and now converts Blob/ArrayBuffer frames to text before heartbeat parsing/forwarding.",
+    "Includes v0.3.04 R2 watchlist/kline cache and cross-device synchronization."
   ],
-  "version": "0.3.04"
+  "version": "0.3.05"
 }

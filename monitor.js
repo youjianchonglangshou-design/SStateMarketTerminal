@@ -37,7 +37,8 @@
   const state = {
     items: [], records: new Map(), universe: [], sort: { key: 'order', dir: 'asc' },
     version: 0, remoteUpdatedAt: null, localDirty: false, saveTimer: null, search: '', marketFilter: 'ALL',
-    sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, universePartial: false, universeSource: '', lastUiAt: 0
+    sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, universePartial: false, universeSource: '', lastUiAt: 0,
+    tickerPollInFlight: false, tickerPollOkAt: 0
   };
 
   const clientId = (() => {
@@ -408,11 +409,12 @@
   }
 
   function rebuildSockets() {
+    // v0.3.05 primary live feed: 10-second Pionex ticker polling through our Worker.
+    // This matches the monitor's required cadence and avoids browser WebSocket Origin/Blob instability.
     closeSockets();
-    if (!state.items.length) { setChip(els.ws,'Pionex WS · 無標的',''); return; }
-    if (!WS_URL) { setChip(els.ws,'Pionex WS · Worker 未設定','bad'); return; }
-    const chunks=[]; for(let i=0;i<state.items.length;i+=WS_CHUNK) chunks.push(state.items.slice(i,i+WS_CHUNK));
-    chunks.forEach((chunk,index) => connectSocket(chunk,index));
+    if (!state.items.length) { setChip(els.ws,'Pionex 行情 · 無標的',''); return; }
+    setChip(els.ws,'Pionex 行情連線中','waiting');
+    pollTickers();
   }
 
   function connectSocket(items, index) {
@@ -438,7 +440,48 @@
     connect();
   }
 
-  function handleWsMessage(raw) {
+  function applyLivePrice(symbol, price, ts = Date.now()) {
+    const r = state.records.get(String(symbol || '').toUpperCase());
+    if (!r || !r.daily.length || !Number.isFinite(Number(price)) || Number(price) <= 0) return false;
+    const stamp = Number.isFinite(Number(ts)) ? (Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts)) : Date.now();
+    if (stamp && stamp < r.lastTradeTs) return false;
+    r.lastTradeTs = stamp || Date.now();
+    r.previousPrice = r.lastPrice;
+    r.lastPrice = Number(price);
+    r.daily = Engine.updateLiveCandle(r.daily, Number(price), r.lastTradeTs, '1D');
+    state.dirtySymbols.add(r.item.symbol);
+    return true;
+  }
+
+  async function pollTickers() {
+    if (state.tickerPollInFlight || !state.items.length) return;
+    state.tickerPollInFlight = true;
+    try {
+      const types = [...new Set(state.items.map(x => x.type === 'SPOT' ? 'SPOT' : 'PERP'))];
+      const payloads = await Promise.all(types.map(type => api(`/api/monitor/tickers?type=${type}`)));
+      const map = new Map();
+      payloads.forEach(p => (p.tickers || []).forEach(t => map.set(String(t.symbol || '').toUpperCase(), t)));
+      let changed = 0;
+      for (const item of state.items) {
+        const t = map.get(item.symbol);
+        if (!t) continue;
+        if (applyLivePrice(item.symbol, Number(t.price), Number(t.time || Date.now()))) changed++;
+      }
+      state.tickerPollOkAt = Date.now();
+      setChip(els.ws, `Pionex 行情 · 10秒更新`, 'ok');
+      flushLive();
+    } catch (err) {
+      setChip(els.ws, `Pionex 行情重試中`, 'waiting');
+    } finally {
+      state.tickerPollInFlight = false;
+    }
+  }
+
+  async function handleWsMessage(raw) {
+    try {
+      if (typeof Blob !== 'undefined' && raw instanceof Blob) raw = await raw.text();
+      else if (raw instanceof ArrayBuffer) raw = new TextDecoder().decode(raw);
+    } catch (_) { return; }
     let m; try { m = JSON.parse(raw); } catch (_) { return; }
     if (String(m?.op || '').toUpperCase() === 'PING') {
       // The Worker proxy already answers the upstream heartbeat. Keep this as a harmless fallback
@@ -457,9 +500,7 @@
     const price = tradePrice(newest); if (!Number.isFinite(price) || price <= 0) return;
     const ts = tradeTs(newest,m);
     if (ts && ts < r.lastTradeTs) return;
-    r.lastTradeTs = ts || Date.now(); r.previousPrice = r.lastPrice; r.lastPrice = price;
-    r.daily = Engine.updateLiveCandle(r.daily, price, r.lastTradeTs, '1D');
-    state.dirtySymbols.add(symbol);
+    applyLivePrice(symbol, price, ts || Date.now());
   }
 
   function tradePrice(x) {
@@ -583,9 +624,9 @@
 
   async function init() {
     if (!Engine) { toast('monitor-engine.js 載入失敗',true); return; }
-    bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'Pionex WS 連線中','waiting');
+    bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'Pionex 行情連線中','waiting');
     await loadRemoteWatchlist(false); reconcileRecords(); renderAll(); rebuildSockets(); warmMissing(false);
-    setInterval(flushLive,UI_INTERVAL); setInterval(remoteVersionSync,REMOTE_SYNC_INTERVAL);
+    setInterval(pollTickers,UI_INTERVAL); setInterval(remoteVersionSync,REMOTE_SYNC_INTERVAL);
     setInterval(()=>{ if(!state.localDirty && state.items.length) warmMissing(false); }, 120000);
   }
 

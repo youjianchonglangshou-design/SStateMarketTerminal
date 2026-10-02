@@ -1,4 +1,4 @@
-# v0.3.04｜LIVE-MONITOR KLINE RESUME FIX
+# v0.3.05｜LIVE-MONITOR 10S TICKER POLL FIX
 
 本版修正 `Pionex Monitor Universe + Kline Sync` 在 35 分鐘被 GitHub Actions 取消的問題。
 
@@ -23,7 +23,16 @@
 部署順序：先更新 Cloudflare Worker，再更新 GitHub，最後手動執行 `Pionex Monitor Universe + Kline Sync`。
 
 
-## v0.3.04 WS PROXY FIX
+## v0.3.05 WS PROXY FIX
 瀏覽器直接連 Pionex wsPub 會因 Origin 被 403；即時監控改由 Cloudflare Worker `/api/monitor/ws` 代理。前端仍每 10 秒只更新變動 cell，並以即時成交價更新當前日 K 後重算 S-State／中軌／平均K／CCI-SMA。
 
 另新增每小時只刷新目前 R2 watchlist 的日 K 快取，避免重新開頁時從過舊的盤中 OHLC 開始。
+
+## v0.3.05 即時行情修正
+
+- 根因：v0.3.04 的 Worker WebSocket relay 可建立連線，但 Pionex 上游 frame 在 Worker 中可能以 Blob/binary 形式到達，舊 relay 直接轉送後瀏覽器端無法 JSON.parse；heartbeat 也可能因此失敗，畫面長期停在「重連中」。
+- 主即時行情改為 Worker 代理 Pionex `market/tickers`，每 10 秒取一次；完全符合 Monitor 的 10 秒更新需求。
+- Worker 對 PERP / SPOT ticker snapshot 做 8 秒 Cache API 快取，多台電腦共用同一批 upstream snapshot。
+- 前端只更新變動 cell，不 reload、不閃頁。
+- 每次 10 秒行情都會更新當前日K並重算 S-State / 中軌 / 平均K / CCI-SMA。
+- WebSocket relay 保留為次要/debug 路徑，並補上 Blob / ArrayBuffer 轉文字處理。

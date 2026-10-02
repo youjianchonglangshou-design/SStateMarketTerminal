@@ -1,4 +1,4 @@
-SStateMarketTerminal v0.3.04｜LIVE-MONITOR KLINE RESUME FIX 測試報告
+SStateMarketTerminal v0.3.05｜LIVE-MONITOR 10S TICKER POLL FIX 測試報告
 
 PASS  Python compile: engine/pionex_monitor_symbols_sync.py
 PASS  JavaScript syntax: cloudflare/worker.js
@@ -11,10 +11,20 @@ PASS  <30-bar new listings are permanent-skip in current run, no repeated retry 
 PASS  Existing R2 batches remain reusable after a cancelled workflow
 
 
-v0.3.04 LIVE WS PROXY
+v0.3.05 LIVE WS PROXY
 - Direct Pionex wsPub with browser Origin: reproduced HTTP 403.
 - Direct Pionex wsPub with Origin suppressed: SUBSCRIBED + live BTC_USDT_PERP trades received.
 - Worker /api/monitor/ws proxy route added.
 - PING/PONG timestamp handling added.
 - subscription pacing = 250 ms (4 msg/s) <= documented 5 msg/s limit.
 - monitor.js / worker.js syntax checks: see build validation.
+
+
+v0.3.05 REALTIME TESTS
+- monitor.js syntax: PASS
+- worker.js syntax: PASS
+- VERSION.json: PASS
+- Direct Pionex PERP market/tickers payload verified: PASS
+- Current monitor-engine + latest BTC 1D Kline: S3 / midline rising / average-K yellow verified
+- Worker WebSocket diagnosis: upstream data can arrive as Blob/binary; old relay was not safe
+- v0.3.05 primary feed no longer depends on WebSocket for 10-second UI updates

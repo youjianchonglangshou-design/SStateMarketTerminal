@@ -1,12 +1,11 @@
 {
-  "app_version": "v0.3.11",
-  "stage": "LIVE-MONITOR-ALL-IN-MARQUEE",
+  "app_version": "v0.3.12",
+  "stage": "LIVE-MONITOR-SLOW-MARQUEE",
   "features": [
-    "Moves SState Live Monitor title, version, Pionex/day-K/R2 summary, and all runtime status chips into the single top marquee.",
-    "Removes the old second summary row completely so no title/status content remains below the marquee.",
-    "Keeps Return Terminal and Resync compact and aligned with the marquee.",
-    "Expands the split monitor table viewport further to show more symbols without changing monitor logic.",
-    "Keeps CRYPTO/RWA split, search, sorting, R2 sync and TradingView Scanner refresh logic unchanged."
+    "Slows the top Live Monitor marquee to a calmer pace close to the previous memo ticker feel.",
+    "Desktop marquee duration is increased from 38s to 55s; mobile from 34s to 50s.",
+    "All title, description and live status content remains inside the single top marquee row.",
+    "No changes to TradingView Scanner, R2 sync, sorting, search or monitor calculations."
   ],
-  "version": "0.3.11"
+  "version": "0.3.12"
 }

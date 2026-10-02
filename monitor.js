@@ -179,8 +179,10 @@
         persistLocal();
         reconcileRecords();
         renderAll();
-        rebuildSockets();
-        warmMissing();
+        // New symbols from another computer must warm their historical K first.
+        // Otherwise the first TradingView snapshot arrives before r.daily exists and gets discarded.
+        await warmMissing();
+        await pollTickers();
         toast('偵測到另一台電腦的變更，已同步');
       }
     } catch (_) {
@@ -664,8 +666,12 @@
     const meta=state.universe.find(x=>x.symbol===symbol) || {symbol,type:typeHint || (symbol.endsWith('_PERP')?'PERP':'SPOT')};
     if(state.items.some(x=>x.symbol===symbol)) return;
     const item=cleanItem({symbol, type:meta.type, note:'', order:Math.max(0,...state.items.map(x=>Number(x.order)||0))+1});
-    state.items.push(item); recordFor(item); scheduleSave(); closeModal(); renderAll(); rebuildSockets();
-    await warmSymbol(item,false); applyOrderAndFilter();
+    state.items.push(item); recordFor(item); scheduleSave(); closeModal(); renderAll();
+    // Warm history first, then immediately fetch the current TradingView price/OHLC.
+    // This prevents a newly added symbol from showing the stale R2 candle until the next 10s timer.
+    await warmSymbol(item,false);
+    await pollTickers();
+    applyOrderAndFilter();
     const rec=recordFor(item);
     if(rec.status==='error') toast(`${displaySymbol(item)} 暖機失敗：${rec.error || '無法取得 Pionex K 線'}`,true);
   }
@@ -701,7 +707,12 @@
   async function init() {
     if (!Engine) { toast('monitor-engine.js 載入失敗',true); return; }
     bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'TradingView Scan 連線中','waiting');
-    await loadRemoteWatchlist(false); reconcileRecords(); renderAll(); rebuildSockets(); warmMissing(false);
+    await loadRemoteWatchlist(false); reconcileRecords(); renderAll();
+    // v0.3.08: historical K must be ready before the first live snapshot is applied.
+    // In v0.3.07 rebuildSockets() called pollTickers() first, but applyLiveSnapshot() rejects
+    // snapshots while r.daily is empty. The UI then showed the cached R2 close until the next 10s poll.
+    await warmMissing(false);
+    await pollTickers();
     setInterval(pollTickers,UI_INTERVAL); setInterval(remoteVersionSync,REMOTE_SYNC_INTERVAL);
     setInterval(()=>{ if(!state.localDirty && state.items.length) warmMissing(false); }, 120000);
   }

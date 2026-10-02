@@ -1,25 +1,25 @@
-# v0.3.07｜UI CLEANUP + LIVE MONITOR
+# v0.3.08｜FIRST-PAINT CURRENT PRICE FIX
 
-本版依目前使用流程精簡 SStateMarketTerminal 首頁。
+修正 Live Monitor 首次載入時短暫顯示 R2 歷史日 K 最後 close，而不是當下 TradingView Scanner 現價的問題。
 
-## 已移除
+## 原因
 
-- 首頁頂部 R2 備忘錄跑馬燈
-- 右側 MEMO 備忘錄按鈕 / 抽屜
-- 美股 FLOW RADAR / 板塊資金流向區塊
-- 首頁對 sector-flow 的背景輪詢
+v0.3.07 的啟動順序是：
 
-## 保留
+1. 先呼叫 TradingView Scanner
+2. 但此時歷史日 K 尚未 warm-up，`applyLiveSnapshot()` 因 `r.daily` 為空而丟棄第一次現價
+3. 接著 R2 歷史 K 載入，畫面顯示歷史快取 close
+4. 要等下一個 10 秒 timer 才套用真正現價
 
-- 📡 即時監控（SState Live Monitor）
-- TradingView Crypto Scanner 每 10 秒更新 PERP 現價 / 當日日線 OHLC
-- SIGNAL MATRIX
-- 完整分析
-- 加密貨幣 / 美股代幣切換
-- 原有 S-State、平均K、CCI-SMA、圖表與研究功能
+## v0.3.08
 
-本版沒有修改 Cloudflare Worker，也沒有改動 monitor 的計算邏輯。
+改成：
 
-## 排程清理
+1. 載入 R2 watchlist
+2. warm-up 歷史日 K
+3. **立即**呼叫 TradingView Scanner
+4. 用最新 close/open/high/low 重建當前日 K
+5. 立即重新計算 S-State / 中軌 / 平均K / CCI-SMA
+6. 之後維持每 10 秒更新
 
-請刪除 `.github/workflows/sector-flow.yml`，避免已移除的 FLOW RADAR 繼續佔用 GitHub Actions。
+新增標的與另一台電腦同步新增標的也套用相同順序。

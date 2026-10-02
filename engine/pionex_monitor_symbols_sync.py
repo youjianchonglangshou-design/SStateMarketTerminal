@@ -219,7 +219,7 @@ def flush_batch(session: requests.Session, rows: list[dict[str, Any]], fetched_a
 
 def main() -> None:
     session = requests.Session()
-    session.headers.update({"Accept": "application/json", "User-Agent": "Mozilla/5.0 SStateMarketTerminal-MonitorSync/0.3.03"})
+    session.headers.update({"Accept": "application/json", "User-Agent": "Mozilla/5.0 SStateMarketTerminal-MonitorSync/0.3.04"})
 
     perp = fetch_symbols(session, "PERP")
     time.sleep(1.25)

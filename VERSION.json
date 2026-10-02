@@ -1,12 +1,13 @@
 {
-  "app_version": "v0.3.08",
-  "stage": "LIVE-MONITOR-FIRST-PAINT-CURRENT-PRICE",
+  "app_version": "v0.3.09",
+  "stage": "LIVE-MONITOR-SPLIT-RWA-LAYOUT",
   "features": [
-    "Fix first-load stale price: historical R2/Pionex daily K warm-up now completes before the first TradingView Scanner snapshot is applied.",
-    "On initial page load, the monitor immediately requests TradingView PIONEX PERP close/open/high/low after warm-up instead of waiting for the next 10-second timer.",
-    "Newly added symbols also warm historical K first and then immediately request current TradingView data.",
-    "Watchlist changes synced from another computer now warm new symbols and immediately refresh current prices.",
-    "The normal 10-second TradingView Scanner loop remains unchanged after the initial immediate refresh."
+    "Moves R2 / TradingView Scan / save / count / last-update chips into the header beside the title.",
+    "Replaces the full-width add button with a fixed right-edge + button that remains visible while scrolling.",
+    "Splits the monitor into CRYPTO and RWA / US-stock-token panes while preserving the same sortable indicator columns.",
+    "RWA classification loads from the existing /api/symbols/us-stock R2-backed endpoint; a small fallback set is used only if that endpoint is unavailable.",
+    "Both panes share the same sort/search state and keep independent row numbering.",
+    "TradingView Scanner 10-second live OHLC and v0.3.08 first-load-current-price behavior remain unchanged."
   ],
-  "version": "0.3.08"
+  "version": "0.3.09"
 }

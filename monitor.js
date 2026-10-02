@@ -32,7 +32,10 @@
 
   const $ = (sel) => document.querySelector(sel);
   const els = {
-    body: $('#monitor-body'), empty: $('#empty-monitor'), table: $('#monitor-table'), add: $('#add-symbol'),
+    cryptoBody: $('#crypto-monitor-body'), rwaBody: $('#rwa-monitor-body'),
+    cryptoEmpty: $('#crypto-empty'), rwaEmpty: $('#rwa-empty'),
+    cryptoTable: $('#crypto-monitor-table'), rwaTable: $('#rwa-monitor-table'),
+    cryptoCount: $('#crypto-count'), rwaCount: $('#rwa-count'), add: $('#add-symbol'),
     modal: $('#symbol-modal'), modalClose: $('#modal-close'), query: $('#symbol-query'), results: $('#symbol-results'),
     search: $('#table-search'), clearSort: $('#clear-sort'), refreshAll: $('#refresh-all'),
     r2: $('#r2-status'), ws: $('#ws-status'), save: $('#save-status'), count: $('#symbol-count'), last: $('#last-update'),
@@ -43,7 +46,8 @@
     items: [], records: new Map(), universe: [], sort: { key: 'order', dir: 'asc' },
     version: 0, remoteUpdatedAt: null, localDirty: false, saveTimer: null, search: '', marketFilter: 'ALL',
     sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, universePartial: false, universeSource: '', lastUiAt: 0,
-    tickerPollInFlight: false, tickerPollOkAt: 0, tvLastOkAt: 0, tvLastCount: 0
+    tickerPollInFlight: false, tickerPollOkAt: 0, tvLastOkAt: 0, tvLastCount: 0,
+    rwaSymbols: new Set(), rwaLoaded: false
   };
 
   const clientId = (() => {
@@ -177,6 +181,7 @@
         state.version = v;
         state.remoteUpdatedAt = p.updated_at || null;
         persistLocal();
+        if (!state.rwaLoaded) await loadRwaUniverse();
         reconcileRecords();
         renderAll();
         // New symbols from another computer must warm their historical K first.
@@ -190,9 +195,44 @@
     }
   }
 
+  const RWA_FALLBACK_BASES = new Set([
+    'AAPLX','TSLAX','INTCX','MSTRX','NVDAX','CRCLX','COINX','HOODX','AMZNX','GOOGLX','CRMX','MUX','EWYX','AMDX','MRVLX','SKHX','SMSN','HYUNDAI','NOWX','METAX','NFLXX','XAG','XAU','XPD','XPT','COPPER','NATGAS','WTI','SP500','NAS100','EURUSD','GBPUSD','USDJPY','ANTHROPIC','OPENAI','SPCX','ORCLX','AVGOX','SNDKX','FETUSDT'
+  ]);
+
+  async function loadRwaUniverse() {
+    state.rwaSymbols = new Set([...RWA_FALLBACK_BASES].map(x => `${x}_USDT_PERP`));
+    try {
+      const p = await api('/api/symbols/us-stock');
+      for (const base of (p?.symbols || [])) {
+        const b = String(base || '').trim().toUpperCase();
+        if (b) state.rwaSymbols.add(`${b}_USDT_PERP`);
+      }
+      for (const value of Object.values(p?.symbol_map || {})) {
+        const sym = String(value || '').trim().toUpperCase();
+        if (sym) state.rwaSymbols.add(sym);
+      }
+      for (const row of (p?.active || [])) {
+        const sym = String(row?.api_symbol || '').trim().toUpperCase();
+        if (sym) state.rwaSymbols.add(sym);
+      }
+      state.rwaLoaded = true;
+    } catch (_) {
+      state.rwaLoaded = false;
+    }
+  }
+
   function displaySymbol(item) {
     return item.symbol.replace(/_USDT_PERP$/, '').replace(/_USDT$/, '');
   }
+
+  function isRwaItem(item) {
+    if (!item) return false;
+    const sym = String(item.symbol || '').toUpperCase();
+    const base = displaySymbol(item).toUpperCase();
+    return state.rwaSymbols.has(sym) || RWA_FALLBACK_BASES.has(base);
+  }
+
+  function targetBody(item) { return isRwaItem(item) ? els.rwaBody : els.cryptoBody; }
 
   function recordFor(item) {
     let r = state.records.get(item.symbol);
@@ -226,11 +266,14 @@
   }
 
   function ensureRow(item) {
-    let tr = els.body.querySelector(`tr[data-symbol="${cssEscape(item.symbol)}"]`);
+    let tr = document.querySelector(`tr[data-symbol="${cssEscape(item.symbol)}"]`);
+    const body = targetBody(item);
     if (!tr) {
-      els.body.insertAdjacentHTML('beforeend', rowHtml(item));
-      tr = els.body.querySelector(`tr[data-symbol="${cssEscape(item.symbol)}"]`);
+      body.insertAdjacentHTML('beforeend', rowHtml(item));
+      tr = body.querySelector(`tr[data-symbol="${cssEscape(item.symbol)}"]`);
       bindRow(tr, item.symbol);
+    } else if (tr.parentElement !== body) {
+      body.appendChild(tr);
     }
     return tr;
   }
@@ -319,7 +362,9 @@
   function renderAll() {
     reconcileRecords();
     const wanted = new Set(state.items.map(x => x.symbol));
-    for (const tr of [...els.body.querySelectorAll('tr[data-symbol]')]) if (!wanted.has(tr.dataset.symbol)) tr.remove();
+    for (const body of [els.cryptoBody, els.rwaBody]) {
+      for (const tr of [...body.querySelectorAll('tr[data-symbol]')]) if (!wanted.has(tr.dataset.symbol)) tr.remove();
+    }
     state.items.forEach(item => patchRow(recordFor(item), true));
     applyOrderAndFilter();
     updateSummary();
@@ -356,14 +401,21 @@
   function applyOrderAndFilter() {
     const q = state.search.trim().toUpperCase();
     const rows = sortedItems();
-    rows.forEach((item, idx) => {
+    const crypto = rows.filter(x => !isRwaItem(x));
+    const rwa = rows.filter(isRwaItem);
+    const place = (items, body) => items.forEach((item, idx) => {
       const tr = ensureRow(item);
-      els.body.appendChild(tr); // move existing nodes; no table rebuild / no flash
+      body.appendChild(tr); // move existing nodes only; no table rebuild / no flash
       const visible = !q || displaySymbol(item).toUpperCase().includes(q) || String(item.note||'').toUpperCase().includes(q);
       tr.hidden = !visible;
       tr.querySelector('[data-field="order"]').textContent = String(idx + 1);
     });
-    els.empty.classList.toggle('show', state.items.length === 0);
+    place(crypto, els.cryptoBody);
+    place(rwa, els.rwaBody);
+    els.cryptoEmpty.classList.toggle('show', crypto.length === 0);
+    els.rwaEmpty.classList.toggle('show', rwa.length === 0);
+    els.cryptoCount.textContent = String(crypto.length);
+    els.rwaCount.textContent = String(rwa.length);
   }
 
   function updateSortMarks() {
@@ -374,7 +426,11 @@
   }
 
   function updateSummary() {
-    els.count.textContent = `${state.items.length} 標的`;
+    const rwa = state.items.filter(isRwaItem).length;
+    const crypto = state.items.length - rwa;
+    els.count.textContent = `${state.items.length} 標的 · C${crypto}/R${rwa}`;
+    if (els.cryptoCount) els.cryptoCount.textContent = String(crypto);
+    if (els.rwaCount) els.rwaCount.textContent = String(rwa);
   }
 
   async function warmSymbol(item, force = false) {
@@ -693,13 +749,13 @@
     els.query.addEventListener('input',renderSymbolResults);
     document.querySelectorAll('[data-market-filter]').forEach(b=>b.addEventListener('click',()=>{state.marketFilter=b.dataset.marketFilter;updateMarketTabs();}));
     els.search.addEventListener('input',()=>{state.search=els.search.value;applyOrderAndFilter();});
-    els.table.querySelectorAll('th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
+    document.querySelectorAll('.monitor-table th[data-sort]').forEach(th=>th.addEventListener('click',()=>{
       const key=th.dataset.sort; state.sort = state.sort.key===key ? {key,dir:state.sort.dir==='asc'?'desc':'asc'} : {key,dir:key==='order'||key==='symbol'||key==='note'?'asc':'desc'};
       updateSortMarks(); applyOrderAndFilter(); scheduleSave();
     }));
     els.clearSort.addEventListener('click',()=>{state.sort={key:'order',dir:'asc'};updateSortMarks();applyOrderAndFilter();scheduleSave();});
     els.refreshAll.addEventListener('click',async()=>{
-      setChip(els.save,'強制同步中…','waiting'); await loadRemoteWatchlist(true); reconcileRecords(); renderAll(); await loadUniverse(true); await warmMissing(true); rebuildSockets(); setChip(els.save,'同步完成','ok');
+      setChip(els.save,'強制同步中…','waiting'); await loadRemoteWatchlist(true); await loadRwaUniverse(); reconcileRecords(); renderAll(); await loadUniverse(true); await warmMissing(true); await pollTickers(); setChip(els.save,'同步完成','ok');
     });
     window.addEventListener('beforeunload',()=>{persistLocal();closeSockets();});
   }
@@ -707,8 +763,9 @@
   async function init() {
     if (!Engine) { toast('monitor-engine.js 載入失敗',true); return; }
     bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'TradingView Scan 連線中','waiting');
-    await loadRemoteWatchlist(false); reconcileRecords(); renderAll();
-    // v0.3.08: historical K must be ready before the first live snapshot is applied.
+    await Promise.all([loadRemoteWatchlist(false), loadRwaUniverse()]); reconcileRecords(); renderAll();
+    // v0.3.09: RWA classification is loaded before rendering so crypto stays left and tokenized assets stay right.
+    // Historical K must be ready before the first live snapshot is applied.
     // In v0.3.07 rebuildSockets() called pollTickers() first, but applyLiveSnapshot() rejects
     // snapshots while r.daily is empty. The UI then showed the cached R2 close until the next 10s poll.
     await warmMissing(false);

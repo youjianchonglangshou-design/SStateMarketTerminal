@@ -7,5 +7,5 @@ window.SSTATE_CONFIG = {
   monitorSaveDebounceMs: 3000,
   performanceDataUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/performance",
   performanceLedgerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/ledger/recent",
-  appVersion: "v0.3.08"
+  appVersion: "v0.3.09"
 };

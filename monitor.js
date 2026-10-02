@@ -7,8 +7,20 @@
   const UI_INTERVAL = Number(cfg.monitorUiIntervalMs || 10000);
   const REMOTE_SYNC_INTERVAL = Number(cfg.monitorSyncIntervalMs || 30000);
   const SAVE_DEBOUNCE = Number(cfg.monitorSaveDebounceMs || 3000);
-  const WS_URL = 'wss://ws.pionex.com/wsPub';
-  const WS_CHUNK = 80;
+  // Browser -> Pionex direct WebSocket is rejected with HTTP 403 because browsers always send an Origin header.
+  // Route the socket through our Cloudflare Worker; the Worker opens the upstream Pionex socket without a browser Origin.
+  const WS_URL = (() => {
+    if (!WORKER) return '';
+    try {
+      const u = new URL(WORKER);
+      u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      u.pathname = '/api/monitor/ws';
+      u.search = ''; u.hash = '';
+      return u.toString();
+    } catch (_) { return ''; }
+  })();
+  const WS_CHUNK = 100;
+  const WS_SUBSCRIBE_GAP_MS = 250; // Pionex limit: max 5 client messages / second / connection.
   const WARM_CONCURRENCY = 1;
   const LOCAL_KEY = 'sstate-monitor-watchlist-v1';
   const CLIENT_KEY = 'sstate-monitor-client-id';
@@ -398,6 +410,7 @@
   function rebuildSockets() {
     closeSockets();
     if (!state.items.length) { setChip(els.ws,'Pionex WS · 無標的',''); return; }
+    if (!WS_URL) { setChip(els.ws,'Pionex WS · Worker 未設定','bad'); return; }
     const chunks=[]; for(let i=0;i<state.items.length;i+=WS_CHUNK) chunks.push(state.items.slice(i,i+WS_CHUNK));
     chunks.forEach((chunk,index) => connectSocket(chunk,index));
   }
@@ -408,10 +421,10 @@
     const connect = () => {
       const ws = new WebSocket(WS_URL); entry.ws = ws; entry.intentional = false;
       ws.onopen = () => {
-        entry.retry = 0; setChip(els.ws, `Pionex WS 已連線 · ${state.sockets.length} 路`, 'ok');
+        entry.retry = 0; setChip(els.ws, `Pionex WS 代理已連線 · ${state.sockets.length} 路`, 'ok');
         items.forEach((item,i) => setTimeout(() => {
           if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({op:'SUBSCRIBE',topic:'TRADE',symbol:item.symbol}));
-        }, i * 45));
+        }, i * WS_SUBSCRIBE_GAP_MS));
       };
       ws.onmessage = (ev) => handleWsMessage(ev.data);
       ws.onerror = () => setChip(els.ws, 'Pionex WS 異常 · 重連中', 'bad');
@@ -428,7 +441,11 @@
   function handleWsMessage(raw) {
     let m; try { m = JSON.parse(raw); } catch (_) { return; }
     if (String(m?.op || '').toUpperCase() === 'PING') {
-      state.sockets.forEach(x => { try { if (x.ws.readyState === WebSocket.OPEN) x.ws.send(JSON.stringify({op:'PONG'})); } catch (_) {} });
+      // The Worker proxy already answers the upstream heartbeat. Keep this as a harmless fallback
+      // and echo Pionex's timestamp as required by the current WebSocket specification.
+      const pong = {op:'PONG'};
+      if (Number.isFinite(Number(m?.timestamp))) pong.timestamp = Number(m.timestamp);
+      state.sockets.forEach(x => { try { if (x.ws.readyState === WebSocket.OPEN) x.ws.send(JSON.stringify(pong)); } catch (_) {} });
       return;
     }
     if (String(m?.topic || '').toUpperCase() !== 'TRADE') return;

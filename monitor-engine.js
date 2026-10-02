@@ -28,7 +28,7 @@
     STRUCT_UPPER_ZONE_BANDPOS: 0.58,
     STRUCT_LOWER_ZONE_BANDPOS: 0.42,
     PURPLE2_RULE_VERSION: 'DP2-v11-state-scoped-30d',
-    ENGINE_VERSION: 'monitor-live-v0.3.02'
+    ENGINE_VERSION: 'monitor-live-v0.3.04'
   });
 
   function num(v, d = 0) {

@@ -1,13 +1,14 @@
 {
-  "app_version": "v0.3.03",
-  "stage": "LIVE-MONITOR-KLINE-RESUME",
+  "app_version": "v0.3.04",
+  "stage": "LIVE-MONITOR-WS-PROXY",
   "features": [
-    "Fix GitHub Actions 35-minute cancellation by raising the sync job timeout to 90 minutes.",
-    "Resume-aware R2 kline sync skips symbols already cached within 10 hours instead of restarting the full universe.",
-    "Current monitor watchlist symbols are always prioritized first, so actively watched symbols become usable before the full universe completes.",
-    "New listings with fewer than 30 daily bars are skipped immediately instead of wasting repeated retries.",
-    "Pionex request pacing increased to 0.85 seconds with shorter adaptive 429 cooldowns.",
-    "Dynamic Pionex SPOT/PERP monitor, R2-synced watchlist, sortable columns, live WebSocket prices and 10-second cell-only updates remain unchanged."
+    "Fix stale live prices: browser-to-Pionex WebSocket handshakes were rejected with HTTP 403 because browsers send Origin.",
+    "Cloudflare Worker now provides /api/monitor/ws and transparently relays the Pionex public trade WebSocket without propagating the browser Origin.",
+    "Pionex heartbeat PING/PONG is handled inside the Worker proxy, including timestamp echo.",
+    "Subscription pacing is reduced to 4 messages/sec and 100 symbols per connection to remain within Pionex public WebSocket limits.",
+    "Every 10 seconds only changed table cells are patched; the current 1D candle and S-State / midline / average-K / CCI-SMA are recalculated from live trades.",
+    "Includes v0.3.03 resume-aware R2 kline prewarm and 90-minute GitHub Actions timeout fix.",
+    "Adds an hourly GitHub Actions refresh for only the current R2 watchlist so opening the monitor later starts from a recent 1D OHLC baseline before live trades take over."
   ],
-  "version": "0.3.03"
+  "version": "0.3.04"
 }

@@ -1,37 +1,29 @@
-# v0.3.02｜LIVE-MONITOR KLINE CACHE FIX
+# v0.3.04｜LIVE-MONITOR KLINE RESUME FIX
 
-本版修正「可以新增 Pionex 標的，但表格顯示資料讀取失敗」的問題。
+本版修正 `Pionex Monitor Universe + Kline Sync` 在 35 分鐘被 GitHub Actions 取消的問題。
 
-## 根因
+## 修正內容
 
-Cloudflare Worker 從 `api.pionex.com/api/v1/market/klines` 即時替新標的暖機時，Cloudflare egress 會被 Pionex 429 限流。瀏覽器的 Pionex WebSocket 本身其實已正常連線，但沒有歷史日 K 就無法先算出 S-State / 中軌 / 平均K / CCI-SMA，所以整列停在失敗狀態。
+- Workflow timeout：35 分鐘 → 90 分鐘。
+- 新增 R2 快取狀態檢查：重新執行時直接跳過 10 小時內已有的 K 線，不再從頭重抓。
+- 目前 monitor watchlist 內的標的優先處理；即使完整 universe 還沒跑完，正在監看的幣會先有資料。
+- 新上架而日 K 少於 30 根的標的不再重試 3 次，直接記錄為暫不可計算。
+- Pionex 請求間隔調整為 0.85 秒，降低 429；429 仍會自動等待後重試。
+- 已取消的 v0.3.02 執行若已寫入部分 R2，本版會直接接續缺少的部分。
 
-## v0.3.02 修法
+## 必須覆蓋
 
-正常監控路徑改為：
+1. `cloudflare/worker.js`
+2. `engine/pionex_monitor_symbols_sync.py`
+3. `.github/workflows/monitor-symbol-sync.yml`
+4. `VERSION.json`
 
-`GitHub Actions → Pionex 1D Kline → Worker internal batch API → R2 Kline Cache → monitor.html`
+前端版本字串也已更新，因此建議一併覆蓋 `index.html`、`monitor.html`、`config.js`、`app.js`、`monitor-engine.js`。
 
-- GitHub Actions 每 6 小時同步目前完整 Pionex SPOT/PERP Universe。
-- 同一個 workflow 會依序抓每一個目前可交易 USDT 標的的 180 根日 K，分批寫入 R2。
-- `monitor.html` 新增標的後優先直接讀 R2 歷史 K，不再強制讓 Worker 即時打 Pionex。
-- R2 Kline cache freshness 改為 12 小時；正常瀏覽不會每 30 秒重新向 Pionex 要歷史 K。
-- 歷史 K 載入後，盤中價格仍由 `wss://ws.pionex.com/wsPub` 直接更新；每 10 秒只 patch 有變化的 cell，不 reload 整頁。
-- 如果 R2 還沒完成第一次 Kline 預熱，列會顯示「等待 K 線快取」，而不是假裝已有資料。
+部署順序：先更新 Cloudflare Worker，再更新 GitHub，最後手動執行 `Pionex Monitor Universe + Kline Sync`。
 
-## 第一次部署
 
-1. **先部署 `cloudflare/worker.js`**。
-2. Push GitHub 檔案。
-3. GitHub → Actions → **Pionex Monitor Universe + Kline Sync** → `Run workflow`。
-4. 第一次完整同步需要數分鐘；workflow 完成後重新整理 `monitor.html`。
-5. 之後每 6 小時自動更新 Universe + 1D Kline cache。
+## v0.3.04 WS PROXY FIX
+瀏覽器直接連 Pionex wsPub 會因 Origin 被 403；即時監控改由 Cloudflare Worker `/api/monitor/ws` 代理。前端仍每 10 秒只更新變動 cell，並以即時成交價更新當前日 K 後重算 S-State／中軌／平均K／CCI-SMA。
 
-## 需要的既有 Secrets
-
-沿用原本已經用來同步 Universe 的：
-
-- `WORKER_BASE_URL`
-- `WORKER_CALLBACK_TOKEN`
-
-不需要新增 Pionex API Key，全部使用公開市場資料。
+另新增每小時只刷新目前 R2 watchlist 的日 K 快取，避免重新開頁時從過舊的盤中 OHLC 開始。

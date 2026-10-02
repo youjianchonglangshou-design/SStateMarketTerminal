@@ -1,186 +1,98 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
-  <meta name="theme-color" content="#1e293b">
-  <title>SStateMarketTerminal</title>
-  <link rel="stylesheet" href="styles.css?v=0.3.04">
-  <link rel="stylesheet" href="research-modal.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="./favicon.svg" rel="icon" type="image/svg+xml"/>
+<meta content="#1e293b" name="theme-color"/>
+<title>SStateMarketTerminal</title>
+<link href="styles.css?v=0.3.07" rel="stylesheet"/>
+<link href="research-modal.css" rel="stylesheet"/>
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar terminal-heading premium-heading">
-      <div class="brand premium-brand">
-        <div class="premium-title-line">
-          <h1>SState Market Terminal</h1>
-          <span id="version-chip" class="version-chip-minimal"></span>
-        </div>
-        <div id="system-caption" class="update-time-line">載入更新時間...</div>
-      </div>
-      <div id="memo-marquee" class="memo-marquee" aria-label="R2 近期交易備忘錄提醒">
-        <div class="memo-marquee-label"><span class="memo-marquee-live"></span><b>R2 MEMO</b></div>
-        <div class="memo-marquee-viewport">
-          <div id="memo-marquee-track" class="memo-marquee-track">
-            <div class="memo-marquee-placeholder">SYNCING FIELD NOTES...</div>
-          </div>
-        </div>
-      </div>
-    </header>
+<main class="shell">
+<header class="topbar terminal-heading">
+<div class="brand">
+<div class="premium-title-line">
+<h1>SState Market Terminal</h1>
+<span class="version-chip-minimal" id="version-chip"></span>
+</div>
+<div class="update-time-line" id="system-caption">載入更新時間...</div>
+</div>
 
-    <section class="sticky-control-deck" aria-label="市場搜尋與 S-state 快速篩選">
-      <div class="actions sticky-actions">
-        <select id="market-select" aria-label="市場">
-          <option value="crypto">加密貨幣</option>
-          <option value="us-stock">美股代幣</option>
-        </select>
-        <div class="search-box"><span>⌕</span><input id="symbol-search" type="search" autocomplete="off" spellcheck="false" placeholder="搜尋標的、S-state或產業"></div>
-        <a id="monitor-link" class="performance-link" href="./monitor.html" target="_blank" rel="noopener noreferrer" title="在新分頁開啟 Pionex 即時標的監控">📡 即時監控</a>
-        <button id="run-button" class="primary">📝 完整分析</button>
-        <details class="more-menu">
-          <summary>更多 ⋯</summary>
-          <div class="more-menu-panel">
-            <a class="more-menu-link" href="./performance.html" target="_blank" rel="noopener noreferrer" title="Champion 凍結快照正式結算戰績">📊 近期戰績</a>
-            <button id="download-button" title="下載目前選取市場的最新 JSON">⬇ 加密 JSON</button>
-            <button id="research-download-button" class="research-download-button hidden" type="button" title="下載 R2 research/us-stock/latest.json">⬇ 新聞 JSON</button>
-          </div>
-        </details>
-      </div>
-      <div class="sticky-filter-row">
-        <div class="sticky-scan-meta">
-          <strong>快速狀態掃描</strong>
-          <span id="snapshot-meta" class="caption"></span>
-        </div>
-        <div id="state-filters" class="filters"></div>
-      </div>
-    </section>
+</header>
+<section aria-label="市場搜尋與 S-state 快速篩選" class="sticky-control-deck">
+<div class="actions sticky-actions">
+<select aria-label="市場" id="market-select">
+<option value="crypto">加密貨幣</option>
+<option value="us-stock">美股代幣</option>
+</select>
+<div class="search-box"><span>⌕</span><input autocomplete="off" id="symbol-search" placeholder="搜尋標的、S-state或產業" spellcheck="false" type="search"/></div>
+<a class="performance-link" href="./monitor.html" id="monitor-link" rel="noopener noreferrer" target="_blank" title="在新分頁開啟 Pionex 即時標的監控">📡 即時監控</a>
+<button class="primary" id="run-button">📝 完整分析</button>
+<details class="more-menu">
+<summary>更多 ⋯</summary>
+<div class="more-menu-panel">
+<a class="more-menu-link" href="./performance.html" rel="noopener noreferrer" target="_blank" title="Champion 凍結快照正式結算戰績">📊 近期戰績</a>
+<button id="download-button" title="下載目前選取市場的最新 JSON">⬇ 加密 JSON</button>
+<button class="research-download-button hidden" id="research-download-button" title="下載 R2 research/us-stock/latest.json" type="button">⬇ 新聞 JSON</button>
+</div>
+</details>
+</div>
+<div class="sticky-filter-row">
+<div class="sticky-scan-meta">
+<strong>快速狀態掃描</strong>
+<span class="caption" id="snapshot-meta"></span>
+</div>
+<div class="filters" id="state-filters"></div>
+</div>
+</section>
+<section class="signal-matrix-panel collapsed" id="signal-matrix">
+<div class="signal-matrix-head">
+<div class="signal-matrix-heading-wrap">
+<button aria-controls="signal-matrix-body" aria-expanded="false" class="signal-matrix-toggle" id="signal-matrix-toggle" title="展開 S狀態條件觀察表" type="button">
+<span class="signal-matrix-arrow">▶</span>
+</button>
+<div>
+<div class="signal-matrix-title">📋 SIGNAL MATRIX｜S狀態條件觀察表</div>
+<div class="caption" id="signal-matrix-caption">載入目前市場快照...</div>
+</div>
+</div>
+<div class="signal-matrix-summary waiting" id="signal-matrix-summary">WAITING</div>
+</div>
+<div class="signal-matrix-body hidden" id="signal-matrix-body">
+<div class="signal-matrix-table-wrap" id="signal-matrix-table-wrap"></div>
+<div class="signal-matrix-footnote">平均K = 最新日線 Heikin-Ashi 顏色；CCI-SMA = CCI20 的 SMA14 最新階梯顏色。黃色＋黃色可快速辨識「雙黃」條件；所有欄位皆可點擊排序。</div>
+</div>
+</section>
 
-    <section id="signal-matrix" class="signal-matrix-panel collapsed">
-      <div class="signal-matrix-head">
-        <div class="signal-matrix-heading-wrap">
-          <button id="signal-matrix-toggle" class="signal-matrix-toggle" type="button" aria-expanded="false" aria-controls="signal-matrix-body" title="展開 S狀態條件觀察表">
-            <span class="signal-matrix-arrow">▶</span>
-          </button>
-          <div>
-            <div class="signal-matrix-title">📋 SIGNAL MATRIX｜S狀態條件觀察表</div>
-            <div id="signal-matrix-caption" class="caption">載入目前市場快照...</div>
-          </div>
-        </div>
-        <div id="signal-matrix-summary" class="signal-matrix-summary waiting">WAITING</div>
-      </div>
-      <div id="signal-matrix-body" class="signal-matrix-body hidden">
-        <div id="signal-matrix-table-wrap" class="signal-matrix-table-wrap"></div>
-        <div class="signal-matrix-footnote">平均K = 最新日線 Heikin-Ashi 顏色；CCI-SMA = CCI20 的 SMA14 最新階梯顏色。黃色＋黃色可快速辨識「雙黃」條件；所有欄位皆可點擊排序。</div>
-      </div>
-    </section>
-
-    <section id="sector-flow" class="sector-flow-panel collapsed hidden">
-      <div class="sector-flow-head">
-        <div class="sector-flow-heading-wrap">
-          <button id="sector-flow-toggle" class="sector-flow-toggle" type="button" aria-expanded="false" aria-controls="sector-flow-body" title="展開美股板塊資金羅盤">
-            <span class="sector-flow-arrow">▶</span>
-          </button>
-          <div>
-            <div class="sector-flow-title">🧭 FLOW RADAR｜美股板塊資金羅盤</div>
-            <div id="sector-flow-caption" class="caption">載入 21:31 最新結算板塊資金...</div>
-          </div>
-        </div>
-        <div id="sector-flow-leader" class="sector-flow-leader waiting">WAITING</div>
-      </div>
-      <div id="sector-flow-body" class="sector-flow-body hidden">
-        <div class="sector-flow-layout">
-          <div class="sector-wheel-wrap">
-            <div id="sector-wheel" class="sector-wheel" aria-label="11大美股板塊資金流向圓餅指針圖"></div>
-          </div>
-          <aside id="sector-flow-detail" class="sector-flow-detail">
-            <div class="sector-flow-detail-kicker">HOVER SECTOR</div>
-            <div class="sector-flow-detail-title">滑入任一板塊查看資料</div>
-            <div class="sector-flow-detail-note">指針固定指向目前資金最強板塊；滑鼠只切換右側資訊，不改變指針。</div>
-          </aside>
-        </div>
-        <div class="sector-flow-footnote">FLOW % = 1D Flow ÷ Total AuM。FLOW STRENGTH 需累積 20 個「前一交易日」樣本後啟用；不足 20 天時，指針先依 FLOW % 判定。</div>
-      </div>
-    </section>
-
-    <section id="run-panel" class="run-panel hidden">
-      <div class="run-line">
-        <strong id="run-title">分析準備中</strong>
-        <span id="run-percent">0%</span>
-      </div>
-      <div id="run-bar" class="volume-progress" aria-label="完整分析進度"></div>
-      <div id="run-detail" class="caption"></div>
-    </section>
-
-    <section id="summary-strip" class="summary-strip"></section>
-    <section id="cards" class="cards"></section>
-
-    <section id="empty-state" class="empty hidden">
-      <h3>尚無可顯示資料</h3>
-      <p>網站預設只讀取最後一次成功結果。設定 Worker 後，選擇市場並按「完整分析」才會重新抓取 Pionex 並執行 Python 引擎。</p>
-    </section>
-  </main>
+<section class="run-panel hidden" id="run-panel">
+<div class="run-line">
+<strong id="run-title">分析準備中</strong>
+<span id="run-percent">0%</span>
+</div>
+<div aria-label="完整分析進度" class="volume-progress" id="run-bar"></div>
+<div class="caption" id="run-detail"></div>
+</section>
+<section class="summary-strip" id="summary-strip"></section>
+<section class="cards" id="cards"></section>
+<section class="empty hidden" id="empty-state">
+<h3>尚無可顯示資料</h3>
+<p>網站預設只讀取最後一次成功結果。設定 Worker 後，選擇市場並按「完整分析」才會重新抓取 Pionex 並執行 Python 引擎。</p>
+</section>
+</main>
+<button aria-hidden="true" class="signal-matrix-return hidden" disabled="" id="signal-matrix-return" title="返回 SIGNAL MATRIX 表格" type="button">
+<span class="signal-matrix-return-icon">↩</span>
+<span class="signal-matrix-return-label">返回</span>
+</button>
 
 
 
-  <button id="signal-matrix-return" class="signal-matrix-return hidden" type="button" aria-hidden="true" disabled title="返回 SIGNAL MATRIX 表格">
-    <span class="signal-matrix-return-icon">↩</span>
-    <span class="signal-matrix-return-label">返回</span>
-  </button>
-
-  <button id="memo-tab" class="memo-tab" type="button" aria-controls="memo-drawer" aria-expanded="false" title="開啟交易備忘錄">
-    <span class="memo-tab-icon">✎</span>
-    <span class="memo-tab-label">MEMO</span>
-    <span id="memo-tab-count" class="memo-tab-count">0</span>
-  </button>
-
-  <div id="memo-backdrop" class="memo-backdrop hidden" aria-hidden="true"></div>
-  <aside id="memo-drawer" class="memo-drawer" aria-hidden="true" aria-label="交易備忘錄">
-    <div class="memo-drawer-glow"></div>
-    <header class="memo-drawer-head">
-      <div>
-        <div class="memo-kicker">FIELD NOTES // R2 SYNC</div>
-        <h2>交易備忘錄</h2>
-        <div id="memo-sync-status" class="memo-sync-status">準備同步...</div>
-      </div>
-      <button id="memo-close" class="memo-close" type="button" aria-label="關閉備忘錄">×</button>
-    </header>
-
-    <div class="memo-form">
-      <label class="memo-field">
-        <span>日期時間</span>
-        <input id="memo-datetime" type="datetime-local" step="60">
-      </label>
-      <label class="memo-field">
-        <span>標的</span>
-        <input id="memo-symbol" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="例如 AAPLX / BTC">
-      </label>
-      <label class="memo-field memo-field-note">
-        <span>簡單紀錄</span>
-        <textarea id="memo-note" maxlength="1000" rows="4" placeholder="記錄進場想法、支撐、風險或之後要回頭確認的事情..."></textarea>
-      </label>
-      <button id="memo-save" class="memo-save" type="button"><span>SAVE</span><small>寫入 R2</small></button>
-    </div>
-
-    <div class="memo-list-head">
-      <div>
-        <strong>紀錄</strong>
-        <span id="memo-record-count">0 RECORDS</span>
-      </div>
-      <div class="memo-list-actions">
-        <button id="memo-edit" class="memo-edit" type="button" disabled>編輯勾選</button>
-        <button id="memo-delete" class="memo-delete" type="button" disabled>刪除勾選</button>
-      </div>
-    </div>
-    <div id="memo-list" class="memo-list">
-      <div class="memo-empty">尚無紀錄</div>
-    </div>
-  </aside>
-
-  <div id="toast" class="toast hidden"></div>
-  <script src="config.js?v=0.3.04"></script>
-  <script src="app.js?v=0.3.04"></script>
-  <script src="research-modal.js"></script>
-  <script src="research-download.js"></script>
+<div class="toast hidden" id="toast"></div>
+<script src="config.js?v=0.3.07"></script>
+<script src="app.js?v=0.3.07"></script>
+<script src="research-modal.js"></script>
+<script src="research-download.js"></script>
 </body>
 </html>

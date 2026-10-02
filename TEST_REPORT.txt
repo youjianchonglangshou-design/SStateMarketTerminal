@@ -1,30 +1,13 @@
-SStateMarketTerminal v0.3.05｜LIVE-MONITOR 10S TICKER POLL FIX 測試報告
+SStateMarketTerminal v0.3.07 TEST REPORT
 
-PASS  Python compile: engine/pionex_monitor_symbols_sync.py
-PASS  JavaScript syntax: cloudflare/worker.js
-PASS  JavaScript syntax: monitor.js / monitor-engine.js / app.js / config.js
-PASS  Workflow timeout updated: 90 minutes
-PASS  Resume endpoint route present: POST /api/internal/monitor/klines/status
-PASS  Sync script checks R2 cache freshness before Pionex download
-PASS  Watchlist symbols are reordered to the front before prewarm
-PASS  <30-bar new listings are permanent-skip in current run, no repeated retry loop
-PASS  Existing R2 batches remain reusable after a cancelled workflow
-
-
-v0.3.05 LIVE WS PROXY
-- Direct Pionex wsPub with browser Origin: reproduced HTTP 403.
-- Direct Pionex wsPub with Origin suppressed: SUBSCRIBED + live BTC_USDT_PERP trades received.
-- Worker /api/monitor/ws proxy route added.
-- PING/PONG timestamp handling added.
-- subscription pacing = 250 ms (4 msg/s) <= documented 5 msg/s limit.
-- monitor.js / worker.js syntax checks: see build validation.
-
-
-v0.3.05 REALTIME TESTS
-- monitor.js syntax: PASS
-- worker.js syntax: PASS
-- VERSION.json: PASS
-- Direct Pionex PERP market/tickers payload verified: PASS
-- Current monitor-engine + latest BTC 1D Kline: S3 / midline rising / average-K yellow verified
-- Worker WebSocket diagnosis: upstream data can arrive as Blob/binary; old relay was not safe
-- v0.3.05 primary feed no longer depends on WebSocket for 10-second UI updates
+[PASS] index.html: memo marquee removed
+[PASS] index.html: memo drawer/tab removed
+[PASS] index.html: sector FLOW RADAR removed
+[PASS] app.js: memo initialization disabled
+[PASS] app.js: sector-flow initial load / market-change load / 30s polling disabled
+[PASS] app.js JavaScript syntax check
+[PASS] monitor.js JavaScript syntax check
+[PASS] monitor-engine.js JavaScript syntax check
+[PASS] config.js JavaScript syntax check
+[PASS] v0.3.07 version/cache-bust updated
+[PASS] Live Monitor files remain present

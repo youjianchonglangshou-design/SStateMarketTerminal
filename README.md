@@ -1,27 +1,25 @@
-# v0.3.06｜LIVE-MONITOR TRADINGVIEW SCAN FIX
+# v0.3.07｜UI CLEANUP + LIVE MONITOR
 
-本版將 **PERP 即時價格/當日日線 OHLC** 從 Pionex 即時通道切換為 TradingView Crypto Scanner。
+本版依目前使用流程精簡 SStateMarketTerminal 首頁。
 
-## 核心資料流
+## 已移除
 
-- 標的清單：Pionex 最新可交易清單 / R2
-- 歷史日 K：Pionex Kline / R2 cache
-- PERP 盤中 OHLC：`https://scanner.tradingview.com/crypto/scan`
-- Watchlist / 備註 / 排序：R2
+- 首頁頂部 R2 備忘錄跑馬燈
+- 右側 MEMO 備忘錄按鈕 / 抽屜
+- 美股 FLOW RADAR / 板塊資金流向區塊
+- 首頁對 sector-flow 的背景輪詢
 
-每 10 秒對目前監控中的 PERP 只送一次 TradingView Scanner 請求，抓 `close / open / high / low`，重建當前 UTC 日 K（台灣 08:00 換日），再立即重新計算：
+## 保留
 
-- S-State
-- 中軌斜率
-- 平均K黃/紫
-- CCI-SMA黃/紫
+- 📡 即時監控（SState Live Monitor）
+- TradingView Crypto Scanner 每 10 秒更新 PERP 現價 / 當日日線 OHLC
+- SIGNAL MATRIX
+- 完整分析
+- 加密貨幣 / 美股代幣切換
+- 原有 S-State、平均K、CCI-SMA、圖表與研究功能
 
-畫面採局部 cell patch，不 reload。
+本版沒有修改 Cloudflare Worker，也沒有改動 monitor 的計算邏輯。
 
-## 為何改用 TradingView Scanner
+## 排程清理
 
-實測 `PIONEX:BTCUSDT.P` 可由 Scanner 直接取得目前 close/open/high/low，且回應允許 GitHub Pages origin。為避免 JSON `Content-Type` 觸發 CORS preflight，前端使用 `text/plain` 傳送 JSON body。
-
-## SPOT
-
-TradingView 的 PIONEX crypto scanner目前掃到的 PIONEX rows皆為 `.P` PERP，因此 SPOT 仍保留原 Pionex ticker fallback。
+請刪除 `.github/workflows/sector-flow.yml`，避免已移除的 FLOW RADAR 繼續佔用 GitHub Actions。

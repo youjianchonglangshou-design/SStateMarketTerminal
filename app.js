@@ -15,7 +15,7 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "v0.3.06";
+  els.version.textContent = cfg.appVersion || "v0.3.07";
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";
@@ -908,7 +908,7 @@
     const pm = b.probability_model || {};
     els.systemCaption.textContent = `更新 ${fmtTaiwanTimestamp(b.generated_at_taiwan)}｜台灣時間`;
     els.snapshotMeta.textContent = `資料源：${source}｜${b.count ?? snap.records.length} 標的｜Probability ${pm.available ? `${pm.model_id || "active"} / max L${pm.max_level || "?"}` : "未載入"}｜主判定 72H（3日）`;
-    renderFilters(); renderSummary(); renderCards(); renderSignalMatrix(); renderSectorFlow();
+    renderFilters(); renderSummary(); renderCards(); renderSignalMatrix();
   }
 
   function isPropwRecord(r) {
@@ -1767,7 +1767,6 @@
     state.filter='ALL';
     updateActionState();
     await loadSnapshot();
-    await loadSectorFlow();
   });
   if (els.search) {
     els.search.addEventListener('input', () => { state.searchQuery = els.search.value || ''; renderCards(); });
@@ -1784,7 +1783,6 @@
   els.download.addEventListener('click',downloadCurrentJson);
   if (els.signalMatrixToggle) els.signalMatrixToggle.addEventListener('click',()=>setSignalMatrixExpanded(!state.signalMatrixExpanded));
   if (els.signalMatrixReturn) els.signalMatrixReturn.addEventListener('click',returnToSignalMatrix);
-  if (els.sectorFlowToggle) els.sectorFlowToggle.addEventListener('click',()=>setSectorFlowExpanded(!state.sectorFlowExpanded));
 
 
   // v0.2.01 — cross-device cyber memo backed by the existing Worker + R2 JSON_BUCKET.
@@ -2055,14 +2053,10 @@
     loadMemos();
   }
 
-  initMemo();
   setSignalMatrixReturnAvailable(false);
   setSignalMatrixExpanded(false);
-  setSectorFlowExpanded(false);
   updateActionState();
   renderVolumeProgress(0);
   pollAutomationStatus();
-  clearInterval(state.sectorFlowTimer);
-  state.sectorFlowTimer = setInterval(()=>{ if (state.market === 'us-stock') loadSectorFlow(); }, 30000);
-  Promise.all([loadSnapshot(), loadChampionModel(), loadSectorFlow()]);
+  Promise.all([loadSnapshot(), loadChampionModel()]);
 })();

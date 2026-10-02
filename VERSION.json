@@ -1,14 +1,12 @@
 {
-  "app_version": "v0.3.06",
-  "stage": "LIVE-MONITOR-TRADINGVIEW-SCAN",
+  "app_version": "v0.3.07",
+  "stage": "UI-CLEANUP-LIVE-MONITOR",
   "features": [
-    "PERP live OHLC now comes directly from TradingView Crypto Scanner PIONEX symbols every 10 seconds.",
-    "Uses https://scanner.tradingview.com/crypto/scan with selected PIONEX:...USDT.P tickers, avoiding the unstable Pionex browser/Worker realtime path.",
-    "Fetches current close/open/high/low, so the in-progress daily candle is rebuilt before recalculating S-State, midline slope, Average-K and CCI-SMA.",
-    "The TradingView request is sent as text/plain JSON so GitHub Pages can use the scanner CORS response without a Content-Type preflight.",
-    "Only changed cells are patched; the page never reloads or flashes.",
-    "Pionex/R2 remains responsible for tradable-universe validation, watchlist sync and historical daily-kline warm-up.",
-    "TradingView PIONEX scanner currently exposes PIONEX perpetual .P rows; SPOT retains the existing Pionex ticker fallback."
+    "Removed the home-page R2 memo marquee.",
+    "Removed the floating memo drawer / memo tab from the home page.",
+    "Removed the US-stock sector FLOW RADAR from the home page and stopped its runtime polling.",
+    "Kept SState Live Monitor and TradingView Scanner 10-second live PERP monitoring unchanged.",
+    "Main Terminal keeps SIGNAL MATRIX, Full Analysis, market selection and existing card analysis."
   ],
-  "version": "0.3.06"
+  "version": "0.3.07"
 }

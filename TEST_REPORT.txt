@@ -1,0 +1,20 @@
+SStateMarketTerminal v0.3.04｜LIVE-MONITOR KLINE RESUME FIX 測試報告
+
+PASS  Python compile: engine/pionex_monitor_symbols_sync.py
+PASS  JavaScript syntax: cloudflare/worker.js
+PASS  JavaScript syntax: monitor.js / monitor-engine.js / app.js / config.js
+PASS  Workflow timeout updated: 90 minutes
+PASS  Resume endpoint route present: POST /api/internal/monitor/klines/status
+PASS  Sync script checks R2 cache freshness before Pionex download
+PASS  Watchlist symbols are reordered to the front before prewarm
+PASS  <30-bar new listings are permanent-skip in current run, no repeated retry loop
+PASS  Existing R2 batches remain reusable after a cancelled workflow
+
+
+v0.3.04 LIVE WS PROXY
+- Direct Pionex wsPub with browser Origin: reproduced HTTP 403.
+- Direct Pionex wsPub with Origin suppressed: SUBSCRIBED + live BTC_USDT_PERP trades received.
+- Worker /api/monitor/ws proxy route added.
+- PING/PONG timestamp handling added.
+- subscription pacing = 250 ms (4 msg/s) <= documented 5 msg/s limit.
+- monitor.js / worker.js syntax checks: see build validation.

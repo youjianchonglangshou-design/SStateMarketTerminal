@@ -26,7 +26,9 @@
   })();
   const WS_CHUNK = 100;
   const WS_SUBSCRIBE_GAP_MS = 250; // Pionex limit: max 5 client messages / second / connection.
-  const WARM_CONCURRENCY = 1;
+  const WARM_CONCURRENCY = Math.max(1, Math.min(8, Number(cfg.monitorWarmConcurrency || 4)));
+  const WARM_GAP_MS = Math.max(0, Math.min(2000, Number(cfg.monitorWarmGapMs ?? 180)));
+  const WARM_START_STAGGER_MS = 60;
   const LOCAL_KEY = 'sstate-monitor-watchlist-v1';
   const CLIENT_KEY = 'sstate-monitor-client-id';
 
@@ -455,14 +457,19 @@
     const queue = state.items.filter(item => force || (recordFor(item).daily.length < 40 && !state.warming.has(item.symbol)));
     if (!queue.length) return;
     let cursor = 0;
-    const worker = async () => {
+    const workerCount = Math.min(WARM_CONCURRENCY, queue.length);
+    const worker = async (workerIndex) => {
+      // Stagger the first requests slightly so 4 workers do not hit the Worker/Pionex path on the exact same millisecond.
+      if (workerIndex > 0 && WARM_START_STAGGER_MS > 0) await sleep(workerIndex * WARM_START_STAGGER_MS);
       while (cursor < queue.length) {
         const item = queue[cursor++];
         await warmSymbol(item, force);
-        await sleep(1100);
+        // R2-prewarmed klines can be read in parallel. Keep only a short gap as a safety throttle
+        // for cache misses that need the Pionex fallback, instead of the old fixed 1100ms per symbol.
+        if (cursor < queue.length && WARM_GAP_MS > 0) await sleep(WARM_GAP_MS);
       }
     };
-    await Promise.all(Array.from({length: Math.min(WARM_CONCURRENCY,queue.length)}, worker));
+    await Promise.all(Array.from({length: workerCount}, (_, i) => worker(i)));
     applyOrderAndFilter();
   }
 

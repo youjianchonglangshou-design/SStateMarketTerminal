@@ -1,11 +1,11 @@
 {
-  "app_version": "v0.3.12",
-  "stage": "LIVE-MONITOR-SLOW-MARQUEE",
+  "app_version": "v0.3.13",
+  "stage": "LIVE-MONITOR-FAST-WARMUP",
   "features": [
-    "Slows the top Live Monitor marquee to a calmer pace close to the previous memo ticker feel.",
-    "Desktop marquee duration is increased from 38s to 55s; mobile from 34s to 50s.",
-    "All title, description and live status content remains inside the single top marquee row.",
-    "No changes to TradingView Scanner, R2 sync, sorting, search or monitor calculations."
+    "Speeds up first-load historical 1D Kline warm-up by loading up to 4 symbols concurrently instead of one at a time.",
+    "Reduces the fixed per-symbol warm-up delay from 1100ms to a configurable 180ms safety gap, with a small 60ms startup stagger between workers.",
+    "Keeps R2-prewarmed klines as the primary historical source and retains the existing Pionex fallback path for cache misses.",
+    "Preserves the v0.3.12 slow marquee and all TradingView Scanner, sort, search, R2 sync, and indicator calculations."
   ],
-  "version": "0.3.12"
+  "version": "0.3.13"
 }

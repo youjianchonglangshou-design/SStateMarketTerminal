@@ -1,9 +1,10 @@
-# v0.3.12｜LIVE MONITOR SLOW MARQUEE
+# v0.3.13｜LIVE MONITOR FAST WARM-UP
 
-本版只調整 Live Monitor 最上方跑馬燈速度：
+本版加速 Live Monitor 首次載入歷史日 K：
 
-- 桌機：38 秒 → 55 秒。
-- 手機：34 秒 → 50 秒。
-- 速度改成更接近之前「備忘錄」跑馬燈那種慢慢移動的感覺。
-- 跑馬燈內容與版面不變。
-- 不改動 TradingView Scanner、R2 同步、搜尋、排序與監控計算。
+- 舊版：一次只暖機 1 個標的，每個標的後固定等待 1100ms。
+- 新版：最多同時暖機 4 個標的。
+- 每個 worker 之間只保留 180ms 安全節流，啟動時錯開 60ms，避免瞬間同時撞 API。
+- R2 預熱快取仍是主要來源；若快取缺漏才沿用既有 Pionex fallback。
+- v0.3.12 的慢速跑馬燈維持不變。
+- TradingView Scanner、排序、搜尋、R2 同步與指標計算邏輯不變。

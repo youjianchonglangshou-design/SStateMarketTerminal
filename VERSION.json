@@ -1,13 +1,12 @@
 {
-  "app_version": "v0.3.09",
-  "stage": "LIVE-MONITOR-SPLIT-RWA-LAYOUT",
+  "app_version": "v0.3.10",
+  "stage": "LIVE-MONITOR-COMPACT-MARQUEE-HEADER",
   "features": [
-    "Moves R2 / TradingView Scan / save / count / last-update chips into the header beside the title.",
-    "Replaces the full-width add button with a fixed right-edge + button that remains visible while scrolling.",
-    "Splits the monitor into CRYPTO and RWA / US-stock-token panes while preserving the same sortable indicator columns.",
-    "RWA classification loads from the existing /api/symbols/us-stock R2-backed endpoint; a small fallback set is used only if that endpoint is unavailable.",
-    "Both panes share the same sort/search state and keep independent row numbering.",
-    "TradingView Scanner 10-second live OHLC and v0.3.08 first-load-current-price behavior remain unchanged."
+    "Compresses the monitor title, version, subtitle and runtime status chips into one horizontal summary row.",
+    "Turns the top LIVE WATCH strip into a slow continuous marquee.",
+    "Shrinks Return Terminal and Resync actions to the marquee height and aligns them on the same top row.",
+    "Reduces header vertical spacing and expands the split watch table viewport to show more symbols without changing monitor logic.",
+    "Keeps the CRYPTO / RWA split, TradingView Scanner refresh behavior and fixed add-symbol control unchanged."
   ],
-  "version": "0.3.09"
+  "version": "0.3.10"
 }

@@ -1,0 +1,40 @@
+name: Pionex Monitor Watchlist Kline Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pionex-monitor-watchlist-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+      WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
+      MONITOR_KLINE_LIMIT: "180"
+      PIONEX_REQUEST_INTERVAL: "1.0"
+      PIONEX_429_COOLDOWN: "45"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Refresh only current monitor watchlist 1D klines
+        run: python engine/pionex_monitor_watchlist_refresh.py
+      - name: Upload refresh report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pionex-monitor-watchlist-refresh-${{ github.run_id }}
+          path: output/pionex_monitor_watchlist_refresh.json
+          if-no-files-found: warn
+          retention-days: 3

@@ -7,6 +7,11 @@
   const UI_INTERVAL = Number(cfg.monitorUiIntervalMs || 10000);
   const REMOTE_SYNC_INTERVAL = Number(cfg.monitorSyncIntervalMs || 30000);
   const SAVE_DEBOUNCE = Number(cfg.monitorSaveDebounceMs || 3000);
+  const TV_SCAN_URL = 'https://scanner.tradingview.com/crypto/scan';
+  const TV_SCAN_CHUNK = 200;
+  // TradingView Scanner is the primary PERP live source. It exposes current PIONEX close/open/high/low
+  // and accepts simple cross-origin POSTs from GitHub Pages without relying on Pionex REST/WebSocket.
+  // Pionex/R2 remains the historical warm-up and symbol-universe source.
   // Browser -> Pionex direct WebSocket is rejected with HTTP 403 because browsers always send an Origin header.
   // Route the socket through our Cloudflare Worker; the Worker opens the upstream Pionex socket without a browser Origin.
   const WS_URL = (() => {
@@ -38,7 +43,7 @@
     items: [], records: new Map(), universe: [], sort: { key: 'order', dir: 'asc' },
     version: 0, remoteUpdatedAt: null, localDirty: false, saveTimer: null, search: '', marketFilter: 'ALL',
     sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, universePartial: false, universeSource: '', lastUiAt: 0,
-    tickerPollInFlight: false, tickerPollOkAt: 0
+    tickerPollInFlight: false, tickerPollOkAt: 0, tvLastOkAt: 0, tvLastCount: 0
   };
 
   const clientId = (() => {
@@ -409,69 +414,140 @@
   }
 
   function rebuildSockets() {
-    // v0.3.05 primary live feed: 10-second Pionex ticker polling through our Worker.
-    // This matches the monitor's required cadence and avoids browser WebSocket Origin/Blob instability.
+    // v0.3.06 primary live feed: TradingView Scanner PIONEX PERP snapshot every 10 seconds.
+    // This avoids the Pionex REST/WebSocket path that repeatedly stalled in browser/Worker environments.
     closeSockets();
-    if (!state.items.length) { setChip(els.ws,'Pionex 行情 · 無標的',''); return; }
-    setChip(els.ws,'Pionex 行情連線中','waiting');
+    if (!state.items.length) { setChip(els.ws,'TradingView Scan · 無標的',''); return; }
+    setChip(els.ws,'TradingView Scan 連線中','waiting');
     pollTickers();
   }
 
-  function connectSocket(items, index) {
-    const entry = { ws:null, items, intentional:false, retry:0, timer:null };
-    state.sockets.push(entry);
-    const connect = () => {
-      const ws = new WebSocket(WS_URL); entry.ws = ws; entry.intentional = false;
-      ws.onopen = () => {
-        entry.retry = 0; setChip(els.ws, `Pionex WS 代理已連線 · ${state.sockets.length} 路`, 'ok');
-        items.forEach((item,i) => setTimeout(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({op:'SUBSCRIBE',topic:'TRADE',symbol:item.symbol}));
-        }, i * WS_SUBSCRIBE_GAP_MS));
-      };
-      ws.onmessage = (ev) => handleWsMessage(ev.data);
-      ws.onerror = () => setChip(els.ws, 'Pionex WS 異常 · 重連中', 'bad');
-      ws.onclose = () => {
-        if (entry.intentional) return;
-        setChip(els.ws, 'Pionex WS 重連中', 'waiting');
-        const delay = Math.min(30000, 1500 * Math.pow(2, Math.min(entry.retry++,4)));
-        clearTimeout(entry.timer); entry.timer = setTimeout(connect, delay);
-      };
-    };
-    connect();
+  function tvTickerFor(item) {
+    if (!item || item.type !== 'PERP') return '';
+    const base = String(item.symbol || '').replace(/_USDT_PERP$/,'');
+    return base ? `PIONEX:${base}USDT.P` : '';
+  }
+
+  function applyLiveSnapshot(symbol, snapshot, ts = Date.now()) {
+    const r = state.records.get(String(symbol || '').toUpperCase());
+    if (!r || !r.daily.length) return false;
+    const close = Number(snapshot?.close), open = Number(snapshot?.open), high = Number(snapshot?.high), low = Number(snapshot?.low);
+    if (![close,open,high,low].every(Number.isFinite) || close <= 0 || open <= 0 || high <= 0 || low <= 0) return false;
+    const stamp = Number.isFinite(Number(ts)) ? Number(ts) : Date.now();
+    const dayStart = Math.floor(stamp / 86400000) * 86400000; // TradingView/Pionex crypto daily reset = UTC 00:00 = Taiwan 08:00.
+    const data = Engine.normalizeKlines(r.daily).map(x => ({...x}));
+    let last = data[data.length - 1];
+    const candle = { time: dayStart, open, high: Math.max(high,open,close), low: Math.min(low,open,close), close, volume: Number(last?.time===dayStart ? last.volume || 0 : 0) };
+    if (!last || last.time < dayStart) data.push(candle);
+    else if (last.time === dayStart) data[data.length - 1] = candle;
+    else return false;
+    r.lastTradeTs = stamp;
+    r.previousPrice = r.lastPrice;
+    r.lastPrice = close;
+    r.daily = data;
+    r.source = 'TRADINGVIEW_PIONEX_SCAN';
+    state.dirtySymbols.add(r.item.symbol);
+    return true;
   }
 
   function applyLivePrice(symbol, price, ts = Date.now()) {
+    // SPOT fallback only. TradingView's PIONEX crypto scanner currently exposes PIONEX USDT.P PERP rows,
+    // not PIONEX spot rows. Keep the existing Worker ticker fallback for SPOT without affecting PERP.
     const r = state.records.get(String(symbol || '').toUpperCase());
     if (!r || !r.daily.length || !Number.isFinite(Number(price)) || Number(price) <= 0) return false;
     const stamp = Number.isFinite(Number(ts)) ? (Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts)) : Date.now();
-    if (stamp && stamp < r.lastTradeTs) return false;
     r.lastTradeTs = stamp || Date.now();
     r.previousPrice = r.lastPrice;
     r.lastPrice = Number(price);
     r.daily = Engine.updateLiveCandle(r.daily, Number(price), r.lastTradeTs, '1D');
+    r.source = 'PIONEX_SPOT_FALLBACK';
     state.dirtySymbols.add(r.item.symbol);
     return true;
+  }
+
+  async function tradingViewScan(items) {
+    const rows = items.map(item => ({ item, ticker: tvTickerFor(item) })).filter(x => x.ticker);
+    if (!rows.length) return new Map();
+    const out = new Map();
+    for (let i = 0; i < rows.length; i += TV_SCAN_CHUNK) {
+      const chunk = rows.slice(i, i + TV_SCAN_CHUNK);
+      const body = {
+        filter: [],
+        options: { lang: 'en' },
+        symbols: { query: { types: [] }, tickers: chunk.map(x => x.ticker) },
+        columns: ['name','close','open','high','low'],
+        range: [0, Math.max(50, chunk.length + 10)]
+      };
+      // text/plain keeps this a CORS "simple request"; TradingView accepts the JSON body and returns
+      // Access-Control-Allow-Origin for the GitHub Pages origin, avoiding a Content-Type preflight.
+      const res = await fetch(TV_SCAN_URL, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'text/plain' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(`TradingView Scanner HTTP ${res.status}`);
+      const payload = await res.json();
+      const byTv = new Map(chunk.map(x => [x.ticker, x.item.symbol]));
+      for (const row of (payload?.data || [])) {
+        const tvSymbol = String(row?.s || '').toUpperCase();
+        const symbol = byTv.get(tvSymbol);
+        const d = row?.d || [];
+        if (!symbol || d.length < 5) continue;
+        out.set(symbol, { close:Number(d[1]), open:Number(d[2]), high:Number(d[3]), low:Number(d[4]) });
+      }
+    }
+    return out;
   }
 
   async function pollTickers() {
     if (state.tickerPollInFlight || !state.items.length) return;
     state.tickerPollInFlight = true;
+    let tvOk = false, tvCount = 0, spotOk = true, spotCount = 0;
     try {
-      const types = [...new Set(state.items.map(x => x.type === 'SPOT' ? 'SPOT' : 'PERP'))];
-      const payloads = await Promise.all(types.map(type => api(`/api/monitor/tickers?type=${type}`)));
-      const map = new Map();
-      payloads.forEach(p => (p.tickers || []).forEach(t => map.set(String(t.symbol || '').toUpperCase(), t)));
-      let changed = 0;
-      for (const item of state.items) {
-        const t = map.get(item.symbol);
-        if (!t) continue;
-        if (applyLivePrice(item.symbol, Number(t.price), Number(t.time || Date.now()))) changed++;
+      const perpItems = state.items.filter(x => x.type !== 'SPOT');
+      if (perpItems.length) {
+        try {
+          const tv = await tradingViewScan(perpItems);
+          const now = Date.now();
+          for (const item of perpItems) {
+            const snap = tv.get(item.symbol);
+            if (snap && applyLiveSnapshot(item.symbol, snap, now)) tvCount++;
+          }
+          tvOk = true;
+          state.tvLastOkAt = now;
+          state.tvLastCount = tvCount;
+        } catch (err) {
+          tvOk = false;
+          console.warn('TradingView Scanner poll failed', err);
+        }
+      } else tvOk = true;
+
+      // TradingView PIONEX scanner currently contains only .P perpetual rows. SPOT remains a best-effort fallback.
+      const spotItems = state.items.filter(x => x.type === 'SPOT');
+      if (spotItems.length) {
+        try {
+          const p = await api('/api/monitor/tickers?type=SPOT');
+          const map = new Map((p.tickers || []).map(t => [String(t.symbol || '').toUpperCase(), t]));
+          for (const item of spotItems) {
+            const t = map.get(item.symbol);
+            if (t && applyLivePrice(item.symbol, Number(t.price), Number(t.time || Date.now()))) spotCount++;
+          }
+        } catch (err) {
+          spotOk = false;
+          console.warn('Pionex SPOT fallback poll failed', err);
+        }
       }
-      state.tickerPollOkAt = Date.now();
-      setChip(els.ws, `Pionex 行情 · 10秒更新`, 'ok');
+
       flushLive();
-    } catch (err) {
-      setChip(els.ws, `Pionex 行情重試中`, 'waiting');
+      state.tickerPollOkAt = Date.now();
+      if (tvOk) {
+        const suffix = spotItems.length ? ` · PERP ${tvCount}/${perpItems.length} · SPOT ${spotCount}/${spotItems.length}` : ` · ${tvCount}/${perpItems.length} 標的`;
+        setChip(els.ws, `TradingView Scan · 10秒更新${suffix}`, 'ok');
+      } else {
+        setChip(els.ws, `TradingView Scan 重試中`, 'waiting');
+      }
     } finally {
       state.tickerPollInFlight = false;
     }
@@ -624,7 +700,7 @@
 
   async function init() {
     if (!Engine) { toast('monitor-engine.js 載入失敗',true); return; }
-    bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'Pionex 行情連線中','waiting');
+    bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'TradingView Scan 連線中','waiting');
     await loadRemoteWatchlist(false); reconcileRecords(); renderAll(); rebuildSockets(); warmMissing(false);
     setInterval(pollTickers,UI_INTERVAL); setInterval(remoteVersionSync,REMOTE_SYNC_INTERVAL);
     setInterval(()=>{ if(!state.localDirty && state.items.length) warmMissing(false); }, 120000);

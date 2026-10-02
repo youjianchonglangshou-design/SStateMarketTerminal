@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>SState Live Monitor</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./monitor.css?v=0.3.04">
+  <link rel="stylesheet" href="./monitor.css?v=0.3.06">
 </head>
 <body>
   <main class="monitor-shell">
@@ -15,7 +15,7 @@
         <div class="eyebrow">SSTATE MARKET TERMINAL // LIVE WATCH</div>
         <div class="title-line">
           <h1>SState Live Monitor</h1>
-          <span class="version">v0.3.05</span>
+          <span class="version">v0.3.06</span>
         </div>
         <p>動態 Pionex 監控｜盤中日 K 即時計算｜R2 跨裝置同步</p>
       </div>
@@ -27,7 +27,7 @@
 
     <section class="status-bar" aria-label="監控狀態">
       <span id="r2-status" class="status-chip waiting"><i></i>R2 連線中</span>
-      <span id="ws-status" class="status-chip waiting"><i></i>Pionex WS 連線中</span>
+      <span id="ws-status" class="status-chip waiting"><i></i>TradingView Scan 連線中</span>
       <span id="save-status" class="status-chip"><i></i>尚未變更</span>
       <span id="symbol-count" class="status-chip">0 標的</span>
       <span id="last-update" class="status-chip">尚未更新</span>
@@ -67,7 +67,7 @@
       <button id="add-symbol" class="add-symbol" type="button">＋ 新增 Pionex 標的</button>
       <div class="panel-foot">
         <span>日線換日：UTC 00:00（台灣 08:00）</span>
-        <span>價格資料：Pionex Public WebSocket</span>
+        <span>價格資料：TradingView Scanner（PIONEX PERP）｜SPOT：Pionex fallback</span>
         <span>清單：R2 同步｜歷史暖機：Worker → Pionex Kline / R2 Cache</span>
       </div>
     </section>
@@ -96,8 +96,8 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./config.js?v=0.3.04"></script>
-  <script src="./monitor-engine.js?v=0.3.04"></script>
-  <script src="./monitor.js?v=0.3.04"></script>
+  <script src="./config.js?v=0.3.06"></script>
+  <script src="./monitor-engine.js?v=0.3.06"></script>
+  <script src="./monitor.js?v=0.3.06"></script>
 </body>
 </html>

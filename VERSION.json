@@ -1,14 +1,14 @@
 {
-  "app_version": "v0.3.05",
-  "stage": "LIVE-MONITOR-10S-TICKER-POLL",
+  "app_version": "v0.3.06",
+  "stage": "LIVE-MONITOR-TRADINGVIEW-SCAN",
   "features": [
-    "Fix live prices that remained frozen because the WebSocket relay delivered upstream frames as Blob/binary data and the browser monitor could not parse them reliably.",
-    "Primary live feed is now Pionex market/tickers through the Cloudflare Worker every 10 seconds, exactly matching the requested monitor cadence.",
-    "Worker caches each PERP/SPOT ticker snapshot for 8 seconds, so multiple browsers share the same upstream snapshot instead of multiplying Pionex API traffic.",
-    "Only changed table cells are patched; there is still no page reload or table flash.",
-    "Every 10-second snapshot updates the current live daily candle and immediately recalculates S-State, midline slope, average-K and CCI-SMA.",
-    "The WebSocket relay is retained as a secondary/debug path and now converts Blob/ArrayBuffer frames to text before heartbeat parsing/forwarding.",
-    "Includes v0.3.04 R2 watchlist/kline cache and cross-device synchronization."
+    "PERP live OHLC now comes directly from TradingView Crypto Scanner PIONEX symbols every 10 seconds.",
+    "Uses https://scanner.tradingview.com/crypto/scan with selected PIONEX:...USDT.P tickers, avoiding the unstable Pionex browser/Worker realtime path.",
+    "Fetches current close/open/high/low, so the in-progress daily candle is rebuilt before recalculating S-State, midline slope, Average-K and CCI-SMA.",
+    "The TradingView request is sent as text/plain JSON so GitHub Pages can use the scanner CORS response without a Content-Type preflight.",
+    "Only changed cells are patched; the page never reloads or flashes.",
+    "Pionex/R2 remains responsible for tradable-universe validation, watchlist sync and historical daily-kline warm-up.",
+    "TradingView PIONEX scanner currently exposes PIONEX perpetual .P rows; SPOT retains the existing Pionex ticker fallback."
   ],
-  "version": "0.3.05"
+  "version": "0.3.06"
 }

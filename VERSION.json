@@ -1,12 +1,12 @@
 {
-  "app_version": "v0.3.10",
-  "stage": "LIVE-MONITOR-COMPACT-MARQUEE-HEADER",
+  "app_version": "v0.3.11",
+  "stage": "LIVE-MONITOR-ALL-IN-MARQUEE",
   "features": [
-    "Compresses the monitor title, version, subtitle and runtime status chips into one horizontal summary row.",
-    "Turns the top LIVE WATCH strip into a slow continuous marquee.",
-    "Shrinks Return Terminal and Resync actions to the marquee height and aligns them on the same top row.",
-    "Reduces header vertical spacing and expands the split watch table viewport to show more symbols without changing monitor logic.",
-    "Keeps the CRYPTO / RWA split, TradingView Scanner refresh behavior and fixed add-symbol control unchanged."
+    "Moves SState Live Monitor title, version, Pionex/day-K/R2 summary, and all runtime status chips into the single top marquee.",
+    "Removes the old second summary row completely so no title/status content remains below the marquee.",
+    "Keeps Return Terminal and Resync compact and aligned with the marquee.",
+    "Expands the split monitor table viewport further to show more symbols without changing monitor logic.",
+    "Keeps CRYPTO/RWA split, search, sorting, R2 sync and TradingView Scanner refresh logic unchanged."
   ],
-  "version": "0.3.10"
+  "version": "0.3.11"
 }

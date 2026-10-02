@@ -6,40 +6,38 @@
   <meta name="color-scheme" content="dark">
   <title>SState Live Monitor</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./monitor.css?v=0.3.10">
+  <link rel="stylesheet" href="./monitor.css?v=0.3.11">
 </head>
 <body>
   <main class="monitor-shell">
     <header class="monitor-head">
       <div class="head-topline">
-        <div class="head-marquee" aria-label="SSTATE MARKET TERMINAL LIVE WATCH">
-          <div class="marquee-track" aria-hidden="true">
-            <span>SSTATE MARKET TERMINAL // LIVE WATCH</span><b>◆</b>
-            <span>SSTATE MARKET TERMINAL // LIVE WATCH</span><b>◆</b>
-            <span>SSTATE MARKET TERMINAL // LIVE WATCH</span><b>◆</b>
-            <span>SSTATE MARKET TERMINAL // LIVE WATCH</span><b>◆</b>
+        <div class="head-marquee" aria-label="SState Live Monitor 即時狀態跑馬燈">
+          <div class="marquee-track">
+            <span class="marquee-brand">SSTATE MARKET TERMINAL // LIVE WATCH</span>
+            <b class="marquee-sep">◆</b>
+            <span class="marquee-title">SState Live Monitor</span>
+            <span class="version marquee-version">v0.3.11</span>
+            <b class="marquee-sep">◆</b>
+            <span class="marquee-copy">動態 Pionex 監控</span>
+            <span class="marquee-pipe">｜</span>
+            <span class="marquee-copy">盤中日 K 即時計算</span>
+            <span class="marquee-pipe">｜</span>
+            <span class="marquee-copy">R2 跨裝置同步</span>
+            <b class="marquee-sep">◆</b>
+            <section class="status-bar marquee-status" aria-label="監控狀態">
+              <span id="r2-status" class="status-chip waiting"><i></i>R2 連線中</span>
+              <span id="ws-status" class="status-chip waiting"><i></i>TradingView Scan 連線中</span>
+              <span id="save-status" class="status-chip"><i></i>尚未變更</span>
+              <span id="symbol-count" class="status-chip">0 標的</span>
+              <span id="last-update" class="status-chip">尚未更新</span>
+            </section>
+            <b class="marquee-sep">◆</b>
           </div>
         </div>
         <div class="head-actions">
           <a class="ghost-link" href="./index.html">← 返回 Terminal</a>
           <button id="refresh-all" class="ghost-button" type="button">↻ 重新同步</button>
-        </div>
-      </div>
-
-      <div class="head-summary">
-        <div class="title-line">
-          <h1>SState Live Monitor</h1>
-          <span class="version">v0.3.10</span>
-        </div>
-        <p>動態 Pionex 監控｜盤中日 K 即時計算｜R2 跨裝置同步</p>
-        <div class="head-runtime">
-          <section class="status-bar" aria-label="監控狀態">
-            <span id="r2-status" class="status-chip waiting"><i></i>R2 連線中</span>
-            <span id="ws-status" class="status-chip waiting"><i></i>TradingView Scan 連線中</span>
-            <span id="save-status" class="status-chip"><i></i>尚未變更</span>
-            <span id="symbol-count" class="status-chip">0 標的</span>
-            <span id="last-update" class="status-chip">尚未更新</span>
-          </section>
         </div>
       </div>
     </header>
@@ -129,8 +127,8 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./config.js?v=0.3.10"></script>
-  <script src="./monitor-engine.js?v=0.3.10"></script>
-  <script src="./monitor.js?v=0.3.10"></script>
+  <script src="./config.js?v=0.3.11"></script>
+  <script src="./monitor-engine.js?v=0.3.11"></script>
+  <script src="./monitor.js?v=0.3.11"></script>
 </body>
 </html>

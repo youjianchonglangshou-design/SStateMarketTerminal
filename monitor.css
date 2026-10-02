@@ -60,3 +60,35 @@ td{height:40px;border-bottom:1px solid #213952;border-right:1px solid #213952;ba
   .head-summary{height:auto;min-height:29px;overflow-x:auto;scrollbar-width:none}.head-summary::-webkit-scrollbar{display:none}.title-line h1{font-size:18px}
   .split-watch-grid{padding:6px}.pane-table-wrap{max-height:none;min-height:0}.add-symbol-floating{width:44px;height:60px;font-size:38px;bottom:18px}
 }
+
+
+/* v0.3.11 — ALL header summary/status content lives inside the marquee */
+.monitor-shell{padding-top:8px}
+.monitor-head{display:block;padding:2px 6px 6px}
+.head-topline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;height:26px}
+.head-marquee{height:26px;min-width:0;overflow:hidden;border:1px solid #216a83;border-radius:7px;background:linear-gradient(90deg,rgba(7,37,53,.95),rgba(8,27,43,.88));box-shadow:inset 0 0 12px rgba(34,211,238,.05);position:relative}
+.marquee-track{display:inline-flex;align-items:center;gap:9px;width:max-content;height:100%;padding-left:100%;padding-right:80px;white-space:nowrap;will-change:transform;animation:headerMarqueeAll 38s linear infinite;color:#8edff2;font-size:9px;font-weight:800;letter-spacing:0;text-transform:none}
+.marquee-brand{color:#67e8f9;font-weight:950;letter-spacing:.15em;text-transform:uppercase}
+.marquee-title{color:#fde52f;font-size:13px;font-weight:950;letter-spacing:0}
+.marquee-version{padding:2px 6px;font-size:8px;line-height:1;border-radius:999px;flex:0 0 auto}
+.marquee-copy{color:#86a0b6;font-size:9px;font-weight:700}
+.marquee-pipe{color:#496a84;font-size:9px}
+.marquee-sep{color:#3fb6d4;font-size:7px;font-weight:900;flex:0 0 auto}
+.marquee-status{display:inline-flex!important;align-items:center;flex-wrap:nowrap!important;gap:5px!important;margin:0!important;padding:0!important;width:auto!important;overflow:visible!important;flex:0 0 auto}
+.marquee-status .status-chip{flex:0 0 auto;padding:3px 7px;font-size:8.5px;line-height:1.05}
+.marquee-status .status-chip i{width:6px;height:6px}
+@keyframes headerMarqueeAll{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+@media(prefers-reduced-motion:reduce){.marquee-track{animation:none;padding-left:12px}}
+.head-actions{display:flex;gap:5px;align-items:center;height:26px;justify-self:end;white-space:nowrap}
+.head-actions .ghost-link,.head-actions .ghost-button{height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;padding:0 9px;font-size:9px;line-height:1}
+/* v0.3.10 的第二列摘要已從 HTML 完全移除；這些規則只作保險 */
+.head-summary,.head-runtime{display:none!important}
+.pane-table-wrap{max-height:calc(100vh - 171px);min-height:420px}
+@media(max-width:1180px){
+  .split-watch-grid{grid-template-columns:1fr}.pane-table-wrap{max-height:470px;min-height:360px}.add-symbol-floating{top:auto;bottom:20px}
+}
+@media(max-width:820px){
+  .monitor-shell{width:calc(100% - 14px);padding-top:6px}.head-topline{grid-template-columns:minmax(0,1fr) auto;gap:5px}.head-marquee{min-width:70px}
+  .head-actions{gap:3px}.head-actions .ghost-link,.head-actions .ghost-button{padding:0 5px;font-size:8.5px}
+  .marquee-track{animation-duration:34s}.pane-table-wrap{max-height:none;min-height:0}.add-symbol-floating{width:44px;height:60px;font-size:38px;bottom:18px}
+}

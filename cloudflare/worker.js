@@ -46,6 +46,13 @@ const FOUR_HOUR_MS = 4 * 60 * 60 * 1000;
 
 function checkpointSnapshotKey(dateTw, market) {
   const info = MARKET[market];
+  return `${CHAMPION_CHECKPOINT_PREFIX}/${dateTw}_0801/${info.filename}`;
+}
+
+// Backward compatibility: checkpoints created before v0.3.15 used the 08:25 suffix.
+// Keep them readable so HistoricalTraining can still review the previous days during migration.
+function legacyCheckpointSnapshotKey(dateTw, market) {
+  const info = MARKET[market];
   return `${CHAMPION_CHECKPOINT_PREFIX}/${dateTw}_0825/${info.filename}`;
 }
 
@@ -53,8 +60,8 @@ function taiwanChampionDateFromScheduledTime(scheduledTime) {
   const ms = Number(scheduledTime);
   if (!Number.isFinite(ms) || ms <= 0) return "";
   const utc = new Date(ms);
-  // 00:25 UTC = Taiwan 08:25. This is the one formal Champion exam each day.
-  if (utc.getUTCHours() !== 0 || utc.getUTCMinutes() !== 25) return "";
+  // 00:01 UTC = Taiwan 08:01. This is the one formal Champion exam each day.
+  if (utc.getUTCHours() !== 0 || utc.getUTCMinutes() !== 1) return "";
   const tw = new Date(ms + 8 * 60 * 60 * 1000);
   const yyyy = tw.getUTCFullYear();
   const mm = String(tw.getUTCMonth() + 1).padStart(2, "0");
@@ -71,14 +78,14 @@ function isTaiwan0801Slot(scheduledTime) {
 
 async function cleanupLegacyRunSnapshots(env) {
   // Normal 4H/manual snapshots are no longer historical storage. Only the
-  // daily 08:25 formal Champion checkpoint remains under runs/champion/.
+  // daily 08:01 formal Champion checkpoint remains under runs/champion/.
   const staleKeys = [];
   let cursor;
   do {
     const page = await env.JSON_BUCKET.list({ prefix: "runs/", cursor, limit: 1000 });
     for (const obj of page.objects || []) {
       const key = String(obj.key || "");
-      if (key.startsWith(`${CHAMPION_CHECKPOINT_PREFIX}/`) && key.includes("_0825/")) continue;
+      if (key.startsWith(`${CHAMPION_CHECKPOINT_PREFIX}/`) && (key.includes("_0801/") || key.includes("_0825/"))) continue;
       if (key.endsWith("/snapshot_ai.json") || key.endsWith("/snapshot_us_stock_ai.json")) {
         staleKeys.push(key);
       }
@@ -243,7 +250,12 @@ export default {
         const market = normalizeMarket(url.searchParams.get("market"));
         const dateTw = safeCheckpointDate(url.searchParams.get("date"));
         const key = checkpointSnapshotKey(dateTw, market);
-        return await objectResponse(env, key, origin, false, MARKET[market].filename);
+        const current = await env.JSON_BUCKET.get(key);
+        if (current) return await objectResponse(env, key, origin, false, MARKET[market].filename);
+
+        // During the 08:25 → 08:01 migration, allow old daily checkpoints to remain readable.
+        const legacyKey = legacyCheckpointSnapshotKey(dateTw, market);
+        return await objectResponse(env, legacyKey, origin, false, MARKET[market].filename);
       }
       if (request.method === "GET" && url.pathname === "/api/champion/performance") {
         return await objectResponse(env, "champion/performance/latest.json", origin, false, "champion_performance.json");
@@ -485,7 +497,7 @@ export default {
           checkpointKey = checkpointSnapshotKey(checkpointDateTw, market);
           await env.JSON_BUCKET.put(checkpointKey, text, metadata);
           // One-time/ongoing cleanup: remove the old large run snapshots while
-          // preserving status JSON and runs/champion/08:25 formal checkpoints.
+          // preserving status JSON and runs/champion/08:01 formal checkpoints.
           cleanedLegacyRunSnapshots = await cleanupLegacyRunSnapshots(env);
         }
 
@@ -690,28 +702,22 @@ export default {
       return;
     }
     if (controller.cron === "1 */4 * * *") {
-      // Keep six pair analyses/day but replace the old 08:01 slot with the
-      // formal 08:25 Champion batch. The other five 4H slots remain Live only.
+      // 台灣時間每 4 小時：00:01 / 04:01 / 08:01 / 12:01 / 16:01 / 20:01。
+      // 其中 08:01 是每日正式 Champion 批次：Crypto + 美股完成後觸發 HistoricalTraining。
       if (isTaiwan0801Slot(controller.scheduledTime)) {
-        console.log("Skip Taiwan 08:01 live slot; formal 08:25 Champion batch replaces it.");
+        const checkpointDateTw = taiwanChampionDateFromScheduledTime(controller.scheduledTime);
+        ctx.waitUntil(dispatchAutoBatch(env, "pair", source, checkpointDateTw, true));
+        // 原本掛在 08:25 的美股/RWA 清單同步一併搬到 08:01，避免額外 Cron。
+        ctx.waitUntil(dispatchUsStockSymbolSync(env, source));
         return;
       }
       ctx.waitUntil(dispatchAutoBatch(env, "pair", source, "", false));
       return;
     }
     if (controller.cron === "31 13 * * *") {
-      // 台灣 21:31：美股完整分析與板塊資金羅盤分開執行，互不阻塞。
+      // 台灣 21:31：單純美股完整分析 + 板塊資金羅盤；不觸發 HistoricalTraining。
       ctx.waitUntil(dispatchAutoBatch(env, "us-stock-only", source, "", false));
       ctx.waitUntil(dispatchSectorFlow(env, source));
-      return;
-    }
-    // 00:25 UTC = 台灣時間 08:25。先跑正式 Champion Crypto + 美股分析，
-    // 兩邊都成功後 auto-batch workflow 再觸發 HistoricalTraining。
-    // 美股/RWA 清單同步仍可並行。
-    if (controller.cron === "25 0 * * *") {
-      const checkpointDateTw = taiwanChampionDateFromScheduledTime(controller.scheduledTime);
-      ctx.waitUntil(dispatchAutoBatch(env, "pair", source, checkpointDateTw, true));
-      ctx.waitUntil(dispatchUsStockSymbolSync(env, source));
       return;
     }
     console.log(`Unhandled cron trigger: ${controller.cron}`);

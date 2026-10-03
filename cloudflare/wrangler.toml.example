@@ -11,7 +11,6 @@ ALLOWED_ORIGIN = "https://youjianchonglangshou-design.github.io"
 binding = "JSON_BUCKET"
 bucket_name = "sstate-market-data"
 
-
 # Secrets (do not put values in this file):
 # npx wrangler secret put GITHUB_TOKEN
 # npx wrangler secret put CALLBACK_TOKEN
@@ -19,6 +18,11 @@ bucket_name = "sstate-market-data"
 # npx wrangler secret put TELEGRAM_BOT_TOKEN
 # npx wrangler secret put TELEGRAM_CHAT_ID
 
-# Current Dashboard-equivalent cron set. Cloudflare cron uses UTC.
+# Cloudflare Cron uses UTC.
+# * * * * *   = 每分鐘價格提醒（關閉 monitor.html 後仍會檢查 Telegram 價格提醒）
+# 1 */4 * * * = 台灣 00:01 / 04:01 / 08:01 / 12:01 / 16:01 / 20:01
+#                 08:01 這一輪：Crypto + 美股完成後執行 HistoricalTraining
+# 31 13 * * * = 台灣 21:31，美股完整分析 + 板塊資金羅盤，不執行學習
+# 注意：舊的 25 0 * * *（台灣 08:25）已取消。
 [triggers]
-crons = ["* * * * *", "1 */4 * * *", "31 13 * * *", "25 0 * * *"]
+crons = ["* * * * *", "1 */4 * * *", "31 13 * * *"]

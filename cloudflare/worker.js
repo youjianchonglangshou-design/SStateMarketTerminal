@@ -10,6 +10,8 @@ const MONITOR_UNIVERSE_KEY = "pionex/cache/monitor_universe.json";
 const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MONITOR_KLINE_TTL_MS = 12 * 60 * 60 * 1000;
 const MONITOR_MAX_ITEMS = 500;
+const MONITOR_PRICE_ALERTS_KEY = "terminal/monitor_price_alerts.json";
+const MONITOR_PRICE_ALERT_MAX = 200;
 const MONITOR_FALLBACK_CRYPTO = [
   "BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","LINK","SUI","TRX","TON","DOT","LTC","BCH","ETC","ATOM","NEAR","ICP","HBAR",
   "AAVE","UNI","INJ","FET","RENDER","TIA","EIGEN","JTO","PYTH","ONDO","WLD","FIL","ARB","OP","STRK","LDO","MKR","ENA","PENDLE","RUNE",
@@ -124,6 +126,24 @@ export default {
       if (request.method === "PUT" && url.pathname === "/api/monitor/watchlist") {
         const body = await request.json().catch(() => ({}));
         const payload = await writeMonitorWatchlist(env, body);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/monitor/alerts") {
+        const payload = await readMonitorPriceAlerts(env);
+        return json({ ok: true, ...payload, telegram_configured: hasTelegramConfig(env) }, 200, origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/monitor/alerts") {
+        const body = await request.json().catch(() => ({}));
+        const payload = await upsertMonitorPriceAlert(env, body);
+        return json({ ok: true, ...payload, telegram_configured: hasTelegramConfig(env) }, 200, origin);
+      }
+      if (request.method === "DELETE" && url.pathname === "/api/monitor/alerts") {
+        const body = await request.json().catch(() => ({}));
+        const payload = await deleteMonitorPriceAlert(env, body);
+        return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/monitor/alerts/check") {
+        const payload = await checkMonitorPriceAlerts(env, "monitor-page");
         return json({ ok: true, ...payload }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/monitor/symbols") {
@@ -663,6 +683,12 @@ export default {
 
   async scheduled(controller, env, ctx) {
     const source = `cron:${controller.cron}`;
+    // Price alerts: Cloudflare's minimum cron interval is one minute.
+    // The monitor page also calls the same checker while it is open, so live pages react faster.
+    if (controller.cron === "* * * * *") {
+      ctx.waitUntil(checkMonitorPriceAlerts(env, source));
+      return;
+    }
     if (controller.cron === "1 */4 * * *") {
       // Keep six pair analyses/day but replace the old 08:01 slot with the
       // formal 08:25 Champion batch. The other five 4H slots remain Live only.
@@ -3705,6 +3731,154 @@ async function writeMonitorWatchlist(env,body){
   await env.JSON_BUCKET.put(MONITOR_WATCHLIST_KEY,JSON.stringify(payload,null,2),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
   return payload;
 }
+function cleanMonitorPriceAlert(row){
+  if(!row || typeof row!=="object") return null;
+  let symbol;
+  try{ symbol=safeMonitorSymbol(row.symbol); }catch(_){ return null; }
+  const type=String(row.type||"").toUpperCase()==="SPOT"?"SPOT":"PERP";
+  const target=Number(row.target_price);
+  const createdPrice=Number(row.created_price);
+  if(!Number.isFinite(target)||target<=0) return null;
+  const direction=String(row.direction||"").toUpperCase()==="BELOW"?"BELOW":"ABOVE";
+  return {
+    id:safeMemoText(row.id,80)||crypto.randomUUID(),
+    symbol,type,target_price:target,direction,
+    created_price:Number.isFinite(createdPrice)&&createdPrice>0?createdPrice:null,
+    created_at:safeMemoText(row.created_at,40)||new Date().toISOString()
+  };
+}
+async function readMonitorPriceAlerts(env){
+  const obj=await env.JSON_BUCKET.get(MONITOR_PRICE_ALERTS_KEY);
+  if(!obj) return {schema_version:"1.0",updated_at:null,alerts:[]};
+  try{
+    const p=JSON.parse(await obj.text());
+    const alerts=(Array.isArray(p?.alerts)?p.alerts:[]).map(cleanMonitorPriceAlert).filter(Boolean).slice(0,MONITOR_PRICE_ALERT_MAX);
+    return {schema_version:"1.0",updated_at:p?.updated_at||null,alerts};
+  }catch(_){ return {schema_version:"1.0",updated_at:null,alerts:[]}; }
+}
+async function writeMonitorPriceAlerts(env,alerts){
+  const payload={schema_version:"1.0",updated_at:new Date().toISOString(),alerts:alerts.slice(0,MONITOR_PRICE_ALERT_MAX)};
+  await env.JSON_BUCKET.put(MONITOR_PRICE_ALERTS_KEY,JSON.stringify(payload,null,2),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
+  return payload;
+}
+async function upsertMonitorPriceAlert(env,body){
+  const symbol=safeMonitorSymbol(body?.symbol);
+  const type=String(body?.type||"").toUpperCase()==="SPOT"?"SPOT":"PERP";
+  const target=Number(body?.target_price);
+  const current=Number(body?.current_price);
+  if(!Number.isFinite(target)||target<=0) throw httpError(400,"target_price must be > 0");
+  if(!Number.isFinite(current)||current<=0) throw httpError(400,"current_price must be > 0");
+  const direction=target>=current?"ABOVE":"BELOW";
+  const alert={id:crypto.randomUUID(),symbol,type,target_price:target,direction,created_price:current,created_at:new Date().toISOString()};
+  const existing=await readMonitorPriceAlerts(env);
+  const alerts=[alert,...existing.alerts.filter(x=>x.symbol!==symbol)];
+  const payload=await writeMonitorPriceAlerts(env,alerts);
+  return {...payload,alert};
+}
+async function deleteMonitorPriceAlert(env,body){
+  const id=safeMemoText(body?.id,80);
+  const symbol=safeMemoText(body?.symbol,80).toUpperCase();
+  if(!id&&!symbol) throw httpError(400,"alert id or symbol required");
+  const existing=await readMonitorPriceAlerts(env);
+  const alerts=existing.alerts.filter(x=>!(id&&x.id===id)&&!(symbol&&x.symbol===symbol));
+  const payload=await writeMonitorPriceAlerts(env,alerts);
+  return {...payload,deleted:existing.alerts.length-alerts.length};
+}
+function hasTelegramConfig(env){
+  return Boolean(telegramBotToken(env)&&telegramChatId(env));
+}
+function telegramBotToken(env){
+  return String(env.TELEGRAM_BOT_TOKEN||env.TELEGRAM_API||env.TELEGRAM_TOKEN||env.TG_BOT_TOKEN||"").trim();
+}
+function telegramChatId(env){
+  return String(env.TELEGRAM_CHAT_ID||env.TELEGRAM_ID||env.TG_CHAT_ID||"").trim();
+}
+function alertBaseSymbol(symbol){
+  return String(symbol||"").toUpperCase().replace(/_USDT_PERP$/,"").replace(/_USDT$/,"");
+}
+function alertTradingViewTicker(symbol){
+  const base=alertBaseSymbol(symbol);
+  return base?`PIONEX:${base}USDT.P`:"";
+}
+async function loadTradingViewAlertPrices(alerts){
+  const rows=alerts.filter(x=>x.type!=="SPOT").map(x=>({alert:x,ticker:alertTradingViewTicker(x.symbol)})).filter(x=>x.ticker);
+  const out=new Map();
+  for(let i=0;i<rows.length;i+=200){
+    const chunk=rows.slice(i,i+200);
+    const body={filter:[],options:{lang:"en"},symbols:{query:{types:[]},tickers:chunk.map(x=>x.ticker)},columns:["name","close"],range:[0,Math.max(50,chunk.length+10)]};
+    const r=await fetch("https://scanner.tradingview.com/crypto/scan",{method:"POST",headers:{"Accept":"application/json","Content-Type":"text/plain"},body:JSON.stringify(body)});
+    if(!r.ok) throw httpError(502,`TradingView alert scan failed: ${r.status}`);
+    const p=await r.json();
+    const byTv=new Map(chunk.map(x=>[x.ticker,x.alert.symbol]));
+    for(const row of (p?.data||[])){
+      const symbol=byTv.get(String(row?.s||"").toUpperCase());
+      const price=Number(row?.d?.[1]);
+      if(symbol&&Number.isFinite(price)&&price>0) out.set(symbol,price);
+    }
+  }
+  return out;
+}
+async function loadSpotAlertPrices(alerts){
+  const spot=alerts.filter(x=>x.type==="SPOT");
+  const out=new Map();
+  if(!spot.length) return out;
+  const p=await loadMonitorTickers("SPOT");
+  const wanted=new Set(spot.map(x=>x.symbol));
+  for(const row of (p?.tickers||[])){
+    const symbol=String(row?.symbol||"").toUpperCase();
+    const price=Number(row?.price);
+    if(wanted.has(symbol)&&Number.isFinite(price)&&price>0) out.set(symbol,price);
+  }
+  return out;
+}
+function monitorAlertReached(alert,price){
+  const p=Number(price), target=Number(alert?.target_price);
+  if(!Number.isFinite(p)||!Number.isFinite(target)) return false;
+  return alert.direction==="BELOW"?p<=target:p>=target;
+}
+function formatAlertTarget(value){
+  const n=Number(value);
+  if(!Number.isFinite(n)) return String(value??"");
+  if(Number.isInteger(n)) return String(n);
+  return n.toFixed(10).replace(/0+$/,"").replace(/\.$/,"");
+}
+function formatTaiwanDateTime(value=Date.now()){
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Taipei",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).formatToParts(new Date(value));
+  const get=t=>parts.find(x=>x.type===t)?.value||"";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+}
+async function sendTelegramPriceAlert(env,alert,triggeredAt=Date.now()){
+  const token=telegramBotToken(env), chatId=telegramChatId(env);
+  if(!token||!chatId) throw httpError(500,"Telegram Worker secrets not configured");
+  const text=`${alertBaseSymbol(alert.symbol)}   觸發${formatAlertTarget(alert.target_price)}\n時間：${formatTaiwanDateTime(triggeredAt)}`;
+  const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:chatId,text,disable_web_page_preview:true})});
+  let payload=null; try{payload=await r.json();}catch(_){}
+  if(!r.ok||payload?.ok===false) throw httpError(502,`Telegram send failed: ${payload?.description||r.status}`);
+  return {text,message_id:payload?.result?.message_id||null};
+}
+async function checkMonitorPriceAlerts(env,source="manual"){
+  const existing=await readMonitorPriceAlerts(env);
+  if(!existing.alerts.length) return {source,checked_at:new Date().toISOString(),checked:0,triggered:[],remaining:0,alerts:[]};
+  if(!hasTelegramConfig(env)) throw httpError(500,"Telegram Worker secrets not configured");
+  const prices=new Map(); const errors=[];
+  const [perpResult,spotResult]=await Promise.allSettled([loadTradingViewAlertPrices(existing.alerts),loadSpotAlertPrices(existing.alerts)]);
+  if(perpResult.status==="fulfilled") for(const [k,v] of perpResult.value) prices.set(k,v); else errors.push(perpResult.reason?.message||String(perpResult.reason));
+  if(spotResult.status==="fulfilled") for(const [k,v] of spotResult.value) prices.set(k,v); else errors.push(spotResult.reason?.message||String(spotResult.reason));
+  const remaining=[]; const triggered=[]; const now=Date.now();
+  for(const alert of existing.alerts){
+    const price=prices.get(alert.symbol);
+    if(!Number.isFinite(price)||!monitorAlertReached(alert,price)){remaining.push(alert);continue;}
+    try{
+      const sent=await sendTelegramPriceAlert(env,alert,now);
+      triggered.push({id:alert.id,symbol:alert.symbol,target_price:alert.target_price,price,telegram_message_id:sent.message_id});
+    }catch(err){
+      remaining.push(alert); errors.push(`${alert.symbol}: ${err?.message||String(err)}`);
+    }
+  }
+  if(triggered.length) await writeMonitorPriceAlerts(env,remaining);
+  return {source,checked_at:new Date(now).toISOString(),checked:existing.alerts.length,triggered,remaining:remaining.length,alerts:remaining,errors};
+}
+
 function monitorUniverseRow(row,type){
   if(!row||typeof row!=="object") return null;
   if(row.active===false || row.enable===false) return null;

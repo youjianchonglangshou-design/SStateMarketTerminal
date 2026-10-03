@@ -16,3 +16,9 @@ bucket_name = "sstate-market-data"
 # npx wrangler secret put GITHUB_TOKEN
 # npx wrangler secret put CALLBACK_TOKEN
 # npx wrangler secret put TAVILY_API_KEY
+# npx wrangler secret put TELEGRAM_BOT_TOKEN
+# npx wrangler secret put TELEGRAM_CHAT_ID
+
+# Current Dashboard-equivalent cron set. Cloudflare cron uses UTC.
+[triggers]
+crons = ["* * * * *", "1 */4 * * *", "31 13 * * *", "25 0 * * *"]

@@ -11,7 +11,7 @@ const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MONITOR_KLINE_TTL_MS = 12 * 60 * 60 * 1000;
 const MONITOR_MAX_ITEMS = 500;
 const MONITOR_PRICE_ALERTS_KEY = "terminal/monitor_price_alerts.json";
-const MONITOR_PRICE_ALERT_MAX = 200;
+const MONITOR_PRICE_ALERT_MAX = 200;\nconst MONITOR_PRICE_ALERT_STATUS_KEY = "terminal/monitor_price_alert_status.json";
 const MONITOR_FALLBACK_CRYPTO = [
   "BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","LINK","SUI","TRX","TON","DOT","LTC","BCH","ETC","ATOM","NEAR","ICP","HBAR",
   "AAVE","UNI","INJ","FET","RENDER","TIA","EIGEN","JTO","PYTH","ONDO","WLD","FIL","ARB","OP","STRK","LDO","MKR","ENA","PENDLE","RUNE",
@@ -136,8 +136,15 @@ export default {
         return json({ ok: true, ...payload }, 200, origin);
       }
       if (request.method === "GET" && url.pathname === "/api/monitor/alerts") {
-        const payload = await readMonitorPriceAlerts(env);
-        return json({ ok: true, ...payload, telegram_configured: hasTelegramConfig(env) }, 200, origin);
+        const [payload, lastCheck] = await Promise.all([
+          readMonitorPriceAlerts(env),
+          readMonitorPriceAlertStatus(env),
+        ]);
+        return json({ ok: true, ...payload, telegram_configured: hasTelegramConfig(env), last_check: lastCheck }, 200, origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/monitor/alerts/status") {
+        const lastCheck = await readMonitorPriceAlertStatus(env);
+        return json({ ok: true, last_check: lastCheck }, 200, origin);
       }
       if (request.method === "POST" && url.pathname === "/api/monitor/alerts") {
         const body = await request.json().catch(() => ({}));
@@ -695,10 +702,31 @@ export default {
 
   async scheduled(controller, env, ctx) {
     const source = `cron:${controller.cron}`;
+
+    // Always run the Telegram price-alert checker for every scheduled event.
+    // "* * * * *" is the primary 1-minute heartbeat; running it before the
+    // branch checks also makes the alert path robust if Cloudflare normalizes
+    // the cron string differently than expected.
+    ctx.waitUntil(
+      checkMonitorPriceAlerts(env, source).catch(async (err) => {
+        console.error("Scheduled price-alert check failed:", err?.message || String(err));
+        try {
+          await writeMonitorPriceAlertStatus(env, {
+            source,
+            checked_at: new Date().toISOString(),
+            checked: null,
+            triggered_count: 0,
+            remaining: null,
+            ok: false,
+            errors: [err?.message || String(err)],
+          });
+        } catch (_) {}
+      })
+    );
+
     // Price alerts: Cloudflare's minimum cron interval is one minute.
     // The monitor page also calls the same checker while it is open, so live pages react faster.
     if (controller.cron === "* * * * *") {
-      ctx.waitUntil(checkMonitorPriceAlerts(env, source));
       return;
     }
     if (controller.cron === "1 */4 * * *") {
@@ -3862,27 +3890,90 @@ async function sendTelegramPriceAlert(env,alert,triggeredAt=Date.now()){
   if(!r.ok||payload?.ok===false) throw httpError(502,`Telegram send failed: ${payload?.description||r.status}`);
   return {text,message_id:payload?.result?.message_id||null};
 }
+async function readMonitorPriceAlertStatus(env){
+  try{
+    const obj=await env.JSON_BUCKET.get(MONITOR_PRICE_ALERT_STATUS_KEY);
+    if(!obj) return null;
+    const p=JSON.parse(await obj.text());
+    return p&&typeof p==="object"?p:null;
+  }catch(_){ return null; }
+}
+async function writeMonitorPriceAlertStatus(env,status){
+  const payload={...status,stored_at:new Date().toISOString()};
+  await env.JSON_BUCKET.put(MONITOR_PRICE_ALERT_STATUS_KEY,JSON.stringify(payload,null,2),{
+    httpMetadata:{contentType:"application/json; charset=utf-8"}
+  });
+  return payload;
+}
 async function checkMonitorPriceAlerts(env,source="manual"){
   const existing=await readMonitorPriceAlerts(env);
-  if(!existing.alerts.length) return {source,checked_at:new Date().toISOString(),checked:0,triggered:[],remaining:0,alerts:[]};
-  if(!hasTelegramConfig(env)) throw httpError(500,"Telegram Worker secrets not configured");
+  const now=Date.now();
+
+  if(!existing.alerts.length){
+    const result={source,checked_at:new Date(now).toISOString(),checked:0,triggered:[],remaining:0,alerts:[],errors:[]};
+    await writeMonitorPriceAlertStatus(env,{...result,triggered_count:0,ok:true});
+    return result;
+  }
+
+  if(!hasTelegramConfig(env)){
+    const message="Telegram Worker secrets not configured";
+    await writeMonitorPriceAlertStatus(env,{
+      source,checked_at:new Date(now).toISOString(),checked:existing.alerts.length,
+      triggered_count:0,remaining:existing.alerts.length,ok:false,errors:[message]
+    });
+    throw httpError(500,message);
+  }
+
   const prices=new Map(); const errors=[];
-  const [perpResult,spotResult]=await Promise.allSettled([loadTradingViewAlertPrices(existing.alerts),loadSpotAlertPrices(existing.alerts)]);
-  if(perpResult.status==="fulfilled") for(const [k,v] of perpResult.value) prices.set(k,v); else errors.push(perpResult.reason?.message||String(perpResult.reason));
-  if(spotResult.status==="fulfilled") for(const [k,v] of spotResult.value) prices.set(k,v); else errors.push(spotResult.reason?.message||String(spotResult.reason));
-  const remaining=[]; const triggered=[]; const now=Date.now();
+  const [perpResult,spotResult]=await Promise.allSettled([
+    loadTradingViewAlertPrices(existing.alerts),
+    loadSpotAlertPrices(existing.alerts)
+  ]);
+  if(perpResult.status==="fulfilled") for(const [k,v] of perpResult.value) prices.set(k,v);
+  else errors.push(perpResult.reason?.message||String(perpResult.reason));
+  if(spotResult.status==="fulfilled") for(const [k,v] of spotResult.value) prices.set(k,v);
+  else errors.push(spotResult.reason?.message||String(spotResult.reason));
+
+  const remaining=[]; const triggered=[];
   for(const alert of existing.alerts){
     const price=prices.get(alert.symbol);
-    if(!Number.isFinite(price)||!monitorAlertReached(alert,price)){remaining.push(alert);continue;}
+    if(!Number.isFinite(price)||!monitorAlertReached(alert,price)){
+      remaining.push(alert);
+      continue;
+    }
     try{
       const sent=await sendTelegramPriceAlert(env,alert,now);
-      triggered.push({id:alert.id,symbol:alert.symbol,target_price:alert.target_price,price,telegram_message_id:sent.message_id});
+      triggered.push({
+        id:alert.id,symbol:alert.symbol,target_price:alert.target_price,price,
+        telegram_message_id:sent.message_id
+      });
     }catch(err){
-      remaining.push(alert); errors.push(`${alert.symbol}: ${err?.message||String(err)}`);
+      remaining.push(alert);
+      errors.push(`${alert.symbol}: ${err?.message||String(err)}`);
     }
   }
+
   if(triggered.length) await writeMonitorPriceAlerts(env,remaining);
-  return {source,checked_at:new Date(now).toISOString(),checked:existing.alerts.length,triggered,remaining:remaining.length,alerts:remaining,errors};
+
+  const result={
+    source,
+    checked_at:new Date(now).toISOString(),
+    checked:existing.alerts.length,
+    triggered,
+    remaining:remaining.length,
+    alerts:remaining,
+    errors
+  };
+  await writeMonitorPriceAlertStatus(env,{
+    source:result.source,
+    checked_at:result.checked_at,
+    checked:result.checked,
+    triggered_count:triggered.length,
+    remaining:result.remaining,
+    ok:errors.length===0,
+    errors
+  });
+  return result;
 }
 
 function monitorUniverseRow(row,type){

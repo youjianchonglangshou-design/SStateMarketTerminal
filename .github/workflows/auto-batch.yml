@@ -231,8 +231,8 @@ jobs:
           [ "$SUCCESS" = "true" ]
 
 
-      - name: Trigger HistoricalTraining after formal Champion batch
-        if: ${{ env.RUN_LEARNING_AFTER == 'true' && needs.crypto.result == 'success' && needs.us_stock.result == 'success' }}
+      - name: Trigger HistoricalTraining after scheduled batch
+        if: ${{ env.RUN_LEARNING_AFTER == 'true' && needs.us_stock.result == 'success' && (env.MODE == 'us-stock-only' || needs.crypto.result == 'success') }}
         shell: bash
         run: |
           curl --fail --silent --show-error -X POST \

@@ -17,7 +17,7 @@
             <span class="marquee-brand">SSTATE MARKET TERMINAL // LIVE WATCH</span>
             <b class="marquee-sep">◆</b>
             <span class="marquee-title">SState Live Monitor</span>
-            <span class="version marquee-version">v0.3.13</span>
+            <span class="version marquee-version">v0.3.14</span>
             <b class="marquee-sep">◆</b>
             <span class="marquee-copy">動態 Pionex 監控</span>
             <span class="marquee-pipe">｜</span>
@@ -122,6 +122,32 @@
       </div>
       <div id="symbol-results" class="symbol-results">
         <div class="symbol-loading">讀取 Pionex 最新清單...</div>
+      </div>
+    </section>
+  </div>
+
+  <div id="price-alert-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-alert-modal="1"></div>
+    <section class="modal-card alert-modal-card" role="dialog" aria-modal="true" aria-labelledby="price-alert-title">
+      <header>
+        <div>
+          <div class="eyebrow">TELEGRAM PRICE ALERT</div>
+          <h2 id="price-alert-title">價格提醒</h2>
+        </div>
+        <button id="price-alert-close" class="modal-close" type="button" aria-label="關閉">×</button>
+      </header>
+      <div class="alert-form">
+        <div class="alert-symbol-line"><strong id="price-alert-symbol">BTC</strong><span id="price-alert-current">現價 —</span></div>
+        <label for="price-alert-target">觸發價格</label>
+        <input id="price-alert-target" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="輸入目標價格">
+        <p id="price-alert-hint" class="alert-hint">輸入價格後會自動判斷上破或下破。</p>
+        <p class="alert-note">觸發成功後會傳送 Telegram，並自動刪除這筆提醒。</p>
+        <div class="alert-actions">
+          <button id="price-alert-delete" class="alert-delete hidden" type="button">刪除提醒</button>
+          <span class="alert-spacer"></span>
+          <button id="price-alert-cancel" class="mini-button" type="button">取消</button>
+          <button id="price-alert-save" class="alert-save" type="button">儲存提醒</button>
+        </div>
       </div>
     </section>
   </div>

@@ -7,7 +7,8 @@ window.SSTATE_CONFIG = {
   monitorSaveDebounceMs: 3000,
   monitorWarmConcurrency: 4,
   monitorWarmGapMs: 180,
+  monitorAlertCheckIntervalMs: 10000,
   performanceDataUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/performance",
   performanceLedgerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/ledger/recent",
-  appVersion: "v0.3.13"
+  appVersion: "v0.3.14"
 };

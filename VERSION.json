@@ -1,11 +1,13 @@
 {
-  "app_version": "v0.3.13",
-  "stage": "LIVE-MONITOR-FAST-WARMUP",
+  "app_version": "v0.3.14",
+  "stage": "LIVE-MONITOR-TELEGRAM-PRICE-ALERTS",
   "features": [
-    "Speeds up first-load historical 1D Kline warm-up by loading up to 4 symbols concurrently instead of one at a time.",
-    "Reduces the fixed per-symbol warm-up delay from 1100ms to a configurable 180ms safety gap, with a small 60ms startup stagger between workers.",
-    "Keeps R2-prewarmed klines as the primary historical source and retains the existing Pionex fallback path for cache misses.",
-    "Preserves the v0.3.12 slow marquee and all TradingView Scanner, sort, search, R2 sync, and indicator calculations."
+    "Adds a bell beside every live price for creating a one-shot Telegram price alert.",
+    "Automatically decides ABOVE/BELOW direction from the current price and the target price.",
+    "Stores active alerts in R2 so the bell state is shared across devices.",
+    "While monitor.html is open, the Worker checks active alerts every 10 seconds; an optional Cloudflare every-minute cron keeps alerts working when the page is closed.",
+    "On a successful Telegram send, the triggered alert is automatically deleted.",
+    "Telegram message format is: SYMBOL   觸發TARGET followed by Taiwan time."
   ],
-  "version": "0.3.13"
+  "version": "0.3.14"
 }

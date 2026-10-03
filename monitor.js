@@ -29,6 +29,7 @@
   const WARM_CONCURRENCY = Math.max(1, Math.min(8, Number(cfg.monitorWarmConcurrency || 4)));
   const WARM_GAP_MS = Math.max(0, Math.min(2000, Number(cfg.monitorWarmGapMs ?? 180)));
   const WARM_START_STAGGER_MS = 60;
+  const ALERT_CHECK_INTERVAL = Math.max(10000, Number(cfg.monitorAlertCheckIntervalMs || 10000));
   const LOCAL_KEY = 'sstate-monitor-watchlist-v1';
   const CLIENT_KEY = 'sstate-monitor-client-id';
 
@@ -41,6 +42,9 @@
     modal: $('#symbol-modal'), modalClose: $('#modal-close'), query: $('#symbol-query'), results: $('#symbol-results'),
     search: $('#table-search'), clearSort: $('#clear-sort'), refreshAll: $('#refresh-all'),
     r2: $('#r2-status'), ws: $('#ws-status'), save: $('#save-status'), count: $('#symbol-count'), last: $('#last-update'),
+    alertModal: $('#price-alert-modal'), alertClose: $('#price-alert-close'), alertCancel: $('#price-alert-cancel'),
+    alertSave: $('#price-alert-save'), alertDelete: $('#price-alert-delete'), alertSymbol: $('#price-alert-symbol'),
+    alertCurrent: $('#price-alert-current'), alertTarget: $('#price-alert-target'), alertHint: $('#price-alert-hint'),
     toast: $('#toast')
   };
 
@@ -49,7 +53,8 @@
     version: 0, remoteUpdatedAt: null, localDirty: false, saveTimer: null, search: '', marketFilter: 'ALL',
     sockets: [], dirtySymbols: new Set(), warming: new Set(), universeLoaded: false, universePartial: false, universeSource: '', lastUiAt: 0,
     tickerPollInFlight: false, tickerPollOkAt: 0, tvLastOkAt: 0, tvLastCount: 0,
-    rwaSymbols: new Set(), rwaLoaded: false
+    rwaSymbols: new Set(), rwaLoaded: false,
+    alerts: new Map(), alertCheckInFlight: false, alertModalSymbol: '', telegramConfigured: true
   };
 
   const clientId = (() => {
@@ -86,6 +91,138 @@
     try { body = await res.json(); } catch (_) {}
     if (!res.ok) throw new Error(body?.message || body?.error || `HTTP ${res.status}`);
     return body;
+  }
+
+  function normalizeAlert(row) {
+    const symbol = String(row?.symbol || '').trim().toUpperCase();
+    const target = Number(row?.target_price);
+    if (!symbol || !Number.isFinite(target) || target <= 0) return null;
+    return {
+      id: String(row?.id || ''), symbol,
+      type: String(row?.type || '').toUpperCase() === 'SPOT' ? 'SPOT' : 'PERP',
+      target_price: target,
+      direction: String(row?.direction || '').toUpperCase() === 'BELOW' ? 'BELOW' : 'ABOVE',
+      created_price: Number(row?.created_price), created_at: row?.created_at || null
+    };
+  }
+
+  function setAlerts(rows) {
+    state.alerts = new Map((Array.isArray(rows) ? rows : []).map(normalizeAlert).filter(Boolean).map(x => [x.symbol, x]));
+  }
+
+  async function loadPriceAlerts(silent = true) {
+    try {
+      const p = await api('/api/monitor/alerts');
+      setAlerts(p.alerts || []);
+      state.telegramConfigured = p.telegram_configured !== false;
+      refreshAlertBells();
+      if (!silent && !state.telegramConfigured) toast('Worker 尚未讀到 Telegram Bot Token / Chat ID', true);
+      return true;
+    } catch (err) {
+      if (!silent) toast(`價格提醒同步失敗：${err.message}`, true);
+      return false;
+    }
+  }
+
+  function alertFor(symbol) { return state.alerts.get(String(symbol || '').toUpperCase()) || null; }
+
+  function priceBellHtml(item) {
+    const alert = alertFor(item.symbol);
+    const title = alert ? `已設定 ${displaySymbol(item)} ${alert.direction === 'BELOW' ? '≤' : '≥'} ${formatPrice(alert.target_price)}，點擊修改` : `設定 ${displaySymbol(item)} Telegram 價格提醒`;
+    return `<button class="price-alert-bell ${alert ? 'active' : ''}" type="button" data-alert-symbol="${escapeHtml(item.symbol)}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">🔔</button>`;
+  }
+
+  function refreshAlertBells() {
+    for (const item of state.items) {
+      const tr = document.querySelector(`tr[data-symbol="${cssEscape(item.symbol)}"]`);
+      const btn = tr?.querySelector('.price-alert-bell');
+      if (!btn) continue;
+      const alert = alertFor(item.symbol);
+      btn.classList.toggle('active', Boolean(alert));
+      const title = alert ? `已設定 ${displaySymbol(item)} ${alert.direction === 'BELOW' ? '≤' : '≥'} ${formatPrice(alert.target_price)}，點擊修改` : `設定 ${displaySymbol(item)} Telegram 價格提醒`;
+      btn.title = title; btn.setAttribute('aria-label', title);
+    }
+  }
+
+  function currentPriceFor(symbol) {
+    const r = state.records.get(String(symbol || '').toUpperCase());
+    const p = Number(r?.analysis?.price ?? r?.lastPrice);
+    return Number.isFinite(p) && p > 0 ? p : NaN;
+  }
+
+  function updateAlertHint() {
+    const current = currentPriceFor(state.alertModalSymbol);
+    const target = Number(els.alertTarget?.value);
+    if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(current)) {
+      els.alertHint.textContent = '輸入價格後會自動判斷上破或下破。';
+      return;
+    }
+    if (target > current) els.alertHint.textContent = `上破提醒：現價到達 ≥ ${formatPrice(target)} 時觸發 Telegram。`;
+    else if (target < current) els.alertHint.textContent = `下破提醒：現價到達 ≤ ${formatPrice(target)} 時觸發 Telegram。`;
+    else els.alertHint.textContent = `目前已在 ${formatPrice(target)}；下一次檢查即會觸發 Telegram。`;
+  }
+
+  function openPriceAlertModal(symbol) {
+    const item = state.items.find(x => x.symbol === symbol); if (!item) return;
+    const current = currentPriceFor(symbol);
+    if (!Number.isFinite(current)) { toast(`${displaySymbol(item)} 現價尚未載入完成`, true); return; }
+    state.alertModalSymbol = symbol;
+    const alert = alertFor(symbol);
+    els.alertSymbol.textContent = displaySymbol(item);
+    els.alertCurrent.textContent = `現價 ${formatPrice(current)}`;
+    els.alertTarget.value = alert ? String(alert.target_price) : '';
+    els.alertDelete.classList.toggle('hidden', !alert);
+    els.alertModal.classList.remove('hidden'); els.alertModal.setAttribute('aria-hidden','false');
+    updateAlertHint(); setTimeout(() => { els.alertTarget.focus(); if (alert) els.alertTarget.select(); }, 20);
+  }
+
+  function closePriceAlertModal() {
+    state.alertModalSymbol = '';
+    els.alertModal.classList.add('hidden'); els.alertModal.setAttribute('aria-hidden','true');
+  }
+
+  async function savePriceAlert() {
+    const symbol = state.alertModalSymbol;
+    const item = state.items.find(x => x.symbol === symbol); if (!item) return;
+    const current = currentPriceFor(symbol), target = Number(els.alertTarget.value);
+    if (!Number.isFinite(current) || current <= 0) { toast('現價尚未載入完成', true); return; }
+    if (!Number.isFinite(target) || target <= 0) { toast('請輸入有效的觸發價格', true); els.alertTarget.focus(); return; }
+    els.alertSave.disabled = true;
+    try {
+      const p = await api('/api/monitor/alerts', { method:'POST', body:JSON.stringify({ symbol:item.symbol, type:item.type, target_price:target, current_price:current }) });
+      const alert = normalizeAlert(p.alert); if (alert) state.alerts.set(alert.symbol, alert);
+      state.telegramConfigured = p.telegram_configured !== false;
+      refreshAlertBells(); closePriceAlertModal();
+      if (state.telegramConfigured) toast(`${displaySymbol(item)} 提醒已設定：${alert?.direction === 'BELOW' ? '≤' : '≥'} ${formatPrice(target)}`);
+      else toast('提醒已儲存，但 Worker 尚未讀到 Telegram 設定', true);
+    } catch (err) { toast(`提醒儲存失敗：${err.message}`, true); }
+    finally { els.alertSave.disabled = false; }
+  }
+
+  async function deletePriceAlert(symbol = state.alertModalSymbol, showToast = true) {
+    const alert = alertFor(symbol); if (!alert) { if (showToast) closePriceAlertModal(); return; }
+    try {
+      await api('/api/monitor/alerts', { method:'DELETE', body:JSON.stringify({ id:alert.id, symbol }) });
+      state.alerts.delete(symbol); refreshAlertBells();
+      if (state.alertModalSymbol === symbol) closePriceAlertModal();
+      if (showToast) toast(`${alertBaseLabel(symbol)} 價格提醒已刪除`);
+    } catch (err) { if (showToast) toast(`刪除提醒失敗：${err.message}`, true); }
+  }
+
+  function alertBaseLabel(symbol) { return String(symbol || '').replace(/_USDT_PERP$/,'').replace(/_USDT$/,''); }
+
+  async function checkPriceAlerts() {
+    if (state.alertCheckInFlight || !state.alerts.size) return;
+    state.alertCheckInFlight = true;
+    try {
+      const p = await api('/api/monitor/alerts/check', { method:'POST', body:'{}' });
+      setAlerts(p.alerts || []); refreshAlertBells();
+      if ((p.triggered || []).length) {
+        const labels = (p.triggered || []).map(x => alertBaseLabel(x.symbol)).join('、');
+        toast(`${labels} 已觸發 Telegram 價格提醒`);
+      }
+    } catch (err) { console.warn('Price alert check failed', err); }
+    finally { state.alertCheckInFlight = false; }
   }
 
   function cleanItem(row, fallbackOrder = 0) {
@@ -259,7 +396,7 @@
       <td class="cell-order"><button class="row-remove" type="button" title="移除標的">×</button><span data-field="order"></span></td>
       <td class="note-cell" data-field="note" title="雙擊編輯備註">${escapeHtml(item.note)}</td>
       <td class="symbol-cell"><span class="symbol-main">${sym}</span><span class="market-tag ${market.toLowerCase()}">${market}</span></td>
-      <td class="price-cell loading" data-field="price">載入中…</td>
+      <td class="price-cell loading" data-field="price"><div class="price-line"><span class="price-values">載入中…</span>${priceBellHtml(item)}</div></td>
       <td data-field="s_state"><span class="state-pill state-other">…</span></td>
       <td class="loading" data-field="midline">…</td>
       <td class="loading" data-field="average_k">…</td>
@@ -334,8 +471,9 @@
     const tr = ensureRow(item);
     tr.querySelector('[data-field="note"]').textContent = item.note || '';
     if (record.status === 'error' || record.status === 'waiting') {
-      tr.querySelector('[data-field="price"]').className = `price-cell ${record.status === 'error' ? 'error' : 'waiting'}`;
-      tr.querySelector('[data-field="price"]').textContent = record.status === 'error' ? '資料讀取失敗' : '等待 K 線快取';
+      const cell = tr.querySelector('[data-field="price"]');
+      cell.className = `price-cell ${record.status === 'error' ? 'error' : 'waiting'}`;
+      cell.innerHTML = `<div class="price-line"><span class="price-values">${record.status === 'error' ? '資料讀取失敗' : '等待 K 線快取'}</span>${priceBellHtml(item)}</div>`;
       return;
     }
     if (!record.analysis) return;
@@ -344,7 +482,7 @@
     const old = Number(priceCell.dataset.price);
     const pct = Number(a.day_change_pct || 0);
     priceCell.className = `price-cell ${pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat'}`;
-    priceCell.innerHTML = `<span class="price">${escapeHtml(formatPrice(a.price))}</span><span class="pct">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span>`;
+    priceCell.innerHTML = `<div class="price-line"><span class="price-values"><span class="price">${escapeHtml(formatPrice(a.price))}</span><span class="pct">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span></span>${priceBellHtml(item)}</div>`;
     priceCell.dataset.price = String(a.price);
     if (!force && Number.isFinite(old) && old !== Number(a.price)) {
       priceCell.classList.remove('cell-flash-up','cell-flash-down'); void priceCell.offsetWidth;
@@ -743,6 +881,7 @@
     const item=state.items.find(x=>x.symbol===symbol); if(!item) return;
     if(!confirm(`移除 ${displaySymbol(item)}？`)) return;
     state.items=state.items.filter(x=>x.symbol!==symbol); state.records.delete(symbol); state.dirtySymbols.delete(symbol); scheduleSave(); renderAll(); rebuildSockets();
+    if (state.alerts.has(symbol)) deletePriceAlert(symbol, false);
   }
 
   function openModal() { els.modal.classList.remove('hidden'); els.modal.setAttribute('aria-hidden','false'); els.query.value=''; state.marketFilter='ALL'; updateMarketTabs(); loadUniverse(false); setTimeout(()=>els.query.focus(),30); }
@@ -752,7 +891,16 @@
   function bindUi() {
     els.add.addEventListener('click',openModal); els.modalClose.addEventListener('click',closeModal);
     els.modal.addEventListener('click',e=>{if(e.target.dataset.closeModal)closeModal();});
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!els.modal.classList.contains('hidden'))closeModal();});
+    for (const table of [els.cryptoTable, els.rwaTable]) table.addEventListener('click', e => {
+      const bell = e.target.closest('.price-alert-bell'); if (!bell) return;
+      e.preventDefault(); e.stopPropagation(); openPriceAlertModal(String(bell.dataset.alertSymbol || ''));
+    });
+    els.alertClose.addEventListener('click', closePriceAlertModal); els.alertCancel.addEventListener('click', closePriceAlertModal);
+    els.alertModal.addEventListener('click', e => { if (e.target.dataset.closeAlertModal) closePriceAlertModal(); });
+    els.alertTarget.addEventListener('input', updateAlertHint);
+    els.alertTarget.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); savePriceAlert(); } });
+    els.alertSave.addEventListener('click', savePriceAlert); els.alertDelete.addEventListener('click', () => deletePriceAlert());
+    document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!els.alertModal.classList.contains('hidden'))closePriceAlertModal();else if(!els.modal.classList.contains('hidden'))closeModal();});
     els.query.addEventListener('input',renderSymbolResults);
     document.querySelectorAll('[data-market-filter]').forEach(b=>b.addEventListener('click',()=>{state.marketFilter=b.dataset.marketFilter;updateMarketTabs();}));
     els.search.addEventListener('input',()=>{state.search=els.search.value;applyOrderAndFilter();});
@@ -762,7 +910,7 @@
     }));
     els.clearSort.addEventListener('click',()=>{state.sort={key:'order',dir:'asc'};updateSortMarks();applyOrderAndFilter();scheduleSave();});
     els.refreshAll.addEventListener('click',async()=>{
-      setChip(els.save,'強制同步中…','waiting'); await loadRemoteWatchlist(true); await loadRwaUniverse(); reconcileRecords(); renderAll(); await loadUniverse(true); await warmMissing(true); await pollTickers(); setChip(els.save,'同步完成','ok');
+      setChip(els.save,'強制同步中…','waiting'); await Promise.all([loadRemoteWatchlist(true), loadRwaUniverse(), loadPriceAlerts(true)]); reconcileRecords(); renderAll(); await loadUniverse(true); await warmMissing(true); await pollTickers(); await checkPriceAlerts(); setChip(els.save,'同步完成','ok');
     });
     window.addEventListener('beforeunload',()=>{persistLocal();closeSockets();});
   }
@@ -770,14 +918,15 @@
   async function init() {
     if (!Engine) { toast('monitor-engine.js 載入失敗',true); return; }
     bindUi(); setChip(els.r2,'R2 連線中','waiting'); setChip(els.ws,'TradingView Scan 連線中','waiting');
-    await Promise.all([loadRemoteWatchlist(false), loadRwaUniverse()]); reconcileRecords(); renderAll();
+    await Promise.all([loadRemoteWatchlist(false), loadRwaUniverse(), loadPriceAlerts(true)]); reconcileRecords(); renderAll();
     // v0.3.09: RWA classification is loaded before rendering so crypto stays left and tokenized assets stay right.
     // Historical K must be ready before the first live snapshot is applied.
     // In v0.3.07 rebuildSockets() called pollTickers() first, but applyLiveSnapshot() rejects
     // snapshots while r.daily is empty. The UI then showed the cached R2 close until the next 10s poll.
     await warmMissing(false);
-    await pollTickers();
+    await pollTickers(); await checkPriceAlerts();
     setInterval(pollTickers,UI_INTERVAL); setInterval(remoteVersionSync,REMOTE_SYNC_INTERVAL);
+    setInterval(checkPriceAlerts,ALERT_CHECK_INTERVAL); setInterval(()=>loadPriceAlerts(true),REMOTE_SYNC_INTERVAL);
     setInterval(()=>{ if(!state.localDirty && state.items.length) warmMissing(false); }, 120000);
   }
 

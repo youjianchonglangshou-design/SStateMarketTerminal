@@ -11,7 +11,8 @@ const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MONITOR_KLINE_TTL_MS = 12 * 60 * 60 * 1000;
 const MONITOR_MAX_ITEMS = 500;
 const MONITOR_PRICE_ALERTS_KEY = "terminal/monitor_price_alerts.json";
-const MONITOR_PRICE_ALERT_MAX = 200;\nconst MONITOR_PRICE_ALERT_STATUS_KEY = "terminal/monitor_price_alert_status.json";
+const MONITOR_PRICE_ALERT_MAX = 200;
+const MONITOR_PRICE_ALERT_STATUS_KEY = "terminal/monitor_price_alert_status.json";
 const MONITOR_FALLBACK_CRYPTO = [
   "BTC","ETH","SOL","BNB","XRP","DOGE","ADA","AVAX","LINK","SUI","TRX","TON","DOT","LTC","BCH","ETC","ATOM","NEAR","ICP","HBAR",
   "AAVE","UNI","INJ","FET","RENDER","TIA","EIGEN","JTO","PYTH","ONDO","WLD","FIL","ARB","OP","STRK","LDO","MKR","ENA","PENDLE","RUNE",

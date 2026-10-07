@@ -1,0 +1,62 @@
+name: Test TradingView Chart WS Proxy
+on:
+  push:
+    branches: [btc-tv-chart-proxy-20261007]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: btc-tv-chart-proxy-20261007
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install probe dependency
+        run: npm install --no-save git+https://github.com/parbhatc/TradingviewAPI.git
+      - name: Start local Worker
+        shell: bash
+        run: |
+          cat > wrangler.tv-proxy-test.toml <<'TOML'
+          name = "sstate-tv-proxy-test"
+          main = "cloudflare/worker.js"
+          compatibility_date = "2026-10-07"
+          [[r2_buckets]]
+          binding = "JSON_BUCKET"
+          bucket_name = "local-test"
+          TOML
+          npx --yes wrangler@4 dev --local --port 8787 --config wrangler.tv-proxy-test.toml >/tmp/worker.log 2>&1 &
+          echo $! >/tmp/worker.pid
+          for i in $(seq 1 40); do
+            if curl -sS http://127.0.0.1:8787/api/health >/dev/null 2>&1; then exit 0; fi
+            sleep 0.5
+          done
+          cat /tmp/worker.log
+          exit 1
+      - name: Request 128 PIONEX 15M bars through Worker proxy
+        shell: bash
+        run: |
+          cat > probe-tv-proxy.mjs <<'JS'
+          import { TradingviewAPI } from './node_modules/tradingviewapi/src/index.js';
+          const api = new TradingviewAPI({
+            save_session:false,
+            tradingView:{
+              wsUrl:'ws://127.0.0.1:8787/api/monitor/tv-chart-ws',
+              origin:'https://youjianchonglangshou-design.github.io',
+              timeoutMs:15000,
+              maxBars:1000
+            }
+          });
+          try {
+            const h=await api.history('PIONEX:BTCUSDT.P',{interval:'15',bars:128,chunkSize:128,session:'regular'});
+            console.log('PROXY PASS',h.status,h.bars.length,h.bars[0],h.bars.at(-1));
+            if(h.status!=='ok'||h.bars.length<120) process.exit(2);
+          } finally { api.close(); }
+          JS
+          node probe-tv-proxy.mjs
+      - name: Show Worker log on failure
+        if: failure()
+        run: cat /tmp/worker.log || true

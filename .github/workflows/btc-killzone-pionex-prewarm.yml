@@ -1,13 +1,9 @@
 name: BTC KillZone Pionex Prewarm
 
+# v0.3.4: legacy R2 prewarm is manual backup only.
+# Live BTC 15M no longer depends on GitHub Actions scheduling.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/btc-killzone-pionex-prewarm.yml"
-  schedule:
-    - cron: "*/5 * * * *"
 
 permissions:
   contents: read

@@ -18,15 +18,15 @@ jobs:
       - name: Start local Worker
         shell: bash
         run: |
-          cat > /tmp/wrangler.toml <<'TOML'
+          cat > wrangler.btc-test.toml <<'TOML'
           name = "sstate-btc-proxy-test"
-          main = "$GITHUB_WORKSPACE/cloudflare/worker.js"
+          main = "cloudflare/worker.js"
           compatibility_date = "2026-10-07"
           [[r2_buckets]]
           binding = "JSON_BUCKET"
           bucket_name = "local-test"
           TOML
-          npx --yes wrangler@4 dev --local --port 8787 --config /tmp/wrangler.toml >/tmp/worker.log 2>&1 &
+          npx --yes wrangler@4 dev --local --port 8787 --config wrangler.btc-test.toml >/tmp/worker.log 2>&1 &
           echo $! >/tmp/worker.pid
           for i in $(seq 1 40); do
             if curl -sS http://127.0.0.1:8787/api/health >/dev/null 2>&1; then exit 0; fi

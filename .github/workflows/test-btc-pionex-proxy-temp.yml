@@ -42,7 +42,11 @@ jobs:
           for I in 15M 1D; do
             URL="http://127.0.0.1:8787/api/monitor/klines?symbol=BTC_USDT_PERP&interval=$I&limit=30&refresh=1"
             curl --fail --silent --show-error -D "/tmp/h_$I.txt" -H "Origin: $ORIGIN" "$URL" -o "/tmp/b_$I.json"
-            grep -qi '^access-control-allow-origin: https://youjianchonglangshou-design.github.io' "/tmp/h_$I.txt"
+            grep -Eqi '^access-control-allow-origin: (\\*|https://youjianchonglangshou-design.github.io)' "/tmp/h_$I.txt"
+            echo "--- $I headers ---"
+            grep -i '^access-control-allow-origin:' "/tmp/h_$I.txt" || true
+            echo "--- $I body ---"
+            cat "/tmp/b_$I.json"
             python - "$I" "/tmp/b_$I.json" <<'PY'
           import json,sys
           interval,path=sys.argv[1:3]

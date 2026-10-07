@@ -176,6 +176,9 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/monitor/ws") {
         return await proxyPionexPublicWebSocket(request);
       }
+      if (request.method === "GET" && url.pathname === "/api/monitor/tv-chart-ws") {
+        return await proxyTradingViewChartWebSocket(request);
+      }
       if (request.method === "GET" && url.pathname === "/api/monitor/klines") {
         const symbol = safeMonitorSymbol(url.searchParams.get("symbol"));
         const interval = safeMonitorInterval(url.searchParams.get("interval") || "1D");
@@ -4107,6 +4110,50 @@ async function loadMonitorTickers(type){
     }catch(_){}
   }
   return payload;
+}
+
+async function proxyTradingViewChartWebSocket(request){
+  const upgrade=String(request.headers.get("Upgrade")||"").toLowerCase();
+  if(upgrade!=="websocket") throw httpError(426,"WebSocket upgrade required");
+
+  const upstreamUrl=new URL("https://data.tradingview.com/socket.io/websocket");
+  upstreamUrl.searchParams.set("from","chart/");
+  upstreamUrl.searchParams.set("date",new Date().toISOString());
+  const upstreamResponse=await fetch(upstreamUrl.toString(),{
+    headers:{
+      Upgrade:"websocket",
+      Origin:"https://www.tradingview.com"
+    }
+  });
+  const upstream=upstreamResponse.webSocket;
+  if(upstreamResponse.status!==101||!upstream){
+    throw httpError(502,`TradingView chart WebSocket upstream failed: ${upstreamResponse.status}`);
+  }
+  upstream.accept();
+
+  const pair=new WebSocketPair();
+  const client=pair[0],browser=pair[1];
+  browser.accept();
+  let closed=false;
+  const closeBoth=(code=1000,reason="closed")=>{
+    if(closed)return; closed=true;
+    try{browser.close(code,reason);}catch(_){}
+    try{upstream.close(code,reason);}catch(_){}
+  };
+
+  browser.addEventListener("message",event=>{
+    try{upstream.send(event.data);}catch(_){closeBoth(1011,"TradingView upstream send failed");}
+  });
+  browser.addEventListener("close",()=>closeBoth(1000,"browser closed"));
+  browser.addEventListener("error",()=>closeBoth(1011,"browser socket error"));
+
+  upstream.addEventListener("message",event=>{
+    try{browser.send(event.data);}catch(_){closeBoth(1011,"browser send failed");}
+  });
+  upstream.addEventListener("close",()=>closeBoth(1012,"TradingView upstream closed"));
+  upstream.addEventListener("error",()=>closeBoth(1011,"TradingView upstream error"));
+
+  return new Response(null,{status:101,webSocket:client});
 }
 
 async function proxyPionexPublicWebSocket(request){

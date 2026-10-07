@@ -1,0 +1,30 @@
+name: Package BTC Worker Patch
+on:
+  push:
+    branches: [btc-pionex-proxy-20261007]
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: btc-pionex-proxy-20261007
+      - name: Package Worker patch
+        shell: bash
+        run: |
+          mkdir -p artifact/cloudflare
+          cp cloudflare/worker.js artifact/cloudflare/worker.js
+          cat > artifact/README.txt <<'TXT'
+          SStateMarketTerminal Worker patch for BTCKillZoneRadar v0.3.1
+          Replace SStateMarketTerminal/cloudflare/worker.js with this file, then Deploy white-meadow-16bc.
+          Adds Pionex 1M/15M proxy support and short live cache TTLs.
+          TXT
+          cd artifact
+          zip -9 -r SStateMarketTerminal-worker-btc-v0.3.1.zip cloudflare README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SStateMarketTerminal-worker-btc-v0.3.1
+          path: artifact/SStateMarketTerminal-worker-btc-v0.3.1.zip
+          compression-level: 0

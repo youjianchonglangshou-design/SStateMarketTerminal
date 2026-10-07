@@ -3717,7 +3717,7 @@ function safeMonitorSymbol(v){
 }
 function safeMonitorInterval(v){
   const x=String(v||"1D").trim();
-  if(!["1D","4H"].includes(x)) throw httpError(400,"monitor interval must be 1D or 4H");
+  if(!["1M","15M","1D","4H"].includes(x)) throw httpError(400,"monitor interval must be 1M, 15M, 1D or 4H");
   return x;
 }
 function safeMonitorLimit(v){
@@ -4031,6 +4031,12 @@ async function loadMonitorUniverse(env){
 }
 const MONITOR_RATE_LIMIT_KEY = "pionex/cache/monitor_rate_limit.json";
 function monitorKlineCacheKey(symbol,interval){return `pionex/cache/monitor_klines/${interval}/${encodeURIComponent(symbol)}.json`;}
+function monitorKlineTtlMs(interval){
+  if(interval==="1M") return 8_000;
+  if(interval==="15M") return 20_000;
+  if(interval==="1D") return 5*60_000;
+  return MONITOR_KLINE_TTL_MS;
+}
 function normalizeMonitorKlines(rows){
   return (Array.isArray(rows)?rows:[]).map(r=>({time:Number(r?.time),open:Number(r?.open),high:Number(r?.high),low:Number(r?.low),close:Number(r?.close),volume:Number(r?.volume||0)})).filter(r=>Number.isFinite(r.time)&&[r.open,r.high,r.low,r.close].every(Number.isFinite)).sort((a,b)=>a.time-b.time);
 }
@@ -4049,8 +4055,9 @@ async function fetchMonitorKlines(symbol,interval,limit){
 async function loadMonitorKlines(env,symbol,interval,limit,force=false){
   const key=monitorKlineCacheKey(symbol,interval); let cached=null;
   try{const obj=await env.JSON_BUCKET.get(key);if(obj)cached=JSON.parse(await obj.text());}catch(_){}
-  if(!force && cached?.fetched_at && Array.isArray(cached?.klines) && cached.klines.length>=Math.min(limit,30)){
-    const age=Date.now()-Date.parse(cached.fetched_at); if(Number.isFinite(age)&&age>=0&&age<MONITOR_KLINE_TTL_MS) return {...cached,klines:cached.klines.slice(-limit),source:"R2_FRESH"};
+  if(!force && cached?.fetched_at && Array.isArray(cached?.klines) && cached.klines.length>=limit){
+    const age=Date.now()-Date.parse(cached.fetched_at);
+    if(Number.isFinite(age)&&age>=0&&age<monitorKlineTtlMs(interval)) return {...cached,klines:cached.klines.slice(-limit),source:"R2_FRESH"};
   }
   try{
     const klines=await fetchMonitorKlines(symbol,interval,limit); const payload={symbol,interval,fetched_at:new Date().toISOString(),klines};

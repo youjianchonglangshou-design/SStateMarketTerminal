@@ -1,0 +1,97 @@
+name: BTC KillZone Pionex Prewarm
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: btc-killzone-pionex-prewarm
+  cancel-in-progress: true
+
+jobs:
+  prewarm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+      WORKER_CALLBACK_TOKEN: ${{ secrets.WORKER_CALLBACK_TOKEN }}
+    steps:
+      - name: Validate secrets
+        shell: bash
+        run: |
+          test -n "$WORKER_BASE_URL" || (echo "WORKER_BASE_URL missing" && exit 1)
+          test -n "$WORKER_CALLBACK_TOKEN" || (echo "WORKER_CALLBACK_TOKEN missing" && exit 1)
+
+      - name: Fetch Pionex BTC PERP 15M and 1D
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request, urllib.parse, datetime
+
+          BASE="https://api.pionex.com/api/v1/market/klines"
+          symbol="BTC_USDT_PERP"
+          specs=[("15M",300),("1D",220)]
+          rows=[]
+
+          for interval,limit in specs:
+              qs=urllib.parse.urlencode({"symbol":symbol,"interval":interval,"limit":limit})
+              req=urllib.request.Request(
+                  BASE+"?"+qs,
+                  headers={"Accept":"application/json","User-Agent":"BTCKillZoneRadar-GitHubActions/0.3.2"}
+              )
+              with urllib.request.urlopen(req,timeout=20) as resp:
+                  payload=json.load(resp)
+              if payload.get("result") is not True:
+                  raise SystemExit(f"Pionex {interval} rejected: {payload}")
+              klines=payload.get("data",{}).get("klines",[])
+              if len(klines) < limit:
+                  raise SystemExit(f"Pionex {interval}: expected {limit}, got {len(klines)}")
+              rows.append({
+                  "symbol":symbol,
+                  "interval":interval,
+                  "fetched_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                  "source":"GitHub Actions -> Pionex public API -> R2 for BTCKillZoneRadar",
+                  "klines":klines,
+              })
+
+          with open("/tmp/btc-prewarm.json","w",encoding="utf-8") as f:
+              json.dump({"rows":rows},f,separators=(",",":"))
+          print("prepared",[(r["interval"],len(r["klines"])) for r in rows])
+          PY
+
+      - name: Upload to white-meadow R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error             -X PUT             -H "Authorization: Bearer $WORKER_CALLBACK_TOKEN"             -H "Content-Type: application/json"             --data-binary @/tmp/btc-prewarm.json             "$WORKER_BASE_URL/api/internal/monitor/klines/batch"             | tee /tmp/store.json
+          python - <<'PY'
+          import json
+          j=json.load(open("/tmp/store.json"))
+          assert j.get("ok") is True, j
+          assert j.get("stored")==2 and j.get("failed")==0, j
+          print("R2 upload PASS",j)
+          PY
+
+      - name: Verify public Worker cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in '15M 300' '1D 220'; do
+            set -- $spec
+            I="$1"; N="$2"
+            curl --fail --silent --show-error               "$WORKER_BASE_URL/api/monitor/klines?symbol=BTC_USDT_PERP&interval=$I&limit=$N"               -o "/tmp/public-$I.json"
+            python - "$I" "$N" "/tmp/public-$I.json" <<'PY'
+          import json,sys
+          interval=sys.argv[1]; expected=int(sys.argv[2]); path=sys.argv[3]
+          j=json.load(open(path))
+          assert j.get("ok") is True, j
+          rows=j.get("klines",[])
+          assert len(rows)==expected,(interval,len(rows),expected,j.get("source"))
+          print(interval,"PUBLIC PASS",len(rows),"source",j.get("source"),"last",rows[-1]["close"])
+          PY
+          done

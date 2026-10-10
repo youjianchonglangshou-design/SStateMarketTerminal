@@ -1,87 +1,98 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="BTC Pionex 4H 頂齊突破、底齊跌破預測：20:00 前動態，20:00 凍結。">
-<meta name="theme-color" content="#071321">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=1.2.1">
-<title>BTC</title>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<link href="./favicon.svg" rel="icon" type="image/svg+xml"/>
+<meta content="#1e293b" name="theme-color"/>
+<title>SStateMarketTerminal</title>
+<link href="styles.css?v=0.3.08" rel="stylesheet"/>
+<link href="research-modal.css" rel="stylesheet"/>
 </head>
 <body>
-<div class="page">
-<div id="error" class="error" role="status" hidden></div>
-<main class="market-stage">
-  <section class="pane chart-pane" aria-label="派網 4H 即時 K 線圖">
-    <div class="chart-head">
-      <div class="chart-heading"><h1>派網 4H K 線 <span>頂齊 · 底齊 · 即時價格</span></h1></div>
-      <div class="head-status">
-        <span class="version-mark" title="網站程式版本">v1.2.1</span>
-        <div class="status-pill countdown-pill"><span>預測倒數</span><strong id="countdown">--:--:--</strong></div>
-        <div class="status-pill live-pill"><span class="pulse-dot"></span><strong id="connection">派網 10秒更新 · --:--:--</strong></div>
-      </div>
-    </div>
-    <div class="chart-frame">
-      <div class="chart-title"><strong>PIONEX:BTCUSDT.P · 最近 48 根 4H</strong><span id="chartSource">PIONEX · 載入中</span></div>
-      <svg id="candles" viewBox="0 0 1200 405" role="img" aria-label="派網 4H K 線、頂齊底齊水平虛線、即時價格與呼吸光點"></svg>
-      <div class="chart-foot">
-        <div class="chart-legend"><span><i class="legend-live"></i>即時價格</span><span><i class="legend-target"></i>預測關卡（滑鼠觸線顯示）</span><span><i class="legend-candle"></i>LIVE 4H 僅供顯示</span></div>
-        <span class="chip chart-history-chip" id="historyStatus">載入歷史</span>
-      </div>
-    </div>
-  </section>
-
-  <section class="decision-ribbon" aria-label="4H 結構與有效突破機率">
-    <div class="quick-facts">
-      <section class="level-pair" aria-label="頂齊底齊摘要">
-        <div class="quick-card level-quick top-quick" tabindex="0" role="button" aria-label="頂齊詳細資料" aria-haspopup="true">
-          <span class="quick-label"><i class="level-dot top-dot"></i> 頂齊 <span class="hover-cue">詳細 <span aria-hidden="true">↗</span></span></span>
-          <strong id="summaryTop">—</strong>
-          <small id="topDetail">等待關卡</small>
-          <div class="detail-popover structure-detail top-detail" role="tooltip">
-            <div class="popup-title"><span>頂齊｜向上第一道</span><b id="topLevel">—</b></div>
-            <div class="popup-grid"><div><span>關卡確認時間</span><strong id="topConfirmed">—</strong></div><div><span>歷史測試回合</span><strong id="topTouches">—</strong></div><div><span>歷史突破事件</span><strong id="topCrosses">—</strong></div><div><span>距目前價</span><strong id="topDistance">—</strong></div></div>
-            <p>僅使用當時已收線 4H 確認的水平線。</p>
-          </div>
-        </div>
-        <div class="quick-card level-quick floor-quick" tabindex="0" role="button" aria-label="底齊詳細資料" aria-haspopup="true">
-          <span class="quick-label"><i class="level-dot floor-dot"></i> 底齊 <span class="hover-cue">詳細 <span aria-hidden="true">↗</span></span></span>
-          <strong id="summaryFloor">—</strong>
-          <small id="floorDetail">等待關卡</small>
-          <div class="detail-popover structure-detail floor-detail" role="tooltip">
-            <div class="popup-title"><span>底齊｜向下第一道</span><b id="floorLevel">—</b></div>
-            <div class="popup-grid"><div><span>關卡確認時間</span><strong id="floorConfirmed">—</strong></div><div><span>歷史測試回合</span><strong id="floorTouches">—</strong></div><div><span>歷史突破事件</span><strong id="floorCrosses">—</strong></div><div><span>距目前價</span><strong id="floorDistance">—</strong></div></div>
-            <p>首次測試、突破事件與距離依已確認結構計算。</p>
-          </div>
-        </div>
-      </section>
-      <section class="quick-card market-quick" tabindex="0" role="button" aria-label="中軌、平均 K 及模型詳細資料" aria-haspopup="true">
-        <div class="market-mini-line state-pill"><span>日線中軌</span><b id="summaryMid" class="state-value">—</b></div>
-        <div class="market-mini-line state-pill"><span>中軌斜率</span><b id="summarySlope" class="state-value">—</b></div>
-        <div class="market-mini-line state-pill"><span>平均 K</span><b id="summaryHA" class="state-value">—</b></div>
-        <span class="hover-cue context-cue">滑入查看完整模型依據 ↗</span>
-        <div class="detail-popover context-detail" role="tooltip">
-          <div class="popup-title"><span>日線環境與模型判斷</span><span class="popup-source">PIONEX · DAILY</span></div>
-          <div class="context-detail-row"><span>當日日線中軌位置</span><strong id="midState">—</strong></div>
-          <div class="context-detail-row"><span>中軌斜率</span><strong id="slopeState">—</strong></div>
-          <div class="context-detail-row"><span>平均 K</span><strong id="haState">—</strong></div>
-          <div class="popup-reason"><h3>這個機率為什麼變動？</h3><p id="explanation">正在取得模型依據。</p><div id="featureList" class="features"></div></div>
-          <div class="context-detail-row compact-last"><span>確認時間／觸碰／突破／ATR 距離</span><strong><span id="lineConfirmed">—</span> · <span id="touchCount">—</span> · <span id="crossCount">—</span> · <span id="distance">—</span></strong></div>
-        </div>
-      </section>
-    </div>
-    <section class="prob-pane" aria-label="預測機率">
-      <div class="prob-heading"><span>V6 LEARNED PROBABILITY</span><span class="chip active" id="freezeBadge">等待更新</span></div>
-      <h2 id="probName">4H 底齊有效跌破機率</h2>
-      <div class="prob-line"><strong id="probability">--.-%</strong><span id="probInterpret">等待模型</span></div>
-      <span class="prob-sub">20:00～00:00 · <span id="modelName">v6.0</span></span>
-      <span class="screenreader" id="freezeText">20:00 前更新、20:00 凍結機率。</span>
-    </section>
-  </section>
-</main>
-<details class="archive-drawer"><summary>歷史凍結與驗證紀錄 <span id="archiveCount">本裝置紀錄</span></summary><div id="archive" class="archive"><p class="micro">尚無凍結紀錄。</p></div></details>
-<footer title="v6.0 權重來自 Binance 現貨九年訓練，派網歷史尚待重校準。">Pionex BTC_USDT_PERP · 10 秒即時價格 · 20:00 凍結｜v6.0 模型原以 Binance 現貨訓練，派網機率尚待重新校準。</footer>
+<main class="shell">
+<header class="topbar terminal-heading">
+<div class="brand">
+<div class="premium-title-line">
+<h1>SState Market Terminal</h1>
+<span class="version-chip-minimal" id="version-chip"></span>
 </div>
-<script type="module" src="src/app.js?v=1.2.1"></script>
+<div class="update-time-line" id="system-caption">載入更新時間...</div>
+</div>
+
+</header>
+<section aria-label="市場搜尋與 S-state 快速篩選" class="sticky-control-deck">
+<div class="actions sticky-actions">
+<select aria-label="市場" id="market-select">
+<option value="crypto">加密貨幣</option>
+<option value="us-stock">美股代幣</option>
+</select>
+<div class="search-box"><span>⌕</span><input autocomplete="off" id="symbol-search" placeholder="搜尋標的、S-state或產業" spellcheck="false" type="search"/></div>
+<a class="performance-link" href="./monitor.html" id="monitor-link" rel="noopener noreferrer" target="_blank" title="在新分頁開啟 Pionex 即時標的監控">📡 即時監控</a>
+<button class="primary" id="run-button">📝 完整分析</button>
+<details class="more-menu">
+<summary>更多 ⋯</summary>
+<div class="more-menu-panel">
+<a class="more-menu-link" href="./performance.html" rel="noopener noreferrer" target="_blank" title="Champion 凍結快照正式結算戰績">📊 近期戰績</a>
+<button id="download-button" title="下載目前選取市場的最新 JSON">⬇ 加密 JSON</button>
+<button class="research-download-button hidden" id="research-download-button" title="下載 R2 research/us-stock/latest.json" type="button">⬇ 新聞 JSON</button>
+</div>
+</details>
+</div>
+<div class="sticky-filter-row">
+<div class="sticky-scan-meta">
+<strong>快速狀態掃描</strong>
+<span class="caption" id="snapshot-meta"></span>
+</div>
+<div class="filters" id="state-filters"></div>
+</div>
+</section>
+<section class="signal-matrix-panel collapsed" id="signal-matrix">
+<div class="signal-matrix-head">
+<div class="signal-matrix-heading-wrap">
+<button aria-controls="signal-matrix-body" aria-expanded="false" class="signal-matrix-toggle" id="signal-matrix-toggle" title="展開 S狀態條件觀察表" type="button">
+<span class="signal-matrix-arrow">▶</span>
+</button>
+<div>
+<div class="signal-matrix-title">📋 SIGNAL MATRIX｜S狀態條件觀察表</div>
+<div class="caption" id="signal-matrix-caption">載入目前市場快照...</div>
+</div>
+</div>
+<div class="signal-matrix-summary waiting" id="signal-matrix-summary">WAITING</div>
+</div>
+<div class="signal-matrix-body hidden" id="signal-matrix-body">
+<div class="signal-matrix-table-wrap" id="signal-matrix-table-wrap"></div>
+<div class="signal-matrix-footnote">平均K = 最新日線 Heikin-Ashi 顏色；CCI-SMA = CCI20 的 SMA14 最新階梯顏色。黃色＋黃色可快速辨識「雙黃」條件；所有欄位皆可點擊排序。</div>
+</div>
+</section>
+
+<section class="run-panel hidden" id="run-panel">
+<div class="run-line">
+<strong id="run-title">分析準備中</strong>
+<span id="run-percent">0%</span>
+</div>
+<div aria-label="完整分析進度" class="volume-progress" id="run-bar"></div>
+<div class="caption" id="run-detail"></div>
+</section>
+<section class="summary-strip" id="summary-strip"></section>
+<section class="cards" id="cards"></section>
+<section class="empty hidden" id="empty-state">
+<h3>尚無可顯示資料</h3>
+<p>網站預設只讀取最後一次成功結果。設定 Worker 後，選擇市場並按「完整分析」才會重新抓取 Pionex 並執行 Python 引擎。</p>
+</section>
+</main>
+<button aria-hidden="true" class="signal-matrix-return hidden" disabled="" id="signal-matrix-return" title="返回 SIGNAL MATRIX 表格" type="button">
+<span class="signal-matrix-return-icon">↩</span>
+<span class="signal-matrix-return-label">返回</span>
+</button>
+
+
+
+<div class="toast hidden" id="toast"></div>
+<script src="config.js?v=0.3.08"></script>
+<script src="app.js?v=0.3.08"></script>
+<script src="research-modal.js"></script>
+<script src="research-download.js"></script>
 </body>
 </html>

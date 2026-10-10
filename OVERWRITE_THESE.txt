@@ -1,21 +1,15 @@
-BTC4HBreakoutPulse v1.2.1 需覆蓋或新增的檔案（保留路徑，上傳到 GitHub main 根目錄）
+SStateMarketTerminal v0.1.69｜PERFORMANCE-MARKET-TABS
 
+覆蓋以下 8 個檔案：
 index.html
-styles.css
+performance.html
+performance.js
+performance.css
+config.js
+app.js
 VERSION.json
-package.json
 README.md
-TEST_REPORT.md
-OVERWRITE_THESE.txt
-src/app.js
-src/chart.js
-src/market.js
-src/semantic.js  ← 新增，不能漏掉，否則網頁無法啟動
 
-tests/app.integration.test.mjs
-tests/layout_contract.test.mjs
-tests/color_semantics.test.mjs  ← 新增測試
-tests/color_visual_browser.py  ← 新增瀏覽器測試
-tests/compact_layout_browser.py
-
-沒有更動其他機率、行情或 Worker 模組。不要把測試使用的模擬圖檔當作市場資料。
+不需要修改 cloudflare/worker.js。
+主頁近期戰績會以新分頁開啟。
+戰績頁門檻改為 120，並新增 全部 / Crypto / 美股 切換。

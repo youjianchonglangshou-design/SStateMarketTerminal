@@ -1,12 +1,13 @@
 {
-  "app": "BTC 4H Breakout Pulse",
-  "version": "1.2.1",
-  "release": "2026-10-11",
-  "model": "v6.0",
-  "timeZone": "Asia/Taipei",
-  "freezeAt": "20:00",
-  "settleAt": "00:00",
-  "tabQuoteIntervalSeconds": 10,
-  "deployment": "GitHub Pages static",
-  "focus": "Semantic color palette: red resistance/top, green support/floor, SState 5-point regression slope, exact HA yellow/purple, 3 state pills, direction-aware probability"
+  "app_version": "v0.3.14",
+  "stage": "LIVE-MONITOR-TELEGRAM-PRICE-ALERTS",
+  "features": [
+    "Adds a bell beside every live price for creating a one-shot Telegram price alert.",
+    "Automatically decides ABOVE/BELOW direction from the current price and the target price.",
+    "Stores active alerts in R2 so the bell state is shared across devices.",
+    "While monitor.html is open, the Worker checks active alerts every 10 seconds; an optional Cloudflare every-minute cron keeps alerts working when the page is closed.",
+    "On a successful Telegram send, the triggered alert is automatically deleted.",
+    "Telegram message format is: SYMBOL   觸發TARGET followed by Taiwan time."
+  ],
+  "version": "0.3.14"
 }

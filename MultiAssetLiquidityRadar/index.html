@@ -40,8 +40,14 @@
       <div class="liq-alert-symbol-line"><strong id="liq-alert-symbol">BTC</strong><span id="liq-alert-current">現價 —</span></div>
       <label for="liq-alert-target">觸發價格</label>
       <input id="liq-alert-target" type="number" step="any" min="0" inputmode="decimal" autocomplete="off" placeholder="輸入目標價格">
-      <p id="liq-alert-hint" class="liq-alert-hint">高於現價＝上破提醒；低於現價＝下破提醒。</p>
-      <p class="liq-alert-note">沿用即時監控的 Cloudflare R2 與 Telegram；發送成功後自動刪除提醒，關閉本頁仍會持續監控。</p>
+      <label for="liq-alert-direction" class="liq-alert-direction-label">穿越方向（必選）</label>
+      <select id="liq-alert-direction" required>
+        <option value="">請選擇上破或下破</option>
+        <option value="ABOVE">↑ 上破：價格由下向上穿越目標</option>
+        <option value="BELOW">↓ 下破：價格由上向下穿越目標</option>
+      </select>
+      <p id="liq-alert-hint" class="liq-alert-hint">先選擇方向；只有設定後真的穿越價位才會提醒。</p>
+      <p class="liq-alert-note">沿用即時監控的 Cloudflare R2 與 Telegram；Worker 會確認真正穿越目標才通知。發送成功後自動刪除，關閉本頁仍持續監控。</p>
       <p id="liq-alert-service" class="liq-alert-service" role="status">正在連線共用價格警報…</p>
       <div class="liq-alert-actions"><button id="liq-alert-delete" class="liq-alert-delete" type="button" hidden>刪除提醒</button><span class="liq-alert-spacer"></span><button id="liq-alert-cancel" type="button">取消</button><button id="liq-alert-save" class="liq-alert-save" type="button">儲存提醒</button></div>
     </div>

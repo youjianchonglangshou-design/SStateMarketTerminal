@@ -3769,20 +3769,37 @@ async function writeMonitorWatchlist(env,body){
   await env.JSON_BUCKET.put(MONITOR_WATCHLIST_KEY,JSON.stringify(payload,null,2),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
   return payload;
 }
+function monitorAlertStartSide(alert, price){
+  const p=Number(price), target=Number(alert?.target_price);
+  if(!Number.isFinite(p)||p<=0||!Number.isFinite(target)||target<=0)return false;
+  return alert.direction==="BELOW"?p>target:p<target;
+}
+function monitorAlertCrossed(alert, previous, current){
+  const p=Number(current),prev=Number(previous),target=Number(alert?.target_price);
+  // A level being already passed is NOT a crossing. Both observations must be valid.
+  if(!Number.isFinite(p)||p<=0||!Number.isFinite(prev)||prev<=0||!Number.isFinite(target)||target<=0)return false;
+  return alert.direction==="BELOW"?(prev>target&&p<=target):(prev<target&&p>=target);
+}
 function cleanMonitorPriceAlert(row){
   if(!row || typeof row!=="object") return null;
   let symbol;
   try{ symbol=safeMonitorSymbol(row.symbol); }catch(_){ return null; }
   const type=String(row.type||"").toUpperCase()==="SPOT"?"SPOT":"PERP";
   const target=Number(row.target_price);
-  const createdPrice=Number(row.created_price);
+  const createdPrice=Number(row.created_price),previous=Number(row.last_price);
   if(!Number.isFinite(target)||target<=0) return null;
   const direction=String(row.direction||"").toUpperCase()==="BELOW"?"BELOW":"ABOVE";
+  // Legacy threshold alerts have no explicit crossing state. Do not immediately
+  // trigger them on the first post-upgrade observation; they must first arm.
+  const armed=row.armed===true && Number.isFinite(previous)&&previous>0;
   return {
     id:safeMemoText(row.id,80)||crypto.randomUUID(),
     symbol,type,target_price:target,direction,
     created_price:Number.isFinite(createdPrice)&&createdPrice>0?createdPrice:null,
-    created_at:safeMemoText(row.created_at,40)||new Date().toISOString()
+    created_at:safeMemoText(row.created_at,40)||new Date().toISOString(),
+    last_price:Number.isFinite(previous)&&previous>0?previous:null,
+    armed,
+    pending_delivery:row.pending_delivery===true
   };
 }
 async function readMonitorPriceAlerts(env){
@@ -3803,15 +3820,29 @@ async function upsertMonitorPriceAlert(env,body){
   const symbol=safeMonitorSymbol(body?.symbol);
   const type=String(body?.type||"").toUpperCase()==="SPOT"?"SPOT":"PERP";
   const target=Number(body?.target_price);
-  const current=Number(body?.current_price);
+  const clientPrice=Number(body?.current_price);
+  const explicit=String(body?.direction||"").toUpperCase();
   if(!Number.isFinite(target)||target<=0) throw httpError(400,"target_price must be > 0");
-  if(!Number.isFinite(current)||current<=0) throw httpError(400,"current_price must be > 0");
-  const direction=target>=current?"ABOVE":"BELOW";
-  const alert={id:crypto.randomUUID(),symbol,type,target_price:target,direction,created_price:current,created_at:new Date().toISOString()};
+  if(!Number.isFinite(clientPrice)||clientPrice<=0) throw httpError(400,"current_price must be > 0");
+  if(explicit&&!['ABOVE','BELOW'].includes(explicit))throw httpError(400,"direction must be ABOVE or BELOW");
+  // Browser prices may be delayed. Use the SAME provider as the Cron checker for
+  // the baseline, not the browser quote. If it is unavailable, leave the alert
+  // disarmed until a future check confirms the starting side of the boundary.
+  let checkedPrice=null;
+  try{
+    const stub={symbol,type,target_price:target};
+    const quotes=type==="SPOT"?await loadSpotAlertPrices([stub]):await loadTradingViewAlertPrices([stub]);
+    const quote=Number(quotes.get(symbol));
+    if(Number.isFinite(quote)&&quote>0)checkedPrice=quote;
+  }catch(e){console.warn('Price-alert baseline price unavailable:',e?.message||String(e));}
+  const direction=explicit|| (target> (checkedPrice??clientPrice)?"ABOVE":"BELOW");
+  const alert={id:crypto.randomUUID(),symbol,type,target_price:target,direction,
+    created_price:checkedPrice??clientPrice,created_at:new Date().toISOString(),
+    last_price:checkedPrice,armed:checkedPrice!==null&&monitorAlertStartSide({target_price:target,direction},checkedPrice),pending_delivery:false};
   const existing=await readMonitorPriceAlerts(env);
   const alerts=[alert,...existing.alerts.filter(x=>x.symbol!==symbol)];
   const payload=await writeMonitorPriceAlerts(env,alerts);
-  return {...payload,alert};
+  return {...payload,alert,price_verified:checkedPrice!==null};
 }
 async function deleteMonitorPriceAlert(env,body){
   const id=safeMemoText(body?.id,80);
@@ -3869,10 +3900,9 @@ async function loadSpotAlertPrices(alerts){
   }
   return out;
 }
-function monitorAlertReached(alert,price){
-  const p=Number(price), target=Number(alert?.target_price);
-  if(!Number.isFinite(p)||!Number.isFinite(target)) return false;
-  return alert.direction==="BELOW"?p<=target:p>=target;
+// Crossing is verified from two observations, not a one-time inequality.
+function monitorAlertReached(alert,previous,price){
+  return Boolean(alert?.armed)&&monitorAlertCrossed(alert,previous,price);
 }
 function formatAlertTarget(value){
   const n=Number(value);
@@ -3939,25 +3969,32 @@ async function checkMonitorPriceAlerts(env,source="manual"){
   else errors.push(spotResult.reason?.message||String(spotResult.reason));
 
   const remaining=[]; const triggered=[];
+  let changed=false;
   for(const alert of existing.alerts){
     const price=prices.get(alert.symbol);
-    if(!Number.isFinite(price)||!monitorAlertReached(alert,price)){
-      remaining.push(alert);
-      continue;
+    if(!Number.isFinite(price)||price<=0){remaining.push(alert);continue;}
+    // An armed alert requires a transition between two verified prices. If the
+    // current quote is already beyond the target at first check, it waits for
+    // price to return to the starting side before arming.
+    const crossed=alert.pending_delivery||monitorAlertReached(alert,alert.last_price,price);
+    if(crossed){
+      try{
+        const sent=await sendTelegramPriceAlert(env,alert,now);
+        triggered.push({id:alert.id,symbol:alert.symbol,target_price:alert.target_price,price,telegram_message_id:sent.message_id});
+        changed=true;
+        continue;
+      }catch(err){
+        alert.pending_delivery=true; // retry send after a temporary Telegram error
+        errors.push(`${alert.symbol}: ${err?.message||String(err)}`);
+      }
     }
-    try{
-      const sent=await sendTelegramPriceAlert(env,alert,now);
-      triggered.push({
-        id:alert.id,symbol:alert.symbol,target_price:alert.target_price,price,
-        telegram_message_id:sent.message_id
-      });
-    }catch(err){
-      remaining.push(alert);
-      errors.push(`${alert.symbol}: ${err?.message||String(err)}`);
-    }
+    const wasArmed=alert.armed,wasPrice=alert.last_price;
+    if(!alert.armed && monitorAlertStartSide(alert,price))alert.armed=true;
+    alert.last_price=price;
+    if(wasArmed!==alert.armed||wasPrice!==price||alert.pending_delivery)changed=true;
+    remaining.push(alert);
   }
-
-  if(triggered.length) await writeMonitorPriceAlerts(env,remaining);
+  if(changed) await writeMonitorPriceAlerts(env,remaining);
 
   const result={
     source,

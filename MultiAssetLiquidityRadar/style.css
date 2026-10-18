@@ -117,3 +117,9 @@
 .liq-alert-save:disabled,.liq-alert-delete:disabled{opacity:.5;cursor:wait}
 .liq-alert-toast{position:fixed;z-index:250;right:20px;bottom:18px;max-width:min(430px,calc(100% - 25px));background:#103a4b;border:1px solid #248e85;color:#d4fff4;border-radius:9px;padding:11px 14px;box-shadow:0 12px 38px #0009;font-size:12px}
 .liq-alert-toast.error{border-color:#b45464;background:#4c2835;color:#ffccd2}
+
+/* v1.1.5: explicit crossing direction, same semantics in modal and Worker. */
+.liq-alert-direction-label{margin-top:13px!important}
+#liq-alert-direction{display:block;width:100%;padding:10px 7px;border:1px solid #3a647b;background:#061726;border-radius:8px;font-size:13px;font-weight:700;color:#e6f8ff;outline:none}
+#liq-alert-direction:focus{border-color:#55caea;box-shadow:0 0 0 2px #55caea20}
+#liq-alert-direction option{background:#10253b;color:#edf9ff}

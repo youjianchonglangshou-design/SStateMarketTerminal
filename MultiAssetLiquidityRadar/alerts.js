@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.1.4 · SState Monitor shared Telegram price alerts.
+/* Multi-Asset Liquidity Radar v1.1.5 · SState Monitor shared Telegram price alerts.
  * No credentials or Telegram endpoints are stored in this browser script.
  * All persistence, Cron checks, Telegram delivery and one-shot deletion
  * remain in the existing SStateMarketTerminal Cloudflare Worker.
@@ -31,7 +31,7 @@
  function normalizeAlert(row){
    const symbol=String(row?.symbol||'').trim().toUpperCase(),price=Number(row?.target_price);
    if(!symbol||!Number.isFinite(price)||price<=0)return null;
-   return {id:String(row.id||''),symbol,type:row.type==='SPOT'?'SPOT':'PERP',target_price:price,direction:String(row.direction||'').toUpperCase()==='BELOW'?'BELOW':'ABOVE'};
+   return {id:String(row.id||''),symbol,type:row.type==='SPOT'?'SPOT':'PERP',target_price:price,direction:String(row.direction||'').toUpperCase()==='BELOW'?'BELOW':'ABOVE',armed:row.armed===true,last_price:Number(row.last_price)||null};
  }
  function setAlerts(rows){state.alerts=new Map((Array.isArray(rows)?rows:[]).map(normalizeAlert).filter(Boolean).map(x=>[x.symbol,x]));refreshBells();}
  function refreshBells(){
@@ -57,12 +57,15 @@
  }
  function currentPrice(symbol){const n=Number(ctx?.getCurrentPrice?.(symbol));return Number.isFinite(n)&&n>0?n:null;}
  function updateHint(){
-   const price=currentPrice(state.activeSymbol),target=Number($('liq-alert-target').value);
-   if(!price){$('liq-alert-hint').textContent='現價尚未載入／已過期；需等待即時行情，才能設定方向。';return;}
-   if(!Number.isFinite(target)||target<=0){$('liq-alert-hint').textContent='目標高於現價＝上破提醒；低於現價＝下破提醒。';return;}
-   if(target>price)$('liq-alert-hint').textContent=`上破提醒：行情達到 ≥ ${formatPrice(target)} 時發送 Telegram。`;
-   else if(target<price)$('liq-alert-hint').textContent=`下破提醒：行情達到 ≤ ${formatPrice(target)} 時發送 Telegram。`;
-   else $('liq-alert-hint').textContent=`目前現價等於目標；Worker 下一次檢查可能立即觸發。`;
+   const price=currentPrice(state.activeSymbol),target=Number($('liq-alert-target').value),direction=$('liq-alert-direction').value;
+   const hint=$('liq-alert-hint');
+   if(!Number.isFinite(target)||target<=0){hint.textContent='輸入目標價格，並明確選擇上破／下破；不會自動猜方向。';return;}
+   if(direction!=='ABOVE'&&direction!=='BELOW'){hint.textContent='請選擇穿越方向：上破＝先在下方再往上；下破＝先在上方再往下。';return;}
+   const isAbove=direction==='ABOVE';
+   const base=isAbove?`上破 ${formatPrice(target)}：必須先低於目標，再上穿 ≥ ${formatPrice(target)} 才提醒。`:`下破 ${formatPrice(target)}：必須先高於目標，再跌破 ≤ ${formatPrice(target)} 才提醒。`;
+   if(!price){hint.textContent=base+' 現價尚未取得；雲端將自行確認起始位置。';return;}
+   const ready=isAbove?price<target:price>target;
+   hint.textContent=base+(ready?' 畫面現價位於起始側；以 Worker 最新報價確認是否啟動。':' 畫面現價已在觸發側，將等待返回起始側後再次穿越，不會立刻誤報。');
  }
  function openModal(symbol){
    const r=bySymbol.get(symbol);if(!r)return;
@@ -71,6 +74,7 @@
    $('liq-alert-symbol').textContent=r.id;
    $('liq-alert-current').textContent=price?'現價 '+formatPrice(price):'現價尚未就緒';
    $('liq-alert-target').value=alert?String(alert.target_price):'';
+   $('liq-alert-direction').value=alert?alert.direction:'';
    $('liq-alert-delete').hidden=!alert;
    $('liq-alert-modal').hidden=false;$('liq-alert-modal').setAttribute('aria-hidden','false');
    updateHint();setTimeout(()=>$('liq-alert-target').focus(),20);
@@ -79,17 +83,18 @@
  async function saveAlert(){
    if(state.busy)return;
    const symbol=state.activeSymbol,r=bySymbol.get(symbol);if(!r)return;
-   const price=currentPrice(symbol),target=Number($('liq-alert-target').value);
+   const price=currentPrice(symbol),target=Number($('liq-alert-target').value),direction=$('liq-alert-direction').value;
    if(!price){toast('即時現價尚未載入或已過期，請稍候再試',true);return;}
    if(!Number.isFinite(target)||target<=0){toast('請輸入大於 0 的觸發價格',true);$('liq-alert-target').focus();return;}
+   if(!['ABOVE','BELOW'].includes(direction)){toast('請明確選擇上破或下破方向',true);$('liq-alert-direction').focus();return;}
    state.busy=true;$('liq-alert-save').disabled=true;$('liq-alert-delete').disabled=true;
    try{
-     const out=await api('/api/monitor/alerts',{method:'POST',body:JSON.stringify({symbol,type:'PERP',target_price:target,current_price:price})});
+     const out=await api('/api/monitor/alerts',{method:'POST',body:JSON.stringify({symbol,type:'PERP',target_price:target,current_price:price,direction})});
      const alert=normalizeAlert(out.alert);if(!alert)throw Error('Worker 沒有回傳有效的提醒紀錄');
      state.alerts.set(symbol,alert);state.telegramConfigured=out.telegram_configured!==false;
      refreshBells();closeModal();
      if(!state.telegramConfigured)toast(`${r.id} 提醒已儲存，但 Cloudflare 尚未有 Telegram 設定`,true);
-     else toast(`${r.id} 已設定 ${alert.direction==='BELOW'?'≤':'≥'} ${formatPrice(target)} · 關閉網頁仍會監控`);
+     else toast(`${r.id} 已設定${alert.direction==='BELOW'?'下破':'上破'} ${formatPrice(target)} · ${alert.armed?'等待穿越':'等待回到起始側'} · 關閉網頁仍會監控`);
    }catch(e){toast('提醒儲存失敗：'+e.message,true);}
    finally{state.busy=false;$('liq-alert-save').disabled=false;$('liq-alert-delete').disabled=false;}
  }
@@ -129,6 +134,7 @@
    $('liq-alert-cancel').addEventListener('click',closeModal);
    $('liq-alert-modal').addEventListener('click',e=>{if(e.target.dataset.closeLiqAlert)closeModal();});
    $('liq-alert-target').addEventListener('input',updateHint);
+   $('liq-alert-direction').addEventListener('change',updateHint);
    $('liq-alert-target').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveAlert();}});
    $('liq-alert-save').addEventListener('click',saveAlert);
    $('liq-alert-delete').addEventListener('click',deleteAlert);

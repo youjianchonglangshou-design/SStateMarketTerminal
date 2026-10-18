@@ -1,7 +1,11 @@
 {
-  "version": "1.1.4",
+  "version": "1.1.5",
   "releaseDate": "2026-10-18",
   "changes": [
+    "Explicit up-cross / down-cross direction selection for every price alert",
+    "Verify a true crossing using two Worker-observed prices and persist armed/last_price in R2",
+    "Avoid first-poll threshold false positives due to delayed browser quotes",
+    "Keep original one-shot Telegram and Cloudflare scheduled checks, existing symbols and radar calculations",
     "Add a Telegram alert bell beside each symbol in the integrated liquidity radar",
     "Reuse SState Market Terminal Cloudflare /api/monitor/alerts and its shared R2 / Telegram credentials; price alerts persist when browser closes and are removed by Worker after successful send",
     "Synchronize bell states from the shared Worker every 30 seconds and on visibility return; check enabled alerts every 10 seconds while radar is open, existing Worker cron continues every minute after closing",

@@ -1,7 +1,9 @@
 {
-  "app_version": "v0.3.16",
-  "stage": "LIVE-MONITOR-AND-LIQUIDATION-RADAR-SHARED-TELEGRAM-ALERTS",
+  "app_version": "v0.3.17",
+  "stage": "CROSSING-VERIFIED-ONE-SHOT-PRICE-ALERTS",
   "features": [
+    "Radar price alert explicitly selects ABOVE or BELOW and Cloudflare Worker triggers only on an actual post-save crossing, not when price merely satisfies >= or <=",
+    "R2 stores last observed price and armed state, with server-side baseline from TradingView Scanner; browser closure still supported",
     "Adds a bell beside every live price for creating a one-shot Telegram price alert.",
     "Automatically decides ABOVE/BELOW direction from the current price and the target price.",
     "Stores active alerts in R2 so the bell state is shared across devices.",
@@ -14,5 +16,5 @@
     "Liquidity radar v1.1.4 adds per-symbol Telegram price-alert bells beside symbol labels; reuses existing SState Worker /api/monitor/alerts R2 storage, Telegram secrets and one-shot deletion without creating a second system.",
     "WTI_USDT_PERP alert TradingView ticker aliases to PIONEX:CLUSDT.P in the Cloudflare Worker (requires Worker redeployment for WTI alerts)."
   ],
-  "version": "0.3.16"
+  "version": "0.3.17"
 }

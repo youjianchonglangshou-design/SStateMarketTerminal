@@ -153,13 +153,17 @@
   function updateAlertHint() {
     const current = currentPriceFor(state.alertModalSymbol);
     const target = Number(els.alertTarget?.value);
-    if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(current)) {
-      els.alertHint.textContent = '輸入價格後會自動判斷上破或下破。';
-      return;
+    const direction = document.getElementById('price-alert-direction').value;
+    if (!Number.isFinite(target) || target <= 0) {
+      els.alertHint.textContent = '先輸入觸發價格，再選上破或下破。';return;
     }
-    if (target > current) els.alertHint.textContent = `上破提醒：現價到達 ≥ ${formatPrice(target)} 時觸發 Telegram。`;
-    else if (target < current) els.alertHint.textContent = `下破提醒：現價到達 ≤ ${formatPrice(target)} 時觸發 Telegram。`;
-    else els.alertHint.textContent = `目前已在 ${formatPrice(target)}；下一次檢查即會觸發 Telegram。`;
+    if (!['ABOVE','BELOW'].includes(direction)) {
+      els.alertHint.textContent = '請選擇穿越方向；系統不會根據可能延遲的現價猜測。';return;
+    }
+    const above=direction==='ABOVE';
+    const description=above?`上破：先低於 ${formatPrice(target)}，再上穿 ≥ ${formatPrice(target)} 才提醒。`:`下破：先高於 ${formatPrice(target)}，再下穿 ≤ ${formatPrice(target)} 才提醒。`;
+    const startSide=above?current<target:current>target;
+    els.alertHint.textContent=description+(Number.isFinite(current)?(startSide?' 等待雲端確認起始報價。':' 已在觸發側時，必須先返回另一側再穿越。'):' 等待雲端確認起始報價。');
   }
 
   function openPriceAlertModal(symbol) {
@@ -171,6 +175,7 @@
     els.alertSymbol.textContent = displaySymbol(item);
     els.alertCurrent.textContent = `現價 ${formatPrice(current)}`;
     els.alertTarget.value = alert ? String(alert.target_price) : '';
+    document.getElementById('price-alert-direction').value = alert ? alert.direction : '';
     els.alertDelete.classList.toggle('hidden', !alert);
     els.alertModal.classList.remove('hidden'); els.alertModal.setAttribute('aria-hidden','false');
     updateAlertHint(); setTimeout(() => { els.alertTarget.focus(); if (alert) els.alertTarget.select(); }, 20);
@@ -184,12 +189,13 @@
   async function savePriceAlert() {
     const symbol = state.alertModalSymbol;
     const item = state.items.find(x => x.symbol === symbol); if (!item) return;
-    const current = currentPriceFor(symbol), target = Number(els.alertTarget.value);
+    const current = currentPriceFor(symbol), target = Number(els.alertTarget.value), direction=document.getElementById('price-alert-direction').value;
     if (!Number.isFinite(current) || current <= 0) { toast('現價尚未載入完成', true); return; }
     if (!Number.isFinite(target) || target <= 0) { toast('請輸入有效的觸發價格', true); els.alertTarget.focus(); return; }
+    if(!['ABOVE','BELOW'].includes(direction)){toast('請先選擇上破或下破',true);document.getElementById('price-alert-direction').focus();return;}
     els.alertSave.disabled = true;
     try {
-      const p = await api('/api/monitor/alerts', { method:'POST', body:JSON.stringify({ symbol:item.symbol, type:item.type, target_price:target, current_price:current }) });
+      const p = await api('/api/monitor/alerts', { method:'POST', body:JSON.stringify({ symbol:item.symbol, type:item.type, target_price:target, current_price:current, direction }) });
       const alert = normalizeAlert(p.alert); if (alert) state.alerts.set(alert.symbol, alert);
       state.telegramConfigured = p.telegram_configured !== false;
       refreshAlertBells(); closePriceAlertModal();
@@ -898,6 +904,7 @@
     els.alertClose.addEventListener('click', closePriceAlertModal); els.alertCancel.addEventListener('click', closePriceAlertModal);
     els.alertModal.addEventListener('click', e => { if (e.target.dataset.closeAlertModal) closePriceAlertModal(); });
     els.alertTarget.addEventListener('input', updateAlertHint);
+    document.getElementById('price-alert-direction').addEventListener('change',updateAlertHint);
     els.alertTarget.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); savePriceAlert(); } });
     els.alertSave.addEventListener('click', savePriceAlert); els.alertDelete.addEventListener('click', () => deletePriceAlert());
     document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!els.alertModal.classList.contains('hidden'))closePriceAlertModal();else if(!els.modal.classList.contains('hidden'))closeModal();});

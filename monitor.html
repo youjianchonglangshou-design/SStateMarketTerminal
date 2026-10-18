@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>SState Live Monitor</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./monitor.css?v=0.3.13">
+  <link rel="stylesheet" href="./monitor.css?v=0.3.17">
 </head>
 <body>
   <main class="monitor-shell">
@@ -140,7 +140,13 @@
         <div class="alert-symbol-line"><strong id="price-alert-symbol">BTC</strong><span id="price-alert-current">現價 —</span></div>
         <label for="price-alert-target">觸發價格</label>
         <input id="price-alert-target" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="輸入目標價格">
-        <p id="price-alert-hint" class="alert-hint">輸入價格後會自動判斷上破或下破。</p>
+        <label for="price-alert-direction" class="price-alert-direction-label">穿越方向（必選）</label>
+        <select id="price-alert-direction" required>
+          <option value="">請選擇上破或下破</option>
+          <option value="ABOVE">↑ 上破：價格由下方往上穿越</option>
+          <option value="BELOW">↓ 下破：價格由上方往下穿越</option>
+        </select>
+        <p id="price-alert-hint" class="alert-hint">明確指定穿越方向，僅真正穿越目標時提醒。</p>
         <p class="alert-note">觸發成功後會傳送 Telegram，並自動刪除這筆提醒。</p>
         <div class="alert-actions">
           <button id="price-alert-delete" class="alert-delete hidden" type="button">刪除提醒</button>
@@ -155,6 +161,6 @@
   <div id="toast" class="toast hidden"></div>
   <script src="./config.js?v=0.3.13"></script>
   <script src="./monitor-engine.js?v=0.3.13"></script>
-  <script src="./monitor.js?v=0.3.13"></script>
+  <script src="./monitor.js?v=0.3.17"></script>
 </body>
 </html>

@@ -123,3 +123,12 @@
 #liq-alert-direction{display:block;width:100%;padding:10px 7px;border:1px solid #3a647b;background:#061726;border-radius:8px;font-size:13px;font-weight:700;color:#e6f8ff;outline:none}
 #liq-alert-direction:focus{border-color:#55caea;box-shadow:0 0 0 2px #55caea20}
 #liq-alert-direction option{background:#10253b;color:#edf9ff}
+
+
+/* v1.1.5 - Move NOW label to right edge; pull upper/lower labels left to avoid overlap. */
+.radar-area{padding-right:0}
+.radar-line.up,.radar-line.down{width:44%}
+.radar-line.now{width:72%}
+.radar-price-label{font-variant-numeric:tabular-nums}
+.radar-price-label.up,.radar-price-label.down{left:46%;max-width:23%;margin-left:4px;font-size:8.5px;padding:2px 4px;line-height:11px;z-index:1}
+.radar-price-label.now{left:auto;right:0;max-width:27%;margin-left:0;font-size:9px;padding:2px 6px;line-height:12px;z-index:2;text-align:left}

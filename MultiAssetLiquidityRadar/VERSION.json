@@ -2,6 +2,9 @@
   "version": "1.1.5",
   "releaseDate": "2026-10-18",
   "changes": [
+    "Move the NOW price label flush to the right edge of the liquidation column.",
+    "Shift upper and lower boundary labels left and narrow them to avoid overlap when prices are close.",
+    "Keep the existing three-line liquidation radar, sorting, probabilities and Telegram alert bell unchanged.",
     "Explicit up-cross / down-cross direction selection for every price alert",
     "Verify a true crossing using two Worker-observed prices and persist armed/last_price in R2",
     "Avoid first-poll threshold false positives due to delayed browser quotes",

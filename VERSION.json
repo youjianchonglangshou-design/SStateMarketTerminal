@@ -1,6 +1,6 @@
 {
-  "app_version": "v0.3.17",
-  "stage": "CROSSING-VERIFIED-ONE-SHOT-PRICE-ALERTS",
+  "app_version": "v0.3.18",
+  "stage": "LIQUIDATION-RADAR-NOW-LABEL-OVERLAP-FIX",
   "features": [
     "Radar price alert explicitly selects ABOVE or BELOW and Cloudflare Worker triggers only on an actual post-save crossing, not when price merely satisfies >= or <=",
     "R2 stores last observed price and armed state, with server-side baseline from TradingView Scanner; browser closure still supported",
@@ -13,8 +13,9 @@
     "Integrate MultiAssetLiquidityRadar v1.1.3 as an independent GitHub Pages subfolder using the parent SState monitor-engine.js.",
     "Main navigation: replace quick 即時監控 with 清算監控 (new tab); move original 即時監控 link into 更多.",
     "Watch MultiAssetLiquidityRadar/** in GitHub Pages deployment workflow so subsequent radar-only pushes redeploy.",
-    "Liquidity radar v1.1.4 adds per-symbol Telegram price-alert bells beside symbol labels; reuses existing SState Worker /api/monitor/alerts R2 storage, Telegram secrets and one-shot deletion without creating a second system.",
-    "WTI_USDT_PERP alert TradingView ticker aliases to PIONEX:CLUSDT.P in the Cloudflare Worker (requires Worker redeployment for WTI alerts)."
+    "Liquidity radar v1.1.5 adds per-symbol Telegram price-alert bells beside symbol labels; reuses existing SState Worker /api/monitor/alerts R2 storage, Telegram secrets and one-shot deletion without creating a second system.",
+    "WTI_USDT_PERP alert TradingView ticker aliases to PIONEX:CLUSDT.P in the Cloudflare Worker (requires Worker redeployment for WTI alerts).",
+    "Liquidity radar v1.1.5 moves the NOW price label to the right edge and shifts upper/lower labels left to prevent overlap when the three prices are close."
   ],
-  "version": "0.3.17"
+  "version": "0.3.18"
 }

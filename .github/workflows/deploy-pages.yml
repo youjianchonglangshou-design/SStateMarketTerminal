@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "index.html"
+      - "MultiAssetLiquidityRadar/**"
+      - "VERSION.json"
       - "styles.css"
       - "app.js"
       - "config.js"

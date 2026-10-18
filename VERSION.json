@@ -1,5 +1,5 @@
 {
-  "app_version": "v0.3.14",
+  "app_version": "v0.3.15",
   "stage": "LIVE-MONITOR-TELEGRAM-PRICE-ALERTS",
   "features": [
     "Adds a bell beside every live price for creating a one-shot Telegram price alert.",
@@ -7,7 +7,10 @@
     "Stores active alerts in R2 so the bell state is shared across devices.",
     "While monitor.html is open, the Worker checks active alerts every 10 seconds; an optional Cloudflare every-minute cron keeps alerts working when the page is closed.",
     "On a successful Telegram send, the triggered alert is automatically deleted.",
-    "Telegram message format is: SYMBOL   觸發TARGET followed by Taiwan time."
+    "Telegram message format is: SYMBOL   觸發TARGET followed by Taiwan time.",
+    "Integrate MultiAssetLiquidityRadar v1.1.3 as an independent GitHub Pages subfolder using the parent SState monitor-engine.js.",
+    "Main navigation: replace quick 即時監控 with 清算監控 (new tab); move original 即時監控 link into 更多.",
+    "Watch MultiAssetLiquidityRadar/** in GitHub Pages deployment workflow so subsequent radar-only pushes redeploy."
   ],
-  "version": "0.3.14"
+  "version": "0.3.15"
 }

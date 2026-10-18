@@ -1,11 +1,11 @@
 {
-  "version": "1.1.3",
-  "releaseDate": "2026-10-17",
+  "version": "1.1.4",
+  "releaseDate": "2026-10-18",
   "changes": [
-    "Insert sortable S-state and daily midline slope columns before daily Heikin-Ashi K; semantic colors and numeric slope tooltip",
-    "Load original SStateMarketTerminal/monitor-engine.js directly and call its analyze function on the identical daily OHLC, avoiding approximate reimplementation of S0.5/S1/S2/S3 and midline shape rules",
-    "When HA-yellow is sorted, yellow+yellow is prioritized and exact midline regime / S-state break ties",
-    "Live 1D OHLC from TradingView Scanner reused for S-state, midline, HA and CCI without changing BTC 39-feature model",
-    "Keep user-managed symbols.js untouched, CoinGlass + 15M proxy feeds, 10-second updates, no freeze / no next-day settlement"
+    "Add a Telegram alert bell beside each symbol in the integrated liquidity radar",
+    "Reuse SState Market Terminal Cloudflare /api/monitor/alerts and its shared R2 / Telegram credentials; price alerts persist when browser closes and are removed by Worker after successful send",
+    "Synchronize bell states from the shared Worker every 30 seconds and on visibility return; check enabled alerts every 10 seconds while radar is open, existing Worker cron continues every minute after closing",
+    "Use the original Pionex symbol identity including WTI_USDT_PERP so existing Monitor and Radar see the same alert; requires optional Worker WTI->TradingView CL mapping upgrade for WTI alerts",
+    "Keep user-edited symbols.js, liquidation levels, probabilities, indicators and sorting unchanged"
   ]
 }

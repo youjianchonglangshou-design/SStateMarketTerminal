@@ -36,3 +36,8 @@
 - 此功能不改動根目錄正式快照分析、monitor.html、Worker、R2、訓練或排程。
 - 新資料夾的任何推送更新會觸發現有 GitHub Pages 部署工作流程；不增加額外定時任務。
 - 清算解碼與 BTC 機率仍引用 `BTC_iquidation` 網站的既有公開腳本，當外部腳本不可用時，依子頁面原本行為顯示資料缺失。
+
+
+## v0.3.16｜清算監控共用 Telegram 價格提醒
+
+`MultiAssetLiquidityRadar/` v1.1.4 在每個幣種名稱旁新增一次性到價鈴鐺；直接使用 `monitor.html` 相同的 Cloudflare Worker API、R2 儲存與 Telegram 設定，不另建密鑰。GitHub Pages 上傳會更新鈴鐺介面；為了讓 WTI 警報與即時監控共用 `WTI_USDT_PERP`，還需將附帶的 `cloudflare/worker.js` 修正版重新部署至既有 SState Worker。

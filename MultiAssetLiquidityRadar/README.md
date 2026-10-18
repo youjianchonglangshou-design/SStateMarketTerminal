@@ -1,4 +1,4 @@
-# Multi-Asset Liquidity Radar v1.1.3
+# Multi-Asset Liquidity Radar v1.1.4
 
 ## 變更
 
@@ -27,3 +27,13 @@
 - 請在 `symbols.js` 維護自選清單，原先使用者的清單與演算核心均保留。
 - 清算／BTC 39 特徵模型仍沿用 BTC_iquidation 公開腳本（網路存取必要）。
 - 10 秒行情掃描、CoinGlass 24H 資料與滾動機率不凍結、不結算，並未併入 SState 的 72H 正式分析結果。
+
+
+## v1.1.4｜價格提醒小鈴鐺（SState 共用）
+
+- 每個幣種名稱右側顯示小鈴鐺；點擊輸入觸發價，上破／下破方向由 Worker 依現價決定。
+- 可透過小鈴鐺重新開啟編輯或刪除。提醒由現有 `/api/monitor/alerts` 儲存在 R2，與主站 `monitor.html` 是同一份，不需要另設 Telegram Bot Token 或 Chat ID。
+- 開著網頁時每 10 秒呼叫 `/api/monitor/alerts/check`（有提醒時）；關閉網頁後由既有 Cloudflare `* * * * *` 定時工作繼續檢查；僅 Telegram 發送成功後才從 R2 刪除該提醒。
+- **WTI 重要設定**：為讓雷達 WTI 和 `monitor.html` 共用 `WTI_USDT_PERP`，Cloudflare Worker 需改用 `PIONEX:CLUSDT.P` 查詢 WTI 的 TradingView 行情。相關後端修正另附 Worker 覆蓋包，**GitHub Pages 部署本身不會更新 Cloudflare Worker**。
+- `symbols.js` 保留原樣；新增提醒不會改動清算上下界、BTC 機率或 S 狀態／中軌等演算法。
+- 離線 JS 模擬測試確認建立、編輯、重開網頁狀態同步、刪除及模擬 Worker 到價回應；實際 Telegram 發送需部署後用既有 Worker 自行測試。

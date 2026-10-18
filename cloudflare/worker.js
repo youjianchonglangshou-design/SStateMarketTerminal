@@ -3836,7 +3836,7 @@ function alertBaseSymbol(symbol){
 }
 function alertTradingViewTicker(symbol){
   const base=alertBaseSymbol(symbol);
-  return base?`PIONEX:${base}USDT.P`:"";
+  return base?`PIONEX:${base==="WTI"?"CL":base}USDT.P`:"";
 }
 async function loadTradingViewAlertPrices(alerts){
   const rows=alerts.filter(x=>x.type!=="SPOT").map(x=>({alert:x,ticker:alertTradingViewTicker(x.symbol)})).filter(x=>x.ticker);

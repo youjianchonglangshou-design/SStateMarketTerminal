@@ -83,3 +83,37 @@
 /* SStateMarketTerminal embedded radar navigation */
 .home-link{display:inline-flex;align-items:center;justify-content:center;border:1px solid #2a5875;border-radius:6px;padding:7px 10px;background:#10324b;color:#bde8f9;text-decoration:none;font-size:11px;font-weight:850;white-space:nowrap}
 .home-link:hover{color:#f2ffff;border-color:#48a8b3;background:#114359}
+
+/* v1.1.4 - Shared SState Monitor Cloudflare Telegram alert bell; fixed to symbol label. */
+.sym-head{display:flex;align-items:center;gap:5px;min-width:0}
+.sym-head .sym-name{min-width:0}
+.liq-alert-bell{flex:none!important;width:21px!important;height:21px!important;padding:0!important;border:none!important;background:transparent!important;color:#8599ae;opacity:.55;font-size:12px!important;line-height:21px;filter:grayscale(1);cursor:pointer;transition:opacity .15s,transform .15s,filter .15s}
+.liq-alert-bell:hover,.liq-alert-bell:focus-visible{opacity:1;filter:none;transform:scale(1.1);outline-color:#52cfec}
+.liq-alert-bell.active{opacity:1;filter:none;color:#ffe467;text-shadow:0 0 8px #f9d44790}
+.liq-alert-modal{position:fixed;inset:0;z-index:200;display:grid;place-items:start center;padding:10vh 10px 15px}
+.liq-alert-modal[hidden],.liq-alert-toast[hidden],.liq-alert-delete[hidden]{display:none!important}
+.liq-alert-backdrop{position:absolute;inset:0;background:#020811d6;backdrop-filter:blur(3px)}
+.liq-alert-card{position:relative;width:min(430px,100%);border-radius:12px;background:#0b2135;border:1px solid #3c6785;box-shadow:0 20px 65px #000b;max-height:80vh;overflow:auto}
+.liq-alert-card header{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #2b4d66}
+.liq-alert-eyebrow{font-size:10px;color:#80cde5;font-weight:700;letter-spacing:.3px}
+.liq-alert-card h2{margin:3px 0 0;font-size:18px;color:#e6f6ff}
+.liq-alert-close{font-size:25px;border:0;background:transparent;padding:1px 6px;color:#b0c8dd}
+.liq-alert-form{padding:17px 18px 19px}
+.liq-alert-symbol-line{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:17px}
+.liq-alert-symbol-line strong{font-size:20px}
+.liq-alert-symbol-line span{font-size:12px;color:#96bcd4}
+.liq-alert-form label{display:block;font-weight:700;color:#cce8f8;font-size:12px;margin-bottom:6px}
+#liq-alert-target{width:100%;padding:10px;border:1px solid #3a647b;background:#061726;border-radius:8px;font-size:16px;font-weight:700;outline:none;color:#eefcff}
+#liq-alert-target:focus{border-color:#55caea;box-shadow:0 0 0 2px #55caea20}
+.liq-alert-hint{font-size:12px;color:#68e4d0;line-height:1.5;margin:9px 0 5px}
+.liq-alert-note{font-size:11px;color:#9ab5c9;line-height:1.6;margin:7px 0 12px}
+.liq-alert-service{color:#8fb2c9;margin:8px 0 14px;font-size:11px}
+.liq-alert-service.error{color:#ffaab9}
+.liq-alert-actions{display:flex;gap:8px;align-items:center}
+.liq-alert-actions button{font-size:12px;font-weight:750}
+.liq-alert-spacer{flex:1}
+.liq-alert-delete{border-color:#933d52;background:#4b2532;color:#ffc0cf}
+.liq-alert-save{border-color:#1ba48f;background:#0c6d66;color:#d4fff4}
+.liq-alert-save:disabled,.liq-alert-delete:disabled{opacity:.5;cursor:wait}
+.liq-alert-toast{position:fixed;z-index:250;right:20px;bottom:18px;max-width:min(430px,calc(100% - 25px));background:#103a4b;border:1px solid #248e85;color:#d4fff4;border-radius:9px;padding:11px 14px;box-shadow:0 12px 38px #0009;font-size:12px}
+.liq-alert-toast.error{border-color:#b45464;background:#4c2835;color:#ffccd2}

@@ -1,23 +1,18 @@
 {
-  "version": "1.1.7",
+  "version": "1.2.0",
   "releaseDate": "2026-10-19",
+  "summary": "Replace 39-feature short-horizon model with 7D two-sided relative directional pressure",
   "changes": [
-    "Display OT-UP / OT-DN / OTHER in S-state column using exactly SStateMonitorEngine.classifyOtherExtension (shared homepage 0.85/0.15, 2-of-3 continuation rules), with semantic colors, full-name tooltips and sorting.",
-    "Switch CoinGlass max-pain request range from '24h' to '7d' (one week).",
-    "Update radar source labels and heading to 7D/1週, while preserving independent 15M proxy fallback.",
-    "Keep the existing BTC short-horizon probability model unchanged; do not present percentages as calibrated seven-day touch probabilities.",
-    "Keep Pionex live prices, SState signals, sorting, Telegram alerts and custom symbols.js unchanged.",
-    "Move the NOW price label flush to the right edge of the liquidation column.",
-    "Shift upper and lower boundary labels left and narrow them to avoid overlap when prices are close.",
-    "Keep the existing three-line liquidation radar, sorting, probabilities and Telegram alert bell unchanged.",
-    "Explicit up-cross / down-cross direction selection for every price alert",
-    "Verify a true crossing using two Worker-observed prices and persist armed/last_price in R2",
-    "Avoid first-poll threshold false positives due to delayed browser quotes",
-    "Keep original one-shot Telegram and Cloudflare scheduled checks, existing symbols and radar calculations",
-    "Add a Telegram alert bell beside each symbol in the integrated liquidity radar",
-    "Reuse SState Market Terminal Cloudflare /api/monitor/alerts and its shared R2 / Telegram credentials; price alerts persist when browser closes and are removed by Worker after successful send",
-    "Synchronize bell states from the shared Worker every 30 seconds and on visibility return; check enabled alerts every 10 seconds while radar is open, existing Worker cron continues every minute after closing",
-    "Use the original Pionex symbol identity including WTI_USDT_PERP so existing Monitor and Radar see the same alert; requires optional Worker WTI->TradingView CL mapping upgrade for WTI alerts",
-    "Keep user-edited symbols.js, liquidation levels, probabilities, indicators and sorting unchanged"
+    "Use frozen 7D BTC dynamics when >=135 completed UTC daily candles",
+    "Compute relative up/down pressure using displayed CoinGlass 7D barrier distances",
+    "Transparent cross-asset momentum fallback rather than applying BTC fitted coefficients to equities/commodities",
+    "Probabilities sum to 100; not probability of actually reaching levels",
+    "Load up to 190 daily candles for reliable BTC inference",
+    "No change to user symbols, alerts, R2, Worker, or main SState champion"
+  ],
+  "limitations": [
+    "No historical point-in-time CoinGlass snapshots, hence barrier-distance adjustment is heuristic and uncalibrated",
+    "Other assets use generic momentum; BTC frozen model was trained on BTC daily data",
+    "Proxy fallback remains proxy when no valid CoinGlass prices are available"
   ]
 }

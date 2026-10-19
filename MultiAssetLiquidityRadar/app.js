@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.1.7 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.2.0 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * No K-line charts, no frozen snapshots, no overnight settlements.
  */
@@ -210,13 +210,29 @@
    else{r.up=null;r.down=null;r.source='none';r.errors.cg=!fresh?(state.cgError||'CoinGlass 尚未取得'):cg?'CoinGlass 上下界不適用當前價格':'CoinGlass 無此標的／代理資料不足';}
    calcModel(r);
  }
- function calcModel(r){r.model=null;const engine=window.BTCLiqEngine,weights=window.BTCLiqModel;if(!engine?.features||!weights?.probabilities){r.errors.model='BTC 模型尚未載入';return;}
-   const now=Date.now(),closed=r.bars15.filter(x=>x.t+MS<=now);if(closed.length<340){r.errors.model=`15M 歷史不足 340 根 (${closed.length})`;return;}
-   const recent=closed.slice(-520);if(recent.slice(1).some((x,i)=>x.t-recent[i].t!==MS)){r.errors.model='15M K 線不連續';return;}
-   const anchor=Date.parse('2032-03-08T12:00:00Z');const shifted=recent.map((x,i)=>({...x,t:anchor-(recent.length-i+1)*MS}));const when=anchor-MS+(now%MS);
-   try{const f=engine.features(shifted,when,r.price||recent.at(-1).c);if(!f)throw Error('BTC 39 特徵無法組成滾動資料');const pred=weights.probabilities(f.features);const delta=r.ha?(r.ha.color==='黃'?.045:-.045):0;
-     const up=clamp(pred.up+delta,0,1);r.model={up,down:1-up,rawUp:pred.up,delta,time:now};r.errors.model='';
-   }catch(e){r.errors.model=String(e?.message||e);}
+ function calcModel(r){
+   r.model=null;
+   if(!window.Coin7DDirection?.calculate){r.errors.model='7D 方向引擎未載入';return;}
+   const price=livePrice(r);if(!priceEnough(price)){r.errors.model='等待即時現價';return;}
+   if(!priceEnough(r.up)||!priceEnough(r.down)||!(r.up>price&&r.down<price)){
+     r.errors.model='等待包住現價的有效上下界';return;
+   }
+   // Never silently conflate an older, 15M proxy zone with CoinGlass 7D.
+   const daily=dailyAsOf(r);
+   if(daily.length<23){r.errors.model='日線不足 23 根';return;}
+   let snapshot=null;
+   if(r.id==='BTC'&&daily.length>=136&&window.BTC128Runtime&&window.BTC128_FROZEN){
+     try{
+       // Frozen 7D model uses only completed UTC daily candles; current day's incomplete
+       // high/low would create mismatch with 2017-2023 fitted examples.
+       const latestCompleted=Math.floor(Date.now()/DAY)*DAY;
+       const confirmed=daily.filter(x=>x.t<latestCompleted).map(x=>({date:new Date(x.t).toISOString().slice(0,10),time:x.t,open:x.o,high:x.h,low:x.l,close:x.c,volume:x.v||0}));
+       if(confirmed.length>=135){snapshot=window.BTC128Runtime.predictionFromDaily(confirmed,window.BTC128_FROZEN,Date.now());}
+     }catch(e){r.errors.btc7d=String(e?.message||e);}
+   }
+   const out=window.Coin7DDirection.calculate({price,upper:r.up,lower:r.down,bars:daily,isBTC:r.id==='BTC',snapshot,source:r.source});
+   if(!out.ready){r.errors.model=out.reason;return;}
+   r.model={...out,time:Date.now()};r.errors.model='';
  }
  const setText=(element,text)=>{element.textContent=text;return element;};
  function el(tag,cls='',txt=''){const node=document.createElement(tag);if(cls)node.className=cls;if(txt)node.textContent=txt;return node;}
@@ -261,7 +277,7 @@
    d.cn.className='ha-sub '+(r.cci?.color==='黃'?'yellow':r.cci?.color==='紫'?'purple':'');
    d.cci.title=r.cci?`CCI(20) / SMA(14)：當 ${r.cci.value.toFixed(3)}，前 ${r.cci.prev.toFixed(3)}，差 ${r.cci.change.toFixed(3)}`:'CCI-SMA 尚無有效資料';
    const m=r.model,valid=m&&priceEnough(r.up)&&priceEnough(r.down)&&priceEnough(livePrice(r));d.upNum.textContent=valid?pct(m.up*100):'--';d.downNum.textContent=valid?pct(m.down*100):'--';
-   d.upNum.className='prob-num up '+(valid?(m.up>m.down?'winner':m.up<m.down?'loser':''):'');d.downNum.className='prob-num down '+(valid?(m.down>m.up?'winner':m.down<m.up?'loser':''):'');d.pFill.style.width=valid?(m.up*100).toFixed(2)+'%':'0%';d.pLabel.textContent=valid?'BTC 跨標的參考 · '+(r.source==='proxy'?'代理上下界':'CoinGlass 界'):(r.errors.model||'資料不足，不顯示機率');d.tr.title=Object.entries(r.errors).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join(' | ')||'';
+   d.upNum.className='prob-num up '+(valid?(m.up>m.down?'winner':m.up<m.down?'loser':''):'');d.downNum.className='prob-num down '+(valid?(m.down>m.up?'winner':m.down<m.up?'loser':''):'');d.pFill.style.width=valid?(m.up*100).toFixed(2)+'%':'0%';d.pLabel.textContent=valid?'7D 方向優勢 · '+(r.source==='proxy'?'15M代理界':'CoinGlass 界'):(r.errors.model||'資料不足，不顯示機率');d.pLabel.title=valid?m.explanation+'｜'+m.caveat:'';d.upNum.title=valid?m.explanation:'';d.downNum.title=valid?m.explanation:'';d.tr.title=Object.entries(r.errors).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join(' | ')||'';
  }
  // A header click chooses its column and a subsequent click reverses direction.
  // Unknown values always go to the bottom; ties fall back to original watchlist order.
@@ -373,7 +389,7 @@
  function enqueue(r,kind,force=false){const key=r.id+':'+kind,attempt=r.lastAttempt[kind]||0,have=kind==='bar'?r.bars15.length:r.daily.length,ttl=TTLS[kind];if(state.jobSet.has(key)||(!force&&have>=2&&Date.now()-attempt<ttl)||(!force&&Date.now()-attempt<ttl&&attempt>0))return;
    state.jobSet.add(key);state.queue.push({r,kind,key});pump();}
  async function pump(){while(state.loadingJobs<MAX_WORKERS&&state.queue.length){const job=state.queue.shift();state.loadingJobs++;job.r.lastAttempt[job.kind]=Date.now();void(async()=>{try{
-     const {r,kind}=job;const interval=kind==='bar'?'15M':'1D';const count=kind==='bar'?530:95;const received=await loadHistory(r.s,interval,count);
+     const {r,kind}=job;const interval=kind==='bar'?'15M':'1D';const count=kind==='bar'?530:190;const received=await loadHistory(r.s,interval,count);
      if(kind==='bar'){r.bars15=received.bars;r.barsAt=Date.now();r.errors.bar='';}else{r.daily=received.bars;r.dailyAt=Date.now();r.errors.day='';}
      if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);updateDerived(r);renderRow(r);if(state.sort!=='watchlist')reorder();renderOverview();
    }catch(e){job.r.errors[job.kind]=String(e?.message||e);log(`${job.r.id} ${job.kind==='bar'?'15M':'1D'}: ${e?.message||e}`);renderRow(job.r);}finally{state.loadingJobs--;state.jobSet.delete(job.key);pump();}})();}}
@@ -398,7 +414,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.1.7',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.2.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

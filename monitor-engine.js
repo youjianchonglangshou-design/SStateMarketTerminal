@@ -382,6 +382,38 @@
     return{market_state_id:state,market_state_name:name,market_state_order:order,structure_state:structure,midline:mid,current:{ha_color:latestColor,ha_price:round(latest.close,10),ha_vs_midline_pct:round(latestPct),ha_band_position:round(latestPos),near_midline:nearMidline(latest),current_color_run_length:runLength},purple2_reference:purple2,purple_structure:pstruct,trigger_index:trigger};
   }
 
+  // OTHER trend-extension overlay for the SState homepage / future 7D study.
+  // Preserve the formal market_state_id and its historical probability cohort.
+  // Band position = (HA close - BB lower) / (BB upper - BB lower), not a percent.
+  const OTHER_EXTENSION_RULE = Object.freeze({ upper: 0.85, lower: 0.15, lookback: 3, minTouches: 2 });
+  function classifyOtherExtension(chartRows, rawState='OTHER') {
+    const state=String(rawState || 'OTHER').toUpperCase();
+    const fallback={state, raw_state:state, matched:false, reason:'原始 S 狀態未分類為 OTHER'};
+    if (state!=='OTHER') return fallback;
+    const chart=Array.isArray(chartRows)?chartRows:[];
+    if (chart.length<OTHER_EXTENSION_RULE.lookback) return {state:'OTHER',raw_state:state,matched:false,reason:'有效日線少於 3 根'};
+    const last=chart.slice(-OTHER_EXTENSION_RULE.lookback);
+    const points=last.map(row=>({
+      pos:Number(row?.ha_band_position),
+      haClose:Number(row?.ha_close),
+      haColor:String(row?.ha_color||'').toLowerCase(),
+      bandValid:Number.isFinite(Number(row?.bb_upper))&&Number.isFinite(Number(row?.bb_lower))&&Number(row.bb_upper)>Number(row.bb_lower)
+    }));
+    if(points.some(item=>!item.bandValid||!Number.isFinite(item.pos)||!Number.isFinite(item.haClose)||item.haClose<=0))
+      return {state:'OTHER',raw_state:state,matched:false,reason:'布林帶/平均K 資料不足'};
+    const latest=points[2];
+    const upTouches=points.filter(item=>item.pos>=OTHER_EXTENSION_RULE.upper).length;
+    const dnTouches=points.filter(item=>item.pos<=OTHER_EXTENSION_RULE.lower).length;
+    // Require ongoing continuation, not a one-day spike near the rail.
+    if(latest.haColor==='yellow'&&latest.pos>=OTHER_EXTENSION_RULE.upper&&upTouches>=2&&latest.haClose>points[0].haClose){
+      return {state:'OTHER-UP',raw_state:state,matched:true,reason:`上軌延續｜近3日 ${upTouches} 日貼上軌`,band_position:latest.pos,rail_days:upTouches};
+    }
+    if(latest.haColor==='purple'&&latest.pos<=OTHER_EXTENSION_RULE.lower&&dnTouches>=2&&latest.haClose<points[0].haClose){
+      return {state:'OTHER-DN',raw_state:state,matched:true,reason:`下軌延續｜近3日 ${dnTouches} 日貼下軌`,band_position:latest.pos,rail_days:dnTouches};
+    }
+    return {state:'OTHER',raw_state:state,matched:false,reason:'其他／盤整或尚未形成持續貼軌結構',band_position:latest.pos,rail_days:0};
+  }
+
   function analyze(dailyRows, fourHRows=[]) {
     const daily=normalizeKlines(dailyRows);if(!daily.length)return null;const chart=buildChart30d(daily),opp=buildLongOpportunity({chart_30d:chart});const latest=daily[daily.length-1],ha=calculateHeikinAshi(daily),cci=calculateCciSma(daily),latestHa=ha[ha.length-1],latestCci=cci[cci.length-1]||{};
     return {price:latest.close,day_open:latest.open,day_change_pct:latest.open?((latest.close-latest.open)/latest.open*100):0,s_state:opp.market_state_id,midline:opp.midline,average_k:latestHa.close>latestHa.open?'yellow':latestHa.close<latestHa.open?'purple':'gray',cci_sma:latestCci.smoothing_color||'gray',cci:latestCci.cci,cci_sma_value:latestCci.smoothing_ma,chart_30d:chart,opportunity_long:opp};
@@ -395,5 +427,5 @@
     return data;
   }
 
-  return { constants:C,normalizeKlines,calculateHeikinAshi,rollingBollinger,calculateCciSma,buildChart30d,midlineRegime,buildLongOpportunity,analyze,updateLiveCandle };
+  return { constants:C,OTHER_EXTENSION_RULE,classifyOtherExtension,normalizeKlines,calculateHeikinAshi,rollingBollinger,calculateCciSma,buildChart30d,midlineRegime,buildLongOpportunity,analyze,updateLiveCandle };
 });

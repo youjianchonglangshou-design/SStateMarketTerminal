@@ -1463,3 +1463,15 @@
 @media(max-width:760px){
   .signal-matrix-return{top:calc(55% - 130px);width:38px;min-height:64px}
 }
+
+/* v0.3.21 — OTHER rail-extension semantics on homepage; original Champion model remains untouched. */
+.sticky-control-deck .filter.state-other-up{border-color:#19b886;color:#81f8ca;background:rgba(7,48,40,.9)}
+.sticky-control-deck .filter.state-other-dn{border-color:#ec6178;color:#ffc1ca;background:rgba(60,21,39,.85)}
+.filter-dot-other-up{background:radial-gradient(circle at 30% 30%,#b1fbe3 0 22%,#18bc92 55%,#086d56 100%)}
+.filter-dot-other-dn{background:radial-gradient(circle at 30% 30%,#ffd2db 0 22%,#ef667e 55%,#9d2440 100%)}
+.card-symbol-group .state-pill.state-other-up{background:linear-gradient(180deg,#55e5b1 0%,#0da879 53%,#08664d 100%);color:#e9fff8}
+.card-symbol-group .state-pill.state-other-dn{background:linear-gradient(180deg,#ff9cab 0%,#e85470 53%,#97334f 100%);color:#fff4f6}
+.signal-state.state-other-up{border-color:#1fc99c;color:#b8ffe6;background:#0d4f40}
+.signal-state.state-other-dn{border-color:#f16d88;color:#ffced8;background:#59233a}
+.sector-token-state.other-up{border-color:#18b991;color:#8af5cb;background:#083e35}
+.sector-token-state.other-dn{border-color:#df5979;color:#ffabbc;background:#492235}

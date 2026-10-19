@@ -505,6 +505,8 @@
     if (s === "S1") return `1浪突破｜${pos}`;
     if (s === "S3") return `3浪啟動｜${pos}`;
     if (s === "S0.5") return `優質反轉｜${pos}`;
+    if (s === "OTHER-UP") return `上軌延續｜${pos}`;
+    if (s === "OTHER-DN") return `下軌延續｜${pos}`;
     return `${escapeHtml(opp.market_state_name || opp.setup_name || s)}｜${pos}`;
   }
 
@@ -517,7 +519,7 @@
   }
 
   function sectorTokenStateClass(s) {
-    return s === "S3" ? "s3" : s === "S0.5" ? "s05" : s === "S2" ? "s2" : s === "S1" ? "s1" : "other";
+    return s === "S3" ? "s3" : s === "S0.5" ? "s05" : s === "S2" ? "s2" : s === "S1" ? "s1" : s === "OTHER-UP" ? "other-up" : s === "OTHER-DN" ? "other-dn" : "other";
   }
 
   function renderSectorDetail(id) {
@@ -935,12 +937,14 @@
   }
 
   function renderFilters() {
-    const counts = (state.snapshot?.breadth?.market_state) || {};
+    // These are display-only extensions: count current visible classification, not stale backend breadth OTHER.
     const records = state.snapshot?.records || [];
+    const counts = Object.create(null);
+    for (const row of records) { const key=recordState(row); counts[key]=(counts[key]||0)+1; }
     const pwCount = state.market === "us-stock" ? records.filter(isPropwRecord).length : 0;
     const order = state.market === "us-stock"
-      ? ["PW","ALL","S3","S0.5","S1","S2","S0","OTHER"]
-      : ["ALL","S3","S0.5","S1","S2","S0","OTHER"];
+      ? ["PW","ALL","S3","S0.5","S1","S2","S0","OTHER-UP","OTHER-DN","OTHER"]
+      : ["ALL","S3","S0.5","S1","S2","S0","OTHER-UP","OTHER-DN","OTHER"];
     els.filters.innerHTML = order.map(k => {
       const label = k === "ALL" ? "全部" : k;
       const count = k === "PW" ? pwCount : (k === "ALL" ? records.length : (counts[k] || 0));
@@ -955,8 +959,17 @@
     els.summary.classList.add("hidden");
   }
 
-  function recordState(r) { return r?.opportunity_long?.market_state_id || "OTHER"; }
-  function stateRank(s){ return ({"S3":0,"S0.5":1,"S1":2,"S2":3,"S0":4,"OTHER":5})[s] ?? 9; }
+  function rawRecordState(r) { return r?.opportunity_long?.market_state_id || "OTHER"; }
+  function otherExtension(r) {
+    return window.SStateMonitorEngine?.classifyOtherExtension?.(r?.chart_30d,rawRecordState(r))
+      || {state:rawRecordState(r),matched:false,reason:'等待共用引擎'};
+  }
+  function recordState(r) { return otherExtension(r).state; }
+  function recordStateName(r) {
+    const ext=otherExtension(r);
+    return ext.matched ? (ext.state==='OTHER-UP'?'上軌延續':'下軌延續') : (r?.opportunity_long?.market_state_name || r?.opportunity_long?.setup_name || '其他／盤整');
+  }
+  function stateRank(s){ return ({"S3":0,"S0.5":1,"S1":2,"S2":3,"S0":4,"OTHER-UP":5,"OTHER-DN":6,"OTHER":7})[s] ?? 9; }
 
   function renderCards() {
     let rows = [...(state.snapshot?.records || [])];
@@ -980,10 +993,10 @@
     bindSynchronizedChartCrosshairs();
   }
 
-  function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; return 'state-other'; }
+  function stateClass(s){ if(s==='S3')return 'state-s3'; if(s==='S2')return 'state-s2'; if(s==='S1')return 'state-s1'; if(s==='S0.5')return 'state-s05'; if(s==='S0')return 'state-s0'; if(s==='OTHER-UP')return 'state-other-up'; if(s==='OTHER-DN')return 'state-other-dn'; return 'state-other'; }
   function filterStateClass(s){ return s==='PW'?'filter-pw':s==='ALL'?'filter-all':stateClass(s); }
   function filterDotMarkup(s){
-    const cls = s==='PW' ? 'filter-dot-pw' : s==='S3' ? 'filter-dot-s3' : s==='S0.5' ? 'filter-dot-s05' : s==='S1' ? 'filter-dot-s1' : s==='S2' ? 'filter-dot-s2' : s==='S0' ? 'filter-dot-s0' : s==='OTHER' ? 'filter-dot-other' : '';
+    const cls = s==='PW' ? 'filter-dot-pw' : s==='S3' ? 'filter-dot-s3' : s==='S0.5' ? 'filter-dot-s05' : s==='S1' ? 'filter-dot-s1' : s==='S2' ? 'filter-dot-s2' : s==='S0' ? 'filter-dot-s0' : s==='OTHER-UP' ? 'filter-dot-other-up' : s==='OTHER-DN' ? 'filter-dot-other-dn' : s==='OTHER' ? 'filter-dot-other' : '';
     return cls ? `<span class="filter-dot ${cls}" aria-hidden="true"></span>` : '';
   }
   function targetLabel(s){ return s==='S0.5'?'3日內轉強':s==='S2'?'3日內轉S3':s==='S1'?'3日內上攻':'3日內續強'; }
@@ -993,8 +1006,8 @@
     if (!hp.available || !h72.available) return "";
     const f=hp.features||{};
     const featureLine = `${midHuman(f.midline_state)}｜位置${bandHuman(f.bandpos_bin)}｜${f.trigger_stage||'T0'}｜${bwHuman(f.bandwidth_trend)}｜狀態年齡 ${ageHuman(f.state_age_bin)}`;
-    return `<div class="prob-wrap"><span class="pill prob-pill">📊 ${targetLabel(recordState(r))} <strong>${pct(h72.success_probability,0)}</strong></span><div class="prob-card">
-      <div class="prob-title">${escapeHtml(r.symbol)}｜${escapeHtml(recordState(r))}</div>
+    return `<div class="prob-wrap"><span class="pill prob-pill">📊 ${targetLabel(rawRecordState(r))} <strong>${pct(h72.success_probability,0)}</strong></span><div class="prob-card">
+      <div class="prob-title">${escapeHtml(r.symbol)}｜原模型 ${escapeHtml(rawRecordState(r))}</div>
       <div class="prob-row success"><span>● 3日成功</span><span>${pct(h72.success_probability)}</span></div>
       <div class="prob-row alive"><span>● 還活著</span><span>${pct(h72.alive_slow_probability)}</span></div>
       <div class="prob-row fail"><span>● 真失敗</span><span>${pct(h72.true_fail_probability)}</span></div>
@@ -1081,7 +1094,7 @@
     const matchedSamples = Number(h72.matched_samples || hp.matched_samples || 0);
     const samples = matchedSamples.toLocaleString();
     const level = h72.level || hp.model_level || "—";
-    const marketState = recordState(r);
+    const marketState = rawRecordState(r); // Never relabel the trained Champion 72H probability cohort.
     const tier = sampleTierInfo(matchedSamples, marketState);
     const tierRatio = tier.total > 0 ? `${(tier.ratio * 100).toFixed(2)}%` : '—';
     const tierMinRatio = tier.total > 0 && tier.min > 0 ? `${((tier.min / tier.total) * 100).toFixed(2)}%` : '—';
@@ -1314,7 +1327,7 @@
         <div class="card-primary-row">
           <div class="card-symbol-group">
             <strong class="card-symbol">${escapeHtml(r.symbol)}</strong>
-            <span class="pill state-pill ${stateClass(s)}">${escapeHtml(s)}｜${escapeHtml(opp.market_state_name||opp.setup_name||'')}</span>
+            <span class="pill state-pill ${stateClass(s)}" title="${escapeHtml(otherExtension(r).reason)}">${escapeHtml(s)}｜${escapeHtml(recordStateName(r))}</span>
             <span class="sector-meta">${escapeHtml(sectors)}</span>
             ${renderResearch(r)}
           </div>

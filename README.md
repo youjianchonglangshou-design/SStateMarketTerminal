@@ -41,3 +41,12 @@
 ## v0.3.16｜清算監控共用 Telegram 價格提醒
 
 `MultiAssetLiquidityRadar/` v1.1.4 在每個幣種名稱旁新增一次性到價鈴鐺；直接使用 `monitor.html` 相同的 Cloudflare Worker API、R2 儲存與 Telegram 設定，不另建密鑰。GitHub Pages 上傳會更新鈴鐺介面；為了讓 WTI 警報與即時監控共用 `WTI_USDT_PERP`，還需將附帶的 `cloudflare/worker.js` 修正版重新部署至既有 SState Worker。
+
+
+## v0.3.21｜主頁 OTHER-UP／OTHER-DN（尚未研究 7D 機率）
+- 原始 S 狀態保留在 `opportunity_long.market_state_id`，本次僅在主頁用 `monitor-engine.js` 的 `classifyOtherExtension()` 細分展示。
+- OTHER-UP：最新日線 HA 黃色、布林位置 ≥0.85、最近 3 日至少 2 日貼上軌，且 HA 收盤較兩日前上升。
+- OTHER-DN：最新日線 HA 紫色、布林位置 ≤0.15、最近 3 日至少 2 日貼下軌，且 HA 收盤較兩日前下降。
+- 其餘 OTHER 仍保持 OTHER；不更改 Champion 訓練分類、72H 機率、R2／Worker 與清算雷達。
+- 主頁篩選、卡片與 SIGNAL MATRIX 使用細分類；建立 7D 回測時，可直接沿用此純函式重現判斷。
+- 上述 0.85／0.15、2/3 是起始定義，**並非已回測有效門檻**。

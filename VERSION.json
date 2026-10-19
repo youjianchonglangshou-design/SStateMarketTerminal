@@ -1,7 +1,9 @@
 {
-  "app_version": "v0.3.20",
-  "stage": "MAIN-VERSION-DISPLAY-SYNC-WITH-VERSION-JSON",
+  "app_version": "v0.3.21",
+  "stage": "HOMEPAGE-OTHER-UP-OTHER-DN-CLASSIFICATION",
   "features": [
+    "Homepage ONLY: classify formal OTHER as OTHER-UP when last-day yellow HA is at BB position >=0.85, at least 2 of last 3 days stay >=0.85 and HA advances; mirrored OTHER-DN uses purple HA, <=0.15 and falling HA. Non-qualifying OTHER remains OTHER.",
+    "Keep formal market_state_id, Champion 72H probabilities, stored snapshot, Cloudflare Worker and Telegram unchanged; homepage and SIGNAL MATRIX filters/badges use presentation-only extension.",
     "Main site version chip now reads root VERSION.json (cache-busted), with config.js as a fallback; script cache keys updated to v0.3.20.",
     "Liquidity radar v1.1.6 changes CoinGlass max-pain lookup from 24h to 7d while leaving the BTC short-horizon probability model and all other SState features unchanged.",
     "Radar price alert explicitly selects ABOVE or BELOW and Cloudflare Worker triggers only on an actual post-save crossing, not when price merely satisfies >= or <=",
@@ -19,5 +21,5 @@
     "WTI_USDT_PERP alert TradingView ticker aliases to PIONEX:CLUSDT.P in the Cloudflare Worker (requires Worker redeployment for WTI alerts).",
     "Liquidity radar v1.1.5 moves the NOW price label to the right edge and shifts upper/lower labels left to prevent overlap when the three prices are close."
   ],
-  "version": "0.3.20"
+  "version": "0.3.21"
 }

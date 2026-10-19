@@ -50,3 +50,7 @@
 - 其餘 OTHER 仍保持 OTHER；不更改 Champion 訓練分類、72H 機率、R2／Worker 與清算雷達。
 - 主頁篩選、卡片與 SIGNAL MATRIX 使用細分類；建立 7D 回測時，可直接沿用此純函式重現判斷。
 - 上述 0.85／0.15、2/3 是起始定義，**並非已回測有效門檻**。
+
+
+## v0.3.22｜即時監控與清算監控同步 OTHER 延續分類
+即時監控與 MultiAssetLiquidityRadar 皆呼叫原 `monitor-engine.js` 的 `classifyOtherExtension`；只改展示、語意顏色與排序，不改正式 S 狀態、R2、Champion、Telegram 或機率模型。狹窄欄位顯示 OT-UP／OT-DN，滑鼠提示保留完整名稱與原因。

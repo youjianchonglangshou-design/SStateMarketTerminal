@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.1.6 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.1.7 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * No K-line charts, no frozen snapshots, no overnight settlements.
  */
@@ -191,10 +191,12 @@
    const rows=days.map(x=>({time:x.t,open:x.o,high:x.h,low:x.l,close:x.c,volume:x.v||0}));
    const analyzed=engine.analyze(rows);
    if(!analyzed?.midline||!analyzed?.s_state)return null;
-   return {sstate:String(analyzed.s_state),midline:analyzed.midline,source:'SStateMonitorEngine',engine:engine.constants?.ENGINE_VERSION||''};
+   const rawState=String(analyzed.s_state);
+   const ext=engine.classifyOtherExtension?.(analyzed.chart_30d,rawState);
+   return {sstate:ext?.state||rawState,rawState,extensionReason:ext?.reason||'',midline:analyzed.midline,source:'SStateMonitorEngine',engine:engine.constants?.ENGINE_VERSION||''};
  }
  function updateDerived(r){const days=dailyAsOf(r);r.ha=dailyHA(days);r.cci=dailyCciSma(days);
-   try{const s=dailySState(days);r.sstate=s?.sstate||null;r.midline=s?.midline||null;
+   try{const s=dailySState(days);r.sstate=s?.sstate||null;r.sstateRaw=s?.rawState||null;r.sstateReason=s?.extensionReason||'';r.midline=s?.midline||null;
      r.errors.sstate=s?'':(!window.SStateMonitorEngine?.analyze?'SState 原版引擎尚未載入':days.length<40?'日線歷史不足 40 根':'SState 分析暫無結果');
    }catch(e){r.sstate=null;r.midline=null;r.errors.sstate=String(e?.message||e);}
 
@@ -243,11 +245,11 @@
  function renderRow(r){if(!r.dom)return;const d=r.dom;d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');d.sf.textContent=r.source==='coinglass'?`CoinGlass ${r.cgId} · ${r.s.tv}`:r.source==='proxy'?'15M 價格代理 · '+r.s.tv:r.s.tv;
    plotRadar(r);
    const sv=r.sstate||null,mid=r.midline;
-   const stateClass=({'S3':'s3','S2':'s2','S1':'s1','S0.5':'s05','S0':'s0','OTHER':'other'})[sv]||'unknown';
-   const stateName=({'S3':'3浪啟動','S2':'2浪回踩','S1':'1浪突破','S0.5':'優質反轉','S0':'下殺反彈','OTHER':'其他'})[sv]||'等待日線';
-   d.sBadge.textContent=sv||'--';d.sBadge.className='state-badge '+stateClass;
+   const stateClass=({'S3':'s3','S2':'s2','S1':'s1','S0.5':'s05','S0':'s0','OTHER-UP':'other-up','OTHER-DN':'other-dn','OTHER':'other'})[sv]||'unknown';
+   const stateName=({'S3':'3浪啟動','S2':'2浪回踩','S1':'1浪突破','S0.5':'優質反轉','S0':'下殺反彈','OTHER-UP':'上軌延續','OTHER-DN':'下軌延續','OTHER':'其他'})[sv]||'等待日線';
+   d.sBadge.textContent=sv==='OTHER-UP'?'OT-UP':sv==='OTHER-DN'?'OT-DN':sv||'--';d.sBadge.className='state-badge '+stateClass;
    d.sSub.textContent=sv?stateName:(r.daily.length&&r.daily.length<40?'日 K 不足 40 根':'資料不足');
-   d.sBadge.title=sv?`SState ${sv}｜${stateName}｜${window.SStateMonitorEngine?.constants?.ENGINE_VERSION||'原版引擎'}`:(r.errors.sstate||'尚無 S 狀態');
+   d.sBadge.title=sv?`SState ${sv}｜${stateName}｜${r.sstateReason||'原始狀態'}｜${window.SStateMonitorEngine?.constants?.ENGINE_VERSION||'共用引擎'}`:(r.errors.sstate||'尚無 S 狀態');
    const midClass=({'rising':'rising','flat':'flat','flattening':'flattening','falling':'falling'})[mid?.state]||'unknown';
    d.midLabel.textContent=mid?mid.symbol+' '+mid.label:'--';d.midLabel.className='mid-label '+midClass;
    d.midSub.textContent=mid?.state?`${mid.recent_5d_slope_pct_per_day>0?'+':''}${mid.recent_5d_slope_pct_per_day}%/日`:'等待資料';
@@ -267,7 +269,7 @@
    if(key==='watchlist')return r.index;
    if(key==='symbol')return r.id.toUpperCase();
    if(key==='ha')return r.ha&&['黃','紫'].includes(r.ha.color)?(r.ha.color==='黃'?1:0):null;
-   if(key==='sstate')return r.sstate?({'S3':60,'S2':50,'S1':40,'S0.5':30,'S0':20,'OTHER':0}[r.sstate]??0):null;
+   if(key==='sstate')return r.sstate?({'S3':80,'S0.5':70,'S1':60,'S2':50,'S0':40,'OTHER-UP':30,'OTHER-DN':20,'OTHER':10}[r.sstate]??0):null;
    if(key==='midline')return r.midline?({'rising':4,'flat':3,'flattening':2,'falling':1}[r.midline.state]??0):null;
    if(key==='cci')return r.cci&&['黃','紫'].includes(r.cci.color)?(r.cci.color==='黃'?1:0):null;
    if(key==='bull_pair')return r.ha?.color==='黃'&&r.cci?.color==='黃'?1:0;
@@ -396,7 +398,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.1.6',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.1.7',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

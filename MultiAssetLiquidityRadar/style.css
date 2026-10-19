@@ -132,3 +132,7 @@
 .radar-price-label{font-variant-numeric:tabular-nums}
 .radar-price-label.up,.radar-price-label.down{left:46%;max-width:23%;margin-left:4px;font-size:8.5px;padding:2px 4px;line-height:11px;z-index:1}
 .radar-price-label.now{left:auto;right:0;max-width:27%;margin-left:0;font-size:9px;padding:2px 6px;line-height:12px;z-index:2;text-align:left}
+
+/* v1.1.7: shared SState OTHER-UP/OTHER-DN extension; compact labels. */
+.state-badge.other-up{background:#0c463a;color:#67f4c3;border-color:#23b994;min-width:49px;padding-inline:4px;font-size:10px}
+.state-badge.other-dn{background:#532b3a;color:#ff9fb1;border-color:#d85378;min-width:49px;padding-inline:4px;font-size:10px}

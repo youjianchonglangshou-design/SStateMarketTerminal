@@ -46,3 +46,7 @@
 - BTC 39 特徵短時窗機率不變；它**不是七日先掃機率**，與七日上下界需分開解讀。
 - 沒有 CoinGlass 一週資料時，原本 15M 代理價帶仍會以「代理」標示，不能視為 7D CoinGlass 資料。
 - 未修改 Cloudflare Worker、Telegram 鈴鐺、SState 分析引擎或自訂 `symbols.js`。
+
+
+## v1.1.7｜OTHER-UP／OTHER-DN 即時分類
+共用上層 `monitor-engine.js` 的延續判斷，不變動正式原始 S 狀態。窄欄顯示 OT-UP／OT-DN，並提供完整 tooltip；排序也納入新分類。

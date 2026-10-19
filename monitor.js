@@ -452,9 +452,20 @@
     return n.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
   }
 
+  // Display-only extension: use exactly the same OTHER-UP/OTHER-DN classification
+  // as the SState homepage. Keep analysis.s_state (Champion/R2) unchanged.
+  function monitorDisplayState(analysis) {
+    const raw=String(analysis?.s_state || 'OTHER').toUpperCase();
+    if(raw!=='OTHER')return {state:raw,reason:'原始 S 狀態'};
+    const ext=Engine.classifyOtherExtension?.(analysis?.chart_30d,raw);
+    return {state:ext?.state||raw,reason:ext?.reason||'其他／盤整'};
+  }
+  function compactStateLabel(s) {
+    return s==='OTHER-UP'?'OT-UP':s==='OTHER-DN'?'OT-DN':s;
+  }
   function stateClass(s) {
-    const k = String(s || '').toUpperCase().replace('.','');
-    return ({S3:'state-s3',S05:'state-s05',S1:'state-s1',S2:'state-s2',S0:'state-s0'}[k] || 'state-other');
+    const k=String(s||'').toUpperCase();
+    return ({S3:'state-s3','S0.5':'state-s05',S1:'state-s1',S2:'state-s2',S0:'state-s0','OTHER-UP':'state-other-up','OTHER-DN':'state-other-dn'}[k]||'state-other');
   }
 
   function midText(mid) {
@@ -495,7 +506,9 @@
       priceCell.classList.add(Number(a.price) > old ? 'cell-flash-up' : 'cell-flash-down');
     }
     const stateCell = tr.querySelector('[data-field="s_state"]');
-    stateCell.innerHTML = `<span class="state-pill ${stateClass(a.s_state)}">${escapeHtml(String(a.s_state || 'OTHER'))}</span>`;
+    const visibleState=monitorDisplayState(a);
+    const stateTip=visibleState.state+'｜'+visibleState.reason+(a.s_state!==visibleState.state?'｜原始狀態 '+a.s_state:'');
+    stateCell.innerHTML = `<span class="state-pill ${stateClass(visibleState.state)}" title="${escapeHtml(stateTip)}" aria-label="${escapeHtml(stateTip)}">${escapeHtml(compactStateLabel(visibleState.state))}</span>`;
     const [mt,mc] = midText(a.midline); setCell(tr,'midline',mt,mc);
     const [ht,hc] = toneText(a.average_k); setCell(tr,'average_k',ht,hc);
     const [ct,cc] = toneText(a.cci_sma); setCell(tr,'cci_sma',ct,cc);
@@ -517,7 +530,7 @@
     updateSortMarks();
   }
 
-  function rankState(s) { return ({S3:60,S2:50,S1:40,'S0.5':30,S0:20,OTHER:0}[String(s||'OTHER').toUpperCase()] ?? 0); }
+  function rankState(s) { return ({S3:80,'S0.5':70,S1:60,S2:50,S0:40,'OTHER-UP':30,'OTHER-DN':20,OTHER:10}[String(s||'OTHER').toUpperCase()] ?? 0); }
   function rankMid(m) { return ({rising:4,flat:3,flattening:2,falling:1}[m?.state] ?? 0); }
   function rankTone(v) { return ({yellow:2,purple:1,gray:0}[v] ?? 0); }
 
@@ -527,7 +540,7 @@
     if (key === 'note') return item.note || '';
     if (key === 'symbol') return displaySymbol(item);
     if (key === 'day_change_pct') return Number(a?.day_change_pct ?? -Infinity);
-    if (key === 's_state') return rankState(a?.s_state);
+    if (key === 's_state') return rankState(monitorDisplayState(a).state);
     if (key === 'midline') return rankMid(a?.midline);
     if (key === 'average_k') return rankTone(a?.average_k);
     if (key === 'cci_sma') return rankTone(a?.cci_sma);

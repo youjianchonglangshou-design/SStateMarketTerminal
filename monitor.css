@@ -118,3 +118,8 @@ td{height:40px;border-bottom:1px solid #213952;border-right:1px solid #213952;ba
 .price-alert-direction-label{margin-top:12px!important}
 #price-alert-direction{display:block;width:100%;height:40px;background:#061422;color:#d8f4ff;border:1px solid #315474;border-radius:9px;padding:0 8px;font-size:12px;font-weight:750;outline:none}
 #price-alert-direction:focus{border-color:#22d3ee;box-shadow:0 0 0 2px rgba(34,211,238,.09)}
+
+/* v0.3.22: display-only OTHER rail continuation; narrow columns use OT-UP / OT-DN. */
+.compact-table .state-pill.state-other-up,.compact-table .state-pill.state-other-dn{font-size:8px;min-width:38px;padding:3px 4px;white-space:nowrap}
+.state-pill.state-other-up{background:#083e35;color:#63f1b9;border-color:#14a985;box-shadow:inset 0 0 6px #1ac6a31d}
+.state-pill.state-other-dn{background:#55252e;color:#ff9caa;border-color:#e4637b;box-shadow:inset 0 0 6px #ed647b1d}

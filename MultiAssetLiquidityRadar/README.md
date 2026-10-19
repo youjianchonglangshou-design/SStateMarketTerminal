@@ -26,7 +26,7 @@
 - S 狀態／中軌斜率從上一層 `../monitor-engine.js` 載入，直接共用主站引擎。
 - 請在 `symbols.js` 維護自選清單，原先使用者的清單與演算核心均保留。
 - 清算／BTC 39 特徵模型仍沿用 BTC_iquidation 公開腳本（網路存取必要）。
-- 10 秒行情掃描、CoinGlass 24H 資料與滾動機率不凍結、不結算，並未併入 SState 的 72H 正式分析結果。
+- 10 秒行情掃描、CoinGlass 7D（1週） 資料與滾動機率不凍結、不結算，並未併入 SState 的 72H 正式分析結果。
 
 
 ## v1.1.4｜價格提醒小鈴鐺（SState 共用）
@@ -37,3 +37,12 @@
 - **WTI 重要設定**：為讓雷達 WTI 和 `monitor.html` 共用 `WTI_USDT_PERP`，Cloudflare Worker 需改用 `PIONEX:CLUSDT.P` 查詢 WTI 的 TradingView 行情。相關後端修正另附 Worker 覆蓋包，**GitHub Pages 部署本身不會更新 Cloudflare Worker**。
 - `symbols.js` 保留原樣；新增提醒不會改動清算上下界、BTC 機率或 S 狀態／中軌等演算法。
 - 離線 JS 模擬測試確認建立、編輯、重開網頁狀態同步、刪除及模擬 Worker 到價回應；實際 Telegram 發送需部署後用既有 Worker 自行測試。
+
+
+## v1.1.6｜CoinGlass 清算上下界改為一週
+- `fetchCoinGlass('7d')` 改抓一週最大痛點清算上下界，不是沿用 24H 資料只換標題。
+- 表頭、資料來源、診斷與註解都改為 7D / 1週。
+- 仍每 60 秒嘗試更新；價格依舊每 10 秒嘗試更新。
+- BTC 39 特徵短時窗機率不變；它**不是七日先掃機率**，與七日上下界需分開解讀。
+- 沒有 CoinGlass 一週資料時，原本 15M 代理價帶仍會以「代理」標示，不能視為 7D CoinGlass 資料。
+- 未修改 Cloudflare Worker、Telegram 鈴鐺、SState 分析引擎或自訂 `symbols.js`。

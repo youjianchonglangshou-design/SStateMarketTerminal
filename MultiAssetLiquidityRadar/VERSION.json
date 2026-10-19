@@ -1,7 +1,11 @@
 {
-  "version": "1.1.5",
-  "releaseDate": "2026-10-18",
+  "version": "1.1.6",
+  "releaseDate": "2026-10-19",
   "changes": [
+    "Switch CoinGlass max-pain request range from '24h' to '7d' (one week).",
+    "Update radar source labels and heading to 7D/1週, while preserving independent 15M proxy fallback.",
+    "Keep the existing BTC short-horizon probability model unchanged; do not present percentages as calibrated seven-day touch probabilities.",
+    "Keep Pionex live prices, SState signals, sorting, Telegram alerts and custom symbols.js unchanged.",
     "Move the NOW price label flush to the right edge of the liquidation column.",
     "Shift upper and lower boundary labels left and narrow them to avoid overlap when prices are close.",
     "Keep the existing three-line liquidation radar, sorting, probabilities and Telegram alert bell unchanged.",

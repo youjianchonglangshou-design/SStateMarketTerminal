@@ -15,7 +15,25 @@
     sectorFlow: $("sector-flow"), sectorFlowToggle: $("sector-flow-toggle"), sectorFlowBody: $("sector-flow-body"), sectorFlowCaption: $("sector-flow-caption"),
     sectorFlowLeader: $("sector-flow-leader"), sectorWheel: $("sector-wheel"), sectorFlowDetail: $("sector-flow-detail")
   };
-  els.version.textContent = cfg.appVersion || "v0.3.09";
+  // VERSION.json is the single source of truth for the main site's release number.
+  // config.js is a fallback for offline/file:// use and transient request failures.
+  els.version.textContent = cfg.appVersion || "版本讀取中";
+  async function syncMainVersion() {
+    try {
+      const url = new URL('VERSION.json', document.baseURI);
+      url.searchParams.set('_v', String(Date.now()));
+      const response = await fetch(url.toString(), {cache: 'no-store'});
+      if (!response.ok) return;
+      const meta = await response.json();
+      const raw = String(meta?.app_version || meta?.version || '').trim();
+      if (/^v?\d+\.\d+\.\d+$/.test(raw)) {
+        els.version.textContent = raw.startsWith('v') ? raw : 'v' + raw;
+      }
+    } catch (_) {
+      // Keep cfg.appVersion on a local file or when VERSION.json is unreachable.
+    }
+  }
+  syncMainVersion();
   els.market.value = state.market;
 
   const marketFilename = (market) => market === "us-stock" ? "snapshot_us_stock_ai.json" : "snapshot_ai.json";

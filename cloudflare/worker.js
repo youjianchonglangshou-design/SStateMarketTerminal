@@ -6,6 +6,7 @@ const SECTOR_FLOW_KEY = "market/us-stock/sector_flow.json";
 const MEMO_KEY = "terminal/memos.json";
 const MEMO_MAX_ENTRIES = 500;
 const MONITOR_WATCHLIST_KEY = "terminal/monitor_watchlist.json";
+const RADAR_COLOR_MARKS_KEY = "terminal/radar_color_marks.json";
 const MONITOR_UNIVERSE_KEY = "pionex/cache/monitor_universe.json";
 const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MONITOR_KLINE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -135,6 +136,13 @@ export default {
         const body = await request.json().catch(() => ({}));
         const payload = await writeMonitorWatchlist(env, body);
         return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (url.pathname === "/api/monitor/radar/marks") {
+        if (request.method === "GET") return json({ ok:true,...await readRadarColorMarks(env) },200,origin);
+        if (request.method === "POST") {
+          const body = await request.json().catch(() => ({}));
+          return json({ ok:true,...await setRadarColorMark(env,body) },200,origin);
+        }
       }
       if (request.method === "GET" && url.pathname === "/api/monitor/alerts") {
         const [payload, lastCheck] = await Promise.all([
@@ -3709,6 +3717,37 @@ async function readChampionLedgerRows(env,generation,days,symbol=""){
   }
   rows.sort((a,b)=>(Number(a?.decision_time||0)-Number(b?.decision_time||0))||String(a?.symbol||"").localeCompare(String(b?.symbol||"")));
   return {ok:true,generation,days,symbol:symbol||null,shards:keys.length,keys,rows};
+}
+// Per-symbol color marks are shared across sessions/devices via the existing JSON_BUCKET R2.
+// Only one symbol is mutated per request; removing a mark deletes its key.
+const RADAR_MARK_COLORS = new Set(["red","orange","yellow","green","blue","purple"]);
+function cleanRadarMarkSymbol(v){
+  const s=String(v||"").trim().toUpperCase();
+  if (!/^[A-Z0-9_:.\-]{1,80}$/.test(s)) throw httpError(400,"invalid radar mark symbol");
+  return s;
+}
+async function readRadarColorMarks(env){
+  const obj=await env.JSON_BUCKET.get(RADAR_COLOR_MARKS_KEY);
+  if(!obj) return {schema_version:"1.0",marks:{},updated_at:null};
+  try{
+    const raw=JSON.parse(await obj.text());
+    const marks={};
+    for(const [symbol,color] of Object.entries(raw?.marks||{})) {
+      try{const key=cleanRadarMarkSymbol(symbol);if(RADAR_MARK_COLORS.has(color))marks[key]=color;}catch(_){}
+    }
+    return {schema_version:"1.0",marks,updated_at:raw.updated_at||null};
+  }catch(_){return {schema_version:"1.0",marks:{},updated_at:null};}
+}
+async function setRadarColorMark(env,body){
+  const symbol=cleanRadarMarkSymbol(body?.symbol);
+  const color=body?.color==null||body?.color===""?null:String(body.color).toLowerCase();
+  if(color!==null&&!RADAR_MARK_COLORS.has(color)) throw httpError(400,"invalid radar mark color");
+  const payload=await readRadarColorMarks(env);
+  if(color)payload.marks[symbol]=color;
+  else delete payload.marks[symbol];
+  payload.updated_at=new Date().toISOString();
+  await env.JSON_BUCKET.put(RADAR_COLOR_MARKS_KEY,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
+  return {symbol,color,updated_at:payload.updated_at};
 }
 function monitorDefaultWatchlist(){
   return { schema_version:"1.0", version:0, updated_at:null, updated_by:null, items:[], sort:{key:"order",dir:"asc"} };

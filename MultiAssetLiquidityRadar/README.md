@@ -87,3 +87,11 @@
 - 前端使用 `localStorage` 即時記住顏色，重開同裝置／同瀏覽器不會遺失；另外透過現有 Cloudflare Worker `/api/monitor/radar/marks` 讀寫 R2 `terminal/radar_color_marks.json` 支援跨裝置。
 - **如要跨裝置同步，必須部署隨附的新版 `cloudflare/worker.js` 到現有 Cloudflare Worker。** 只有 GitHub Pages 覆蓋檔無法更新 Worker；未部署時仍能以本機儲存使用，並明確顯示備援模式。
 - 不需新增 Cloudflare 綁定、R2 bucket、Token、GitHub Actions 或排程。
+
+
+## v1.1.13｜顏色標記集中排序
+- 在右上角「排序」選單新增 **🎨 顏色標記集中（紅→橘→黃→綠→藍→紫）**。
+- 所有已標記幣種排在前段，同色自動集中；沒標記的放最後。每組內依原清單順序排列。
+- 任何排序都保留每個幣種固定的項次編號。切換顏色或清除顏色時，若目前選用本排序則立即重新分組，不需重新整理頁面。
+- 保留原本的 localStorage 和既有 Worker/R2 同步，這次 **不需要修改 Worker**。
+- 僅需覆蓋 `MultiAssetLiquidityRadar/index.html`、`app.js`、`color-marks.js`、`VERSION.json`（`README.md` 可一併覆蓋）。

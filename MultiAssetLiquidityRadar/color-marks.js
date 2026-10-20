@@ -1,4 +1,4 @@
-/* v1.1.12 — per-symbol TradingView-style color flags, local persistence + optional existing R2 Worker sync. */
+/* v1.1.13 — per-symbol TradingView-style color flags, local persistence + optional existing R2 Worker sync. */
 (()=>{'use strict';
   const worker=String(window.SSTATE_CONFIG?.workerUrl||'').replace(/\/$/,'');
   const ENDPOINT='/api/monitor/radar/marks';
@@ -43,6 +43,8 @@
       btn.setAttribute('aria-haspopup','dialog');
       btn.setAttribute('aria-expanded',String(active===btn&&!palette.hidden));
     });
+    // Keep the list grouped live without changing the permanent symbol numbers.
+    document.dispatchEvent(new Event('liq-radar-marks-updated'));
   }
   function refreshPalette(){
     const current=active?marks[active.dataset.markSymbol]||null:null;

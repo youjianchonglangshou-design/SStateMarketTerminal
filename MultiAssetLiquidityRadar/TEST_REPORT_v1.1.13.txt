@@ -1,0 +1,17 @@
+Multi-Asset Liquidity Radar v1.1.13｜顏色標記集中排序
+
+來源：使用者目前部署 v1.1.12 對應上次交付完整專案。
+
+Chromium Playwright（頁面實際 DOM，外部行情資料模擬離線）
+PASS：清單順序初始項次不變。
+PASS：排序選單「顏色標記集中」紅→橘→黃→綠→藍→紫，未標記最後。
+PASS：同色依固定原始清單順序排列（BTC 紅1、SOL 紅4；BOME 藍3、ETH 藍6）。
+PASS：切換排序後，所有幣種保留自己的原始項次編號。
+PASS：在顏色集中模式下新增黃色，立即插入黃色分組，不必重選排序。
+PASS：紅轉綠、清除藍色，立即移動至正確分組或未標記區域。
+PASS：切回原始清單順序，原始項次與標記保留。
+PASS：localStorage 的資料仍綁定 symbol（Pionex symbol），不是顯示列號。
+PASS：無瀏覽器 JS 未捕捉例外。
+PASS：app.js/color-marks.js 由 Node --check 驗證語法。
+
+此版本只變更前端，不變更 Worker/R2 協定與資料結構。網路 API 與跨裝置端點無遠端部署測試。

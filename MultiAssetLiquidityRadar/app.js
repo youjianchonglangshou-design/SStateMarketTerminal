@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.1.7 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.1.13 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * No K-line charts, no frozen snapshots, no overnight settlements.
  */
@@ -264,9 +264,17 @@
    d.upNum.className='prob-num up '+(valid?(m.up>m.down?'winner':m.up<m.down?'loser':''):'');d.downNum.className='prob-num down '+(valid?(m.down>m.up?'winner':m.down<m.up?'loser':''):'');d.pFill.style.width=valid?(m.up*100).toFixed(2)+'%':'0%';d.pLabel.textContent=valid?'BTC 跨標的參考 · '+(r.source==='proxy'?'代理上下界':'CoinGlass 界'):(r.errors.model||'資料不足，不顯示機率');d.tr.title=Object.entries(r.errors).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join(' | ')||'';
  }
  // A header click chooses its column and a subsequent click reverses direction.
+ // Color flags are stored on the original symbol row, not on visible row positions.
  // Unknown values always go to the bottom; ties fall back to original watchlist order.
  function sortValue(r,key){
    if(key==='watchlist')return r.index;
+   if(key==='marked_color'){
+     // Fixed color groups: red -> orange -> yellow -> green -> blue -> purple;
+     // unmarked symbols return null, which the comparator always places last.
+     const groupOrder={red:0,orange:1,yellow:2,green:3,blue:4,purple:5};
+     const color=r.dom?.tIndex?.dataset.markColor;
+     return Object.hasOwn(groupOrder,color)?groupOrder[color]:null;
+   }
    if(key==='symbol')return r.id.toUpperCase();
    if(key==='ha')return r.ha&&['黃','紫'].includes(r.ha.color)?(r.ha.color==='黃'?1:0):null;
    if(key==='sstate')return r.sstate?({'S3':80,'S0.5':70,'S1':60,'S2':50,'S0':40,'OTHER-UP':30,'OTHER-DN':20,'OTHER':10}[r.sstate]??0):null;
@@ -338,7 +346,7 @@
    });
  }
  function chooseSort(key,headerClick){
-   const defaults={watchlist:1,symbol:1,near:1,sstate:-1,midline:-1,ha:-1,cci:-1,bull_pair:-1,bear_pair:-1,upper:-1,lower:-1,edge:-1};
+   const defaults={watchlist:1,marked_color:1,symbol:1,near:1,sstate:-1,midline:-1,ha:-1,cci:-1,bull_pair:-1,bear_pair:-1,upper:-1,lower:-1,edge:-1};
    if(headerClick&&state.sort===key)state.sortDir*=-1;
    else{state.sort=key;state.sortDir=defaults[key]||1;}
    if($('sortBy'))$('sortBy').value=key;
@@ -385,6 +393,10 @@
    document.querySelectorAll('#groupFilters button').forEach(btn=>btn.addEventListener('click',()=>{state.group=btn.dataset.group;document.querySelectorAll('#groupFilters button').forEach(x=>x.classList.toggle('active',x===btn));reorder();renderOverview();}));
    $('searchInput').addEventListener('input',e=>{state.search=String(e.target.value||'').trim().toUpperCase();reorder();renderOverview();});
    $('sortBy').addEventListener('change',e=>chooseSort(e.target.value,false));
+   // Re-group immediately when a flag is added, changed, removed or updated from R2.
+   document.addEventListener('liq-radar-marks-updated',()=>{
+     if(state.sort==='marked_color')reorder();
+   });
    document.querySelectorAll('.radar-table thead button[data-sort]').forEach(btn=>btn.addEventListener('click',()=>chooseSort(btn.dataset.sort,true)));
    $('diagPanel')?.addEventListener('toggle',()=>{if($('diagPanel').open)renderDiag();});
    $('refreshBtn').addEventListener('click',()=>{fetchPrices();fetchCG(true);queueAll(true);});
@@ -398,7 +410,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.1.12',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.1.13',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

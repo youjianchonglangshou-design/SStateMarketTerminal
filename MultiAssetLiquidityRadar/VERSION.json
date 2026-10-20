@@ -1,7 +1,9 @@
 {
-  "version": "1.1.9",
+  "version": "1.1.10",
   "releaseDate": "2026-10-20",
   "changes": [
+    "Resize the Fear & Greed desktop card to reach approximately the bottom of row 6, while calculating width from the original aspect ratio.",
+    "Clamp the enlarged proportional card within the liquidation table boundary and viewport on every open, resize and scroll.",
     "Enlarge the Fear & Greed hover card while keeping the original aspect ratio, and dynamically clamp the desktop popover inside the liquidation table boundary.",
     "Position the card from the trigger center and auto-recalculate width/height on hover, resize and scroll so it never spills past the table edge.",
     "Insert CMC Fear & Greed capsule immediately right of the SState homepage button, opening a medium 1-year chart card on hover and closing on pointer exit.",

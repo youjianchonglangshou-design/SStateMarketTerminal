@@ -1,4 +1,4 @@
-/* v1.1.9 — larger proportional card, clamped inside table boundary; hover/touch/keyboard support; lazy CMC-only iframe. */
+/* v1.1.10 — card height extends to around row 6 bottom; width keeps original ratio; clamped inside table boundary. */
 (() => {
   'use strict';
   const root = document.getElementById('fgPopover');
@@ -29,26 +29,53 @@
       resetDesktopLayout();
       return;
     }
-    const boundary = document.querySelector('.table-scroll') || document.querySelector('.shell') || document.body;
-    const boundaryRect = boundary.getBoundingClientRect();
+    const table = document.querySelector('.radar-table');
+    const tableScroll = document.querySelector('.table-scroll') || document.querySelector('.shell') || document.body;
+    const boundaryRect = tableScroll.getBoundingClientRect();
     const triggerRect = trigger.getBoundingClientRect();
     const gap = 7;
-    const availableWidth = Math.max(760, Math.floor(boundaryRect.width - 6));
-    const desiredWidth = Math.round(boundaryRect.width * 0.76);
-    const width = Math.max(820, Math.min(980, desiredWidth, availableWidth));
-    const preferredHeight = Math.round(width / ratio);
-    const maxHeight = Math.max(450, Math.floor(window.innerHeight - triggerRect.bottom - gap - 16));
-    const height = Math.min(610, preferredHeight, maxHeight);
+
+    let targetBottom = boundaryRect.bottom - 10;
+    if (table) {
+      const rows = table.querySelectorAll('tbody tr');
+      if (rows.length >= 6) {
+        const sixthRect = rows[5].getBoundingClientRect();
+        targetBottom = Math.min(boundaryRect.bottom - 10, Math.round(sixthRect.bottom));
+      }
+    }
+
+    const top = Math.round(triggerRect.bottom + gap);
+    const verticalSpace = Math.max(420, targetBottom - top);
+    const maxViewportHeight = Math.max(420, Math.floor(window.innerHeight - top - 16));
+    const height = Math.max(420, Math.min(verticalSpace, maxViewportHeight));
+    let width = Math.round(height * ratio);
+
+    const maxWidthByBoundary = Math.max(760, Math.floor(boundaryRect.width - 8));
+    width = Math.min(width, maxWidthByBoundary, 1100);
+    const heightFromWidth = Math.round(width / ratio);
+    const finalHeight = Math.min(height, heightFromWidth > 0 ? height : height);
+
     const minLeft = Math.round(boundaryRect.left);
     const maxLeft = Math.round(boundaryRect.right - width);
     let left = Math.round(triggerRect.left + triggerRect.width / 2 - width / 2);
     left = Math.min(Math.max(left, minLeft), maxLeft);
-    const top = Math.round(triggerRect.bottom + gap);
 
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
     panel.style.width = `${width}px`;
-    panel.style.height = `${height}px`;
+    panel.style.height = `${Math.round(width / ratio)}px`;
+
+    // If proportional height still exceeds the desired 6th-row target, shrink by height instead.
+    const appliedBottom = top + Math.round(width / ratio);
+    if (appliedBottom > targetBottom || appliedBottom > window.innerHeight - 16) {
+      const adjustedHeight = Math.max(420, Math.min(verticalSpace, maxViewportHeight));
+      const adjustedWidth = Math.min(Math.round(adjustedHeight * ratio), maxWidthByBoundary, 1100);
+      let adjustedLeft = Math.round(triggerRect.left + triggerRect.width / 2 - adjustedWidth / 2);
+      adjustedLeft = Math.min(Math.max(adjustedLeft, minLeft), Math.round(boundaryRect.right - adjustedWidth));
+      panel.style.left = `${adjustedLeft}px`;
+      panel.style.width = `${adjustedWidth}px`;
+      panel.style.height = `${adjustedHeight}px`;
+    }
   }
 
   const openFromHover = () => {

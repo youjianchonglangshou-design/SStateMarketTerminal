@@ -220,7 +220,7 @@
  }
  const setText=(element,text)=>{element.textContent=text;return element;};
  function el(tag,cls='',txt=''){const node=document.createElement(tag);if(cls)node.className=cls;if(txt)node.textContent=txt;return node;}
- function makeRow(r){const tr=el('tr');const tIndex=el('td','row-index','--');const tSymbol=el('td');const name=el('div','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed',r.s.group==='stock'?'Pionex 美股／商品':'Pionex 加密合約');tSymbol.append(head,px,sf);
+ function makeRow(r){const tr=el('tr');const tIndex=el('td','row-index');const markBtn=el('button','liq-mark-trigger',String(r.index+1));markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.setAttribute('aria-label',`標記 ${r.id} 的顏色`);markBtn.title=`${r.id}：點擊選擇註記顏色`;tIndex.append(markBtn);const tSymbol=el('td');const name=el('div','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed',r.s.group==='stock'?'Pionex 美股／商品':'Pionex 加密合約');tSymbol.append(head,px,sf);
    const tRadar=el('td');const plot=el('div','radar-area');const micro=el('div','radar-micro');const l=el('span'),rr=el('span');micro.append(l,rr);tRadar.append(plot,micro);
    const tS=el('td');const sw=el('div','state-wrap');const sBadge=el('span','state-badge unknown','--');const sSub=el('div','state-sub','等待日線');sw.append(sBadge,sSub);tS.append(sw);
    const tMid=el('td');const mw=el('div','mid-wrap');const midLabel=el('span','mid-label unknown','--');const midSub=el('div','mid-sub','等待日線');mw.append(midLabel,midSub);tMid.append(mw);
@@ -327,7 +327,7 @@
      return a.index-b.index;
    });
    const body=$('radarBody'),frag=document.createDocumentFragment();
-   rows.forEach((r,i)=>{r.dom.tIndex.textContent=String(i+1);frag.append(r.dom.tr);});
+   rows.forEach(r=>{frag.append(r.dom.tr);});
    body.replaceChildren(frag);
    if(!rows.length){const tr=el('tr'),td=el('td','empty','沒有符合的標的；請檢查 symbols.js 或篩選條件');td.colSpan=8;tr.append(td);body.append(tr);}
    document.querySelectorAll('.radar-table thead th[data-sort]').forEach(th=>{
@@ -398,7 +398,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.1.7',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.1.12',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

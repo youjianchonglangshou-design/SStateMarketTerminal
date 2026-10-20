@@ -152,3 +152,28 @@
 
 @media(max-width:850px){.fg-panel{position:fixed;top:101px;left:10px;right:10px;width:calc(100vw - 20px);height:min(505px,calc(100dvh - 115px));max-height:calc(100vh - 115px)}.fg-popover::after{right:0}}
 @media(max-width:480px){.fg-panel{top:128px;height:min(495px,calc(100dvh - 138px));max-height:calc(100vh - 138px)}}
+
+/* v1.1.12 — TradingView-like sticky per-symbol color flags. Never bind marks to display positions. */
+.row-index{position:relative;padding:5px 3px!important;transition:background .12s}
+.liq-mark-trigger{position:relative;display:grid;place-items:center;width:100%;min-width:31px;min-height:45px;margin:0;appearance:none;background:transparent;border:1px solid transparent;border-radius:6px;color:#b6cad9;font-weight:850;font-size:12px;line-height:1;font-variant-numeric:tabular-nums;padding:5px 1px 5px 5px;cursor:pointer}
+.liq-mark-trigger:hover,.liq-mark-trigger:focus-visible{border-color:#5c9eb6;background:#1d445b;outline:0}
+.row-index[data-mark-color]{background:color-mix(in srgb,var(--mark-color) 17%,transparent)}
+.row-index[data-mark-color] .liq-mark-trigger{color:#f4faff;background:color-mix(in srgb,var(--mark-color) 28%,#062136);border-color:color-mix(in srgb,var(--mark-color) 65%,#466071);box-shadow:inset 0 0 0 1px #ffffff19}
+.row-index[data-mark-color] .liq-mark-trigger::before{content:'';position:absolute;left:-4px;top:7px;width:8px;height:24px;background:var(--mark-color);clip-path:polygon(0 0,100% 0,100% 100%,0 75%);filter:drop-shadow(0 0 2px #0005)}
+.row-index[data-mark-color="red"]{--mark-color:#f14f62}
+.row-index[data-mark-color="orange"]{--mark-color:#ffa347}
+.row-index[data-mark-color="yellow"]{--mark-color:#ffe44e}
+.row-index[data-mark-color="green"]{--mark-color:#20d6a3}
+.row-index[data-mark-color="blue"]{--mark-color:#489dff}
+.row-index[data-mark-color="purple"]{--mark-color:#b89afa}
+.liq-mark-palette[hidden]{display:none!important}
+.liq-mark-palette{position:fixed;z-index:180;min-width:230px;max-width:270px;padding:10px;border:1px solid #45738b;border-radius:10px;background:#0c273d;box-shadow:0 16px 38px #000b;color:#d4edfb}
+.liq-mark-title{font-size:12px;font-weight:800;margin:2px 2px 9px}
+.liq-mark-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.liq-mark-options button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;background:#11344d;border:1px solid #385b73;border-radius:7px;color:#d9ecf9;font-size:11px;white-space:nowrap}
+.liq-mark-options button:hover,.liq-mark-options button:focus-visible,.liq-mark-options button[aria-pressed="true"]{border-color:#d7edfa;background:#1b4c6b;outline:0}
+.mark-swatch{display:block;width:19px;height:19px;border-radius:4px;box-shadow:0 0 0 1px #ffffff33 inset}
+.mark-swatch.red{background:#f14f62}.mark-swatch.orange{background:#ffa347}.mark-swatch.yellow{background:#ffe44e}.mark-swatch.green{background:#20d6a3}.mark-swatch.blue{background:#489dff}.mark-swatch.purple{background:#b89afa}
+.liq-mark-options .mark-clear{grid-column:1/-1;flex-direction:row;justify-content:center;background:#142f44;padding:8px}
+#liq-mark-status[hidden]{display:none!important}
+#liq-mark-status{position:fixed;z-index:190;bottom:18px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);padding:10px 14px;border-radius:7px;border:1px solid #356a86;background:#0a2d46;color:#e0f6ff;box-shadow:0 5px 20px #0008;font-size:12px;text-align:center}

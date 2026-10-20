@@ -1,0 +1,26 @@
+Multi-Asset Liquidity Radar v1.1.12｜功能測試 2026-10-20
+
+來源：使用者上傳 SStateMarketTerminal-main(20261020-111605).zip
+
+測試 1：Chrome（Playwright，使用本地模擬資料）
+PASS｜初始順序 BTC=1, SOL=2, ETH=3
+PASS｜為 SOL 選紫色後，左側標記顏色立即更新
+PASS｜幣種排序後 BTC=1, ETH=3, SOL=2，SOL 原編號及紫色一起移動
+PASS｜本機儲存於 localStorage，模擬重開後 SOL 紫色仍存在
+PASS｜相同顏色再次選擇可取消標記
+PASS｜雲端正常時模擬 Worker 接收單筆標記 POST
+PASS｜雲端無法使用時，仍可依 localStorage 恢復顏色
+
+測試 2：Cloudflare Worker（Node Request / Response + R2 模擬 bucket）
+PASS｜初次讀取沒有標記回應空白映射
+PASS｜寫入 SUI 綠與 BTC 紅後皆保留
+PASS｜取消 SUI 後 BTC 紅仍保留
+PASS｜不合法顏色及 symbol 回傳 400
+PASS｜新 API 只操作 terminal/radar_color_marks.json，不影響 watchlist 與 alerts
+
+測試 3：JS 語法檢查
+PASS｜app.js、color-marks.js、worker.js、fear-greed-popover.js
+
+部署提醒：以上 Worker 為本機模擬 R2 驗證，未遠端部署至使用者 Cloudflare。
+如只覆蓋 GitHub Pages，localStorage 持續有效，但跨設備同步需將 cloudflare/worker.js 重新部署到現有 white-meadow-16bc Worker。
+未在現場測試真實 Telegram、CoinGlass 與 CMC 即時 API；以上功能程式未改動。

@@ -1,4 +1,4 @@
-# Multi-Asset Liquidity Radar v1.1.4
+# Multi-Asset Liquidity Radar v1.1.12
 
 ## 變更
 
@@ -78,3 +78,12 @@
 - 桌面版卡片高度目標改為表格第 7 列底部附近。
 - 寬度仍依原始比例自動換算。
 - 若放大後超出表格容器或視窗，會自動縮回可容納範圍。
+
+
+## v1.1.12｜項次彩色旗標、幣種固定編號、R2 記憶
+- 點擊左側「項次」編號開啟六色調色板（紅、橘、黃、綠、藍、紫），可清除標記；再次選同一色也會取消。
+- 每個幣種保留原始清單編號，排序時 **原始編號與顏色會一起跟著幣種移動**；不再依目前畫面位置重編成 1、2、3。
+- 使用 `r.s.pionex` 作為穩定儲存鍵，顏色與小鈴鐺彼此獨立。
+- 前端使用 `localStorage` 即時記住顏色，重開同裝置／同瀏覽器不會遺失；另外透過現有 Cloudflare Worker `/api/monitor/radar/marks` 讀寫 R2 `terminal/radar_color_marks.json` 支援跨裝置。
+- **如要跨裝置同步，必須部署隨附的新版 `cloudflare/worker.js` 到現有 Cloudflare Worker。** 只有 GitHub Pages 覆蓋檔無法更新 Worker；未部署時仍能以本機儲存使用，並明確顯示備援模式。
+- 不需新增 Cloudflare 綁定、R2 bucket、Token、GitHub Actions 或排程。

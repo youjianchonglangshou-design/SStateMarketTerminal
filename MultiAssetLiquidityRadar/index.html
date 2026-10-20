@@ -8,7 +8,7 @@
 <body>
 <div class="shell">
 <header class="topbar">
-  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.1.11</span></div><div class="subtitle">多幣種即時清算總覽｜CoinGlass 7D（1週） × Pionex × BTC 39 特徵參考模型</div></div>
+  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.1.12</span></div><div class="subtitle">多幣種即時清算總覽｜CoinGlass 7D（1週） × Pionex × BTC 39 特徵參考模型</div></div>
   <div class="header-status"><a class="home-link" href="../index.html" title="返回 SState Market Terminal 主站">← SState 主站</a>
     <div class="fg-popover" id="fgPopover">
       <button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button>
@@ -60,6 +60,18 @@
   </section>
 </div>
 <div id="liq-alert-toast" class="liq-alert-toast" role="status" aria-live="polite" hidden></div>
+<div id="liq-mark-palette" class="liq-mark-palette" role="dialog" aria-label="選擇幣種註記顏色" hidden>
+  <div class="liq-mark-title" id="liqMarkTitle">選擇標記顏色</div>
+  <div class="liq-mark-options">
+    <button type="button" data-color="red" title="紅色標記" aria-label="紅色標記"><span class="mark-swatch red"></span>紅</button>
+    <button type="button" data-color="orange" title="橘色標記" aria-label="橘色標記"><span class="mark-swatch orange"></span>橘</button>
+    <button type="button" data-color="yellow" title="黃色標記" aria-label="黃色標記"><span class="mark-swatch yellow"></span>黃</button>
+    <button type="button" data-color="green" title="綠色標記" aria-label="綠色標記"><span class="mark-swatch green"></span>綠</button>
+    <button type="button" data-color="blue" title="藍色標記" aria-label="藍色標記"><span class="mark-swatch blue"></span>藍</button>
+    <button type="button" data-color="purple" title="紫色標記" aria-label="紫色標記"><span class="mark-swatch purple"></span>紫</button>
+    <button type="button" data-color="clear" class="mark-clear" title="解除顏色標記">× 清除標記</button>
+  </div>
+</div>
 <details class="diag" id="diagPanel"><summary>資料連線及錯誤診斷 <span id="diagCount">0</span></summary><div id="diagnostics"></div></details>
 </div>
 <script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script>
@@ -70,5 +82,6 @@
 <script defer src="./symbols.js"></script>
 <script defer src="./app.js?v=1.1.11"></script>
 <script defer src="./alerts.js"></script>
+<script defer src="./color-marks.js?v=1.1.12"></script>
 <script defer src="./fear-greed-popover.js?v=1.1.11"></script>
 </body></html>

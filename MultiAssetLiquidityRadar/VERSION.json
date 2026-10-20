@@ -1,7 +1,11 @@
 {
-  "version": "1.1.11",
+  "version": "1.1.12",
   "releaseDate": "2026-10-20",
   "changes": [
+    "Add six persistent TradingView-like color flags to the first index column. Clicking the number opens a palette with six colors and a clear option; clicking an already-selected palette color also clears it.",
+    "Bind each original index number and color mark to its Pionex symbol, not the current sorted row position; sorting, filtering, and live refresh preserve the matching flag.",
+    "Cache marks in localStorage and synchronize via the existing Cloudflare Worker R2 bucket terminal/radar_color_marks.json. The upgraded Worker is needed for cross-device sync; without it, local marks still persist on that browser.",
+    "No changes to CoinGlass, CMC, probability calculations, sorting algorithms, Telegram alert monitoring or existing R2 data keys.",
     "Resize the Fear & Greed desktop card to reach approximately the bottom of row 7, while calculating width from the original aspect ratio.",
     "Keep the enlarged proportional card clamped inside the liquidation table boundary and visible viewport.",
     "Resize the Fear & Greed desktop card to reach approximately the bottom of row 6, while calculating width from the original aspect ratio.",

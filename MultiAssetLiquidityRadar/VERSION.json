@@ -1,7 +1,9 @@
 {
-  "version": "1.1.10",
+  "version": "1.1.11",
   "releaseDate": "2026-10-20",
   "changes": [
+    "Resize the Fear & Greed desktop card to reach approximately the bottom of row 7, while calculating width from the original aspect ratio.",
+    "Keep the enlarged proportional card clamped inside the liquidation table boundary and visible viewport.",
     "Resize the Fear & Greed desktop card to reach approximately the bottom of row 6, while calculating width from the original aspect ratio.",
     "Clamp the enlarged proportional card within the liquidation table boundary and viewport on every open, resize and scroll.",
     "Enlarge the Fear & Greed hover card while keeping the original aspect ratio, and dynamically clamp the desktop popover inside the liquidation table boundary.",

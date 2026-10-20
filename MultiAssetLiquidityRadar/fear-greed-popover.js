@@ -1,4 +1,4 @@
-/* v1.1.10 — card height extends to around row 6 bottom; width keeps original ratio; clamped inside table boundary. */
+/* v1.1.11 — card height extends to around row 7 bottom; width keeps original ratio; clamped inside table boundary. */
 (() => {
   'use strict';
   const root = document.getElementById('fgPopover');
@@ -38,22 +38,26 @@
     let targetBottom = boundaryRect.bottom - 10;
     if (table) {
       const rows = table.querySelectorAll('tbody tr');
-      if (rows.length >= 6) {
-        const sixthRect = rows[5].getBoundingClientRect();
-        targetBottom = Math.min(boundaryRect.bottom - 10, Math.round(sixthRect.bottom));
+      if (rows.length >= 7) {
+        const targetRect = rows[6].getBoundingClientRect();
+        targetBottom = Math.min(boundaryRect.bottom - 10, Math.round(targetRect.bottom));
       }
     }
 
     const top = Math.round(triggerRect.bottom + gap);
-    const verticalSpace = Math.max(420, targetBottom - top);
-    const maxViewportHeight = Math.max(420, Math.floor(window.innerHeight - top - 16));
-    const height = Math.max(420, Math.min(verticalSpace, maxViewportHeight));
-    let width = Math.round(height * ratio);
+    const maxViewportBottom = window.innerHeight - 16;
+    const limitedBottom = Math.min(targetBottom, maxViewportBottom);
+    const desiredHeight = Math.max(420, limitedBottom - top);
 
     const maxWidthByBoundary = Math.max(760, Math.floor(boundaryRect.width - 8));
-    width = Math.min(width, maxWidthByBoundary, 1100);
-    const heightFromWidth = Math.round(width / ratio);
-    const finalHeight = Math.min(height, heightFromWidth > 0 ? height : height);
+    let width = Math.min(Math.round(desiredHeight * ratio), maxWidthByBoundary, 1200);
+    let height = Math.round(width / ratio);
+
+    if (top + height > limitedBottom) {
+      height = Math.max(420, desiredHeight);
+      width = Math.min(Math.round(height * ratio), maxWidthByBoundary, 1200);
+      height = Math.round(width / ratio) > desiredHeight ? desiredHeight : height;
+    }
 
     const minLeft = Math.round(boundaryRect.left);
     const maxLeft = Math.round(boundaryRect.right - width);
@@ -63,19 +67,7 @@
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
     panel.style.width = `${width}px`;
-    panel.style.height = `${Math.round(width / ratio)}px`;
-
-    // If proportional height still exceeds the desired 6th-row target, shrink by height instead.
-    const appliedBottom = top + Math.round(width / ratio);
-    if (appliedBottom > targetBottom || appliedBottom > window.innerHeight - 16) {
-      const adjustedHeight = Math.max(420, Math.min(verticalSpace, maxViewportHeight));
-      const adjustedWidth = Math.min(Math.round(adjustedHeight * ratio), maxWidthByBoundary, 1100);
-      let adjustedLeft = Math.round(triggerRect.left + triggerRect.width / 2 - adjustedWidth / 2);
-      adjustedLeft = Math.min(Math.max(adjustedLeft, minLeft), Math.round(boundaryRect.right - adjustedWidth));
-      panel.style.left = `${adjustedLeft}px`;
-      panel.style.width = `${adjustedWidth}px`;
-      panel.style.height = `${adjustedHeight}px`;
-    }
+    panel.style.height = `${height}px`;
   }
 
   const openFromHover = () => {

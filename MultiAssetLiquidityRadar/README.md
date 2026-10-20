@@ -50,3 +50,12 @@
 
 ## v1.1.7｜OTHER-UP／OTHER-DN 即時分類
 共用上層 `monitor-engine.js` 的延續判斷，不變動正式原始 S 狀態。窄欄顯示 OT-UP／OT-DN，並提供完整 tooltip；排序也納入新分類。
+
+
+## v1.1.8 CMC 恐懼與貪婪懸浮卡
+
+- 在「← SState 主站」右側新增「恐懼與貪婪」膠囊。滑鼠移入開啟中型一年線圖卡片，離開卡片立即關閉；觸控裝置點擊膠囊開啟、點擊外部關閉。
+- 直接移植 CMC_Fear_Greed_GitHub_v1.6.0 的六種固定顏色、起漲黃／起跌紫識別與游標資訊列語意底色。
+- 移除 BTC 價格與 BTC 交易量線／圖例／API，亦移除原版多餘說明，保留 CMC 一年線圖、最新值、日期、互動資料列、手動更新與來源/錯誤顯示。
+- 使用原有專屬 CMC Cloudflare Worker；卡片第一次開啟才載入，一直開著不會新增任何排程、R2 寫入或自動更新。
+- 新增 `fear-greed.html` 與 `fear-greed-popover.js`，更新 `index.html`、`style.css` 與 `VERSION.json`，清算雷達本身的其他功能不變。

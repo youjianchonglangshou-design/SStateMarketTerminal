@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>恐懼與貪婪｜CMC 1 年線圖</title>
+<style>
+:root{font-family:Inter,"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;color:#263548;background:#fff}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden}
+main{height:100%;padding:15px 18px 12px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:17px;font-weight:750;line-height:1.4;margin:0;color:#263548}
+.right{display:flex;gap:8px;align-items:center;flex:none}
+.latest{color:#6d7a91;font-size:12px;white-space:nowrap}
+.latest b{font-size:16px;font-weight:800;color:#263548}
+.range{background:#f3f5f9;color:#202938;font-size:12px;border:1px solid #e5e9f0;border-radius:7px;padding:7px 11px;font-weight:700}
+.legend{font-size:12px;display:flex;align-items:center;gap:7px;color:#7d8aa0;flex:none}
+.legend i{width:8px;height:8px;border-radius:50%;background:#ffca16;display:inline-block}
+.chart-wrap{flex:1;min-height:0;position:relative}
+canvas{width:100%;height:100%;display:block;cursor:crosshair}
+.tip-dock{flex:none;min-height:42px;display:flex;align-items:center;flex-wrap:wrap;gap:7px 16px;padding:8px 11px;border:1px solid #e7ecf3;border-left:4px solid transparent;background:#f8fafc;border-radius:7px;color:#42516a;font-size:12px;line-height:1.45;font-variant-numeric:tabular-nums;transition:background-color .18s,border-color .18s}
+.tip-dock b{font-weight:800;color:#1f2e42}
+.tip-dock .tip-item{white-space:normal}
+.tip-dock[data-mode="red"]{background:#fff0f2;border-color:#f6cfd6;border-left-color:#ea3943}
+.tip-dock[data-mode="purple"]{background:#f5f0fc;border-color:#e4d8f4;border-left-color:#b39ddb}
+.tip-dock[data-mode="orange"]{background:#fffde6;border-color:#f0e9af;border-left-color:#ffeb3b}
+.tip-dock[data-mode="yellow"]{background:#fff3e3;border-color:#f5d7aa;border-left-color:#f29b09}
+.tip-dock[data-mode="lime"]{background:#f2fbdc;border-color:#deefb6;border-left-color:#9cdb00}
+.tip-dock[data-mode="green"]{background:#eafaf3;border-color:#bbebd6;border-left-color:#16c784}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:#9aa7b8}
+.foot button{border:0;background:transparent;color:#486dd6;cursor:pointer;font-size:12px;white-space:nowrap;padding:3px 0}
+.foot button:disabled{opacity:.55;cursor:wait}
+.status{min-height:14px;max-height:34px;overflow:hidden;font-size:10px;color:#9da8b8;line-height:1.45}
+.status.error{color:#d53b48;max-height:none}
+@media(max-width:580px){main{padding:12px 10px 10px;gap:7px}h1{font-size:14px}.latest{font-size:10px}.latest b{font-size:13px}.range{font-size:11px;padding:5px 7px}.legend{font-size:11px}.tip-dock{font-size:11px;padding:6px 8px;gap:3px 7px}.status{font-size:9px}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>恐懼與貪婪指數線圖</h1>
+    <div class="right"><span class="latest" id="latest" aria-live="polite">最新 --</span><span class="range">1 年</span></div>
+  </header>
+  <div class="legend"><i></i>CMC 加密貨幣恐懼與貪婪指數</div>
+  <div class="chart-wrap" id="chartWrap"><canvas id="chart" aria-label="CMC 一年情緒指數 0 至 100 線圖"></canvas></div>
+  <div class="tip-dock" id="tip" aria-live="off"><span>滑鼠移至曲線，可查看日期、情緒指數與顏色狀態</span></div>
+  <div class="foot"><span id="dateRange">--</span><button id="refresh" type="button">↻ 重新讀取 API</button></div>
+  <div class="status" id="status" role="status">正在讀取 CMC 官方指數…</div>
+</main>
+<script>
+'use strict';
+// Derived from the user's CMC_Fear_Greed_GitHub_v1.6.0; same API and six-color semantic algorithm.
+const WORKER_BASE='https://cmc-fear-greed.youjianchonglangshou.workers.dev';
+const $=id=>document.getElementById(id);
+const classes=['極度恐懼','恐懼','中性','貪婪','極度貪婪'];
+const paletteDefs=[
+  {id:'red',name:'紅色｜極度恐懼',default:'#ea3943'},
+  {id:'purple',name:'紫色｜起跌段（由上方進入恐懼區）',default:'#b39ddb'},
+  {id:'orange',name:'黃色｜起漲段（由下方進入恐懼區）',default:'#ffeb3b'},
+  {id:'yellow',name:'橘色｜中性段',default:'#f29b09'},
+  {id:'lime',name:'亮綠色｜貪婪',default:'#9cdb00'},
+  {id:'green',name:'綠色｜極度貪婪',default:'#16c784'}
+];
+const colorOf=id=>paletteDefs.find(p=>p.id===id)?.default||'#f29b09';
+const kind=v=>v<20?0:v<40?1:v<60?2:v<80?3:4;
+const textClass=v=>classes[kind(v)];
+const day=ts=>{const d=new Date(ts);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')};
+function classifyColors(points){
+  let result=[],mode=null,origin=null;
+  for(let i=0;i<points.length;i++){
+    const v=points[i].value;
+    if(v<20){result.push('red');origin='below';mode=null}
+    else if(v>=40){result.push(v<60?'yellow':v<80?'lime':'green');origin='above';mode=null}
+    else{
+      if(mode===null){mode=origin==='above'?'purple':origin==='below'?'orange':(i>0&&v<points[i-1].value?'purple':'orange')}
+      result.push(mode);
+    }
+  }
+  return result;
+}
+function parseTime(v){if(typeof v==='number'||/^\d+$/.test(String(v))){const n=Number(v);return n<1e12?n*1000:n}return Date.parse(v)}
+function parseFG(raw){return raw.map(p=>({t:parseTime(p.timestamp),value:Number(p.value)})).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.value)&&p.value>=0&&p.value<=100).sort((a,b)=>a.t-b.t)}
+let fg=[],colorIds=[],hover=-1;
+const cvs=$('chart'),tip=$('tip');let rect={};
+function setStatus(message,error=false){$('status').textContent=message;$('status').className='status'+(error?' error':'')}
+async function requestJSON(url,timeoutMs=16000){
+  const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),timeoutMs);
+  try{
+    const response=await fetch(url,{cache:'no-store',signal:ac.signal});
+    if(!response.ok){let detail='';try{detail=(await response.json()).error||''}catch{}throw Error('HTTP '+response.status+(detail?'：'+detail:''))}
+    return await response.json();
+  }finally{clearTimeout(timer)}
+}
+async function requestCMC(path){
+  const p=path.startsWith('historical')?'historical':'latest';
+  const data=await requestJSON(WORKER_BASE+'/api/'+p);
+  if(p==='historical'&&!Array.isArray(data?.data))throw Error('CMC 歷史資料缺失');
+  if(p==='latest'&&!data?.data)throw Error('CMC 最新資料缺失');
+  return data;
+}
+function draw(){
+  const wrap=$('chartWrap'),w=wrap.clientWidth,h=wrap.clientHeight,dpr=Math.min(window.devicePixelRatio||1,3);
+  if(w===0||h===0)return;
+  cvs.width=Math.round(w*dpr);cvs.height=Math.round(h*dpr);
+  const g=cvs.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,w,h);
+  const L=18,R=47,T=9,B=30,plotH=h-T-B,plotW=w-L-R;
+  rect={L,R,T,B,plotH,plotW};
+  if(fg.length<2){g.fillStyle='#98a6bb';g.font='12px sans-serif';g.textAlign='center';g.fillText('等待 CMC 官方歷史資料…',w/2,h/2);return}
+  const x=i=>L+i/(fg.length-1)*plotW,y=v=>T+(100-v)/100*plotH;
+  g.fillStyle='#e8f9f2';g.fillRect(L,y(100),plotW,y(80)-y(100));
+  g.fillStyle='#fcecee';g.fillRect(L,y(20),plotW,y(0)-y(20));
+  g.strokeStyle='#d7dce5';g.setLineDash([2,3]);g.lineWidth=.8;g.font='10px sans-serif';g.textAlign='left';g.fillStyle='#60718f';
+  [0,20,40,60,80,100].forEach(v=>{g.beginPath();g.moveTo(L,y(v));g.lineTo(w-R,y(v));g.stroke();g.fillText(String(v),w-R+6,y(v)+4)});g.setLineDash([]);
+  const labels=[[90,'極度貪婪'],[70,'貪婪'],[50,'中性'],[30,'恐懼'],[10,'極度恐懼']];
+  g.textAlign='right';g.font='10px sans-serif';
+  for(const [v,s] of labels){g.fillStyle='#728097';g.fillText(s,w-R-6,y(v)-7)}
+  g.textAlign='center';g.fillStyle='#72819a';
+  for(let i=0;i<6;i++){const ix=Math.round(i*(fg.length-1)/5);g.fillText(new Date(fg[ix].t).toLocaleString('en-US',{month:'short',year:'numeric',timeZone:'UTC'}),x(ix),h-10)}
+  for(let i=1;i<fg.length;i++){
+    g.beginPath();g.moveTo(x(i-1),y(fg[i-1].value));g.lineTo(x(i),y(fg[i].value));
+    g.strokeStyle=colorOf(colorIds[i]);g.lineWidth=2.1;g.stroke();
+  }
+  if(hover>=0&&hover<fg.length){
+    g.strokeStyle='#6b758b';g.lineWidth=1;g.setLineDash([4,4]);g.beginPath();g.moveTo(x(hover),T);g.lineTo(x(hover),T+plotH);g.stroke();g.setLineDash([]);
+    g.beginPath();g.arc(x(hover),y(fg[hover].value),4,0,Math.PI*2);g.fillStyle=colorOf(colorIds[hover]);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
+  }
+}
+function showDetail(i){
+  const v=fg[i],mode=colorIds[i]||'yellow';
+  tip.dataset.mode=mode;
+  tip.replaceChildren();
+  const dateEl=document.createElement('b');dateEl.textContent=day(v.t);
+  const stateEl=document.createElement('span');stateEl.className='tip-item';
+  stateEl.textContent='情緒指數：'+v.value+'（'+textClass(v.value)+' / '+(paletteDefs.find(p=>p.id===mode)?.name||'')+'）';
+  tip.append(dateEl,stateEl);
+}
+cvs.addEventListener('mousemove',event=>{
+  if(!fg.length)return;
+  const b=cvs.getBoundingClientRect();
+  hover=Math.max(0,Math.min(fg.length-1,Math.round((event.clientX-b.left-rect.L)/rect.plotW*(fg.length-1))));
+  showDetail(hover);draw();
+});
+cvs.addEventListener('mouseleave',()=>{hover=-1;tip.removeAttribute('data-mode');draw()});
+window.addEventListener('resize',draw);
+if('ResizeObserver' in window){new ResizeObserver(draw).observe($('chartWrap'))}
+async function load(){
+  $('refresh').disabled=true;setStatus('正在讀取 CMC 官方最新值與一年歷史…');
+  try{
+    // BTC volume and BTC price are intentionally removed; no /api/btc request.
+    const [history,now]=await Promise.all([requestCMC('historical?limit=370'),requestCMC('latest').catch(()=>null)]);
+    fg=parseFG(history.data).slice(-366);colorIds=classifyColors(fg);
+    if(fg.length<2)throw Error('CMC 官方歷史數據不足');
+    const mostRecent=fg[fg.length-1];
+    const live=Number(now?.data?.value);
+    const current=Number.isFinite(live)&&now?.data?.value!=null?live:mostRecent.value;
+    $('latest').replaceChildren();
+    $('latest').append(document.createTextNode('最新 '));
+    const value=document.createElement('b');value.textContent=String(current);value.style.color=colorOf(classifyColors([...fg,{t:Date.now(),value:current}]).at(-1));
+    $('latest').append(value,document.createTextNode(' · '+textClass(current)));
+    $('dateRange').textContent=day(fg[0].t)+' ～ '+day(mostRecent.t);
+    showDetail(fg.length-1);
+    hover=-1;draw();
+    setStatus('CMC 官方資料 · '+fg.length+' 筆｜Cloudflare Worker｜讀取：'+new Date().toLocaleString('zh-TW'));
+  }catch(error){
+    fg=[];colorIds=[];hover=-1;draw();tip.removeAttribute('data-mode');
+    tip.textContent='CMC 官方資料暫時無法讀取（不使用替代指數）';
+    setStatus(String(error.message||error)+'。請檢查 CMC Worker，或稍後按重新讀取。',true);
+  }finally{$('refresh').disabled=false}
+}
+$('refresh').addEventListener('click',load);
+load();
+</script>
+</body>
+</html>

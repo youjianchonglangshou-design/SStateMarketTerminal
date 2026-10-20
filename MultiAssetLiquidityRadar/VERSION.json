@@ -1,7 +1,12 @@
 {
-  "version": "1.1.7",
-  "releaseDate": "2026-10-19",
+  "version": "1.1.8",
+  "releaseDate": "2026-10-20",
   "changes": [
+    "Insert CMC Fear & Greed capsule immediately right of the SState homepage button, opening a medium 1-year chart card on hover and closing on pointer exit.",
+    "Port the supplied CMC v1.6.0 six-color line algorithm and semantic hover-detail background without changing its Cloudflare Worker endpoint.",
+    "Show only the CMC index line in the card: remove BTC price, BTC volume, their API calls, and the crossed-out explanatory note; keep direct manual refresh and official-data provenance.",
+    "Load CMC iframe only when first opened and reuse it across hover events; no additional schedule, storage or backend.",
+    "Keep the original radar 7D liquidation, prices, 39-feature probabilities, sorting, Telegram alerts and all existing data workflows unchanged.",
     "Display OT-UP / OT-DN / OTHER in S-state column using exactly SStateMonitorEngine.classifyOtherExtension (shared homepage 0.85/0.15, 2-of-3 continuation rules), with semantic colors, full-name tooltips and sorting.",
     "Switch CoinGlass max-pain request range from '24h' to '7d' (one week).",
     "Update radar source labels and heading to 7D/1週, while preserving independent 15M proxy fallback.",

@@ -267,5 +267,5 @@ export async function getFearGreedToday({getJSON=json,now=()=>Date.now()}={}){
   source_date_utc:utcDay(latest.t),source_date_taipei:twDay(latest.t),today_taipei:today,
   is_same_taipei_date:twDay(latest.t)===today,stale:age>36*H,
   data_timestamp:iso(latest.t),fetched_at,used_historical_fallback:results[0].status!=='fulfilled',
-  warnings:errors,note:'Official CMC index from original SState radar CMC worker. Show source date if not current Taiwan date; not price prediction.'};
+  warnings:errors,note:'Official CMC index; data source field distinguishes existing SState CMC Worker from CoinMarketCap keyless public API. Show source date if not current Taiwan date; not price prediction.'};
 }

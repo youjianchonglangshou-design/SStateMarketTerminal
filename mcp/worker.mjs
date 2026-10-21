@@ -3,10 +3,11 @@
  * Imports the ORIGINAL root monitor-engine.js without changing any indicator formulas.
  */
 import '../monitor-engine.js';
+import { fallbackDailyHistory } from './source-fallbacks.mjs';
 const Engine = globalThis.SStateMonitorEngine;
 const DEFAULT_UPSTREAM = 'https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const TV_URL = 'https://scanner.tradingview.com/crypto/scan';
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 const SCHEMA = {type:'object',additionalProperties:false};
 const symbolList = n => ({type:'array',items:{type:'string',minLength:1,maxLength:45},minItems:1,maxItems:n});
 const symProps = {symbols:symbolList(20),type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}};
@@ -85,7 +86,7 @@ function withQuote(rows,tick){
 function analysis(item,p,tick,detail){
  const raw=Engine.normalizeKlines(p.klines||p.data||[]);
  if(raw.length<40)throw Error('insufficient daily klines ('+raw.length+')');
- const bars=withQuote(raw,tick);
+ const bars=withQuote(raw,p.cross_exchange_proxy?null:tick);
  const a=Engine.analyze(bars);
  if(!a)throw Error('indicator calculation returned null');
  const ex=Engine.classifyOtherExtension(a.chart_30d,a.s_state);
@@ -95,6 +96,8 @@ function analysis(item,p,tick,detail){
  midline:a.midline?.state||'unknown',midline_details:a.midline,
  average_k:a.average_k,cci_sma:a.cci_sma,cci_sma_value:a.cci_sma_value,
  kline_source:p.source||null,kline_fetched_at:p.fetched_at||null,cross_exchange_proxy:!!p.cross_exchange_proxy,
+ indicator_market_basis:p.market_basis||(item.type==='PERP'?'PIONEX_PERP':'PIONEX_SPOT'),indicator_quote_currency:p.quote_currency||'USDT',
+ market_quote_price:tick?.close??null,indicator_quote_applied:!!tick&&!p.cross_exchange_proxy,
  quote_source:tick?.source||null,quote_fetched_at:tick?.fetched_at||null,
  last_kline_time:new Date(bars[bars.length-1].time).toISOString(),
  is_live_quote:!!tick,stale_kline:p.source==='R2_STALE',refresh_error:p.refresh_error||null,
@@ -139,6 +142,10 @@ async function loadDailyBars(env,item){
     refresh_error:failures.join(' | '),cross_exchange_proxy:true};
   }catch(e){failures.push(candidate.name+':'+String(e.message||e));}
  }
+ try{
+  const proxy=await fallbackDailyHistory(base,readJson,Engine.normalizeKlines);
+  return {...proxy,refresh_error:failures.join(' | ')};
+ }catch(e){failures.push('PUBLIC_SPOT_PROXY:'+String(e.message||e));}
  throw Error('daily K-lines unavailable: '+failures.join(' | '));
 }
 async function collect(env,items,opts={}){

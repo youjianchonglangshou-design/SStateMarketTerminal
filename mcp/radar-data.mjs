@@ -8,6 +8,7 @@ import {fetchCoinGlass} from './coinglass-reader.mjs';
 
 const BASE='https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const CMC='https://cmc-fear-greed.youjianchonglangshou.workers.dev';
+const CMC_PUBLIC='https://pro-api.coinmarketcap.com/public-api/v3/fear-and-greed';
 const SCANNER='https://scanner.tradingview.com/crypto/scan';
 const H=3600000,MS=900000;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -212,22 +213,44 @@ function parseTime(v){
  return Date.parse(String(v));
 }
 function parsePoint(p){
- const v=Number(p?.value),t=parseTime(p?.timestamp??p?.time??p?.date);
+ const v=Number(p?.value),t=parseTime(p?.timestamp??p?.update_time??p?.time??p?.date);
  return Number.isFinite(v)&&v>=0&&v<=100&&Number.isFinite(t)&&t>0?{t,value:v}:null;
 }
 const utcDay=t=>new Date(t).toISOString().slice(0,10);
 const twDay=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'});
+async function readCMC(path,getJSON){
+ const history=path.startsWith('historical'),kind=history?'historical':'latest';
+ const query=history?'?limit=370':'';
+ const original=CMC+'/api/'+kind+query;
+ try{
+  const result=await getJSON(original,{},12000);
+  if(history?!Array.isArray(result?.data):!result?.data)throw Error('invalid CMC Worker schema');
+  return {payload:result,source:'CMC_EXISTING_WORKER'};
+ }catch(primary){
+  const url=CMC_PUBLIC+'/'+kind+query;
+  try{
+   const result=await getJSON(url,{},12000);
+   if(result?.status?.error_code && result.status.error_code!==0)throw Error('CMC error '+result.status.error_code);
+   if(history?!Array.isArray(result?.data):!result?.data)throw Error('invalid official CMC response');
+   return {payload:result,source:'CMC_OFFICIAL_KEYLESS_API',warning:'Existing CMC Worker unavailable: '+String(primary.message||primary)};
+  }catch(secondary){
+   throw Error('CMC Worker: '+String(primary.message||primary)+' | CMC keyless API: '+String(secondary.message||secondary));
+  }
+ }
+}
 export async function getFearGreedToday({getJSON=json,now=()=>Date.now()}={}){
  const errors=[],fetched_at=iso(now());
  let latest=null,history=null;
  const results=await Promise.allSettled([
-  getJSON(CMC+'/api/latest',{},12000),
-  getJSON(CMC+'/api/historical?limit=370',{},12000)
+  readCMC('latest',getJSON),
+  readCMC('historical',getJSON)
  ]);
- if(results[0].status==='fulfilled')latest=parsePoint(results[0].value?.data);
+ if(results[0].status==='fulfilled')latest=parsePoint(results[0].value?.payload?.data);
  else errors.push('CMC_LATEST:'+String(results[0].reason?.message||results[0].reason));
- if(results[1].status==='fulfilled')history=(Array.isArray(results[1].value?.data)?results[1].value.data:[]).map(parsePoint).filter(Boolean).sort((a,b)=>a.t-b.t);
+ if(results[1].status==='fulfilled')history=(Array.isArray(results[1].value?.payload?.data)?results[1].value.payload.data:[]).map(parsePoint).filter(Boolean).sort((a,b)=>a.t-b.t);
  else errors.push('CMC_HISTORY:'+String(results[1].reason?.message||results[1].reason));
+ if(results[0].status==='fulfilled'&&results[0].value.warning)errors.push(results[0].value.warning);
+ if(results[1].status==='fulfilled'&&results[1].value.warning)errors.push(results[1].value.warning);
  if(!latest&&history?.length)latest=history.at(-1);
  if(!latest)return {available:false,source:'CMC_FEAR_GREED_OFFICIAL_PROXY_WORKER',fetched_at,reasons:errors,note:'CMC index missing; no substitution with Alternative.me or other indices'};
  const seq=(history||[]).filter(p=>p.t<latest.t);
@@ -236,7 +259,8 @@ export async function getFearGreedToday({getJSON=json,now=()=>Date.now()}={}){
  const previous=seq.length>1?seq.at(-2):null;
  const age=now()-latest.t;
  const today=twDay(now());
- return {available:true,index:'CMC_CRYPTO_FEAR_AND_GREED',source:'CMC_OFFICIAL_VIA_EXISTING_CLOUDFLARE_WORKER',
+ const source=latest&&results[0].status==='fulfilled'?results[0].value.source:(results[1].status==='fulfilled'?results[1].value.source:'UNKNOWN');
+ return {available:true,index:'CMC_CRYPTO_FEAR_AND_GREED',source,
   value:latest.value,category:emotion(latest.value),semantic_color:palette,
   semantic_color_explanation:palette==='orange'?'由下方進入恐懼區（起漲段）':palette==='purple'?'由上方進入恐懼區（起跌段）':null,
   change_from_previous:previous?latest.value-previous.value:null,previous_value:previous?.value??null,

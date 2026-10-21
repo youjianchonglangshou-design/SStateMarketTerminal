@@ -86,12 +86,23 @@ try{
  await check('CMC fear and greed latest and semantic direction',async()=>{
   const p=await rpc('tools/call',{name:'get_fear_greed_today',arguments:{}});
   const d=p.result.structuredContent;assert.equal(d.value,35);assert.equal(d.category,'恐懼');
-  assert.equal(d.source,'CMC_OFFICIAL_VIA_EXISTING_CLOUDFLARE_WORKER');assert.equal(d.semantic_color,'orange');
+  assert.equal(d.source,'CMC_EXISTING_WORKER');assert.equal(d.semantic_color,'orange');
   assert.equal(d.is_same_taipei_date,true);
  });
  await check('CMC custom purple/yellow trend parity',async()=>{
   assert.equal(classifyCMC([{value:85},{value:50},{value:39}]).at(-1),'purple');
   assert.equal(classifyCMC([{value:15},{value:30},{value:34}]).at(-1),'orange');
+ });
+ await check('CMC official keyless fallback when original Worker is 404',async()=>{
+  const t=Date.now(),time=new Date(t).toISOString();
+  const d=await getFearGreedToday({getJSON:async(url)=>{
+   if(url.includes('cmc-fear-greed.youjianchonglangshou.workers.dev'))throw Error('HTTP 404');
+   if(url.includes('/latest'))return {status:{error_code:0},data:{value:42,update_time:time}};
+   if(url.includes('/historical'))return {status:{error_code:0},data:[{timestamp:Math.floor((t-86400000)/1000),value:38}]};
+   throw Error('unexpected '+url);
+  }});
+  assert.equal(d.available,true);assert.equal(d.value,42);assert.equal(d.source,'CMC_OFFICIAL_KEYLESS_API');
+  assert.equal(d.semantic_color,'yellow');assert.ok(d.warnings.some(x=>x.includes('Worker unavailable')));
  });
  await check('CMC unavailable stays unavailable, no alternative index',async()=>{
   const p=await getFearGreedToday({getJSON:async()=>{throw Error('outage')}});

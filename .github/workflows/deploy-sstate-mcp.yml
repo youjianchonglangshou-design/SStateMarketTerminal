@@ -39,3 +39,18 @@ jobs:
           curl -fsS --retry 6 --retry-delay 4 "$URL/health" | tee health.json
           curl -fsS --retry 3 --retry-delay 3 -X POST "$URL/mcp" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' > mcp-tools.json
           node -e 'const p=require("./mcp-tools.json"); if(!Array.isArray(p.result?.tools)||p.result.tools.length<8)process.exit(1); console.log("MCP tools online:",p.result.tools.map(x=>x.name).join(", "))'
+
+      - name: Verify live BTC indicator path
+        run: |
+          set -euo pipefail
+          URL="https://sstate-mcp.youjianchonglangshou.workers.dev/mcp"
+          curl -fsS --max-time 35 -X POST "$URL" -H 'content-type: application/json' \
+            --data '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_market_states","arguments":{"symbols":["BTC"],"use_live":true}}}' > mcp-btc.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = JSON.parse(fs.readFileSync('mcp-btc.json','utf8'));
+          const data = p.result?.structuredContent;
+          const row = data?.results?.[0];
+          console.log('BTC Live MCP:', JSON.stringify({success:data?.success,symbol:row?.symbol,s_state:row?.s_state,midline:row?.midline,average_k:row?.average_k,cci_sma:row?.cci_sma,is_live_quote:row?.is_live_quote,quote_source:row?.quote_source,kline_source:row?.kline_source,error:row?.error}));
+          if(!row || row.error || data.success!==1)process.exit(1);
+          NODE

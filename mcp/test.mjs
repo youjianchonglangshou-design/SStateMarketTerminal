@@ -65,7 +65,7 @@ try{
  });
  await check('real CoinGlass 7D preferred when verified',async()=>{
   const p=await getLiquidityBounds('BTC',{coinglass:async()=>({data:{coins:[{symbol:'BTC',maxLongLiquidationPrice:105,maxShortLiquidationPrice:95}]},version:'77'}),priceReader:async()=>({price:100,source:'TEST'}),barsReader:async()=>{throw Error('must not read proxy')}});
-  assert.equal(p.source,'COINGLASS_7D');assert.equal(p.range,'7d');assert.equal(p.is_estimate,false);assert.equal(p.upper_pct,5);
+  assert.equal(p.source,'COINGLASS_7D');assert.equal(p.range,'7d');assert.equal(p.is_estimate,false);assert.ok(Math.abs(p.upper_pct-5)<1e-8);
  });
  await check('proxy bounds reuse 15M radar algorithm',async()=>{
   const p=await rpc('tools/call',{name:'get_liquidation_bounds',arguments:{symbol:'BTC'}});

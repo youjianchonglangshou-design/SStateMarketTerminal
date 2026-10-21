@@ -60,14 +60,14 @@ jobs:
             --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_fear_greed_today","arguments":{}}}' > mcp-cmc.json
           node - <<'NODE'
           const p=require('./mcp-cmc.json'),d=p.result?.structuredContent;
-          console.log('CMC latest:',JSON.stringify({available:d?.available,value:d?.value,category:d?.category,source_date:d?.source_date_taipei,warnings:d?.warnings}));
+          console.log('CMC latest:',JSON.stringify({available:d?.available,value:d?.value,category:d?.category,source_date:d?.source_date_taipei,warnings:d?.warnings,reasons:d?.reasons}));
           if(p.result?.isError||!d)process.exit(1);
           NODE
           curl -fsS --max-time 35 -X POST "$URL" -H 'content-type: application/json' \
             --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_liquidation_bounds","arguments":{"symbol":"BTC","allow_proxy":true}}}' > mcp-liq.json
           node - <<'NODE'
           const p=require('./mcp-liq.json'),d=p.result?.structuredContent;
-          console.log('BTC liquidation:',JSON.stringify({available:d?.available,source:d?.source,is_estimate:d?.is_estimate,upper:d?.upper,lower:d?.lower,reasons:d?.reasons}));
+          console.log('BTC liquidation:',JSON.stringify({available:d?.available,source:d?.source,is_estimate:d?.is_estimate,upper:d?.upper,lower:d?.lower,warnings:d?.warnings,reasons:d?.reasons}));
           if(p.result?.isError||!d)process.exit(1);
           NODE
 

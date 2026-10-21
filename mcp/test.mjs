@@ -47,6 +47,7 @@ try{
  await check('watchlist authorized with bearer',async()=>{const p=await rpc('tools/call',{name:'get_watchlist',arguments:{}},{ENABLE_PRIVATE_WATCHLIST:'true',MCP_READ_TOKEN:'testsecret'},{Authorization:'Bearer testsecret'});assert.equal(p.result.structuredContent.items.length,1);});
  await check('invalid symbol rejected',async()=>{const p=await rpc('tools/call',{name:'get_market_states',arguments:{symbols:['$bad']}});assert.equal(p.result.isError,true);});
  await check('health',async()=>{const r=await worker.fetch(new Request('https://sstate-mcp.test/health'));assert.equal((await r.json()).ok,true);});
+ await check('health commit fingerprint',async()=>{const r=await worker.fetch(new Request('https://sstate-mcp.test/health'),{DEPLOY_COMMIT:'0123456789abcdef'});assert.equal((await r.json()).deploy_commit,'0123456789abcdef');});
  await check('MCP GET denied',async()=>{const r=await worker.fetch(new Request('https://sstate-mcp.test/mcp'));assert.equal(r.status,405);});
  console.log('TOTAL',tests.length,'PASS');
 }finally{globalThis.fetch=originalFetch;}

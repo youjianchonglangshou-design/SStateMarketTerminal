@@ -1,6 +1,6 @@
-# SStateMarketTerminal MCP v0.2.5
+# SStateMarketTerminal MCP v0.3.0
 
-An isolated, read-only Cloudflare Worker exposing the existing SStateMarketTerminal daily indicator engine through eight remote MCP tools.
+An isolated, read-only Cloudflare Worker exposing the existing SStateMarketTerminal daily indicator engine through ten remote MCP tools.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ One-time GitHub repository secrets, under **Settings → Secrets and variables �
 ## Automatic synchronization (enabled)
 
 - **Every push to `main`**, including edits to root `monitor-engine.js`, `mcp/worker.mjs`, or any webpage file, starts `Deploy SState MCP` automatically. No schedule and no manual button required.
-- The workflow uses the **exact commit that triggered the run**, executes **16 local MCP checks**, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and the eight MCP tools.
+- The workflow uses the **exact commit that triggered the run**, executes **24 local MCP checks**, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and the ten MCP tools.
 - The MCP URL stays unchanged: `https://sstate-mcp.youjianchonglangshou.workers.dev/mcp`.
 - S state, BB midline, HA, and CCI-SMA logic is **bundled from the root `monitor-engine.js`**. Updates to that shared engine are reflected in the MCP after a successful deploy.
 - The *existing production website Worker*, R2, Telegram, and cron are untouched.
@@ -49,6 +49,8 @@ Deployment source: `mcp/wrangler.toml`. To deploy manually: `npx wrangler deploy
 
 ## MCP tools
 
+- `get_liquidation_bounds`: query **any valid ticker** for CoinGlass 7D maximum-pain liquidation upper/lower bounds, falling back to the radar's 15-minute OHLC synthetic leverage proxy zones when requested. Return source, quote time, freshness, error and `is_estimate`. PEPE/1000PEPE scaling supported.
+- `get_fear_greed_today`: today's **CMC** cryptocurrency Fear and Greed value (0–100), classification, date, 6-color transition semantics and freshness using the existing `cmc-fear-greed` Cloudflare Worker. Does not substitute Alternative.me.
 - `get_market_states`: current technical signals for supplied symbols.
 - `scan_market_states`: filter and sort supplied symbols.
 - `get_symbol_detail`: one instrument and last 30 days of indicator data.
@@ -58,8 +60,12 @@ Deployment source: `mcp/wrangler.toml`. To deploy manually: `npx wrangler deploy
 - `get_performance`: Champion statistics.
 - `get_model`: active probability model metadata.
 
-**Scope**: Does **not** expose CoinGlass liquidation bands or BTC first-sweep probabilities yet; no claim that those analyses are present in this MCP implementation.
+**Scope**: CoinGlass 7D bounds use the same *undocumented* CoinGlass reader as the original radar and can stop working when CoinGlass changes its encryption versions or rate limits requests. In that case the radar's 15m synthetic leverage **proxy** is explicitly marked and does not represent real liquidation/open interest orders. BTC first-sweep probabilities are **not included** and no probability is extrapolated to other coins. CMC official daily data can update later than Taiwan midnight; the tool reports source date/time and staleness.
 
 ## Validation
 
 The GitHub Actions deploy pipeline is the definitive remote deployment/check result. Do not assume the endpoint is live merely because the source has been committed. Its required smoke tests compare `/health.deploy_commit` with the triggering Git commit and verify MCP `tools/list`. The live market-data probe is best-effort.
+
+## ChatGPT plugin refresh after adding tools
+
+After this deployment, open **ChatGPT → Plugins → SStateMarketTerminal → Refresh / Reconnect tools** as supported by the UI. Because two NEW tools were added (`get_liquidation_bounds`, `get_fear_greed_today`), ChatGPT may retain its prior tool schema until refreshed. The MCP server URL and secrets remain unchanged.

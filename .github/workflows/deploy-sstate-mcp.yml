@@ -2,14 +2,13 @@ name: Deploy SState MCP
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'mcp/**'
-      - '.github/workflows/deploy-sstate-mcp.yml'
+    branches:
+      - main
 permissions:
   contents: read
 concurrency:
   group: deploy-sstate-mcp
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -21,6 +20,9 @@ jobs:
           node-version: '22'
       - name: Test MCP with original indicator engine
         run: node mcp/test.mjs
+      - name: Embed triggering commit in independent Worker
+        run: |
+          printf '\nDEPLOY_COMMIT = "%s"\n' "$GITHUB_SHA" >> mcp/wrangler.toml
       - name: Deploy independent sstate-mcp Worker
         uses: cloudflare/wrangler-action@v3
         with:
@@ -36,20 +38,21 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://sstate-mcp.youjianchonglangshou.workers.dev"
-          EXPECTED=$(node -e "const fs=require('fs');const s=fs.readFileSync('mcp/worker.mjs','utf8');console.log(s.match(/const VERSION = '([^']+)'/)[1])")
+          EXPECTED_COMMIT="$GITHUB_SHA"
           for attempt in $(seq 1 18); do
             curl -fsS --max-time 10 "$URL/health" > health.json || true
-            CURRENT=$(node -e "try{console.log(require('./health.json').version||'')}catch(e){console.log('')}") 
-            echo "Waiting for deployed version $EXPECTED; served $CURRENT; attempt $attempt"
-            if [ "$CURRENT" = "$EXPECTED" ]; then break; fi
+            CURRENT=$(node -e "try{console.log(require('./health.json').deploy_commit||'')}catch(e){console.log('')}")
+            echo "Waiting for deployed commit $EXPECTED_COMMIT; served $CURRENT; attempt $attempt"
+            if [ "$CURRENT" = "$EXPECTED_COMMIT" ]; then break; fi
             sleep 3
           done
-          [ "$CURRENT" = "$EXPECTED" ] || { echo "Worker deployment did not propagate"; exit 1; }
+          [ "$CURRENT" = "$EXPECTED_COMMIT" ] || { echo "Worker deployment did not propagate to expected Git commit"; exit 1; }
           cat health.json
           curl -fsS --retry 3 --retry-delay 3 -X POST "$URL/mcp" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' > mcp-tools.json
           node -e 'const p=require("./mcp-tools.json"); if(!Array.isArray(p.result?.tools)||p.result.tools.length<8)process.exit(1); console.log("MCP tools online:",p.result.tools.map(x=>x.name).join(", "))'
 
-      - name: Verify live BTC indicator path
+      - name: Probe live BTC indicator availability (external data, non-blocking)
+        continue-on-error: true
         run: |
           set -euo pipefail
           URL="https://sstate-mcp.youjianchonglangshou.workers.dev/mcp"

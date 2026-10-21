@@ -36,7 +36,16 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://sstate-mcp.youjianchonglangshou.workers.dev"
-          curl -fsS --retry 6 --retry-delay 4 "$URL/health" | tee health.json
+          EXPECTED=$(node -e "const fs=require('fs');const s=fs.readFileSync('mcp/worker.mjs','utf8');console.log(s.match(/const VERSION = '([^']+)'/)[1])")
+          for attempt in $(seq 1 18); do
+            curl -fsS --max-time 10 "$URL/health" > health.json || true
+            CURRENT=$(node -e "try{console.log(require('./health.json').version||'')}catch(e){console.log('')}") 
+            echo "Waiting for deployed version $EXPECTED; served $CURRENT; attempt $attempt"
+            if [ "$CURRENT" = "$EXPECTED" ]; then break; fi
+            sleep 3
+          done
+          [ "$CURRENT" = "$EXPECTED" ] || { echo "Worker deployment did not propagate"; exit 1; }
+          cat health.json
           curl -fsS --retry 3 --retry-delay 3 -X POST "$URL/mcp" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' > mcp-tools.json
           node -e 'const p=require("./mcp-tools.json"); if(!Array.isArray(p.result?.tools)||p.result.tools.length<8)process.exit(1); console.log("MCP tools online:",p.result.tools.map(x=>x.name).join(", "))'
 

@@ -6,7 +6,7 @@ import '../monitor-engine.js';
 const Engine = globalThis.SStateMonitorEngine;
 const DEFAULT_UPSTREAM = 'https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const TV_URL = 'https://scanner.tradingview.com/crypto/scan';
-const VERSION = '0.2.2';
+const VERSION = '0.2.3';
 const SCHEMA = {type:'object',additionalProperties:false};
 const symbolList = n => ({type:'array',items:{type:'string',minLength:1,maxLength:45},minItems:1,maxItems:n});
 const symProps = {symbols:symbolList(20),type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}};
@@ -94,7 +94,7 @@ function analysis(item,p,tick,detail){
  s_state:a.s_state,s_state_display:ex.state,other_extension_reason:ex.reason,
  midline:a.midline?.state||'unknown',midline_details:a.midline,
  average_k:a.average_k,cci_sma:a.cci_sma,cci_sma_value:a.cci_sma_value,
- kline_source:p.source||null,kline_fetched_at:p.fetched_at||null,
+ kline_source:p.source||null,kline_fetched_at:p.fetched_at||null,cross_exchange_proxy:!!p.cross_exchange_proxy,
  quote_source:tick?.source||null,quote_fetched_at:tick?.fetched_at||null,
  last_kline_time:new Date(bars[bars.length-1].time).toISOString(),
  is_live_quote:!!tick,stale_kline:p.source==='R2_STALE',refresh_error:p.refresh_error||null,
@@ -103,19 +103,43 @@ function analysis(item,p,tick,detail){
  return out;
 }
 async function loadDailyBars(env,item){
- let originalError='';
+ const failures=[];
  try{
   const p=await api(env,'/api/monitor/klines?symbol='+encodeURIComponent(item.symbol)+'&interval=1D&limit=180');
   if(Array.isArray(p.klines||p.data)&&((p.klines||p.data).length>=40))return p;
-  throw Error('original K-line endpoint returned no valid history');
- }catch(e){originalError=String(e.message||e);}
+  throw Error('original endpoint returned insufficient K-lines');
+ }catch(e){failures.push('SSTATE:'+String(e.message||e));}
  try{
   const url='https://api.pionex.com/api/v1/market/klines?symbol='+encodeURIComponent(item.symbol)+'&interval=1D&limit=180';
   const p=await readJson(url);
   const bars=p?.data?.klines;
-  if(p?.result!==true||!Array.isArray(bars)||bars.length<40)throw Error('Pionex public market API returned insufficient K-lines');
-  return {klines:bars,source:'PIONEX_OFFICIAL_REST_FALLBACK',fetched_at:new Date().toISOString(),refresh_error:'primary:'+originalError};
- }catch(e){throw Error('daily K-lines unavailable: primary='+originalError+'; Pionex='+String(e.message||e));}
+  if(p?.result!==true||!Array.isArray(bars)||bars.length<40)throw Error('invalid or insufficient K-lines');
+  return {klines:bars,source:'PIONEX_OFFICIAL_REST_FALLBACK',fetched_at:new Date().toISOString(),refresh_error:failures.join(' | ')};
+ }catch(e){failures.push('PIONEX:'+String(e.message||e));}
+ const match=item.symbol.match(/^([A-Z0-9]+)_USDT(?:_PERP)?$/);
+ if(!match)throw Error('daily K-lines unavailable: '+failures.join(' | '));
+ const base=match[1],pair=base+'USDT';
+ const fallback=[
+  {name:'BINANCE_FUTURES_PROXY',url:'https://fapi.binance.com/fapi/v1/klines?symbol='+pair+'&interval=1d&limit=180',
+   parse:p=>Array.isArray(p)?p.map(x=>({time:Number(x[0]),open:x[1],high:x[2],low:x[3],close:x[4],volume:x[5]})):null},
+  {name:'OKX_SWAP_PROXY',url:'https://www.okx.com/api/v5/market/candles?instId='+base+'-USDT-SWAP&bar=1Dutc&limit=180',
+   parse:p=>p?.code==='0'&&Array.isArray(p.data)?p.data.map(x=>({time:Number(x[0]),open:x[1],high:x[2],low:x[3],close:x[4],volume:x[5]})):null},
+  {name:'BYBIT_PERP_PROXY',url:'https://api.bybit.com/v5/market/kline?category=linear&symbol='+pair+'&interval=D&limit=180',
+   parse:p=>p?.retCode===0&&Array.isArray(p.result?.list)?p.result.list.map(x=>({time:Number(x[0]),open:x[1],high:x[2],low:x[3],close:x[4],volume:x[5]})):null},
+  {name:'BINANCE_SPOT_PROXY',url:'https://data-api.binance.vision/api/v3/klines?symbol='+pair+'&interval=1d&limit=180',
+   parse:p=>Array.isArray(p)?p.map(x=>({time:Number(x[0]),open:x[1],high:x[2],low:x[3],close:x[4],volume:x[5]})):null}
+ ];
+ for(const candidate of fallback){
+  try{
+   const p=await readJson(candidate.url),rows=candidate.parse(p);
+   if(!Array.isArray(rows)||rows.length<40)throw Error('missing or insufficient history');
+   const clean=Engine.normalizeKlines(rows);
+   if(clean.length<40)throw Error('invalid OHLC');
+   return {klines:clean,source:candidate.name,fetched_at:new Date().toISOString(),
+    refresh_error:failures.join(' | '),cross_exchange_proxy:true};
+  }catch(e){failures.push(candidate.name+':'+String(e.message||e));}
+ }
+ throw Error('daily K-lines unavailable: '+failures.join(' | '));
 }
 async function collect(env,items,opts={}){
  const tv=opts.live===false?{quotes:new Map(),warnings:[]}:await scanQuotes(items);
@@ -125,7 +149,7 @@ async function collect(env,items,opts={}){
    return analysis(item,p,tv.quotes.get(item.symbol),opts.detail);
   }catch(e){return {symbol:item.symbol,available:false,error:String(e.message||e)};}
  }));
- return {as_of:new Date().toISOString(),count:items.length,success:results.filter(x=>!x.error).length,results,scanner_warnings:tv.warnings,price_data_note:'is_live_quote=false is latest daily candle, NOT verified realtime price. No invented indicators on failures.'};
+ return {as_of:new Date().toISOString(),count:items.length,success:results.filter(x=>!x.error).length,results,scanner_warnings:tv.warnings,price_data_note:'is_live_quote=false is latest daily candle, NOT verified realtime price. cross_exchange_proxy=true means indicators use a DIFFERENT EXCHANGE and may differ from Pionex. No invented indicators on failures.'};
 }
 function authorized(request,env){const actual=String(env.MCP_READ_TOKEN||'');return !!actual && request.headers.get('Authorization')==='Bearer '+actual;}
 async function privateWatchlist(env,req){

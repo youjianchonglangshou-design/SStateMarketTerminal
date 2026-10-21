@@ -230,7 +230,7 @@ async function readCMC(path,getJSON){
   const url=CMC_PUBLIC+'/'+kind+query;
   try{
    const result=await getJSON(url,{},12000);
-   if(result?.status?.error_code && result.status.error_code!==0)throw Error('CMC error '+result.status.error_code);
+   if(result?.status?.error_code!=null && Number(result.status.error_code)!==0)throw Error('CMC error '+result.status.error_code);
    if(history?!Array.isArray(result?.data):!result?.data)throw Error('invalid official CMC response');
    return {payload:result,source:'CMC_OFFICIAL_KEYLESS_API',warning:'Existing CMC Worker unavailable: '+String(primary.message||primary)};
   }catch(secondary){

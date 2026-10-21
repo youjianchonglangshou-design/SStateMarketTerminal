@@ -6,7 +6,7 @@ import '../monitor-engine.js';
 const Engine = globalThis.SStateMonitorEngine;
 const DEFAULT_UPSTREAM = 'https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const TV_URL = 'https://scanner.tradingview.com/crypto/scan';
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const SCHEMA = {type:'object',additionalProperties:false};
 const symbolList = n => ({type:'array',items:{type:'string',minLength:1,maxLength:45},minItems:1,maxItems:n});
 const symProps = {symbols:symbolList(20),type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}};
@@ -102,11 +102,26 @@ function analysis(item,p,tick,detail){
  if(detail)Object.assign(out,{cci:a.cci,day_open:a.day_open,opportunity_long:a.opportunity_long,chart_30d:a.chart_30d});
  return out;
 }
+async function loadDailyBars(env,item){
+ let originalError='';
+ try{
+  const p=await api(env,'/api/monitor/klines?symbol='+encodeURIComponent(item.symbol)+'&interval=1D&limit=180');
+  if(Array.isArray(p.klines||p.data)&&((p.klines||p.data).length>=40))return p;
+  throw Error('original K-line endpoint returned no valid history');
+ }catch(e){originalError=String(e.message||e);}
+ try{
+  const url='https://api.pionex.com/api/v1/market/klines?symbol='+encodeURIComponent(item.symbol)+'&interval=1D&limit=180';
+  const p=await readJson(url);
+  const bars=p?.data?.klines;
+  if(p?.result!==true||!Array.isArray(bars)||bars.length<40)throw Error('Pionex public market API returned insufficient K-lines');
+  return {klines:bars,source:'PIONEX_OFFICIAL_REST_FALLBACK',fetched_at:new Date().toISOString(),refresh_error:'primary:'+originalError};
+ }catch(e){throw Error('daily K-lines unavailable: primary='+originalError+'; Pionex='+String(e.message||e));}
+}
 async function collect(env,items,opts={}){
  const tv=opts.live===false?{quotes:new Map(),warnings:[]}:await scanQuotes(items);
  const results=await Promise.all(items.map(async(item)=>{
   try{
-   const p=await api(env,'/api/monitor/klines?symbol='+encodeURIComponent(item.symbol)+'&interval=1D&limit=180');
+   const p=await loadDailyBars(env,item);
    return analysis(item,p,tv.quotes.get(item.symbol),opts.detail);
   }catch(e){return {symbol:item.symbol,available:false,error:String(e.message||e)};}
  }));

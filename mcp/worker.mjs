@@ -7,7 +7,7 @@ import { fallbackDailyHistory } from './source-fallbacks.mjs';
 const Engine = globalThis.SStateMonitorEngine;
 const DEFAULT_UPSTREAM = 'https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const TV_URL = 'https://scanner.tradingview.com/crypto/scan';
-const VERSION = '0.2.4';
+const VERSION = '0.2.5';
 const SCHEMA = {type:'object',additionalProperties:false};
 const symbolList = n => ({type:'array',items:{type:'string',minLength:1,maxLength:45},minItems:1,maxItems:n});
 const symProps = {symbols:symbolList(20),type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}};
@@ -204,7 +204,7 @@ async function invoke(name,args,env,req){
 export default {
  async fetch(req,env={}){
   const url=new URL(req.url);
-  if(url.pathname==='/health'&&req.method==='GET')return j({ok:true,service:'SStateMarketTerminal MCP',version:VERSION,engine:Engine.constants.ENGINE_VERSION,upstream:upstream(env),watchlist_private:env.ENABLE_PRIVATE_WATCHLIST==='true'});
+  if(url.pathname==='/health'&&req.method==='GET')return j({ok:true,service:'SStateMarketTerminal MCP',version:VERSION,engine:Engine.constants.ENGINE_VERSION,upstream:upstream(env),watchlist_private:env.ENABLE_PRIVATE_WATCHLIST==='true',deploy_commit:env.DEPLOY_COMMIT||null});
   if(url.pathname!=='/mcp')return j({error:'Not Found'},404);
   if(req.method!=='POST')return j({error:'Use POST'},405,{allow:'POST'});
   const origin=req.headers.get('origin');

@@ -1,0 +1,8 @@
+name = "sstate-mcp"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+UPSTREAM_BASE_URL = "https://white-meadow-16bc.youjianchonglangshou.workers.dev"
+ENABLE_PRIVATE_WATCHLIST = "false"

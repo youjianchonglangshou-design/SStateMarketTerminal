@@ -1,0 +1,41 @@
+name: Deploy SState MCP
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mcp/**'
+      - '.github/workflows/deploy-sstate-mcp.yml'
+permissions:
+  contents: read
+concurrency:
+  group: deploy-sstate-mcp
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test MCP with original indicator engine
+        run: node mcp/test.mjs
+      - name: Deploy independent sstate-mcp Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.45.0'
+          workingDirectory: mcp
+          command: deploy --config wrangler.toml
+      - name: Verify deployment health and MCP tools
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          URL="https://sstate-mcp.youjianchonglangshou.workers.dev"
+          curl -fsS --retry 6 --retry-delay 4 "$URL/health" | tee health.json
+          curl -fsS --retry 3 --retry-delay 3 -X POST "$URL/mcp" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' > mcp-tools.json
+          node -e 'const p=require("./mcp-tools.json"); if(!Array.isArray(p.result?.tools)||p.result.tools.length<8)process.exit(1); console.log("MCP tools online:",p.result.tools.map(x=>x.name).join(", "))'

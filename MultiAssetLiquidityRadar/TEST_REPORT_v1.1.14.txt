@@ -1,0 +1,15 @@
+TEST REPORT v1.1.14 — Fear & Greed hover horizontal guide
+
+Files changed:
+- VERSION.json
+- index.html
+- fear-greed.html
+- fear-greed-popover.js
+
+Checks:
+PASS | iframe cache-busting version updated to 1.1.14
+PASS | Fear & Greed chart keeps existing vertical hover guide
+PASS | Added horizontal dashed guide at hovered index value
+PASS | Added right-side numeric value label for hovered index value
+PASS | Value label uses semantic color and auto-contrasting text color
+PASS | MultiAssetLiquidityRadar header version updated to v1.1.14

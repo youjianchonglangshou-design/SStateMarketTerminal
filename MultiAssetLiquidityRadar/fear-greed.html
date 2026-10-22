@@ -85,6 +85,17 @@ function parseFG(raw){return raw.map(p=>({t:parseTime(p.timestamp),value:Number(
 let fg=[],colorIds=[],hover=-1;
 const cvs=$('chart'),tip=$('tip');let rect={};
 function setStatus(message,error=false){$('status').textContent=message;$('status').className='status'+(error?' error':'')}
+function labelTextColor(mode){return mode==='orange'||mode==='yellow'||mode==='lime'?'#1f2e42':'#ffffff'}
+function roundRect(ctx,x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+}
 async function requestJSON(url,timeoutMs=16000){
   const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),timeoutMs);
   try{
@@ -123,8 +134,24 @@ function draw(){
     g.strokeStyle=colorOf(colorIds[i]);g.lineWidth=2.1;g.stroke();
   }
   if(hover>=0&&hover<fg.length){
-    g.strokeStyle='#6b758b';g.lineWidth=1;g.setLineDash([4,4]);g.beginPath();g.moveTo(x(hover),T);g.lineTo(x(hover),T+plotH);g.stroke();g.setLineDash([]);
-    g.beginPath();g.arc(x(hover),y(fg[hover].value),4,0,Math.PI*2);g.fillStyle=colorOf(colorIds[hover]);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
+    const hoverX=x(hover), hoverY=y(fg[hover].value), mode=colorIds[hover]||'yellow';
+    const labelValue=String(fg[hover].value);
+    g.strokeStyle='#6b758b';g.lineWidth=1;g.setLineDash([4,4]);
+    g.beginPath();g.moveTo(hoverX,T);g.lineTo(hoverX,T+plotH);g.stroke();
+    const tagPadX=8, tagH=22;
+    g.font='bold 11px sans-serif';
+    const tagW=Math.max(34,Math.ceil(g.measureText(labelValue).width)+tagPadX*2);
+    const tagX=w-tagW-4;
+    const tagY=Math.min(Math.max(hoverY-tagH/2,T+2),T+plotH-tagH-2);
+    g.beginPath();g.moveTo(L,hoverY);g.lineTo(tagX-6,hoverY);g.stroke();
+    g.setLineDash([]);
+    roundRect(g,tagX,tagY,tagW,tagH,6);
+    g.fillStyle=colorOf(mode);g.fill();
+    g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=1;g.stroke();
+    g.fillStyle=labelTextColor(mode);g.textAlign='center';g.textBaseline='middle';
+    g.fillText(labelValue,tagX+tagW/2,tagY+tagH/2+0.5);
+    g.textBaseline='alphabetic';
+    g.beginPath();g.arc(hoverX,hoverY,4,0,Math.PI*2);g.fillStyle=colorOf(mode);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
   }
 }
 function showDetail(i){

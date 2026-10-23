@@ -324,3 +324,44 @@
   .radar-sticky-panel .overview{font-size:10px}
   .brand{font-size:13px}
 }
+
+
+/* v1.3.2 — compact one-row brand + sorting + action buttons.
+   Only the desktop layout changes: the genuine sticky panel and table head remain intact. */
+.radar-sticky-panel .topbar{
+  display:grid;grid-template-columns:minmax(265px,1fr) auto auto;align-items:center;
+  column-gap:12px;row-gap:6px;padding:7px 12px 6px;min-height:0
+}
+.radar-brand-block{min-width:0}
+.radar-sticky-panel .brand{font-size:15px;white-space:nowrap;letter-spacing:.2px}
+.radar-sticky-panel .subtitle{font-size:10px;line-height:1.2;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.radar-sticky-panel .toolbar{
+  position:static;display:flex;align-items:center;justify-content:center;
+  width:auto;min-width:0;min-height:0;padding:0;border:0;background:transparent;box-shadow:none
+}
+.radar-sticky-panel .sort-label{margin:0;gap:5px;white-space:nowrap;font-size:10px}
+.radar-sticky-panel .sort-label select{width:215px;min-width:0;max-width:215px;height:31px;padding:5px 8px;font-size:10px}
+.radar-sticky-panel .header-status{flex-wrap:nowrap;gap:7px;justify-content:flex-end;margin:0;font-size:10px}
+.radar-sticky-panel .header-status a,.radar-sticky-panel .header-status button{padding:6px 9px;font-size:10px}
+.radar-sticky-panel .status-pill{padding:5px 9px}
+.radar-sticky-panel .overview{padding:5px 12px;min-height:0;font-size:10px}
+.radar-sticky-panel .radar-sticky-table thead th{padding:7px 8px!important}
+/* Below desktop width the actions retain tap targets; no clipping/overflow. */
+@media(max-width:1460px){
+  .radar-sticky-panel .topbar{grid-template-columns:minmax(220px,1fr) auto;column-gap:9px}
+  .radar-sticky-panel .toolbar{grid-column:1;grid-row:2;justify-content:flex-start}
+  .radar-sticky-panel .header-status{grid-column:2;grid-row:1 / 3;flex-wrap:wrap;max-width:100%;justify-content:flex-end}
+}
+@media(max-width:1020px){
+  .radar-sticky-panel .topbar{display:flex;flex-wrap:wrap;gap:8px}
+  .radar-brand-block{width:100%}
+  .radar-sticky-panel .toolbar{order:2;flex:0 1 auto}
+  .radar-sticky-panel .header-status{order:1;flex:1 1 100%;justify-content:flex-start}
+  .radar-sticky-panel .sort-label select{max-width:min(65vw,260px)}
+}
+@media(max-width:480px){
+  .radar-sticky-panel .brand{font-size:12px}
+  .radar-sticky-panel .subtitle{font-size:9px}
+  .radar-sticky-panel .header-status{gap:4px}
+  .radar-sticky-panel .header-status a,.radar-sticky-panel .header-status button{padding:5px 6px}
+}

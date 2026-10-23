@@ -1,7 +1,10 @@
 {
-  "version": "1.3.1",
+  "version": "1.3.2",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Reduce the pinned header height by merging the title/subtitle, sorting dropdown and right-hand action buttons into a compact top command row, eliminating the formerly empty second row.",
+    "Keep the coverage/legend strip and genuinely sticky six-column clickable table header directly below that row.",
+    "Retain sidebar navigation, sorting behavior, marker and alert controls, and all existing chart/data calculations; use responsive wrapping only where necessary.",
     "FIX v1.3.0: table thead under .table-scroll overflow-x:auto could not stick to viewport and vanished on page scroll. Move the real sortable thead into a unified top sticky panel outside scrolling container.",
     "Freeze title/subtitle, controls, sorting dropdown, 7D overview and all six clickable table-heading columns as one group; no duplicate table heading while scrolling.",
     "Retain DOM for hidden group filters and search to avoid breaking original app.js; retain all stock/crypto side rails and symbol navigation.",

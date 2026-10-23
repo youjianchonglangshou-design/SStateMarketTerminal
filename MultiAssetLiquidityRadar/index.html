@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827">
 <title>Multi-Asset Liquidity Radar | 即時清算總覽</title>
-<link rel="stylesheet" href="./style.css?v=1.3.1">
+<link rel="stylesheet" href="./style.css?v=1.3.2">
 </head>
 <body>
 <aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣快速跳轉">
@@ -23,7 +23,12 @@
 <div class="shell">
 <div id="radarStickyPanel" class="radar-sticky-panel">
 <header class="topbar">
-  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.3.1</span></div><div class="subtitle">4H 真實 K 線 × 日線布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
+  <div class="radar-brand-block"><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.3.2</span></div><div class="subtitle">4H 真實 K 線 × 日線布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
+  <section class="toolbar">
+  <div class="filter-group" id="groupFilters"><button type="button" data-group="all" class="active">全部 <span id="allCount">0</span></button><button type="button" data-group="crypto">加密貨幣 <span id="cryptoCount">0</span></button><button type="button" data-group="stock">美股／商品 <span id="stockCount">0</span></button></div>
+  <label class="search-wrap"><input id="searchInput" type="search" placeholder="搜尋 symbols.js 標的…" aria-label="搜尋標的"/></label>
+  <label class="sort-label">排序 <select id="sortBy"><option value="watchlist">清單順序</option><option value="marked_color">🎨 顏色標記集中（紅→橘→黃→綠→藍→紫）</option><option value="symbol">幣種名稱</option><option value="sstate">S 狀態：S3→S0.5→S1→S2→S0→OT-UP/DN</option><option value="midline">中軌：上斜→平緩→走平→下斜</option><option value="ha">平均 K 黃色優先（同色 CCI 優先）</option><option value="cci">CCI-SMA 黃色優先（同色平均K優先）</option><option value="bull_pair">黃／黃 組合優先</option><option value="bear_pair">紫／紫 組合優先</option><option value="near">離清算界最近</option></select></label>
+</section>
   <div class="header-status"><a class="home-link" href="../index.html" title="返回 SState Market Terminal 主站">← SState 主站</a>
     <div class="fg-popover" id="fgPopover">
       <button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button>
@@ -32,11 +37,7 @@
       </section>
     </div><span id="liveStatus" class="status-pill waiting">連線初始化</span><span id="clock">台灣時間 --:--:--</span><button id="refreshBtn" type="button">⟳ 全部更新</button></div>
 </header>
-<section class="toolbar">
-  <div class="filter-group" id="groupFilters"><button type="button" data-group="all" class="active">全部 <span id="allCount">0</span></button><button type="button" data-group="crypto">加密貨幣 <span id="cryptoCount">0</span></button><button type="button" data-group="stock">美股／商品 <span id="stockCount">0</span></button></div>
-  <label class="search-wrap"><input id="searchInput" type="search" placeholder="搜尋 symbols.js 標的…" aria-label="搜尋標的"/></label>
-  <label class="sort-label">排序 <select id="sortBy"><option value="watchlist">清單順序</option><option value="marked_color">🎨 顏色標記集中（紅→橘→黃→綠→藍→紫）</option><option value="symbol">幣種名稱</option><option value="sstate">S 狀態：S3→S0.5→S1→S2→S0→OT-UP/DN</option><option value="midline">中軌：上斜→平緩→走平→下斜</option><option value="ha">平均 K 黃色優先（同色 CCI 優先）</option><option value="cci">CCI-SMA 黃色優先（同色平均K優先）</option><option value="bull_pair">黃／黃 組合優先</option><option value="bear_pair">紫／紫 組合優先</option><option value="near">離清算界最近</option></select></label>
-</section>
+
 <div class="overview"><span id="coverage">等待資料</span><span class="legend"><i class="leg up"></i>上界 <i class="leg now"></i>現價 <i class="leg down"></i>下界　<span class="ha-yellow">黃＝上升／偏多</span>　<span class="ha-purple">紫＝下降／偏空</span></span></div>
 <div class="radar-sticky-table-wrap" id="radarStickyTableWrap"><table class="radar-table radar-sticky-table">
 <colgroup><col class="c-index"><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>

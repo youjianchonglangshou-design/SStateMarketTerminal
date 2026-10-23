@@ -1,0 +1,21 @@
+MultiAssetLiquidityRadar v1.2.2 | 2026-10-23 | 離線驗證結果
+
+版本：1.2.2
+來源：v1.2.1 最新覆蓋版本
+
+通過：
+  - Node.js --check: chart4h.js、app.js
+  - Chromium + Playwright 離線模擬：0 頁面 JS error
+  - 84 根 4H 實體：紅綠皆空心（fill:none）
+  - 167 段影線：嚴格位於上／下實體外側（包括十字線）
+  - Chart 背景實測 rgb(16,17,22)，細微對比水平格線與日期虛線
+  - 日線布林帶 76 組中軌／上下軌：與 SState 原版 monitor-engine 完全比對通過
+  - 1D 指標 / 4H K線 / 3 根留白：資料與繪圖結構通過
+  - 平均K 黃/紫：單純 pointermove 無延伸標籤；點擊後顯示對應色線及價格
+  - pointerleave 移出：價格線/標籤隱藏；重新繪圖後選擇維持直至移出
+  - 清算上下界、NOW 右側標籤與原資料路徑保留
+  - 顏色標記、集中排序、Telegram 鈴鐺視窗測試通過
+  - 所有日期刻度只有月日、無 $ / CG 前綴
+
+限制：採用離線合成 OHLC 驗證繪圖與計算，一切線上資料來源 (Pionex、TradingView、CoinGlass、Worker) 未透過此測試進行端到端連線驗證。
+本版為純前端顯示改動；不需覆蓋主站 monitor-engine.js 或 Cloudflare Worker。

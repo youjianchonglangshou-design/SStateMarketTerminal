@@ -1,11 +1,11 @@
-# MultiAssetLiquidityRadar v1.2.1 · 4H 實際 K 線監控
+# MultiAssetLiquidityRadar v1.2.2 · 4H 實際 K 線監控
 
-## v1.2.1 功能
+## v1.2.2 功能
 
 * 每個自選標的顯示真正 4H OHLC K 線（4H = 240 分鐘），不是日 K 拉伸。圖表讀取 TradingView Pionex 圖表，失效時依序透過既有 Cloudflare Worker、Pionex REST、加密貨幣 Binance 備援；無有效 K 線時顯示等待、不虛構 K 棒。
 * **日線 1D 布林帶**（20 日收盤價均線、2 倍母體標準差，與主站 monitor-engine.js 同一套）：上軌、中軌、下軌依真正的日線數據計算後對齊 4H 時間軸。只有實際 OHLC K 棒採 4H，三條日線布林帶均已淡化。
 * 黃／紫階梯：**日線平均 K（Heikin-Ashi）的 HA 收盤值**，從與主頁相同的日線 OHLC 推算，依 **Asia/Taipei 08:00** 換日；1 個日階梯最多橫跨 6 根 4H K 線。非 4H HA，請勿混淆。
-* 靠近階梯時顯示延伸到右側價格軸的虛線、價格標籤、時間垂線；靠近**紫色**階梯時指示線及價格標籤變紫，靠近**黃色**階梯時變黃；價格移除 $。其他區域顯示常規十字游標。
+* **滑鼠左鍵點擊**日線平均 K 黃／紫階梯時才顯示延伸右側的同色虛線及價格標籤；僅移動滑鼠不觸發價格標籤。滑鼠移出圖表立即清除；即時價格更新重新繪圖時，只要游標仍在圖內，原選取保持。
 * 右側價格刻度、價格橫向虛線；每日台灣 08:00 換日垂直時間虛線；下方**只顯示 MM/DD 日期**，不再顯示 08:00。右端最新 K 棒後方保留 3 根 4H K 棒位置。
 * 7D CoinGlass 上下界、NOW 即時價皆依價格繪成水平線，右邊獨立標籤；清算上下界標籤**只有數值**（不寫 CG 7D、上、下或 $），NOW 則是 NOW 加數字。上下界過近時只移動標籤並畫連接線，**不移動實際水平價格線**。15M 代理資料來源保留於程式邏輯／診斷而不在價格前加註。
 * 頂部四個膠囊：S 狀態、中軌斜率、日線平均 K（含前日顏色 → 今日顏色）、CCI-SMA；沿用原來主站的日線引擎及顏色定義。
@@ -21,11 +21,11 @@ NOW 報價每 10 秒刷新；CoinGlass 7D 每 60 秒刷新；4H K 線每 4 分�
 
 - `MultiAssetLiquidityRadar/index.html`
 - `MultiAssetLiquidityRadar/style.css`
-- `MultiAssetLiquidityRadar/app.js`
+- `MultiAssetLiquidityRadar/app.js`（版本號）
 - `MultiAssetLiquidityRadar/chart4h.js`（覆蓋舊版）
 - `MultiAssetLiquidityRadar/VERSION.json`
 - `MultiAssetLiquidityRadar/README.md`
 
 不需要更動根目錄主頁、Cloudflare Worker、monitor-engine.js、symbols.js、alerts.js、color-marks.js 或恐懼貪婪頁。
 
-本次移除 v1.2.0 的圖下方兩行說明、淡化 4H K 棒及日線布林帶，將清算和平均 K 階梯視為主視覺。
+v1.2.2 將 4H K 棒改成雙向空心實體；上下影線分別止於實體邊緣，不穿過實體。圖表改為接近 TradingView 的深墨黑背景、極淡水平網格與淡虛線日切線，清算與日線平均 K 階梯繼續為主視覺。

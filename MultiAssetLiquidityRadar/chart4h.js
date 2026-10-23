@@ -1,10 +1,12 @@
-/* MultiAssetLiquidityRadar v1.2.1
+/* MultiAssetLiquidityRadar v1.2.2
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
  */
 (function(root){'use strict';
  const H4=14400000,DAY=86400000,BLANK_CANDLES=3;
+ // Transient chart interaction survives a 10-second live redraw, but never mouseleave.
+ const interactions=new WeakMap();
  const valid=n=>Number.isFinite(n)&&n>0;
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const clamp=(n,l,h)=>Math.max(l,Math.min(h,n));
@@ -97,12 +99,17 @@
      if(d)svg.push(`<path class="${cls}" d="${d.trim()}"/>`);
    }
    svg.push('</g>');
-   // Actual 4H candles: quieter than daily HA steps and liquidation levels.
+   // TradingView-style hollow OHLC. Two distinct wicks stop at the body edges:
+   // neither wick crosses its hollow (transparent) candle body.
    const w=clamp(stride*.60,3.2,10);
    rows.forEach((r,i)=>{
      const xx=x(i),c=r.c>=r.o?'rc-up':'rc-down';
-     svg.push(`<line class="rc-wick ${c}" x1="${fmt(xx)}" x2="${fmt(xx)}" y1="${fmt(y(r.h))}" y2="${fmt(y(r.l))}"/>`);
-     svg.push(`<rect class="rc-candle ${c}" x="${fmt(xx-w/2)}" y="${fmt(y(Math.max(r.o,r.c)))}" width="${fmt(w)}" height="${fmt(Math.max(1.4,Math.abs(y(r.o)-y(r.c))))}"/>`);
+     const top=y(Math.max(r.o,r.c)),bottom=y(Math.min(r.o,r.c));
+     const bodyHeight=Math.max(1.4,bottom-top), bodyTop=(top+bottom-bodyHeight)/2;
+     const wickTop=y(r.h),wickBottom=y(r.l),bodyBottom=bodyTop+bodyHeight;
+     if(wickTop<bodyTop-0.15)svg.push(`<line class="rc-wick ${c}" x1="${fmt(xx)}" x2="${fmt(xx)}" y1="${fmt(wickTop)}" y2="${fmt(bodyTop)}"/>`);
+     if(wickBottom>bodyBottom+0.15)svg.push(`<line class="rc-wick ${c}" x1="${fmt(xx)}" x2="${fmt(xx)}" y1="${fmt(bodyBottom)}" y2="${fmt(wickBottom)}"/>`);
+     svg.push(`<rect class="rc-candle ${c}" x="${fmt(xx-w/2)}" y="${fmt(bodyTop)}" width="${fmt(w)}" height="${fmt(bodyHeight)}" fill="none"/>`);
    });
    // The 1D HA close is held throughout that UTC day, usually six real 4H candles.
    let prev=null;
@@ -131,30 +138,71 @@
      svg.push(`<rect class="rc-label-box rc-label-${lab.kind}" x="${plotR+3}" y="${fmt(lab.yy-9)}" width="${R-7}" height="19" rx="4"/>`);
      svg.push(`<text class="rc-label-text rc-label-${lab.kind}" x="${plotR+9}" y="${fmt(lab.yy+4)}">${esc(lab.text)}</text>`);
    }
-   svg.push(`<g class="rc-hover" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-hover-price" x="${plotR+9}" y="0">—</text><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text><circle class="rc-hover-dot" cx="0" cy="0" r="5"/></g>`);
+   // Moving only shows the time crosshair. HA extension is an explicit click action.
+   svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text></g>`);
+   svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
    svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/></svg>`);
    target.innerHTML=svg.join('');
    target.dataset.candles='4H';target.dataset.indicators='1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
-   const element=target.querySelector('svg'),hit=element.querySelector('.rc-hit'),g=element.querySelector('.rc-hover');
-   hit.addEventListener('pointermove',ev=>{
-     const rect=element.getBoundingClientRect();if(!rect.width||!rect.height)return;
+   const element=target.querySelector('svg'),hit=element.querySelector('.rc-hit');
+   const cursor=element.querySelector('.rc-cursor'),selected=element.querySelector('.rc-ha-selection');
+   let state=interactions.get(target);
+   if(!state){
+     state={selectedTimestamp:null,inside:false};interactions.set(target,state);
+     // Target survives innerHTML redraw: a fresh API price cannot strand a label.
+     target.addEventListener('pointerleave',()=>{
+       state.inside=false;state.selectedTimestamp=null;
+       target.querySelector('.rc-cursor')?.setAttribute('visibility','hidden');
+       target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
+     });
+   }
+   function paintSelected(){
+     const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
+     if(!state.inside||i<0||!r?.ha||r.ha.color==='gray'){
+       selected.setAttribute('visibility','hidden');return;
+     }
+     const xx=x(i),py=y(r.ha.price);
+     selected.setAttribute('visibility','visible');
+     selected.classList.toggle('is-ha-yellow',r.ha.color==='yellow');
+     selected.classList.toggle('is-ha-purple',r.ha.color==='purple');
+     const guide=selected.querySelector('.rc-selected-guide');
+     guide.setAttribute('x1',xx);guide.setAttribute('y1',py);guide.setAttribute('y2',py);
+     const dot=selected.querySelector('.rc-selected-dot');dot.setAttribute('cx',xx);dot.setAttribute('cy',py);
+     // Actual line always uses the true HA price; only the tag may need visual offset.
+     const ytag=clamp(py-9,T,plotB-19);
+     selected.querySelector('.rc-selected-price-box').setAttribute('y',ytag);
+     const label=selected.querySelector('.rc-selected-price');label.setAttribute('y',ytag+13);
+     label.textContent=money(r.ha.price);
+   }
+   function locate(ev){
+     const rect=element.getBoundingClientRect();if(!rect.width||!rect.height)return null;
      const xx=(ev.clientX-rect.left)/rect.width*W,yy=(ev.clientY-rect.top)/rect.height*H;
-     const i=clamp(Math.floor((xx-L)/stride),0,rows.length-1),r=rows[i];
-     const h=r.ha,near=h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<13;
-     const actual=near?h.price:min+(max-min)*(plotB-yy)/ph,py=near?y(h.price):yy;
-     const vx=x(i),cx=clamp(vx,L+61,plotR-61);
-     g.setAttribute('visibility','visible');
-     const vLine=g.querySelector('.rc-hover-v');vLine.setAttribute('x1',vx);vLine.setAttribute('x2',vx);
-     const hLine=g.querySelector('.rc-hover-h');hLine.setAttribute('x1',near?vx:L);hLine.setAttribute('y1',py);hLine.setAttribute('y2',py);
-     const ytag=clamp(py-9,T,plotB-19),tag=g.querySelector('.rc-hover-price-box');tag.setAttribute('y',ytag);
-     const priceTag=g.querySelector('.rc-hover-price');priceTag.setAttribute('y',ytag+13);priceTag.textContent=(near?'HA ':'')+money(actual);
-     g.querySelector('.rc-hover-time-box').setAttribute('x',cx-61);
-     const time=g.querySelector('.rc-hover-time');time.setAttribute('x',cx);time.textContent=clock(r.t)+(near?' 平均K':'');
-     const dot=g.querySelector('.rc-hover-dot');dot.setAttribute('cx',vx);dot.setAttribute('cy',py);dot.setAttribute('visibility',near?'visible':'hidden');
-     g.classList.toggle('is-ha-yellow',Boolean(near&&h.color==='yellow'));
-     g.classList.toggle('is-ha-purple',Boolean(near&&h.color==='purple'));
+     const i=Math.floor((xx-L)/stride);
+     // Last three blank slots cannot select the latest real candle.
+     if(i<0||i>=rows.length)return null;
+     return {i,xx,yy,r:rows[i]};
+   }
+   hit.addEventListener('pointermove',ev=>{
+     state.inside=true;
+     const pos=locate(ev);if(!pos){cursor.setAttribute('visibility','hidden');return;}
+     const {i,yy,r}=pos,xx=x(i),cx=clamp(xx,L+61,plotR-61);
+     cursor.setAttribute('visibility','visible');
+     const vLine=cursor.querySelector('.rc-hover-v');vLine.setAttribute('x1',xx);vLine.setAttribute('x2',xx);
+     const hLine=cursor.querySelector('.rc-hover-h');hLine.setAttribute('y1',yy);hLine.setAttribute('y2',yy);
+     cursor.querySelector('.rc-hover-time-box').setAttribute('x',cx-61);
+     const time=cursor.querySelector('.rc-hover-time');time.setAttribute('x',cx);time.textContent=clock(r.t);
    });
-   hit.addEventListener('pointerleave',()=>g.setAttribute('visibility','hidden'));
+   hit.addEventListener('click',ev=>{
+     const pos=locate(ev);if(!pos)return;
+     state.inside=true;
+     const {r,yy}=pos,h=r.ha;
+     // Clicking close to an actual daily HA horizontal stair segment selects it.
+     // Clicking elsewhere cancels; moving alone NEVER shows an HA price label.
+     state.selectedTimestamp=h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12?r.t:null;
+     paintSelected();
+   });
+   // A pending click-selected HA price survives live redraw while pointer is inside.
+   paintSelected();
  }
  root.LiqRadar4H={render,series,dailyHA,bollinger,dayOf,money};
 })(window);

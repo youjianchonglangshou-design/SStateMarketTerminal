@@ -1,7 +1,11 @@
 {
-  "version": "1.2.9",
+  "version": "1.3.0",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Make the top control area sticky: merge the title/subtitle strip into the floating command block and keep it pinned at the viewport top while scrolling the charts.",
+    "Hide the green-crossed items from the UI (group filter buttons and search field) without removing their DOM nodes, preserving existing app initialization and data logic.",
+    "Keep sorting and status controls accessible at the top while charts scroll; make the table header stay directly beneath the floating controls and update row scroll offsets for jump navigation.",
+    "Tighten the visual stack so the sticky block reads as one merged panel with shared borders and background, reducing wasted space above the table.",
     "Top-align left/right floating symbol rails at 8px from the viewport edge (formerly 100px desktop / 125px compact); increase scroll-list viewport height without changing item sizing, symbols, navigation, prices, chart logic or other features.",
     "FIX: Quote CL in symbols.js tokenized watchlist. The bare identifier CL threw ReferenceError before LIQ_SYMBOLS was created, leaving all rows and both new floating navigation panels at zero.",
     "Preserve every configured production watchlist symbol (27 crypto and 12 tokenized/commodity) without overwriting personal watchlist choices.",

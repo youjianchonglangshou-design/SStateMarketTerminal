@@ -9,7 +9,7 @@ import { getPionexContracts } from './pionex-contracts.mjs';
 const Engine = globalThis.SStateMonitorEngine;
 const DEFAULT_UPSTREAM = 'https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const TV_URL = 'https://scanner.tradingview.com/crypto/scan';
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 const SCHEMA = {type:'object',additionalProperties:false};
 const symbolList = n => ({type:'array',items:{type:'string',minLength:1,maxLength:45},minItems:1,maxItems:n});
 const symProps = {symbols:symbolList(20),type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}};
@@ -183,7 +183,7 @@ async function invoke(name,args,env,req){
  if(name==='get_model')return api(env,'/api/model/active');
  if(name==='get_liquidation_bounds')return getLiquidityBounds(args.symbol,{allowProxy:args.allow_proxy!==false,upstream:upstream(env)});
  if(name==='get_fear_greed_today')return getFearGreedToday();
- if(name==='get_pionex_contracts')return getPionexContracts(args,{getJSON:readJson,monitorOrigin:upstream(env)});
+ if(name==='get_pionex_contracts')return getPionexContracts(args,{getJSON:readJson,monitorOrigin:upstream(env),bucket:env.JSON_BUCKET});
  if(name==='get_watchlist')return privateWatchlist(env,req);
  if(name==='find_symbols'){
   const data=await api(env,'/api/snapshot?market='+market);

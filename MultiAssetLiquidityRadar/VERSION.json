@@ -1,7 +1,8 @@
 {
-  "version": "1.2.8",
+  "version": "1.2.9",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Top-align left/right floating symbol rails at 8px from the viewport edge (formerly 100px desktop / 125px compact); increase scroll-list viewport height without changing item sizing, symbols, navigation, prices, chart logic or other features.",
     "FIX: Quote CL in symbols.js tokenized watchlist. The bare identifier CL threw ReferenceError before LIQ_SYMBOLS was created, leaving all rows and both new floating navigation panels at zero.",
     "Preserve every configured production watchlist symbol (27 crypto and 12 tokenized/commodity) without overwriting personal watchlist choices.",
     "Cache-bust symbols.js through ?v=1.2.8 and update the visible version badge. All existing 4H, 1D, CoinGlass, markers, alert and navigation logic remains unchanged.",

@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.2.4
+/* MultiAssetLiquidityRadar v1.2.5
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
@@ -36,6 +36,32 @@
      result[i]={mid,upper:mid+2*sd,lower:mid-2*sd};
    }return result;
  }
+ // Project TODAY's still-forming 1D candle from the actual current UTC-day 4H
+ // OHLC stream. Unlike taking 20 recent 4H closes, this keeps BB(20,2) strictly
+ // daily while the latest daily close follows each fresh market quote.
+ // UTC 00:00 equals Asia/Taipei 08:00; completed daily candles are immutable.
+ function projectDaily(daily,bars4h,livePrice,nowTime=Date.now(),scannerDay=null){
+   const days=normalized(daily),day=dayOf(nowTime);
+   const four=normalized(bars4h).filter(b=>dayOf(b.t)===day&&b.t<=nowTime);
+   const d=days.at(-1),existing=d&&dayOf(d.t)===day?d:null;
+   const feed=scannerDay&&dayOf(scannerDay.day)===day&&
+     [scannerDay.o,scannerDay.h,scannerDay.l,scannerDay.c].every(valid)&&
+     scannerDay.h>=Math.max(scannerDay.o,scannerDay.c)&&scannerDay.l<=Math.min(scannerDay.o,scannerDay.c)?scannerDay:null;
+   // Do not invent a daily OHLC candle from a close alone when no current-day
+   // 1D, 4H or scanner OHLC exists; do not use yesterday as today's open.
+   if(!existing&&!four.length&&!feed)return days;
+   const first=four[0],last4=four.at(-1);
+   const open=existing?.o??feed?.o??first?.o;
+   const close=valid(livePrice)?livePrice:(last4?.c??feed?.c??existing?.c);
+   if(!valid(open)||!valid(close))return days;
+   const highs=[open,close,existing?.h,feed?.h,...four.map(b=>b.h)].filter(valid);
+   const lows=[open,close,existing?.l,feed?.l,...four.map(b=>b.l)].filter(valid);
+   const row={t:day,o:open,h:Math.max(...highs),l:Math.min(...lows),c:close,
+     v:existing?.v??four.reduce((sum,b)=>sum+(Number(b.v)||0),0)};
+   if(existing)days[days.length-1]=row;
+   else if(!d||dayOf(d.t)<day)days.push(row);
+   return days;
+ }
  function series(bars,daily,now,nowTime){
    const all=normalized(bars);
    const liveStart=Math.floor(nowTime/H4)*H4;
@@ -44,7 +70,7 @@
      const last=all.at(-1);
      if(last?.t===liveStart){last.c=now;last.h=Math.max(last.h,now);last.l=Math.min(last.l,now);}
    }
-   const days=normalized(daily),ha=dailyHA(days),bb=bollinger(days),bbByDay=new Map();
+   const days=projectDaily(daily,all,now,nowTime),ha=dailyHA(days),bb=bollinger(days),bbByDay=new Map();
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
@@ -90,7 +116,9 @@
      let d='',active=false,prevDate=null;
      for(const day of daysShown){
        if(!day.bb||!valid(day.bb[key])){active=false;continue;}
-       const xx=(x(day.first)+x(day.last))/2;
+       // The unfinished today's band is anchored at the LIVE last 4H candle,
+       // rather than stopping at the middle of today's six-candle group.
+       const xx=day.last===rows.length-1?x(day.last):(x(day.first)+x(day.last))/2;
        // Do not bridge missing dates or a missing 1D BB calculation.
        const contiguous=prevDate===null||day.date-prevDate===DAY;
        d+=`${active&&contiguous?' L':' M'}${fmt(xx)},${fmt(y(day.bb[key]))}`;
@@ -229,5 +257,5 @@
    // A pending click-selected HA price survives live redraw while pointer is inside.
    paintSelected();
  }
- root.LiqRadar4H={render,series,dailyHA,bollinger,dayOf,money};
+ root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money};
 })(window);

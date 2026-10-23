@@ -1,7 +1,10 @@
 {
-  "version": "1.2.4",
+  "version": "1.2.5",
   "releaseDate": "2026-10-23",
   "changes": [
+    "FIX: Daily BB(20,2) now reaches the current 4H candle by projecting an in-progress 1D candle from today's 4H OHLC, replacing its unfinished daily close with a fresh live quote; retain 19 previous real daily closes and the shared population-stdev algorithm.",
+    "Daily indicator badges (S-state, midline slope, HA and CCI) and BB chart now use this same 1D projection, including when the 1D provider has not yet returned today's candle. At Asia/Taipei 08:00 a new daily candle begins; past candles never change.",
+    "No changes to 4H candle timeframe, CoinGlass levels, NOW, visual styling, notifications, color marks, or existing market-data polling frequencies.",
     "Make ONLY the clicked daily HA (yellow/purple average-K) price label background fully opaque (fill-opacity: 1), hiding any underlying NOW/CoinGlass labels; leave existing NOW and CoinGlass label transparency, HA guide transparency and all indicator calculations unchanged.",
     "Dismiss a click-selected daily HA extension immediately when pointer leaves the selected HA stair (in date or Y position), the plotting area, or the chart itself; also handle SVG replacement during live redraw.",
     "Render bullish 4H bodies with a translucent teal fill (~28%); bearish bodies stay hollow. Candle wicks remain outside the body.",

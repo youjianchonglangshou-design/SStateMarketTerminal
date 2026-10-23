@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.2.4 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.2.5 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -142,20 +142,10 @@
  // Exactly the SState monitor's daily CCI(20) + SMA(14) color rule.
  // Clone fetched candles; never change the cached historical source while the quote refreshes.
  function dailyAsOf(r){
-   const days=r.daily.map(b=>({...b})).sort((a,b)=>a.t-b.t);
-   if(!days.length)return days;
-   const day=Math.floor(Date.now()/DAY)*DAY,p=livePrice(r),last=days.at(-1);
-   if(!priceEnough(p))return days;
-   const live=r.liveOHLC;
-   if(live?.day===day&&[live.o,live.h,live.l,live.c].every(priceEnough)){
-     const candle={t:day,o:live.o,h:Math.max(live.h,live.o,live.c),l:Math.min(live.l,live.o,live.c),c:live.c,v:last?.t===day?last.v||0:0};
-     if(last.t===day)days[days.length-1]=candle;
-     else if(last.t<day)days.push(candle);
-   }else if(last.t===day){
-     last.c=p;last.h=Math.max(last.h,p);last.l=Math.min(last.l,p);
-   }
-   // Without a 1D opening OHLC, do not pretend yesterday's candle is today's.
-   return days;
+   // Share the same forming UTC daily candle across BB chart, daily HA, CCI,
+   // S state and midline badge. A 1D REST/TV feed can lag until its refresh;
+   // today's 4H OHLC plus a fresh quote must still advance today's 1D bands.
+   return window.LiqRadar4H.projectDaily(r.daily,r.bars4h,livePrice(r),Date.now(),r.liveOHLC);
  }
  function dailyHA(days){
    if(days.length<26)return null;
@@ -422,7 +412,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.2.4',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.2.5',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

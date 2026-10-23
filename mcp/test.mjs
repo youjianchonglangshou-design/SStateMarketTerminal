@@ -13,7 +13,7 @@ globalThis.fetch=async(url,options={})=>{
  if(u.hostname==='scanner.tradingview.com'){
   if(!tv)return new Response('{}',{status:403});
   const body=JSON.parse(options.body);
-  const data=body.symbols.tickers.map(s=>({s,d:[s.split(':')[1],50300,49900,50500,49700]}));
+  const data=(body.symbols?.tickers?.length ? body.symbols.tickers : ['PIONEX:BTCUSDT.P','PIONEX:AMDXUSDT.P']).map(s=>({s,d:[s.split(':')[1],50300,49900,50500,49700]}));
   return new Response(JSON.stringify({data}),{status:200});
  }
  if(u.hostname==='api.pionex.com' && u.pathname==='/api/v1/common/symbols'){
@@ -56,7 +56,38 @@ try{
  await check('Pionex contract paging',async()=>{const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{limit:1,offset:0}});const d=p.result.structuredContent;assert.equal(d.returned,1);assert.equal(d.total,2);assert.equal(d.has_more,true);});
  await check('Pionex direct 429 R2 fallback',async()=>{pionexSymbolApi=false;const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{query:'AAPL'}});const d=p.result.structuredContent;assert.equal(d.source,'SSTATE_MONITOR_R2');assert.equal(d.matched_total,1);assert.ok(d.warnings.some(w=>w.includes('429')));pionexSymbolApi=true;});
  await check('Pionex monitor partial is disclosed',async()=>{pionexSymbolApi=false;monitorUniversePartial=true;const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});assert.equal(p.result.structuredContent.partial,true);monitorUniversePartial=false;pionexSymbolApi=true;});
- await check('Pionex both sources unavailable returns MCP error',async()=>{pionexSymbolApi=false;monitorUniverse=false;const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});assert.equal(p.result.isError,true);pionexSymbolApi=true;monitorUniverse=true;});
+ await check('Pionex R2 direct survives 429 plus monitor 404',async()=>{
+  pionexSymbolApi=false;monitorUniverse=false;
+  const bucket={get:async(key)=>{
+    assert.equal(key,'pionex/cache/monitor_universe.json');
+    return {text:async()=>JSON.stringify({schema_version:'pionex-monitor-universe-v3',fetched_at:new Date().toISOString(),symbols:[
+      {symbol:'BTC_USDT_PERP',type:'PERP',base:'BTC',quote:'USDT'},
+      {symbol:'AMDX_USDT_PERP',type:'PERP',base:'AMDX',quote:'USDT'},
+      {symbol:'ETH_USDT',type:'SPOT',base:'ETH',quote:'USDT'}
+    ]})};
+  }};
+  const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{query:'AMD'}},{JSON_BUCKET:bucket});
+  const d=p.result.structuredContent;
+  assert.equal(p.result.isError,false);assert.equal(d.source,'SSTATE_R2_DIRECT');
+  assert.equal(d.total,2);assert.equal(d.matched_total,1);assert.equal(d.symbols[0].symbol,'AMDX_USDT_PERP');
+  assert.equal(d.partial,false);assert.equal(d.stale,false);
+  pionexSymbolApi=true;monitorUniverse=true;
+ });
+ await check('Pionex 429 and both cache paths down uses clearly partial TradingView',async()=>{
+  pionexSymbolApi=false;monitorUniverse=false;
+  const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});
+  const d=p.result.structuredContent;
+  assert.equal(p.result.isError,false);assert.equal(d.source,'TRADINGVIEW_PIONEX_SCAN');
+  assert.equal(d.total,2);assert.equal(d.partial,true);
+  assert.ok(d.warnings.some(w=>w.includes('third-party')));
+  pionexSymbolApi=true;monitorUniverse=true;
+ });
+ await check('Pionex all sources unavailable returns MCP error',async()=>{
+  pionexSymbolApi=false;monitorUniverse=false;tv=false;
+  const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});
+  assert.equal(p.result.isError,true);
+  pionexSymbolApi=true;monitorUniverse=true;tv=true;
+ });
  await check('Pionex invalid search rejected',async()=>{const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{query:'BTC&status=ALL'}});assert.equal(p.result.isError,true);});
  await check('indicators identical to original engine',async()=>{const p=await rpc('tools/call',{name:'get_market_states',arguments:{symbols:['BTC','ETH']}});const data=p.result.structuredContent;assert.equal(data.success,2);
   const revised=candles.map(x=>({...x}));revised[179]={...revised[179],time:today,open:49900,high:50500,low:49700,close:50300};

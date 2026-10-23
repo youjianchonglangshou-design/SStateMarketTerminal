@@ -31,7 +31,44 @@ function cleanRows(rows, type) {
   return [...output.values()];
 }
 
-export async function getPionexContracts(args = {}, { getJSON, monitorOrigin } = {}) {
+
+const R2_UNIVERSE_KEY = 'pionex/cache/monitor_universe.json';
+const TV_SCAN_URL = 'https://scanner.tradingview.com/crypto/scan';
+
+async function loadR2Universe(bucket) {
+  if (!bucket || typeof bucket.get !== 'function') throw Error('R2 JSON_BUCKET binding unavailable');
+  const object = await bucket.get(R2_UNIVERSE_KEY);
+  if (!object) throw Error('R2 universe object is missing: ' + R2_UNIVERSE_KEY);
+  const payload = JSON.parse(await object.text());
+  if (!Array.isArray(payload?.symbols) || payload.symbols.length === 0) throw Error('R2 universe is empty or invalid');
+  return payload;
+}
+
+async function loadTradingViewPionexPerps(getJSON) {
+  const body = {
+    filter: [{ left: 'exchange', operation: 'equal', right: 'PIONEX' }],
+    options: { lang: 'en' },
+    symbols: { query: { types: [] }, tickers: [] },
+    columns: ['name', 'close'],
+    range: [0, 5000]
+  };
+  const payload = await getJSON(TV_SCAN_URL, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!Array.isArray(payload?.data)) throw Error('TradingView screener returned no rows array');
+  const rows = [];
+  for (const item of payload.data) {
+    const ticker = String(item?.s || '').toUpperCase();
+    const match = /^PIONEX:([A-Z0-9._-]+)USDT\\.P$/.exec(ticker);
+    if (!match) continue;
+    rows.push({symbol: match[1] + '_USDT_PERP', base: match[1], quote: 'USDT', status: 'TRADING'});
+  }
+  if (!rows.length) throw Error('TradingView PIONEX USDT perpetual scan is empty');
+  return {rows, truncated: Number(payload.totalCount) > payload.data.length};
+}
+
+export async function getPionexContracts(args = {}, { getJSON, monitorOrigin, bucket } = {}) {
   if (typeof getJSON !== 'function') throw Error('getJSON is required');
   const type = args.type || 'PERP';
   if (!['PERP', 'SPOT', 'ALL'].includes(type)) throw Error('type must be PERP, SPOT or ALL');
@@ -59,23 +96,49 @@ export async function getPionexContracts(args = {}, { getJSON, monitorOrigin } =
   } catch (err) {
     warnings.push('Pionex official API unavailable: ' + String(err.message || err));
     rows = [];
-    if (!monitorOrigin) throw Error('Both official Pionex API and monitor R2 fallback unavailable: ' + warnings.join('; '));
-    try {
-      const payload = await getJSON(monitorOrigin.replace(/\/$/, '') + '/api/monitor/symbols');
-      if (!Array.isArray(payload?.symbols) || payload.symbols.length === 0) throw Error('monitor returned empty universe');
-      for (const t of types) {
-        const typeRows = payload.symbols.filter(row => String(row.type || '').toUpperCase() === t);
-        if (!typeRows.length) throw Error(`monitor lacks ${t} symbols`);
-        rows.push(...cleanRows(typeRows, t));
+    const problems = [];
+    const origins = [
+      { name: 'SSTATE_R2_DIRECT', read: () => loadR2Universe(bucket) }
+    ];
+    if (monitorOrigin) origins.push({
+      name: 'SSTATE_MONITOR_R2',
+      read: () => getJSON(monitorOrigin.replace(/\\/$/, '') + '/api/monitor/symbols')
+    });
+    for (const candidate of origins) {
+      try {
+        const payload = await candidate.read();
+        if (!Array.isArray(payload?.symbols) || !payload.symbols.length) throw Error('empty symbols universe');
+        const found = [];
+        for (const t of types) {
+          const selection = payload.symbols.filter(row => String(row.type || '').toUpperCase() === t);
+          if (!selection.length) throw Error('universe lacks ' + t);
+          found.push(...cleanRows(selection, t));
+        }
+        rows = found;
+        source = candidate.name;
+        fetchedAt = payload.fetched_at || null;
+        partial = payload.partial === true || !fetchedAt || String(payload.schema_version || '').includes('fallback');
+        if (partial) warnings.push(candidate.name + ': universe is partial or has no verified source timestamp');
+        break;
+      } catch (e) {
+        problems.push(candidate.name + ': ' + String(e.message || e));
       }
-      source = 'SSTATE_MONITOR_R2';
-      fetchedAt = payload.fetched_at || null;
-      partial = payload.partial === true || !fetchedAt;
-      if (partial) warnings.push('Monitor symbols are a partial fallback; cannot guarantee complete listing');
-      if (fetchedAt && Date.now() - Date.parse(fetchedAt) > 8 * 60 * 60 * 1000) warnings.push('Monitor symbols cache is more than 8 hours old');
-    } catch (e) {
-      throw Error('Both official Pionex API and monitor R2 fallback unavailable: ' + warnings.join('; ') + '; monitor: ' + String(e.message || e));
     }
+    if (!rows.length && type === 'PERP') {
+      try {
+        const tv = await loadTradingViewPionexPerps(getJSON);
+        rows = cleanRows(tv.rows, 'PERP');
+        source = 'TRADINGVIEW_PIONEX_SCAN';
+        fetchedAt = new Date().toISOString();
+        partial = true;
+        warnings.push('TradingView discovery is a third-party fallback; it does not prove the complete official Pionex listing'
+          + (tv.truncated ? ' (scan page was truncated)' : ''));
+      } catch (e) {
+        problems.push('TRADINGVIEW_PIONEX_SCAN: ' + String(e.message || e));
+      }
+    }
+    if (!rows.length) throw Error('All Pionex symbol sources unavailable: ' + [...warnings, ...problems].join('; '));
+    if (problems.length) warnings.push(...problems);
   }
   const unique = [...new Map(rows.map(row => [row.type + ':' + row.symbol, row])).values()];
   unique.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.type.localeCompare(b.type));
@@ -84,10 +147,10 @@ export async function getPionexContracts(args = {}, { getJSON, monitorOrigin } =
   return {
     type, quote: 'USDT', total: unique.length, matched_total: matched.length,
     returned: results.length, offset, has_more: offset + results.length < matched.length,
-    partial, source, fetched_at: fetchedAt, api_timestamp: apiTimestamp,
+    partial, stale: !!fetchedAt && (!Number.isFinite(Date.parse(fetchedAt)) || Date.now() - Date.parse(fetchedAt) > 8 * 60 * 60 * 1000), source, fetched_at: fetchedAt, api_timestamp: apiTimestamp,
     symbols: results, warnings,
     source_note: source === 'PIONEX_OFFICIAL_API'
       ? 'Official Pionex publicly listed active USDT symbols at request time.'
-      : 'Shared monitor universe cached in R2, not a live official API confirmation.'
+      : source === 'TRADINGVIEW_PIONEX_SCAN'\n        ? 'TradingView PIONEX perpetual ticker discovery; partial third-party coverage, not an official complete listing.'\n        : 'Shared monitor universe from R2; complete only as of its fetched_at timestamp, not a live official API confirmation.'
   };
 }

@@ -251,3 +251,38 @@
 .rc-ha-selection.is-ha-purple .rc-selected-price-box{fill:#372d47;stroke:#ac8ed4}
 .rc-ha-selection.is-ha-purple .rc-selected-price{fill:#dbc5ff}
 @media(max-width:900px){.radar-table{min-width:760px}.radar-chart-row .radar-area-4h{min-height:240px}.radar-summary-row .sym-name{font-size:18px}}
+
+
+/* v1.2.7 — fixed two-sided watchlist navigation, separate from chart/data logic. */
+:root{--liq-rail-width:clamp(108px,8.25vw,148px)}
+@media(min-width:1260px){
+  .shell{max-width:min(1490px,calc(100% - (2 * (var(--liq-rail-width) + 30px))))}
+}
+.liq-side-nav{position:fixed;z-index:75;top:100px;width:var(--liq-rail-width);max-height:calc(100dvh - 120px);padding:9px 7px 10px;background:rgba(7,25,39,.95);border:1px solid #294b63;border-radius:11px;box-shadow:0 12px 27px #0006;backdrop-filter:blur(9px);display:flex;flex-direction:column;gap:7px}
+.liq-side-nav.liq-nav-left{left:max(9px,calc((100vw - 1490px)/2 - var(--liq-rail-width) - 17px))}
+.liq-side-nav.liq-nav-right{right:max(9px,calc((100vw - 1490px)/2 - var(--liq-rail-width) - 17px))}
+.liq-nav-content{min-height:0;display:flex;flex-direction:column;gap:7px}
+.liq-nav-heading{font-size:11px;letter-spacing:.2px;font-weight:800;color:#a9d8e7;text-align:center;padding:4px 0 8px;border-bottom:1px solid #26485c;white-space:nowrap}
+.liq-nav-count{color:#61d0d7;margin-left:4px;font-size:10px;font-weight:700}
+.liq-nav-list{min-height:0;max-height:calc(100dvh - 185px);overflow:auto;display:flex;flex-direction:column;gap:5px;scrollbar-width:thin;scrollbar-color:#346078 transparent}
+.liq-nav-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:9px 7px;color:#c3dcec;text-align:left;border:1px solid #23435b;background:#0b2538;border-radius:6px;transition:background .15s,border-color .15s,color .15s;white-space:nowrap;min-width:0}
+.liq-nav-item:hover,.liq-nav-item:focus-visible{background:#14455c;color:#eefbff;border-color:#45abc0;outline:0}
+.liq-nav-item[aria-current="location"]{color:#e9fffc;border-color:#23adac;background:#0d464d;box-shadow:inset 3px 0 #29dbc1}
+.liq-nav-symbol{font-size:12px;font-weight:850;overflow:hidden;text-overflow:ellipsis}
+.liq-nav-quote{font-size:9px;font-variant-numeric:tabular-nums;color:#88adc0;overflow:hidden;text-overflow:ellipsis;max-width:60px}
+.liq-nav-item[aria-current="location"] .liq-nav-quote{color:#8fe2d8}
+.liq-nav-toggle{display:none}
+.radar-summary-row.radar-jump-target{outline:2px solid #42ceb9;outline-offset:-2px;box-shadow:inset 0 0 0 2px #35c5b94d}
+.radar-summary-row{scroll-margin-top:16px}
+@media(max-width:1259px){
+  .liq-side-nav{top:125px;width:43px;padding:6px 4px;max-height:calc(100dvh - 143px);transition:width .15s ease}
+  .liq-side-nav.liq-nav-left{left:4px}
+  .liq-side-nav.liq-nav-right{right:4px}
+  .liq-side-nav .liq-nav-content{display:none}
+  .liq-side-nav .liq-nav-toggle{display:block;writing-mode:vertical-rl;min-height:94px;width:100%;padding:10px 7px;letter-spacing:2px;text-align:center;font-size:11px;font-weight:750;background:#0c3e51;border-color:#35657a}
+  .liq-side-nav.is-open{width:164px}
+  .liq-side-nav.is-open .liq-nav-toggle{writing-mode:horizontal-tb;min-height:0;letter-spacing:0}
+  .liq-side-nav.is-open .liq-nav-content{display:flex}
+  .liq-side-nav .liq-nav-list{max-height:calc(100dvh - 228px)}
+}
+@media(prefers-reduced-motion:reduce){.liq-nav-item,.liq-side-nav{transition:none}}

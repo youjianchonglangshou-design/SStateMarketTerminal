@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.2.6 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.2.7 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -227,7 +227,7 @@
      :`平均 K：前日${ha.priorColor||'--'}，今日${ha.color}（維持原色）`;
  }
  function makeRow(r){
-   const tr=el('tr','radar-summary-row');
+   const tr=el('tr','radar-summary-row');tr.dataset.symbol=r.id;
    const tIndex=el('td','row-index');const markBtn=el('button','liq-mark-trigger',String(r.index+1));markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.setAttribute('aria-label',`標記 ${r.id} 的顏色`);markBtn.title=`${r.id}：點擊選擇註記顏色`;tIndex.append(markBtn);
    const tSymbol=el('td','chart-symbol-col');const name=el('span','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
    const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed','4H K線 · Pionex / TradingView');tSymbol.append(head,px,sf);
@@ -339,6 +339,7 @@
    const body=$('radarBody'),frag=document.createDocumentFragment();
    rows.forEach(r=>{frag.append(r.dom.tr,r.dom.chartTr);});
    body.replaceChildren(frag);
+   if(!navJumpUntil||Date.now()>navJumpUntil)syncNavFromScroll();
    if(!rows.length){const tr=el('tr'),td=el('td','empty','沒有符合的標的；請檢查 symbols.js 或篩選條件');td.colSpan=6;tr.append(td);body.append(tr);}
    document.querySelectorAll('.radar-table thead th[data-sort]').forEach(th=>{
      const active=th.dataset.sort===state.sort;
@@ -346,6 +347,90 @@
      th.classList.toggle('sorted',active);
      const indicator=th.querySelector('.sort-indicator');if(indicator)indicator.textContent=active?(state.sortDir===1?'▲':'▼'):'';
    });
+ }
+ // Floating rails bind directly to symbols.js records and stable symbol identities.
+ const navButtons=new Map();
+ let navActive='',navScrollQueued=false,navJumpUntil=0,navPulseTimer=0;
+ function setNavActive(id){
+   if(navActive===id)return;
+   navActive=id;
+   for(const [key,element] of navButtons){
+     if(key===id)element.btn.setAttribute('aria-current','location');
+     else element.btn.removeAttribute('aria-current');
+   }
+ }
+ function syncNavFromScroll(){
+   if(Date.now()<navJumpUntil)return;
+   const shown=[...$('radarBody').querySelectorAll('tr.radar-summary-row')];
+   if(!shown.length)return;
+   let near=shown[0].dataset.symbol;
+   for(const tr of shown){if(tr.getBoundingClientRect().top<=125)near=tr.dataset.symbol;else break;}
+   setNavActive(near);
+ }
+ function closeNavDrawers(){
+   for(const side of ['crypto','stock']){
+     const host=$('liq-'+side+'-nav');host.classList.remove('is-open');
+     host.querySelector('.liq-nav-toggle').setAttribute('aria-expanded','false');
+   }
+ }
+ function jumpToSymbol(r){
+   if(state.group!=='all'||state.search){
+     state.group='all';state.search='';$('searchInput').value='';
+     document.querySelectorAll('#groupFilters button').forEach(btn=>btn.classList.toggle('active',btn.dataset.group==='all'));
+     reorder();renderOverview();
+   }
+   closeNavDrawers();
+   if(!r.dom?.tr?.isConnected)return;
+   clearTimeout(navPulseTimer);
+   document.querySelectorAll('.radar-jump-target').forEach(tr=>tr.classList.remove('radar-jump-target'));
+   r.dom.tr.classList.add('radar-jump-target');
+   navPulseTimer=setTimeout(()=>r.dom?.tr?.classList.remove('radar-jump-target'),1800);
+   navJumpUntil=Date.now()+1050;
+   setNavActive(r.id);
+   r.dom.tr.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth',block:'start'});
+ }
+ function setupSideNav(){
+   for(const group of ['crypto','stock']){
+     const host=$('liq-'+group+'-nav'),list=$('liq-'+group+'-list');
+     if(!host||!list)continue;
+     const subset=records.filter(r=>r.s.group===group);
+     $('liq-'+group+'-side-count').textContent=subset.length;
+     const frag=document.createDocumentFragment();
+     for(const r of subset){
+       const btn=el('button','liq-nav-item');btn.type='button';btn.dataset.symbol=r.id;
+       btn.title='跳至 '+r.id+' 的 4H K 線圖';
+       btn.setAttribute('aria-label','跳至 '+r.id+' 的圖表');
+       const symbol=el('span','liq-nav-symbol',r.id),quote=el('span','liq-nav-quote','—');
+       btn.append(symbol,quote);btn.addEventListener('click',()=>jumpToSymbol(r));
+       navButtons.set(r.id,{btn,quote});frag.append(btn);
+     }
+     list.replaceChildren(frag);
+     const toggle=host.querySelector('.liq-nav-toggle');
+     toggle.addEventListener('click',()=>{
+       const wasOpen=host.classList.contains('is-open');closeNavDrawers();
+       host.classList.toggle('is-open',!wasOpen);
+       toggle.setAttribute('aria-expanded',String(!wasOpen));
+     });
+   }
+   document.addEventListener('pointerdown',e=>{
+     if(!e.target.closest('.liq-side-nav'))closeNavDrawers();
+   });
+   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeNavDrawers();});
+   window.addEventListener('scroll',()=>{
+     if(navScrollQueued)return;navScrollQueued=true;
+     requestAnimationFrame(()=>{navScrollQueued=false;syncNavFromScroll();});
+   },{passive:true});
+   window.addEventListener('resize',()=>{
+     if(window.innerWidth>=1260)closeNavDrawers();
+     syncNavFromScroll();
+   },{passive:true});
+   setNavActive(records[0]?.id||'');
+ }
+ function updateNavPrices(){
+   for(const r of records){
+     const item=navButtons.get(r.id);if(!item)continue;
+     const price=livePrice(r);item.quote.textContent=priceEnough(price)?MONEY(price):'—';
+   }
  }
  function chooseSort(key,headerClick){
    const defaults={watchlist:1,marked_color:1,symbol:1,near:1,sstate:-1,midline:-1,ha:-1,cci:-1,bull_pair:-1,bear_pair:-1,upper:-1,lower:-1,edge:-1};
@@ -356,6 +441,7 @@
  }
  function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,proxy=records.filter(r=>r.source==='proxy').length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
    $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
+   updateNavPrices();
    $('loadedCount').textContent=`已顯示 ${currentRows().length}／${records.length} 個 · 更新 ${state.priceAt?new Date(state.priceAt).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei'}):'等待中'}`;
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
  }
@@ -392,6 +478,7 @@
  function setup(){const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};$('cryptoCount').textContent=counts.crypto;$('stockCount').textContent=counts.stock;$('allCount').textContent=records.length;
    for(const r of records)r.dom={};for(const r of records)r.dom=null;
    for(const r of records)makeRow(r);
+   setupSideNav();
    document.querySelectorAll('#groupFilters button').forEach(btn=>btn.addEventListener('click',()=>{state.group=btn.dataset.group;document.querySelectorAll('#groupFilters button').forEach(x=>x.classList.toggle('active',x===btn));reorder();renderOverview();}));
    $('searchInput').addEventListener('input',e=>{state.search=String(e.target.value||'').trim().toUpperCase();reorder();renderOverview();});
    $('sortBy').addEventListener('change',e=>chooseSort(e.target.value,false));
@@ -412,7 +499,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.2.6',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.2.7',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

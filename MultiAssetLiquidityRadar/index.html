@@ -3,12 +3,26 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827">
 <title>Multi-Asset Liquidity Radar | 即時清算總覽</title>
-<link rel="stylesheet" href="./style.css?v=1.2.6">
+<link rel="stylesheet" href="./style.css?v=1.2.7">
 </head>
 <body>
+<aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣快速跳轉">
+  <button class="liq-nav-toggle" type="button" aria-expanded="false" aria-controls="liq-crypto-list">加密貨幣</button>
+  <div class="liq-nav-content">
+    <div class="liq-nav-heading">加密貨幣 <span class="liq-nav-count" id="liq-crypto-side-count">0</span></div>
+    <nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密貨幣標的導覽"></nav>
+  </div>
+</aside>
+<aside class="liq-side-nav liq-nav-right" id="liq-stock-nav" aria-label="美股代幣快速跳轉">
+  <button class="liq-nav-toggle" type="button" aria-expanded="false" aria-controls="liq-stock-list">美股／商品</button>
+  <div class="liq-nav-content">
+    <div class="liq-nav-heading">美股／商品 <span class="liq-nav-count" id="liq-stock-side-count">0</span></div>
+    <nav class="liq-nav-list" id="liq-stock-list" aria-label="美股代幣及商品標的導覽"></nav>
+  </div>
+</aside>
 <div class="shell">
 <header class="topbar">
-  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.2.6</span></div><div class="subtitle">4H 真實 K 線 × 日線布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
+  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.2.7</span></div><div class="subtitle">4H 真實 K 線 × 日線布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
   <div class="header-status"><a class="home-link" href="../index.html" title="返回 SState Market Terminal 主站">← SState 主站</a>
     <div class="fg-popover" id="fgPopover">
       <button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button>
@@ -76,8 +90,8 @@
 <script defer src="../config.js"></script>
 <script defer src="../monitor-engine.js?v=0.3.22"></script>
 <script defer src="./symbols.js"></script>
-<script defer src="./chart4h.js?v=1.2.6"></script>
-<script defer src="./app.js?v=1.2.6"></script>
+<script defer src="./chart4h.js?v=1.2.7"></script>
+<script defer src="./app.js?v=1.2.7"></script>
 <script defer src="./alerts.js"></script>
 <script defer src="./color-marks.js?v=1.1.13"></script>
 <script defer src="./fear-greed-popover.js?v=1.1.14"></script>

@@ -1,7 +1,11 @@
 {
-  "version": "1.2.6",
+  "version": "1.2.7",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Add floating crypto and tokenized-stock/commodity navigation rails using symbols.js watchlist groups; show fresh quotes from existing in-page records without new API calls.",
+    "Clicking a sidebar item smoothly scrolls to its original symbol row and briefly highlights it, regardless of the table sort. When a filter/search hides the symbol, reset to all and reveal it automatically.",
+    "Keep sidebars visible while scrolling; current symbol is highlighted. On narrower viewports collapse rails into expandable edge tabs to avoid obscuring charts.",
+    "Preserve all 4H charts, daily signals, 7D liquidity, persistent color flags, Telegram bells, and existing refresh intervals.",
     "Show TradingView-like 4H OHLC open/high/low/close values at the upper-left of every chart; default to the current unfinished 4H candle, inspect historical 4H candles only while the cursor is over those bars, and restore current on mouse exit.",
     "Show a live right-axis crosshair price label for the mouse Y coordinate whenever the pointer moves inside the plot; keep the true price independent of CoinGlass/NOW or HA levels and display in the three empty right-side candle slots.",
     "Preserve S-state, 1D BB(20,2), 1D midline/CCI/HA, 7D liquidity, 4H candles, alerts, colors, HA click-to-expand, and existing refresh frequency.",

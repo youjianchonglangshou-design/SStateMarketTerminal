@@ -365,3 +365,19 @@
   .radar-sticky-panel .header-status{gap:4px}
   .radar-sticky-panel .header-status a,.radar-sticky-panel .header-status button{padding:5px 6px}
 }
+
+
+/* v1.3.3 — sidebar day-open (08:00 TPE) directional quotes and daily % change. */
+.liq-nav-item{min-height:36px;padding:5px 6px;gap:4px}
+.liq-nav-values{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;min-width:0;gap:1px;line-height:1.15;font-variant-numeric:tabular-nums}
+.liq-nav-symbol{flex:0 1 auto;font-size:11px}
+.liq-nav-quote{max-width:none;font-size:9px;font-weight:750;white-space:nowrap}
+.liq-nav-change{font-size:9px;font-weight:850;white-space:nowrap;color:#748fa3}
+.liq-nav-item.is-up .liq-nav-quote,.liq-nav-item.is-up .liq-nav-change,
+.liq-nav-item.is-up[aria-current="location"] .liq-nav-quote{color:#35ddb0}
+.liq-nav-item.is-down .liq-nav-quote,.liq-nav-item.is-down .liq-nav-change,
+.liq-nav-item.is-down[aria-current="location"] .liq-nav-quote{color:#fa7185}
+.liq-nav-item.is-flat .liq-nav-quote,.liq-nav-item.is-flat .liq-nav-change,
+.liq-nav-item.is-flat[aria-current="location"] .liq-nav-quote{color:#bad0d9}
+/* A selected symbol without a verified daily reference stays neutral. */
+.liq-nav-item[aria-current="location"]:not(.is-up):not(.is-down):not(.is-flat) .liq-nav-quote{color:#88adc0}

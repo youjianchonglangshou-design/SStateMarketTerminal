@@ -1,7 +1,11 @@
 {
-  "version": "1.3.2",
-  "releaseDate": "2026-10-23",
+  "version": "1.3.3",
+  "releaseDate": "2026-10-24",
   "changes": [
+    "Color both side navigation prices and daily change percentages green when above the current daily open, red when below, neutral when unchanged; show signed daily percentages.",
+    "Use 1D OHLC open for the Asia/Taipei 08:00 trading day, falling back ONLY to the UTC midnight 4H bar; do not use an arbitrary 4H/scanner open as the daily reference.",
+    "For stale live quotes or unavailable current-day daily open, avoid misleading green/red and show an unavailable change marker.",
+    "Keep existing live quote updates, both sidebars, top sticky filters, charts, and TradingView-like OHLC interaction intact.",
     "Reduce the pinned header height by merging the title/subtitle, sorting dropdown and right-hand action buttons into a compact top command row, eliminating the formerly empty second row.",
     "Keep the coverage/legend strip and genuinely sticky six-column clickable table header directly below that row.",
     "Retain sidebar navigation, sorting behavior, marker and alert controls, and all existing chart/data calculations; use responsive wrapping only where necessary.",

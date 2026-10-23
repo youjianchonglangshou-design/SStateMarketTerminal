@@ -406,8 +406,10 @@
        btn.title='跳至 '+r.id+' 的 4H K 線圖';
        btn.setAttribute('aria-label','跳至 '+r.id+' 的圖表');
        const symbol=el('span','liq-nav-symbol',r.id),quote=el('span','liq-nav-quote','—');
-       btn.append(symbol,quote);btn.addEventListener('click',()=>jumpToSymbol(r));
-       navButtons.set(r.id,{btn,quote});frag.append(btn);
+       const change=el('span','liq-nav-change','—'),values=el('span','liq-nav-values');
+       values.append(quote,change);btn.append(symbol,values);
+       btn.addEventListener('click',()=>jumpToSymbol(r));
+       navButtons.set(r.id,{btn,quote,change});frag.append(btn);
      }
      list.replaceChildren(frag);
      const toggle=host.querySelector('.liq-nav-toggle');
@@ -431,10 +433,35 @@
    },{passive:true});
    setNavActive(records[0]?.id||'');
  }
+ // Taiwan's 08:00 daily reset is UTC 00:00. Never use the TV Scanner
+ // open column as daily open: it can represent the current 4H bar instead.
+ // If the daily feed has not loaded, the 00:00 UTC 4H bar is the only
+ // safe fallback; a later 4H candle is not today's actual open.
+ function navDayOpen(r,now=Date.now()){
+   const start=Math.floor(now/DAY)*DAY;
+   const currentDaily=(r.daily||[]).findLast(b=>b&&Number.isFinite(b.t)&&Math.floor(b.t/DAY)*DAY===start&&priceEnough(b.o));
+   if(currentDaily)return currentDaily.o;
+   const first4h=(r.bars4h||[]).find(b=>b&&b.t===start&&priceEnough(b.o));
+   return first4h?first4h.o:null;
+ }
  function updateNavPrices(){
+   const now=Date.now();
    for(const r of records){
      const item=navButtons.get(r.id);if(!item)continue;
-     const price=livePrice(r);item.quote.textContent=priceEnough(price)?MONEY(price):'—';
+     const price=livePrice(r),open=navDayOpen(r,now);
+     item.quote.textContent=priceEnough(price)?MONEY(price):'—';
+     item.btn.classList.remove('is-up','is-down','is-flat');
+     if(!priceEnough(price)||!priceEnough(open)){
+       item.change.textContent='—';
+       item.btn.title='跳至 '+r.id+' 的 4H K 線圖（日線開盤價尚未取得）';
+       continue;
+     }
+     const dayPct=(price/open-1)*100;
+     const sign=dayPct>0?'+':dayPct<0?'-':'';
+     const abs=Math.abs(dayPct);
+     item.change.textContent=sign+abs.toFixed(abs>0&&abs<.01?4:2)+'%';
+     item.btn.classList.add(dayPct>0?'is-up':dayPct<0?'is-down':'is-flat');
+     item.btn.title=r.id+' ｜ 日線開盤 '+MONEY(open)+' ｜ 現價 '+MONEY(price)+' ｜ '+item.change.textContent;
    }
  }
  function chooseSort(key,headerClick){
@@ -504,7 +531,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.3.1',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.3.3',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

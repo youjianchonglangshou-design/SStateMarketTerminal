@@ -1,4 +1,4 @@
-# SStateMarketTerminal MCP v0.3.1
+# SStateMarketTerminal MCP v0.3.2
 
 An isolated, read-only Cloudflare Worker exposing the existing SStateMarketTerminal daily indicator engine through eleven remote MCP tools.
 
@@ -20,7 +20,7 @@ One-time GitHub repository secrets, under **Settings â†’ Secrets and variables â
 ## Automatic synchronization (enabled)
 
 - **Every push to `main`**, including edits to root `monitor-engine.js`, `mcp/worker.mjs`, or any webpage file, starts `Deploy SState MCP` automatically. No schedule and no manual button required.
-- The workflow uses the **exact commit that triggered the run**, executes **32 local MCP checks**, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and all eleven MCP tools.
+- The workflow uses the **exact commit that triggered the run**, executes local MCP checks, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and all eleven MCP tools.
 - The MCP URL stays unchanged: `https://sstate-mcp.youjianchonglangshou.workers.dev/mcp`.
 - S state, BB midline, HA, and CCI-SMA logic is **bundled from the root `monitor-engine.js`**. Updates to that shared engine are reflected in the MCP after a successful deploy.
 - The *existing production website Worker*, R2, Telegram, and cron are untouched.
@@ -56,7 +56,7 @@ Deployment source: `mcp/wrangler.toml`. To deploy manually: `npx wrangler deploy
 - `type=ALL`: query both endpoints, merge and deduplicate without hiding any USDT rows.
 - Optional `query` matches symbol or base, e.g. `AMDX`, `BTC`, `ETH`. `offset`/`limit` permit paging; omitting `limit` returns the entire matching universe in one MCP call.
 - Returns official `source`, `api_timestamp`, request `fetched_at`, `total`, `matched_total`, `has_more`, and `symbols`.
-- When Pionex blocks the Cloudflare IP or returns 429, fall back to the same **`/api/monitor/symbols`** endpoint used by `monitor.html`. The result is identified as `SSTATE_MONITOR_R2` (not claimed live). The UI's partial seed universe is flagged `partial:true`, stale data gets a warning, and a dual-source failure returns an explicit tool error; never invent listings.
+- When Pionex blocks the Cloudflare IP or returns 429, the MCP now reads the **existing R2 object directly** from the same account (`JSON_BUCKET`: `sstate-market-data`, key `pionex/cache/monitor_universe.json`) instead of relying on the previously broken `white-meadow-16bc` intermediary. R2 results have `source: SSTATE_R2_DIRECT`, `fetched_at`, `stale`, and `partial` indicators. If the direct R2 object is missing, it tries the legacy monitor HTTP endpoint, then for PERP only discovers TradingView `PIONEX:` USDT `.P` tickers; TradingView is always marked `partial: true`, never claimed as a verified complete Pionex universe. No fabricated symbols, no API credentials, no new scheduled job. Data source failure is disclosed rather than hidden.
 - Read-only; this MCP feature neither modifies the monitor web page nor adds a GitHub Actions schedule. The existing `scan_market_states` is still limited to 30 explicit symbols per call; this new discovery tool alone does not automatically scan the entire exchange.
 
 Example request:

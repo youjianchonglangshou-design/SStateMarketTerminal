@@ -1,11 +1,11 @@
-/* MultiAssetLiquidityRadar v1.2.2
+/* MultiAssetLiquidityRadar v1.2.3
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
  */
 (function(root){'use strict';
  const H4=14400000,DAY=86400000,BLANK_CANDLES=3;
- // Transient chart interaction survives a 10-second live redraw, but never mouseleave.
+ // Selection follows the clicked daily HA stair only while the pointer stays near that stair; never persists on hover-away.
  const interactions=new WeakMap();
  const valid=n=>Number.isFinite(n)&&n>0;
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -109,7 +109,7 @@
      const wickTop=y(r.h),wickBottom=y(r.l),bodyBottom=bodyTop+bodyHeight;
      if(wickTop<bodyTop-0.15)svg.push(`<line class="rc-wick ${c}" x1="${fmt(xx)}" x2="${fmt(xx)}" y1="${fmt(wickTop)}" y2="${fmt(bodyTop)}"/>`);
      if(wickBottom>bodyBottom+0.15)svg.push(`<line class="rc-wick ${c}" x1="${fmt(xx)}" x2="${fmt(xx)}" y1="${fmt(bodyBottom)}" y2="${fmt(wickBottom)}"/>`);
-     svg.push(`<rect class="rc-candle ${c}" x="${fmt(xx-w/2)}" y="${fmt(bodyTop)}" width="${fmt(w)}" height="${fmt(bodyHeight)}" fill="none"/>`);
+     svg.push(`<rect class="rc-candle ${c}" x="${fmt(xx-w/2)}" y="${fmt(bodyTop)}" width="${fmt(w)}" height="${fmt(bodyHeight)}" fill="${r.c>=r.o?'rgba(13,185,175,0.28)':'none'}"/>`);
    });
    // The 1D HA close is held throughout that UTC day, usually six real 4H candles.
    let prev=null;
@@ -149,12 +149,20 @@
    let state=interactions.get(target);
    if(!state){
      state={selectedTimestamp:null,inside:false};interactions.set(target,state);
-     // Target survives innerHTML redraw: a fresh API price cannot strand a label.
-     target.addEventListener('pointerleave',()=>{
+     // Delegate to the stable host: refreshes replace SVG children every 10 seconds.
+     // Hide immediately on leaving the plotting area, including the price-axis region.
+     const clear=()=>{
        state.inside=false;state.selectedTimestamp=null;
        target.querySelector('.rc-cursor')?.setAttribute('visibility','hidden');
        target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
-     });
+     };
+     target.addEventListener('pointerleave',clear);
+     target.addEventListener('mouseleave',clear);
+     // Some browsers do not deliver pointerleave when the SVG is replaced mid-hover.
+     // A document-level pointer movement outside the chart must still clear it.
+     document.addEventListener('pointermove',ev=>{
+       if(state.selectedTimestamp!==null&&(!target.isConnected||!target.contains(ev.target)))clear();
+     },{passive:true});
    }
    function paintSelected(){
      const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
@@ -184,13 +192,30 @@
    }
    hit.addEventListener('pointermove',ev=>{
      state.inside=true;
-     const pos=locate(ev);if(!pos){cursor.setAttribute('visibility','hidden');return;}
+     const pos=locate(ev);
+     if(!pos){cursor.setAttribute('visibility','hidden');state.selectedTimestamp=null;selected.setAttribute('visibility','hidden');return;}
      const {i,yy,r}=pos,xx=x(i),cx=clamp(xx,L+61,plotR-61);
+     // Click-to-inspect, NOT click-to-lock: leaving the clicked 1D HA stair
+     // (in price OR in date) immediately dismisses its extension and badge.
+     if(state.selectedTimestamp!==null){
+       const picked=rows.find(q=>q.t===state.selectedTimestamp);
+       if(!picked?.ha||!r.ha||dayOf(r.t)!==dayOf(picked.t)||Math.abs(yy-y(picked.ha.price))>14){
+         state.selectedTimestamp=null;selected.setAttribute('visibility','hidden');
+       }
+     }
      cursor.setAttribute('visibility','visible');
      const vLine=cursor.querySelector('.rc-hover-v');vLine.setAttribute('x1',xx);vLine.setAttribute('x2',xx);
      const hLine=cursor.querySelector('.rc-hover-h');hLine.setAttribute('y1',yy);hLine.setAttribute('y2',yy);
      cursor.querySelector('.rc-hover-time-box').setAttribute('x',cx-61);
      const time=cursor.querySelector('.rc-hover-time');time.setAttribute('x',cx);time.textContent=clock(r.t);
+   });
+   hit.addEventListener('pointerleave',()=>{
+     state.inside=false;state.selectedTimestamp=null;
+     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');
+   });
+   hit.addEventListener('mouseleave',()=>{
+     state.inside=false;state.selectedTimestamp=null;
+     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');
    });
    hit.addEventListener('click',ev=>{
      const pos=locate(ev);if(!pos)return;

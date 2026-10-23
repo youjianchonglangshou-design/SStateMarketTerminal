@@ -214,25 +214,27 @@
 .rc-middle{stroke:#868b9b;stroke-width:1.05;stroke-dasharray:5 5;fill:none;opacity:.29;vector-effect:non-scaling-stroke}
 .rc-wick{stroke-width:1.05;opacity:.70;vector-effect:non-scaling-stroke}
 .rc-wick.rc-up{stroke:#09aeaa}.rc-wick.rc-down{stroke:#e44851}
-.rc-candle{fill:none!important;opacity:.82;stroke-width:1.05;vector-effect:non-scaling-stroke}.rc-candle.rc-up{stroke:#0db9af}.rc-candle.rc-down{stroke:#ea4b54}
+.rc-candle{opacity:.85;stroke-width:1.05;vector-effect:non-scaling-stroke}.rc-candle.rc-up{stroke:#0db9af;fill:rgba(13,185,175,.28)}.rc-candle.rc-down{stroke:#ea4b54;fill:none}
 .rc-ha-step{stroke-width:3.25;stroke-linecap:square;vector-effect:non-scaling-stroke}
 .rc-ha-yellow{stroke:#ffe448}.rc-ha-purple{stroke:#bda0e8}
-.rc-level{stroke-width:2.15;stroke-dasharray:8 5;vector-effect:non-scaling-stroke}
-.rc-level-up{stroke:#48dd9c}.rc-level-down{stroke:#f07c8d}.rc-level-now{stroke:#5fe5ef;stroke-width:2.3}
-.rc-label-leader{fill:none;stroke-width:1.1}.rc-label-leader.rc-label-up{stroke:#48dd9c}.rc-label-leader.rc-label-down{stroke:#f07c8d}.rc-label-leader.rc-label-now{stroke:#5fe5ef}
+.rc-level{stroke-width:1.15;stroke-dasharray:6 7;opacity:.6;vector-effect:non-scaling-stroke}
+.rc-level-up{stroke:#48dd9c}.rc-level-down{stroke:#f07c8d}.rc-level-now{stroke:#5fe5ef;stroke-width:1.35}
+.rc-label-leader{fill:none;stroke-width:.9;opacity:.62}.rc-label-leader.rc-label-up{stroke:#48dd9c}.rc-label-leader.rc-label-down{stroke:#f07c8d}.rc-label-leader.rc-label-now{stroke:#5fe5ef}
 .rc-label-box.rc-label-up{fill:#135c48;stroke:#2ab38b}.rc-label-box.rc-label-down{fill:#652e44;stroke:#ed8298}.rc-label-box.rc-label-now{fill:#125974;stroke:#53cbe4}
-.rc-label-text{font-size:10.5px;font-weight:800;fill:#e8fcff;font-variant-numeric:tabular-nums}
+.rc-label-text{font-size:10.5px;font-weight:750;fill:#e8fcff;opacity:.85;font-variant-numeric:tabular-nums}
+.rc-label-box{fill-opacity:.60;stroke-opacity:.56}
 .rc-hover-v,.rc-hover-h{stroke:#d6e9f2;stroke-width:1;stroke-dasharray:5 5;opacity:.82;vector-effect:non-scaling-stroke}
 .rc-hover-price-box,.rc-hover-time-box{fill:#244c64;stroke:#b4d7eb;stroke-width:1}
 .rc-hover-price,.rc-hover-time{fill:#f0fbff;font-size:11px;font-weight:700}
-/* Price extension is shown only after clicking an HA step; disappears on mouseleave. */
+/* HA extension: click to inspect, moving off the clicked stair or chart dismisses it. */
 .rc-hit{cursor:crosshair}
 .rc-hover-v,.rc-hover-h{opacity:.35;stroke:#9093a3;stroke-dasharray:3 6}
 .rc-hover-time-box{fill:#262833;stroke:#4c4d5b}
 .rc-hover-time{fill:#afb3c4}
-.rc-selected-guide{stroke-width:1.8;stroke-dasharray:6 5;vector-effect:non-scaling-stroke}
-.rc-selected-dot{stroke:#101116;stroke-width:1.5}
-.rc-selected-price{font-size:11px;font-weight:850;font-variant-numeric:tabular-nums}
+.rc-selected-guide{stroke-width:1;stroke-dasharray:4 7;opacity:.45;vector-effect:non-scaling-stroke}
+.rc-selected-dot{stroke:#101116;stroke-width:1.1;opacity:.72}
+.rc-selected-price{font-size:11px;font-weight:770;opacity:.87;font-variant-numeric:tabular-nums}
+.rc-selected-price-box{fill-opacity:.63;stroke-opacity:.60}
 .rc-ha-selection.is-ha-yellow .rc-selected-guide{stroke:#ffe448}
 .rc-ha-selection.is-ha-yellow .rc-selected-dot{fill:#ffe448}
 .rc-ha-selection.is-ha-yellow .rc-selected-price-box{fill:#443c18;stroke:#d8bf37}

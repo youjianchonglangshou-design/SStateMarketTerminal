@@ -1,7 +1,11 @@
 {
-  "version": "1.2.2",
+  "version": "1.2.3",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Dismiss a click-selected daily HA extension immediately when pointer leaves the selected HA stair (in date or Y position), the plotting area, or the chart itself; also handle SVG replacement during live redraw.",
+    "Render bullish 4H bodies with a translucent teal fill (~28%); bearish bodies stay hollow. Candle wicks remain outside the body.",
+    "Subtly fade CoinGlass/NOW label backgrounds and edges, thin and fade level dash lines; soften selected HA extension guide and right-side numeric price badge.",
+    "Keep all original 1D indicators, real 4H OHLC, real 7D boundaries, and existing alarm and marker behavior unchanged.",
     "Render real 4H up and down candle bodies as transparent hollow rectangles; draw wicks as two separate segments outside each body.",
     "Use TradingView-inspired near-black charcoal chart background with low-contrast grid, date tick and price-axis colors.",
     "Only clicking directly on a 1D HA yellow/purple step reveals its same-color dashed price extension and right-axis value; moving the mouse alone never displays HA price.",

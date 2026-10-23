@@ -231,6 +231,13 @@
 .rc-hover-v,.rc-hover-h{opacity:.35;stroke:#9093a3;stroke-dasharray:3 6}
 .rc-hover-time-box{fill:#262833;stroke:#4c4d5b}
 .rc-hover-time{fill:#afb3c4}
+.rc-hover-price-box{fill:#253a4d;fill-opacity:.94;stroke:#6f90a8;stroke-opacity:.75}
+.rc-hover-price{font-variant-numeric:tabular-nums;fill:#c7edff;font-weight:700;font-size:11px}
+.rc-ohlc-overlay{position:absolute;top:7px;left:24px;display:flex;align-items:center;flex-wrap:wrap;gap:12px;pointer-events:none;z-index:1;font:11px/1.25 Arial,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #101116}
+.rc-ohlc-field{display:inline-flex;gap:2px;white-space:nowrap}
+.rc-ohlc-caption{color:#a2a4b2}
+.rc-ohlc-value{color:#1bc1b6}
+.rc-ohlc-overlay.is-falling .rc-ohlc-value{color:#dc6476}
 .rc-selected-guide{stroke-width:1;stroke-dasharray:4 7;opacity:.45;vector-effect:non-scaling-stroke}
 .rc-selected-dot{stroke:#101116;stroke-width:1.1;opacity:.72}
 .rc-selected-price{font-size:11px;font-weight:770;opacity:.87;font-variant-numeric:tabular-nums}

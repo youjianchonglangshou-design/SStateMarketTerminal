@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.2.5
+/* MultiAssetLiquidityRadar v1.2.6
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
@@ -167,31 +167,53 @@
      svg.push(`<text class="rc-label-text rc-label-${lab.kind}" x="${plotR+9}" y="${fmt(lab.yy+4)}">${esc(lab.text)}</text>`);
    }
    // Moving only shows the time crosshair. HA extension is an explicit click action.
-   svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text></g>`);
+   svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text><rect class="rc-hover-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-hover-price" x="${plotR+9}" y="0">—</text></g>`);
    svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
    svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/></svg>`);
-   target.innerHTML=svg.join('');
+   // Small TradingView-like 4H OHLC strip: show the current candle by default,
+   // and temporarily inspect a historical candle only while the pointer is over it.
+   const ohlcStrip='<div class="rc-ohlc-overlay" aria-label="4H K線開高低收" aria-live="off">'+
+     [['open','開'],['high','高'],['low','低'],['close','收']].map(([key,title])=>
+       `<span class="rc-ohlc-field" data-field="${key}"><span class="rc-ohlc-caption">${title}=</span><span class="rc-ohlc-value">—</span></span>`).join('')+'</div>';
+   target.innerHTML=svg.join('')+ohlcStrip;
    target.dataset.candles='4H';target.dataset.indicators='1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
    const element=target.querySelector('svg'),hit=element.querySelector('.rc-hit');
+   const strip=target.querySelector('.rc-ohlc-overlay');
+   const showOHLC=bar=>{
+     if(!bar)return;
+     for(const [key,value] of [['open',bar.o],['high',bar.h],['low',bar.l],['close',bar.c]]){
+       const field=strip.querySelector(`[data-field="${key}"] .rc-ohlc-value`);
+       if(field)field.textContent=money(value);
+     }
+     strip.classList.toggle('is-rising',bar.c>=bar.o);
+     strip.classList.toggle('is-falling',bar.c<bar.o);
+     strip.dataset.candleTime=String(bar.t);
+   };
+   const latestBar=rows.at(-1);
+   showOHLC(latestBar);
    const cursor=element.querySelector('.rc-cursor'),selected=element.querySelector('.rc-ha-selection');
    let state=interactions.get(target);
    if(!state){
-     state={selectedTimestamp:null,inside:false};interactions.set(target,state);
+     state={selectedTimestamp:null,inside:false,pointer:null};interactions.set(target,state);
      // Delegate to the stable host: refreshes replace SVG children every 10 seconds.
      // Hide immediately on leaving the plotting area, including the price-axis region.
      const clear=()=>{
-       state.inside=false;state.selectedTimestamp=null;
+       state.inside=false;state.pointer=null;state.selectedTimestamp=null;
        target.querySelector('.rc-cursor')?.setAttribute('visibility','hidden');
        target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
+       state.resetOHLC?.();
      };
      target.addEventListener('pointerleave',clear);
      target.addEventListener('mouseleave',clear);
      // Some browsers do not deliver pointerleave when the SVG is replaced mid-hover.
      // A document-level pointer movement outside the chart must still clear it.
      document.addEventListener('pointermove',ev=>{
-       if(state.selectedTimestamp!==null&&(!target.isConnected||!target.contains(ev.target)))clear();
+       if(state.inside&&(!target.isConnected||!target.contains(ev.target)))clear();
      },{passive:true});
    }
+   // Refreshes replace SVG nodes; registered host pointer-leave handlers must
+   // always restore the newest candle, not a stale bar from the previous render.
+   state.resetOHLC=()=>showOHLC(latestBar);
    function paintSelected(){
      const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
      if(!state.inside||i<0||!r?.ha||r.ha.color==='gray'){
@@ -214,15 +236,18 @@
      const rect=element.getBoundingClientRect();if(!rect.width||!rect.height)return null;
      const xx=(ev.clientX-rect.left)/rect.width*W,yy=(ev.clientY-rect.top)/rect.height*H;
      const i=Math.floor((xx-L)/stride);
-     // Last three blank slots cannot select the latest real candle.
-     if(i<0||i>=rows.length)return null;
-     return {i,xx,yy,r:rows[i]};
+     if(i<0||i>=rows.length+BLANK_CANDLES||yy<T||yy>plotB)return null;
+     // Empty future slots have a crosshair price, but no historical OHLC candle.
+     const r=rows[i]||null;
+     return {i,xx,yy,r,time:r?.t??latestBar.t+(i-rows.length+1)*H4};
    }
-   hit.addEventListener('pointermove',ev=>{
+   function movePointer(ev){
      state.inside=true;
+     state.pointer={clientX:ev.clientX,clientY:ev.clientY};
      const pos=locate(ev);
-     if(!pos){cursor.setAttribute('visibility','hidden');state.selectedTimestamp=null;selected.setAttribute('visibility','hidden');return;}
-     const {i,yy,r}=pos,xx=x(i),cx=clamp(xx,L+61,plotR-61);
+     if(!pos){cursor.setAttribute('visibility','hidden');state.selectedTimestamp=null;selected.setAttribute('visibility','hidden');showOHLC(latestBar);return;}
+     const {i,yy,r,time}=pos,xx=x(i),cx=clamp(xx,L+61,plotR-61);
+     showOHLC(r||latestBar);
      // Click-to-inspect, NOT click-to-lock: leaving the clicked 1D HA stair
      // (in price OR in date) immediately dismisses its extension and badge.
      if(state.selectedTimestamp!==null){
@@ -234,16 +259,23 @@
      cursor.setAttribute('visibility','visible');
      const vLine=cursor.querySelector('.rc-hover-v');vLine.setAttribute('x1',xx);vLine.setAttribute('x2',xx);
      const hLine=cursor.querySelector('.rc-hover-h');hLine.setAttribute('y1',yy);hLine.setAttribute('y2',yy);
+     // True cursor Y price (not the nearest candle close or snapped price level).
+     const priceAtCursor=max-(yy-T)/ph*(max-min);
+     const hoverPriceY=clamp(yy-9,T,plotB-19);
+     cursor.querySelector('.rc-hover-price-box').setAttribute('y',hoverPriceY);
+     const hoverPrice=cursor.querySelector('.rc-hover-price');
+     hoverPrice.setAttribute('y',hoverPriceY+13);hoverPrice.textContent=money(priceAtCursor);
      cursor.querySelector('.rc-hover-time-box').setAttribute('x',cx-61);
-     const time=cursor.querySelector('.rc-hover-time');time.setAttribute('x',cx);time.textContent=clock(r.t);
-   });
+     const timeText=cursor.querySelector('.rc-hover-time');timeText.setAttribute('x',cx);timeText.textContent=clock(time);
+   }
+   hit.addEventListener('pointermove',movePointer);
    hit.addEventListener('pointerleave',()=>{
-     state.inside=false;state.selectedTimestamp=null;
-     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');
+     state.inside=false;state.pointer=null;state.selectedTimestamp=null;
+     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');showOHLC(latestBar);
    });
    hit.addEventListener('mouseleave',()=>{
-     state.inside=false;state.selectedTimestamp=null;
-     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');
+     state.inside=false;state.pointer=null;state.selectedTimestamp=null;
+     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');showOHLC(latestBar);
    });
    hit.addEventListener('click',ev=>{
      const pos=locate(ev);if(!pos)return;
@@ -254,6 +286,8 @@
      state.selectedTimestamp=h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12?r.t:null;
      paintSelected();
    });
+   // Restore a crosshair during polling redraw when the pointer has not moved.
+   if(state.inside&&state.pointer)movePointer(state.pointer);
    // A pending click-selected HA price survives live redraw while pointer is inside.
    paintSelected();
  }

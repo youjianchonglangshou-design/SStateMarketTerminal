@@ -1,7 +1,10 @@
 {
-  "version": "1.2.5",
+  "version": "1.2.6",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Show TradingView-like 4H OHLC open/high/low/close values at the upper-left of every chart; default to the current unfinished 4H candle, inspect historical 4H candles only while the cursor is over those bars, and restore current on mouse exit.",
+    "Show a live right-axis crosshair price label for the mouse Y coordinate whenever the pointer moves inside the plot; keep the true price independent of CoinGlass/NOW or HA levels and display in the three empty right-side candle slots.",
+    "Preserve S-state, 1D BB(20,2), 1D midline/CCI/HA, 7D liquidity, 4H candles, alerts, colors, HA click-to-expand, and existing refresh frequency.",
     "FIX: Daily BB(20,2) now reaches the current 4H candle by projecting an in-progress 1D candle from today's 4H OHLC, replacing its unfinished daily close with a fresh live quote; retain 19 previous real daily closes and the shared population-stdev algorithm.",
     "Daily indicator badges (S-state, midline slope, HA and CCI) and BB chart now use this same 1D projection, including when the 1D provider has not yet returned today's candle. At Asia/Taipei 08:00 a new daily candle begins; past candles never change.",
     "No changes to 4H candle timeframe, CoinGlass levels, NOW, visual styling, notifications, color marks, or existing market-data polling frequencies.",

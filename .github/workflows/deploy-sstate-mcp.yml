@@ -22,7 +22,15 @@ jobs:
         run: node mcp/test.mjs
       - name: Embed triggering commit in independent Worker
         run: |
-          printf '\nDEPLOY_COMMIT = "%s"\n' "$GITHUB_SHA" >> mcp/wrangler.toml
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'mcp/wrangler.toml';
+          const rows = fs.readFileSync(path, 'utf8').split(/\r?\n/);
+          const varsIndex = rows.findIndex(line => line.trim() === '[vars]');
+          if (varsIndex < 0) throw Error('wrangler.toml is missing [vars]');
+          rows.splice(varsIndex + 1, 0, 'DEPLOY_COMMIT = "' + process.env.GITHUB_SHA + '"');
+          fs.writeFileSync(path, rows.join('\n'));
+          NODE
       - name: Deploy independent sstate-mcp Worker
         uses: cloudflare/wrangler-action@v3
         with:

@@ -60,7 +60,7 @@ async function loadTradingViewPionexPerps(getJSON) {
   const rows = [];
   for (const item of payload.data) {
     const ticker = String(item?.s || '').toUpperCase();
-    const match = /^PIONEX:([A-Z0-9._-]+)USDT\\.P$/.exec(ticker);
+    const match = /^PIONEX:([A-Z0-9._-]+)USDT\.P$/.exec(ticker);
     if (!match) continue;
     rows.push({symbol: match[1] + '_USDT_PERP', base: match[1], quote: 'USDT', status: 'TRADING'});
   }
@@ -102,7 +102,7 @@ export async function getPionexContracts(args = {}, { getJSON, monitorOrigin, bu
     ];
     if (monitorOrigin) origins.push({
       name: 'SSTATE_MONITOR_R2',
-      read: () => getJSON(monitorOrigin.replace(/\\/$/, '') + '/api/monitor/symbols')
+      read: () => getJSON(monitorOrigin.replace(/\/$/, '') + '/api/monitor/symbols')
     });
     for (const candidate of origins) {
       try {
@@ -151,6 +151,8 @@ export async function getPionexContracts(args = {}, { getJSON, monitorOrigin, bu
     symbols: results, warnings,
     source_note: source === 'PIONEX_OFFICIAL_API'
       ? 'Official Pionex publicly listed active USDT symbols at request time.'
-      : source === 'TRADINGVIEW_PIONEX_SCAN'\n        ? 'TradingView PIONEX perpetual ticker discovery; partial third-party coverage, not an official complete listing.'\n        : 'Shared monitor universe from R2; complete only as of its fetched_at timestamp, not a live official API confirmation.'
+      : source === 'TRADINGVIEW_PIONEX_SCAN'
+        ? 'TradingView PIONEX perpetual ticker discovery; partial third-party coverage, not an official complete listing.'
+        : 'Shared monitor universe from R2; complete only as of its fetched_at timestamp, not a live official API confirmation.'
   };
 }

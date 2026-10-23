@@ -6,3 +6,9 @@ workers_dev = true
 [vars]
 UPSTREAM_BASE_URL = "https://white-meadow-16bc.youjianchonglangshou.workers.dev"
 ENABLE_PRIVATE_WATCHLIST = "false"
+
+# Read the SAME R2 cache already populated by the original monitor-symbol sync.
+# MCP accesses the bucket read-only in application code; no new service or schedule.
+[[r2_buckets]]
+binding = "JSON_BUCKET"
+bucket_name = "sstate-market-data"

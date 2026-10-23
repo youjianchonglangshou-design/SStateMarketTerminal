@@ -7,7 +7,7 @@ const today=Math.floor(Date.now()/86400000)*86400000;
 const candles=Array.from({length:180},(_,i)=>{const time=today-(179-i)*86400000;const mid=45000+300*Math.sin(i/12)+i*13;return {time,open:mid-70,high:mid+140,low:mid-130,close:mid+50,volume:300+i};});
 const originalFetch=globalThis.fetch;
 const bars15=Array.from({length:300},(_,i)=>{const t=Date.now()-((299-i)*900000),mid=50300+800*Math.sin(i/14);return {time:t,open:mid-25,high:mid+150,low:mid-170,close:mid+30,volume:100+i%20};});
-let tv=true,upstream=true;
+let tv=true,upstream=true,pionexSymbolApi=true,monitorUniverse=true,monitorUniversePartial=false;
 globalThis.fetch=async(url,options={})=>{
  const u=new URL(url);
  if(u.hostname==='scanner.tradingview.com'){
@@ -15,6 +15,16 @@ globalThis.fetch=async(url,options={})=>{
   const body=JSON.parse(options.body);
   const data=body.symbols.tickers.map(s=>({s,d:[s.split(':')[1],50300,49900,50500,49700]}));
   return new Response(JSON.stringify({data}),{status:200});
+ }
+ if(u.hostname==='api.pionex.com' && u.pathname==='/api/v1/common/symbols'){
+  if(!pionexSymbolApi)return new Response('{}',{status:429});
+  const type=u.searchParams.get('type');
+  const symbols=type==='PERP'?[{symbol:'BTC_USDT_PERP',baseCurrency:'BTC',quoteCurrency:'USDT',status:'TRADING'},{symbol:'AMDX_USDT_PERP',baseCurrency:'AMDX',quoteCurrency:'USDT',status:'TRADING'},{symbol:'ETH_USDT_PERP',baseCurrency:'ETH',quoteCurrency:'USDT',status:'OFFLINE'},{symbol:'BTC_USDC_PERP',quoteCurrency:'USDC',status:'TRADING'}]:[{symbol:'BTC_USDT',baseCurrency:'BTC',quoteCurrency:'USDT',enable:true},{symbol:'SHIB_USDT',quoteCurrency:'USDT',enable:false}];
+  return new Response(JSON.stringify({result:true,timestamp:Date.now(),data:{symbols}}));
+ }
+ if(u.pathname==='/api/monitor/symbols'){
+  if(!monitorUniverse)return new Response('{}',{status:404});
+  return new Response(JSON.stringify({symbols:[{symbol:'BTC_USDT_PERP',type:'PERP',base:'BTC',quote:'USDT'},{symbol:'AAPLX_USDT_PERP',type:'PERP',base:'AAPLX',quote:'USDT'},{symbol:'BTC_USDT',type:'SPOT',base:'BTC',quote:'USDT'}],fetched_at:new Date().toISOString(),partial:monitorUniversePartial,source:'Pionex sync to R2'}));
  }
  if(u.pathname==='/api/monitor/klines'){
   if(!upstream)return new Response('{}',{status:502});
@@ -40,7 +50,14 @@ async function rpc(method,params={},env={},headers={}){
 }
 try{
  await check('initialize',async()=>{const p=await rpc('initialize',{protocolVersion:'2025-11-25'});assert.equal(p.result.protocolVersion,'2025-11-25');});
- await check('tools list ten tools',async()=>{const p=await rpc('tools/list');assert.equal(p.result.tools.length,10);assert.ok(p.result.tools.every(t=>t.annotations.readOnlyHint));assert.ok(p.result.tools.find(x=>x.name==='get_liquidation_bounds'));assert.ok(p.result.tools.find(x=>x.name==='get_fear_greed_today'));});
+ await check('tools list eleven tools',async()=>{const p=await rpc('tools/list');assert.equal(p.result.tools.length,11);assert.ok(p.result.tools.some(t=>t.name==='get_pionex_contracts')); assert.ok(p.result.tools.every(t=>t.annotations.readOnlyHint));assert.ok(p.result.tools.find(x=>x.name==='get_liquidation_bounds'));assert.ok(p.result.tools.find(x=>x.name==='get_fear_greed_today'));});
+ await check('Pionex PERP official list filters disabled and non-USDT',async()=>{const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});const d=p.result.structuredContent;assert.equal(d.source,'PIONEX_OFFICIAL_API');assert.equal(d.total,2);assert.equal(d.partial,false);assert.ok(d.symbols.some(r=>r.symbol==='AMDX_USDT_PERP'));assert.ok(!d.symbols.some(r=>r.symbol==='ETH_USDT_PERP'));});
+ await check('Pionex all markets and search',async()=>{const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{type:'ALL',query:'BTC'}});const d=p.result.structuredContent;assert.equal(d.total,3);assert.equal(d.matched_total,2);assert.deepEqual(d.symbols.map(r=>r.type).sort(),['PERP','SPOT']);});
+ await check('Pionex contract paging',async()=>{const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{limit:1,offset:0}});const d=p.result.structuredContent;assert.equal(d.returned,1);assert.equal(d.total,2);assert.equal(d.has_more,true);});
+ await check('Pionex direct 429 R2 fallback',async()=>{pionexSymbolApi=false;const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{query:'AAPL'}});const d=p.result.structuredContent;assert.equal(d.source,'SSTATE_MONITOR_R2');assert.equal(d.matched_total,1);assert.ok(d.warnings.some(w=>w.includes('429')));pionexSymbolApi=true;});
+ await check('Pionex monitor partial is disclosed',async()=>{pionexSymbolApi=false;monitorUniversePartial=true;const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});assert.equal(p.result.structuredContent.partial,true);monitorUniversePartial=false;pionexSymbolApi=true;});
+ await check('Pionex both sources unavailable returns MCP error',async()=>{pionexSymbolApi=false;monitorUniverse=false;const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{}});assert.equal(p.result.isError,true);pionexSymbolApi=true;monitorUniverse=true;});
+ await check('Pionex invalid search rejected',async()=>{const p=await rpc('tools/call',{name:'get_pionex_contracts',arguments:{query:'BTC&status=ALL'}});assert.equal(p.result.isError,true);});
  await check('indicators identical to original engine',async()=>{const p=await rpc('tools/call',{name:'get_market_states',arguments:{symbols:['BTC','ETH']}});const data=p.result.structuredContent;assert.equal(data.success,2);
   const revised=candles.map(x=>({...x}));revised[179]={...revised[179],time:today,open:49900,high:50500,low:49700,close:50300};
   const a=engine.analyze(revised);const row=data.results[0];assert.equal(row.price,a.price);assert.equal(row.s_state,a.s_state);assert.equal(row.average_k,a.average_k);assert.equal(row.cci_sma,a.cci_sma);assert.deepEqual(row.midline_details,a.midline);});

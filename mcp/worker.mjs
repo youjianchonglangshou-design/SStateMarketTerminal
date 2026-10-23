@@ -5,16 +5,18 @@
 import '../monitor-engine.js';
 import { fallbackDailyHistory } from './source-fallbacks.mjs';
 import { getLiquidityBounds, getFearGreedToday } from './radar-data.mjs';
+import { getPionexContracts } from './pionex-contracts.mjs';
 const Engine = globalThis.SStateMonitorEngine;
 const DEFAULT_UPSTREAM = 'https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const TV_URL = 'https://scanner.tradingview.com/crypto/scan';
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 const SCHEMA = {type:'object',additionalProperties:false};
 const symbolList = n => ({type:'array',items:{type:'string',minLength:1,maxLength:45},minItems:1,maxItems:n});
 const symProps = {symbols:symbolList(20),type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}};
 const TOOLS=[
 {name:'get_liquidation_bounds',description:'For ANY valid ticker, fetch actual CoinGlass 7D maximum-pain upper/lower liquidation levels from original MultiAssetLiquidityRadar; if unavailable optionally compute clearly labeled 15m estimated leverage price zones using the EXACT radar bucket formula. Never conflate proxy with CoinGlass or suggest probabilities.',inputSchema:{...SCHEMA,properties:{symbol:{type:'string',minLength:1,maxLength:45},allow_proxy:{type:'boolean'}},required:['symbol']}},
 {name:'get_fear_greed_today',description:'Read today latest CMC cryptocurrency Fear and Greed index (0-100) from the original radar CMC Worker; include sentiment classification, date, update time, stale marker and six-color semantics. Not Alternative.me.',inputSchema:{...SCHEMA,properties:{}}},
+{name:'get_pionex_contracts',description:'Fetch ALL currently listed active Pionex USDT perpetual contracts via official GET /api/v1/common/symbols?type=PERP&status=TRADING; or SPOT/ALL. Search by symbol/base and optionally paginate. If official API is blocked, reuse the monitor R2 universe with source, timestamp, and partial/staleness warnings. Read-only, no API key.',inputSchema:{...SCHEMA,properties:{type:{type:'string',enum:['PERP','SPOT','ALL']},query:{type:'string',maxLength:50},offset:{type:'integer',minimum:0,maximum:20000},limit:{type:'integer',minimum:1,maximum:2000}}}},
 {name:'get_market_states',description:'Get daily SStateMarketTerminal S state, midline slope, Heikin-Ashi color, CCI-SMA color, based on ORIGINAL monitor-engine.js; returns data freshness and quote source.',inputSchema:{...SCHEMA,properties:symProps,required:['symbols']}},
 {name:'scan_market_states',description:'Filter up to 30 PERP or SPOT symbols by real calculated S state, midline, average K and CCI-SMA. Supply symbols; private watchlist is disabled by default.',inputSchema:{...SCHEMA,properties:{...symProps,symbols:symbolList(30),source:{type:'string',enum:['symbols','watchlist']},s_state:{type:'string'},midline:{type:'string',enum:['rising','flat','flattening','falling','unknown']},average_k:{type:'string',enum:['yellow','purple','gray']},cci_sma:{type:'string',enum:['yellow','purple','gray']},limit:{type:'integer',minimum:1,maximum:30},sort_by:{type:'string',enum:['symbol','day_change_pct','midline','s_state']}},required:[]}},
 {name:'get_symbol_detail',description:'Read one symbol, calculated original indicators, and 30-day original chart indicators.',inputSchema:{...SCHEMA,properties:{symbol:{type:'string'},type:{type:'string',enum:['PERP','SPOT']},use_live:{type:'boolean'}},required:['symbol']}},
@@ -181,6 +183,7 @@ async function invoke(name,args,env,req){
  if(name==='get_model')return api(env,'/api/model/active');
  if(name==='get_liquidation_bounds')return getLiquidityBounds(args.symbol,{allowProxy:args.allow_proxy!==false,upstream:upstream(env)});
  if(name==='get_fear_greed_today')return getFearGreedToday();
+ if(name==='get_pionex_contracts')return getPionexContracts(args,{getJSON:readJson,monitorOrigin:upstream(env)});
  if(name==='get_watchlist')return privateWatchlist(env,req);
  if(name==='find_symbols'){
   const data=await api(env,'/api/snapshot?market='+market);

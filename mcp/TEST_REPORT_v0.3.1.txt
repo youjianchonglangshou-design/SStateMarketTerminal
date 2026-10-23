@@ -1,0 +1,16 @@
+SStateMarketTerminal MCP v0.3.1 — Pionex Contract Universe
+
+Date: 2026-10-23 (Taipei)
+Scope: MCP read-only addition; the original monitor, R2, upstream worker, and indicator engine remain unchanged.
+
+Added: get_pionex_contracts (PERP / SPOT / ALL, query, offset, limit).
+Primary: Pionex public GET /api/v1/common/symbols?type=PERP&status=TRADING.
+Backup: existing /api/monitor/symbols R2 universe, explicitly marked cached/partial as needed.
+
+Tests (run `node mcp/test.mjs`): 32/32 PASS in mocked integration tests.
+Covered: official list; active USDT filtering; AMDX; SPOT/ALL; query; pagination; HTTP 429 fallback; partial flag; dual outage; invalid query; all prior technical indicators, liquidation bounds, fear-greed and read-only MCP tests.
+
+Live deployment: NOT PERFORMED by this package.
+Live official API verification: NOT POSSIBLE from isolated sandbox network (DNS unavailable).
+After GitHub commit, the pre-existing deploy workflow will test and deploy MCP.
+The GitHub Actions workflow now confirms the eleventh tool exists.

@@ -1,6 +1,6 @@
-# SStateMarketTerminal MCP v0.3.0
+# SStateMarketTerminal MCP v0.3.1
 
-An isolated, read-only Cloudflare Worker exposing the existing SStateMarketTerminal daily indicator engine through ten remote MCP tools.
+An isolated, read-only Cloudflare Worker exposing the existing SStateMarketTerminal daily indicator engine through eleven remote MCP tools.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ One-time GitHub repository secrets, under **Settings → Secrets and variables �
 ## Automatic synchronization (enabled)
 
 - **Every push to `main`**, including edits to root `monitor-engine.js`, `mcp/worker.mjs`, or any webpage file, starts `Deploy SState MCP` automatically. No schedule and no manual button required.
-- The workflow uses the **exact commit that triggered the run**, executes **25 local MCP checks**, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and the ten MCP tools.
+- The workflow uses the **exact commit that triggered the run**, executes **32 local MCP checks**, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and all eleven MCP tools.
 - The MCP URL stays unchanged: `https://sstate-mcp.youjianchonglangshou.workers.dev/mcp`.
 - S state, BB midline, HA, and CCI-SMA logic is **bundled from the root `monitor-engine.js`**. Updates to that shared engine are reflected in the MCP after a successful deploy.
 - The *existing production website Worker*, R2, Telegram, and cron are untouched.
@@ -47,7 +47,27 @@ node mcp/test.mjs
 
 Deployment source: `mcp/wrangler.toml`. To deploy manually: `npx wrangler deploy --config mcp/wrangler.toml`.
 
+## Pionex complete contract universe (new in MCP v0.3.1)
+
+`get_pionex_contracts` retrieves active USDT pairs directly from the official public endpoint:
+
+- PERP (default): `GET https://api.pionex.com/api/v1/common/symbols?type=PERP&status=TRADING`
+- SPOT: `GET https://api.pionex.com/api/v1/common/symbols?type=SPOT`
+- `type=ALL`: query both endpoints, merge and deduplicate without hiding any USDT rows.
+- Optional `query` matches symbol or base, e.g. `AMDX`, `BTC`, `ETH`. `offset`/`limit` permit paging; omitting `limit` returns the entire matching universe in one MCP call.
+- Returns official `source`, `api_timestamp`, request `fetched_at`, `total`, `matched_total`, `has_more`, and `symbols`.
+- When Pionex blocks the Cloudflare IP or returns 429, fall back to the same **`/api/monitor/symbols`** endpoint used by `monitor.html`. The result is identified as `SSTATE_MONITOR_R2` (not claimed live). The UI's partial seed universe is flagged `partial:true`, stale data gets a warning, and a dual-source failure returns an explicit tool error; never invent listings.
+- Read-only; this MCP feature neither modifies the monitor web page nor adds a GitHub Actions schedule. The existing `scan_market_states` is still limited to 30 explicit symbols per call; this new discovery tool alone does not automatically scan the entire exchange.
+
+Example request:
+
+```json
+{"name":"get_pionex_contracts","arguments":{"type":"PERP","query":"AMDX"}}
+```
+
 ## MCP tools
+
+- `get_pionex_contracts`: full active Pionex USDT PERP/spot symbol directory with direct official API and existing monitor-R2 fallback.
 
 - `get_liquidation_bounds`: query **any valid ticker** for CoinGlass 7D maximum-pain liquidation upper/lower bounds, falling back to the radar's 15-minute OHLC synthetic leverage proxy zones when requested. Return source, quote time, freshness, error and `is_estimate`. PEPE/1000PEPE scaling supported.
 - `get_fear_greed_today`: today's **CMC** cryptocurrency Fear and Greed value (0–100), classification, date, 6-color transition semantics and freshness using the existing `cmc-fear-greed` Cloudflare Worker with an official keyless CoinMarketCap API fallback if the existing Worker returns 404. Does not substitute Alternative.me.
@@ -68,4 +88,4 @@ The GitHub Actions deploy pipeline is the definitive remote deployment/check res
 
 ## ChatGPT plugin refresh after adding tools
 
-After this deployment, open **ChatGPT → Plugins → SStateMarketTerminal → Refresh / Reconnect tools** as supported by the UI. Because two NEW tools were added (`get_liquidation_bounds`, `get_fear_greed_today`), ChatGPT may retain its prior tool schema until refreshed. The MCP server URL and secrets remain unchanged.
+After this deployment, open **ChatGPT → Plugins → SStateMarketTerminal → Refresh / Reconnect tools** as supported by the UI. Because a NEW tool was added (`get_pionex_contracts`), ChatGPT may retain its prior tool schema until refreshed. The MCP server URL and secrets remain unchanged.

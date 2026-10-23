@@ -1,6 +1,6 @@
-/* Multi-Asset Liquidity Radar v1.1.15 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.2.0 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
- * No K-line charts, no frozen snapshots, no overnight settlements.
+ * Interactive 4H real OHLC, Bollinger, daily HA staircase, 7D levels.
  */
 (()=>{'use strict';
  const $=id=>document.getElementById(id);
@@ -17,7 +17,7 @@
  const providerOverrides=Object.freeze({WTI:{tv:'PIONEX:CLUSDT.P',pionex:'WTI_USDT_PERP',cg:['CL']},CL:{tv:'PIONEX:CLUSDT.P',pionex:'WTI_USDT_PERP',cg:['CL']}});
  function canonical(s){const over=providerOverrides[String(s.id).toUpperCase()];return over?{...s,...over,cg:[...new Set([...over.cg,...(s.cg||[])])]}:{...s};}
  const entries=Array.isArray(window.LIQ_SYMBOLS)?window.LIQ_SYMBOLS.map(canonical):[];
- const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceFeed:'',bars15:[],daily:[],barsAt:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
+ const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceFeed:'',bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
  const state={cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],jobSet:new Set(),networkLog:[],renderAt:0};
  const currentRows=()=>records.filter(r=>(state.group==='all'||r.s.group===state.group)&&(!state.search||r.id.toUpperCase().includes(state.search)||r.s.cg.some(x=>x.toUpperCase().includes(state.search))));
  const sourceName=r=>r.source==='coinglass'?'CoinGlass 7D（1週）':r.source==='proxy'?'15M 代理估算':'等待上下界';
@@ -208,7 +208,7 @@
    if(cg&&(!priceEnough(p)||(cg.upper>p&&cg.lower<p))){r.up=cg.upper;r.down=cg.lower;r.source='coinglass';r.errors.cg='';}
    else if(r.zones.upper.length&&r.zones.lower.length){r.up=r.zones.upper[0].price;r.down=r.zones.lower[0].price;r.source='proxy';r.errors.cg=!fresh?(state.cgError||'CoinGlass 更新失敗'):!cg?'CoinGlass 無此標的':'CoinGlass 價格不包住現價';}
    else{r.up=null;r.down=null;r.source='none';r.errors.cg=!fresh?(state.cgError||'CoinGlass 尚未取得'):cg?'CoinGlass 上下界不適用當前價格':'CoinGlass 無此標的／代理資料不足';}
-   calcModel(r);
+   // Probability model is not calculated in the redesigned chart view.
  }
  function calcModel(r){r.model=null;const engine=window.BTCLiqEngine,weights=window.BTCLiqModel;if(!engine?.features||!weights?.probabilities){r.errors.model='BTC 模型尚未載入';return;}
    const now=Date.now(),closed=r.bars15.filter(x=>x.t+MS<=now);if(closed.length<340){r.errors.model=`15M 歷史不足 340 根 (${closed.length})`;return;}
@@ -236,30 +236,28 @@
      ?`平均 K：前日${ha.priorColor}，今日轉${ha.color}（轉色首日）`
      :`平均 K：前日${ha.priorColor||'--'}，今日${ha.color}（維持原色）`;
  }
- function makeRow(r){const tr=el('tr');const tIndex=el('td','row-index');const markBtn=el('button','liq-mark-trigger',String(r.index+1));markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.setAttribute('aria-label',`標記 ${r.id} 的顏色`);markBtn.title=`${r.id}：點擊選擇註記顏色`;tIndex.append(markBtn);const tSymbol=el('td');const name=el('div','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed',r.s.group==='stock'?'Pionex 美股／商品':'Pionex 加密合約');tSymbol.append(head,px,sf);
-   const tRadar=el('td');const plot=el('div','radar-area');const micro=el('div','radar-micro');const l=el('span'),rr=el('span');micro.append(l,rr);tRadar.append(plot,micro);
+ function makeRow(r){
+   const tr=el('tr','radar-summary-row');
+   const tIndex=el('td','row-index');const markBtn=el('button','liq-mark-trigger',String(r.index+1));markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.setAttribute('aria-label',`標記 ${r.id} 的顏色`);markBtn.title=`${r.id}：點擊選擇註記顏色`;tIndex.append(markBtn);
+   const tSymbol=el('td','chart-symbol-col');const name=el('span','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
+   const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed','4H K線 · Pionex / TradingView');tSymbol.append(head,px,sf);
    const tS=el('td');const sw=el('div','state-wrap');const sBadge=el('span','state-badge unknown','--');const sSub=el('div','state-sub','等待日線');sw.append(sBadge,sSub);tS.append(sw);
    const tMid=el('td');const mw=el('div','mid-wrap');const midLabel=el('span','mid-label unknown','--');const midSub=el('div','mid-sub','等待日線');mw.append(midLabel,midSub);tMid.append(mw);
    const tHa=el('td');const hw=el('div','ha-wrap');const ha=el('span','ha-color unknown','--');const hn=el('div','ha-sub','等待日線');hw.append(ha,hn);tHa.append(hw);
    const tCci=el('td');const cw=el('div','ha-wrap');const cci=el('span','ha-color unknown','--');const cn=el('div','ha-sub','等待日線');cw.append(cci,cn);tCci.append(cw);
-   const tProb=el('td');const pp=el('div','prob-layout');const upBox=el('div','prob-side');const upK=el('div','prob-kicker','先上掃');const upNum=el('div','prob-num up','--');upBox.append(upK,upNum);const downBox=el('div','prob-side right');const downK=el('div','prob-kicker','先下掃');const downNum=el('div','prob-num down','--');downBox.append(downK,downNum);pp.append(upBox,downBox);const pBars=el('div','prob-bars');const pFill=el('div','prob-upbar');pBars.append(pFill);const pLabel=el('div','prob-label','BTC 模型等待中');tProb.append(pp,pBars,pLabel);
-   tr.append(tIndex,tSymbol,tRadar,tS,tMid,tHa,tCci,tProb);r.dom={tr,tIndex,name,px,sf,plot,l,rr,sBadge,sSub,midLabel,midSub,ha,hn,cci,cn,upNum,downNum,pFill,pLabel};return tr;}
- function plotRadar(r){const {plot,l,rr}=r.dom;plot.replaceChildren();const price=livePrice(r);
-   if(!(priceEnough(r.up)&&priceEnough(r.down)&&priceEnough(price))){plot.append(el('div','radar-empty',!priceEnough(price)?'等待即時現價…':'等待有效上下清算界…'));l.textContent=sourceName(r);rr.textContent='';return;}
-   const high=Math.max(r.up,price,r.down),low=Math.min(r.up,price,r.down),span=Math.max(high-low,price*.0005);
-   // Dynamic vertical positions reflect price's distance from each boundary.
-   const y=v=>clamp(14+(high-v)/span*72,14,86);
-   for(const [type,val,tag] of [['up',r.up,'上'],['now',price,'NOW'],['down',r.down,'下']]){
-     const line=el('div','radar-line '+type);line.style.top=y(val)+'%';line.title=tag+' '+MONEY(val);
-     const label=el('div','radar-price-label '+type,tag+' '+MONEY(val));label.style.top=y(val)+'%';label.title=tag+' '+MONEY(val);
-     plot.append(line,label);
-   }
-   const du=(r.up/price-1)*100,dd=(price/r.down-1)*100;
-   l.textContent=(r.source==='coinglass'?'● CoinGlass':'● 15M代理')+' · 上 '+(Number.isFinite(du)?'+'+pct(du):'--');l.className='up';
-   rr.textContent='下 -'+pct(dd)+' · '+(du<dd?'靠近上界':du>dd?'靠近下界':'等距');rr.className='down';
+   tr.append(tIndex,tSymbol,tS,tMid,tHa,tCci);
+   const chartTr=el('tr','radar-chart-row'),chartTd=el('td','radar-chart-cell');chartTd.colSpan=6;
+   const plot=el('div','radar-area radar-area-4h');const micro=el('div','radar-micro');const l=el('span'),rr=el('span');micro.append(l,rr);chartTd.append(plot,micro);chartTr.append(chartTd);
+   r.dom={tr,chartTr,tIndex,name,px,sf,plot,l,rr,sBadge,sSub,midLabel,midSub,ha,hn,cci,cn};return tr;
  }
- function renderRow(r){if(!r.dom)return;const d=r.dom;d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');d.sf.textContent=r.source==='coinglass'?`CoinGlass ${r.cgId} · ${r.s.tv}`:r.source==='proxy'?'15M 價格代理 · '+r.s.tv:r.s.tv;
-   plotRadar(r);
+ function renderRow(r){if(!r.dom)return;const d=r.dom;
+   d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');
+   d.sf.textContent='4H OHLC '+(r.h4Feed?'· '+r.h4Feed:'· 等待 K 線');
+   const chart=window.LiqRadar4H;
+   if(chart)chart.render(d.plot,{bars:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()});
+   else d.plot.textContent='4H 圖表模組尚未載入';
+   d.l.textContent=sourceName(r)+(priceEnough(r.up)?' · 上 '+MONEY(r.up):' · 上 --');
+   d.rr.textContent='下 '+MONEY(r.down)+' · 4H K '+r.bars4h.length+' 根 · 日線平均K 每日6根4H';
    const sv=r.sstate||null,mid=r.midline;
    const stateClass=({'S3':'s3','S2':'s2','S1':'s1','S0.5':'s05','S0':'s0','OTHER-UP':'other-up','OTHER-DN':'other-dn','OTHER':'other'})[sv]||'unknown';
    const stateName=({'S3':'3浪啟動','S2':'2浪回踩','S1':'1浪突破','S0.5':'優質反轉','S0':'下殺反彈','OTHER-UP':'上軌延續','OTHER-DN':'下軌延續','OTHER':'其他'})[sv]||'等待日線';
@@ -277,8 +275,7 @@
    d.cn.textContent=r.cci?`SMA ${r.cci.value.toFixed(1)}`:(r.daily.length&&r.daily.length<34?'日 K 不足 34 根':r.errors.day?'日 K 取得失敗':'等待日 K');
    d.cn.className='ha-sub '+(r.cci?.color==='黃'?'yellow':r.cci?.color==='紫'?'purple':'');
    d.cci.title=r.cci?`CCI(20) / SMA(14)：當 ${r.cci.value.toFixed(3)}，前 ${r.cci.prev.toFixed(3)}，差 ${r.cci.change.toFixed(3)}`:'CCI-SMA 尚無有效資料';
-   const m=r.model,valid=m&&priceEnough(r.up)&&priceEnough(r.down)&&priceEnough(livePrice(r));d.upNum.textContent=valid?pct(m.up*100):'--';d.downNum.textContent=valid?pct(m.down*100):'--';
-   d.upNum.className='prob-num up '+(valid?(m.up>m.down?'winner':m.up<m.down?'loser':''):'');d.downNum.className='prob-num down '+(valid?(m.down>m.up?'winner':m.down<m.up?'loser':''):'');d.pFill.style.width=valid?(m.up*100).toFixed(2)+'%':'0%';d.pLabel.textContent=valid?'BTC 跨標的參考 · '+(r.source==='proxy'?'代理上下界':'CoinGlass 界'):(r.errors.model||'資料不足，不顯示機率');d.tr.title=Object.entries(r.errors).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join(' | ')||'';
+   d.tr.title=Object.entries(r.errors).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join(' | ')||'';
  }
  // A header click chooses its column and a subsequent click reverses direction.
  // Color flags are stored on the original symbol row, not on visible row positions.
@@ -352,9 +349,9 @@
      return a.index-b.index;
    });
    const body=$('radarBody'),frag=document.createDocumentFragment();
-   rows.forEach(r=>{frag.append(r.dom.tr);});
+   rows.forEach(r=>{frag.append(r.dom.tr,r.dom.chartTr);});
    body.replaceChildren(frag);
-   if(!rows.length){const tr=el('tr'),td=el('td','empty','沒有符合的標的；請檢查 symbols.js 或篩選條件');td.colSpan=8;tr.append(td);body.append(tr);}
+   if(!rows.length){const tr=el('tr'),td=el('td','empty','沒有符合的標的；請檢查 symbols.js 或篩選條件');td.colSpan=6;tr.append(td);body.append(tr);}
    document.querySelectorAll('.radar-table thead th[data-sort]').forEach(th=>{
      const active=th.dataset.sort===state.sort;
      th.setAttribute('aria-sort',active?(state.sortDir===1?'ascending':'descending'):'none');
@@ -370,7 +367,7 @@
    reorder();renderOverview();
  }
  function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,proxy=records.filter(r=>r.source==='proxy').length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
-   $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}｜機率 ${model}`;
+   $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
    $('loadedCount').textContent=`已顯示 ${currentRows().length}／${records.length} 個 · 更新 ${state.priceAt?new Date(state.priceAt).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei'}):'等待中'}`;
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
  }
@@ -394,15 +391,15 @@
    records.forEach(updateDerived);state.priceAt=Date.now();renderAll();log('現價成功 '+found.size+'/'+records.length);
  })();state.priceBusy=task;try{return await task;}finally{state.priceBusy=null;}
  }
- const MAX_WORKERS=3,TTLS={bar:4*60_000,day:12*60_000};
- function enqueue(r,kind,force=false){const key=r.id+':'+kind,attempt=r.lastAttempt[kind]||0,have=kind==='bar'?r.bars15.length:r.daily.length,ttl=TTLS[kind];if(state.jobSet.has(key)||(!force&&have>=2&&Date.now()-attempt<ttl)||(!force&&Date.now()-attempt<ttl&&attempt>0))return;
+ const MAX_WORKERS=3,TTLS={bar:4*60_000,h4:4*60_000,day:12*60_000};
+ function enqueue(r,kind,force=false){const key=r.id+':'+kind,attempt=r.lastAttempt[kind]||0,have=kind==='bar'?r.bars15.length:kind==='h4'?r.bars4h.length:r.daily.length,ttl=TTLS[kind];if(state.jobSet.has(key)||(!force&&have>=2&&Date.now()-attempt<ttl)||(!force&&Date.now()-attempt<ttl&&attempt>0))return;
    state.jobSet.add(key);state.queue.push({r,kind,key});pump();}
  async function pump(){while(state.loadingJobs<MAX_WORKERS&&state.queue.length){const job=state.queue.shift();state.loadingJobs++;job.r.lastAttempt[job.kind]=Date.now();void(async()=>{try{
-     const {r,kind}=job;const interval=kind==='bar'?'15M':'1D';const count=kind==='bar'?530:95;const received=await loadHistory(r.s,interval,count);
-     if(kind==='bar'){r.bars15=received.bars;r.barsAt=Date.now();r.errors.bar='';}else{r.daily=received.bars;r.dailyAt=Date.now();r.errors.day='';}
+     const {r,kind}=job;const interval=kind==='bar'?'15M':kind==='h4'?'4H':'1D';const count=kind==='bar'?530:kind==='h4'?130:95;const received=await loadHistory(r.s,interval,count);
+     if(kind==='bar'){r.bars15=received.bars;r.barsAt=Date.now();r.errors.bar='';}else if(kind==='h4'){r.bars4h=received.bars;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';}else{r.daily=received.bars;r.dailyAt=Date.now();r.errors.day='';}
      if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);updateDerived(r);renderRow(r);if(state.sort!=='watchlist')reorder();renderOverview();
-   }catch(e){job.r.errors[job.kind]=String(e?.message||e);log(`${job.r.id} ${job.kind==='bar'?'15M':'1D'}: ${e?.message||e}`);renderRow(job.r);}finally{state.loadingJobs--;state.jobSet.delete(job.key);pump();}})();}}
- function queueAll(force=false){for(const r of records)enqueue(r,'bar',force);for(const r of records)enqueue(r,'day',force);}
+   }catch(e){job.r.errors[job.kind]=String(e?.message||e);log(`${job.r.id} ${job.kind==='bar'?'15M':job.kind==='h4'?'4H':'1D'}: ${e?.message||e}`);renderRow(job.r);}finally{state.loadingJobs--;state.jobSet.delete(job.key);pump();}})();}}
+ function queueAll(force=false){for(const r of records)enqueue(r,'h4',force);for(const r of records)enqueue(r,'day',force);for(const r of records)enqueue(r,'bar',force);}
  function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());}
  function setup(){const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};$('cryptoCount').textContent=counts.crypto;$('stockCount').textContent=counts.stock;$('allCount').textContent=records.length;
    for(const r of records)r.dom={};for(const r of records)r.dom=null;
@@ -427,7 +424,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.1.13',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.2.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

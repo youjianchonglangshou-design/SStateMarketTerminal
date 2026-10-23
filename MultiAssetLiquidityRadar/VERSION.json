@@ -1,7 +1,13 @@
 {
-  "version": "1.1.15",
+  "version": "1.2.0",
   "releaseDate": "2026-10-23",
   "changes": [
+    "New real 4H OHLC candle chart with Bollinger(20,2) upper/middle/lower overlay and TradingView-style right-side price axis and dashed vertical Taiwan-time grid.",
+    "Daily Heikin-Ashi average-K close staircase aligned to UTC midnight / Asia-Taipei 08:00 boundaries, one step per six real 4H candles; hover close to staircase draws dashed price and datetime crosshair.",
+    "7D CoinGlass / explicit proxy levels and 10s NOW quote drawn as true-price horizontal lines with independently positioned right labels; retain existing source-fallback logic.",
+    "Remove old compact radar and BTC probability display, retain live daily S-state, daily midline slope, daily HA color transition, CCI-SMA, price-alert bell and persistent color marks.",
+    "4H history refreshed every four minutes, daily at 12-minute cadence, NOW from existing 10-second quotes, CoinGlass from existing 60-second refresh.",
+    "No worker/backend changes required; original monitor and homepage remain untouched.",
     "Color each HA yesterday/today text independently: previous 黃 in yellow, previous 紫 in purple, current 黃 in yellow, current 紫 in purple; show first-day color changes clearly.",
     "No changes to dailyHA source/calc, SState, CCI, CoinGlass 7D levels, probability engine, Telegram or color marks.",
     "Add a horizontal dashed crosshair and right-side numeric value tag to the Fear & Greed chart hover state, matching the existing vertical guide.",

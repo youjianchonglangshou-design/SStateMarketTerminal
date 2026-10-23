@@ -1,0 +1,29 @@
+MultiAssetLiquidityRadar v1.2.0 TEST REPORT
+Date: 2026-10-23 (Asia/Taipei)
+Mode: syntax validation + headless Chromium offline DOM/integration tests using mock 4H/daily OHLC and prices.
+
+PASS node --check app.js; node --check chart4h.js
+PASS VERSION.json strict JSON validation
+PASS 16 watchlist symbols produce 16 summary cards and 16 distinct 4H chart areas
+PASS 84 genuine 4H candlesticks rendered (from 130 provided sample candles)
+PASS Bollinger(20, 2) centerline rendered; upper and lower overlays present
+PASS daily HA step data shared by all 4H bars in the same Taiwan 08:00 trading day
+PASS CG upper/lower + NOW are three distinct true-price levels
+PASS 6 price axis labels positioned on the right
+PASS 14 dated vertical time-grid dividers in tested chart sample
+PASS interactive crosshair shows on mouse hover and daily-HA hover data rendering works
+PASS persistent color-mark palette opens, marking and marked_color sort preserve 16 summary/chart row pairs
+PASS Telegram alert modal opens and closes from the preserved bell icon
+PASS when source switches to 15M proxy, chart level labels change from CG 7D to 15M proxy
+PASS no uncaught pageerror during the above headless Chromium checks
+
+Not verified here: real-time exchange / CoinGlass / TV WebSocket response over the Internet, production R2 persistence, actual Telegram delivery, or cross-device browser coverage. These require deployment and live service availability. Source Worker was inspected: GET /api/monitor/klines allows interval=4H. No Worker changes in this release.
+
+Files to overwrite relative to GitHub repo root:
+MultiAssetLiquidityRadar/index.html
+MultiAssetLiquidityRadar/app.js
+MultiAssetLiquidityRadar/style.css
+MultiAssetLiquidityRadar/chart4h.js   [NEW]
+MultiAssetLiquidityRadar/VERSION.json
+MultiAssetLiquidityRadar/README.md
+MultiAssetLiquidityRadar/TEST_REPORT_v1.2.0.txt [NEW]

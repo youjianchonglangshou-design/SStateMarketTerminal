@@ -1,97 +1,29 @@
-# Multi-Asset Liquidity Radar v1.1.12
+# MultiAssetLiquidityRadar v1.2.0 · 4H 實際 K 線監控
 
-## 變更
+## v1.2.0 功能
 
-- 在「日線平均 K」的左側依序加入「S 狀態」及「中軌斜率」。
-- 來源是 SStateMarketTerminal 原版 `monitor-engine.js`（`SStateMonitorEngine.analyze`），不是自行近似的 S 判斷。
-- 原版引擎使用同份日線 OHLC，包含 S0/S0.5/S1/S2/S3、OTHER，以及最近 5 天中軌斜率與前 5 天趨勢差。
-- 表頭可依 S 狀態、中軌斜率升降排序。平均 K 黃色優先時，先比黃黃／黃紫，再比中軌上斜方向與 S 狀態。
-- **S 狀態、中軌斜率、CCI-SMA 均不參與 BTC 39 特徵模型的機率計算。**
-- 無可用日線或無法載入原版引擎時顯示 `--`，不編造 S 訊號。
+* 每個自選標的顯示真正 4H OHLC K 線（4H = 240 分鐘），不是日 K 拉伸。圖表讀取 TradingView Pionex 圖表，失效時依序透過既有 Cloudflare Worker、Pionex REST、加密貨幣 Binance 備援；無有效 K 線時顯示等待、不虛構 K 棒。
+* 4H 布林帶（收盤價 20 根、2 倍母體標準差）：白色上下軌及藍灰色中軌；實際 4H K 線疊加。
+* 黃／紫階梯：**日線平均 K（Heikin-Ashi）的 HA 收盤值**，從與主頁相同的日線 OHLC 推算，依 **Asia/Taipei 08:00** 換日；1 個日階梯最多橫跨 6 根 4H K 線。非 4H HA，請勿混淆。
+* 靠近階梯時顯示從所指價位延伸到右側價格軸的虛線、價格標籤、時間垂線；其他圖表區域顯示常規價時十字游標。
+* 右側價格刻度，價格橫向虛線；每個台灣 08:00 換日垂直時間虛線；下方有台灣日期與 08:00 刻度。
+* 7D CoinGlass 上下界、NOW 即時價皆依價格繪成水平線，右邊獨立標籤；上下界過近時只移動標籤並畫連接線，**不移動實際水平價格線**。保留 15M 代理資料來源顯示與原資料源備援。
+* 頂部四個膠囊：S 狀態、中軌斜率、日線平均 K（含前日顏色 → 今日顏色）、CCI-SMA；沿用原來主站的日線引擎及顏色定義。
+* 移除原小三線圖、機率卡與不必要的 CCI 下方面板。保留篩選、排序、顏色標記持久化、Telegram 小鈴鐺、CMC 恐懼貪婪卡、7D 清算來源與主站返回連結。
 
-## 覆蓋安裝
+## 資料更新與限制
 
-將覆蓋包的 `index.html`、`app.js`、`style.css`、`VERSION.json` 解壓覆蓋。`symbols.js` 完全不需要改。
+NOW 報價每 10 秒刷新；CoinGlass 7D 每 60 秒刷新；4H K 線每 4 分鐘嘗試更新；日線歷史每 12 分鐘嘗試更新。非交易所提供的 4H 新 OHLC 不會被編造；若最新一根 4H 與台灣當前 4H 區間一致，NOW 更新該根尚未收線 K 的 close/high/low 僅用於**顯示**，不覆寫抓回的歷史資料。
 
-## 注意
+4H 布林帶、日線平均K 階梯、四個日線膠囊的週期可能不同，圖表標籤已明確區分。若 TradingView / API / Worker / GitHub Pages 因網路、CORS、限流或交易對不支援而無資料，對應欄位保留等待或錯誤，不顯示虛假行情。官方 CoinGlass 資料缺失時，代理值不冒充官方。
 
-`index.html` 與原版本一樣需連到外部腳本；本版額外引用 `../monitor-engine.js`。若網路或 GitHub Pages 失效，S 狀態／中軌將顯示缺值，其他欄可繼續更新。SState 原版引擎如日後更新判斷規則，本版也會跟著更新。
+## 覆蓋檔案（只有 MultiAssetLiquidityRadar 子目錄）
 
-歷史日線在背景取得，初次開啟時可能暫時顯示 `--`。若有超過 90 秒未更新的即時價格，不顯示過期行情為即時。
+- `MultiAssetLiquidityRadar/index.html`
+- `MultiAssetLiquidityRadar/style.css`
+- `MultiAssetLiquidityRadar/app.js`
+- `MultiAssetLiquidityRadar/chart4h.js`（新增）
+- `MultiAssetLiquidityRadar/VERSION.json`
+- `MultiAssetLiquidityRadar/README.md`
 
-
-## SStateMarketTerminal 整合方式
-
-- 本資料夾位於 SStateMarketTerminal 專案根目錄。主站的「清算監控」按鈕在新分頁開啟 `./MultiAssetLiquidityRadar/index.html`。
-- S 狀態／中軌斜率從上一層 `../monitor-engine.js` 載入，直接共用主站引擎。
-- 請在 `symbols.js` 維護自選清單，原先使用者的清單與演算核心均保留。
-- 清算／BTC 39 特徵模型仍沿用 BTC_iquidation 公開腳本（網路存取必要）。
-- 10 秒行情掃描、CoinGlass 7D（1週） 資料與滾動機率不凍結、不結算，並未併入 SState 的 72H 正式分析結果。
-
-
-## v1.1.4｜價格提醒小鈴鐺（SState 共用）
-
-- 每個幣種名稱右側顯示小鈴鐺；點擊輸入觸發價，上破／下破方向由 Worker 依現價決定。
-- 可透過小鈴鐺重新開啟編輯或刪除。提醒由現有 `/api/monitor/alerts` 儲存在 R2，與主站 `monitor.html` 是同一份，不需要另設 Telegram Bot Token 或 Chat ID。
-- 開著網頁時每 10 秒呼叫 `/api/monitor/alerts/check`（有提醒時）；關閉網頁後由既有 Cloudflare `* * * * *` 定時工作繼續檢查；僅 Telegram 發送成功後才從 R2 刪除該提醒。
-- **WTI 重要設定**：為讓雷達 WTI 和 `monitor.html` 共用 `WTI_USDT_PERP`，Cloudflare Worker 需改用 `PIONEX:CLUSDT.P` 查詢 WTI 的 TradingView 行情。相關後端修正另附 Worker 覆蓋包，**GitHub Pages 部署本身不會更新 Cloudflare Worker**。
-- `symbols.js` 保留原樣；新增提醒不會改動清算上下界、BTC 機率或 S 狀態／中軌等演算法。
-- 離線 JS 模擬測試確認建立、編輯、重開網頁狀態同步、刪除及模擬 Worker 到價回應；實際 Telegram 發送需部署後用既有 Worker 自行測試。
-
-
-## v1.1.6｜CoinGlass 清算上下界改為一週
-- `fetchCoinGlass('7d')` 改抓一週最大痛點清算上下界，不是沿用 24H 資料只換標題。
-- 表頭、資料來源、診斷與註解都改為 7D / 1週。
-- 仍每 60 秒嘗試更新；價格依舊每 10 秒嘗試更新。
-- BTC 39 特徵短時窗機率不變；它**不是七日先掃機率**，與七日上下界需分開解讀。
-- 沒有 CoinGlass 一週資料時，原本 15M 代理價帶仍會以「代理」標示，不能視為 7D CoinGlass 資料。
-- 未修改 Cloudflare Worker、Telegram 鈴鐺、SState 分析引擎或自訂 `symbols.js`。
-
-
-## v1.1.7｜OTHER-UP／OTHER-DN 即時分類
-共用上層 `monitor-engine.js` 的延續判斷，不變動正式原始 S 狀態。窄欄顯示 OT-UP／OT-DN，並提供完整 tooltip；排序也納入新分類。
-
-
-## v1.1.8 CMC 恐懼與貪婪懸浮卡
-
-- 在「← SState 主站」右側新增「恐懼與貪婪」膠囊。滑鼠移入開啟中型一年線圖卡片，離開卡片立即關閉；觸控裝置點擊膠囊開啟、點擊外部關閉。
-- 直接移植 CMC_Fear_Greed_GitHub_v1.6.0 的六種固定顏色、起漲黃／起跌紫識別與游標資訊列語意底色。
-- 移除 BTC 價格與 BTC 交易量線／圖例／API，亦移除原版多餘說明，保留 CMC 一年線圖、最新值、日期、互動資料列、手動更新與來源/錯誤顯示。
-- 使用原有專屬 CMC Cloudflare Worker；卡片第一次開啟才載入，一直開著不會新增任何排程、R2 寫入或自動更新。
-- 新增 `fear-greed.html` 與 `fear-greed-popover.js`，更新 `index.html`、`style.css` 與 `VERSION.json`，清算雷達本身的其他功能不變。
-
-
-## v1.1.9｜恐懼與貪婪卡片放大且不超出表格邊界
-- 桌面版懸浮卡改為維持原比例放大，視可用空間自動擴展。
-- 卡片定位不再寫死，會依「清算表格」容器動態計算左右邊界，避免超出右側或左側。
-- 視窗縮放、捲動或重新打開卡片時，會即時重新計算尺寸與位置。
-- 手機版原本的固定彈窗行為維持不變。
-
-
-## v1.1.10｜卡片高度延伸至約第 6 列
-- 桌面版卡片高度改為盡量延伸至表格第 6 列底部附近。
-- 寬度依原始比例自動換算，不手動硬寫死。
-- 若比例放大後超出表格容器或視窗，會自動縮回到可容納範圍內。
-
-
-## v1.1.11｜卡片高度延伸至約第 7 列
-- 桌面版卡片高度目標改為表格第 7 列底部附近。
-- 寬度仍依原始比例自動換算。
-- 若放大後超出表格容器或視窗，會自動縮回可容納範圍。
-
-
-## v1.1.12｜項次彩色旗標、幣種固定編號、R2 記憶
-- 點擊左側「項次」編號開啟六色調色板（紅、橘、黃、綠、藍、紫），可清除標記；再次選同一色也會取消。
-- 每個幣種保留原始清單編號，排序時 **原始編號與顏色會一起跟著幣種移動**；不再依目前畫面位置重編成 1、2、3。
-- 使用 `r.s.pionex` 作為穩定儲存鍵，顏色與小鈴鐺彼此獨立。
-- 前端使用 `localStorage` 即時記住顏色，重開同裝置／同瀏覽器不會遺失；另外透過現有 Cloudflare Worker `/api/monitor/radar/marks` 讀寫 R2 `terminal/radar_color_marks.json` 支援跨裝置。
-- **如要跨裝置同步，必須部署隨附的新版 `cloudflare/worker.js` 到現有 Cloudflare Worker。** 只有 GitHub Pages 覆蓋檔無法更新 Worker；未部署時仍能以本機儲存使用，並明確顯示備援模式。
-- 不需新增 Cloudflare 綁定、R2 bucket、Token、GitHub Actions 或排程。
-
-
-## v1.1.13｜顏色標記集中排序
-- 在右上角「排序」選單新增 **🎨 顏色標記集中（紅→橘→黃→綠→藍→紫）**。
-- 所有已標記幣種排在前段，同色自動集中；沒標記的放最後。每組內依原清單順序排列。
-- 任何排序都保留每個幣種固定的項次編號。切換顏色或清除顏色時，若目前選用本排序則立即重新分組，不需重新整理頁面。
-- 保留原本的 localStorage 和既有 Worker/R2 同步，這次 **不需要修改 Worker**。
-- 僅需覆蓋 `MultiAssetLiquidityRadar/index.html`、`app.js`、`color-marks.js`、`VERSION.json`（`README.md` 可一併覆蓋）。
+不需要更動根目錄主頁、Cloudflare Worker、monitor-engine.js、symbols.js、alerts.js、color-marks.js 或恐懼貪婪頁。

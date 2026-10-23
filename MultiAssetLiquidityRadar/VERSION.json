@@ -1,7 +1,9 @@
 {
-  "version": "1.1.14",
-  "releaseDate": "2026-10-20",
+  "version": "1.1.15",
+  "releaseDate": "2026-10-23",
   "changes": [
+    "Color each HA yesterday/today text independently: previous 黃 in yellow, previous 紫 in purple, current 黃 in yellow, current 紫 in purple; show first-day color changes clearly.",
+    "No changes to dailyHA source/calc, SState, CCI, CoinGlass 7D levels, probability engine, Telegram or color marks.",
     "Add a horizontal dashed crosshair and right-side numeric value tag to the Fear & Greed chart hover state, matching the existing vertical guide.",
     "Add 顏色標記集中 sorting to the existing dropdown: marked symbols first, grouped in fixed red/orange/yellow/green/blue/purple order, followed by unmarked symbols.",
     "Keep original watchlist item numbers and symbol-linked marks; within each same-color group preserve the original watchlist order.",

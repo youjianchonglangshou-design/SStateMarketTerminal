@@ -177,3 +177,10 @@
 .liq-mark-options .mark-clear{grid-column:1/-1;flex-direction:row;justify-content:center;background:#142f44;padding:8px}
 #liq-mark-status[hidden]{display:none!important}
 #liq-mark-status{position:fixed;z-index:190;bottom:18px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);padding:10px 14px;border-radius:7px;border:1px solid #356a86;background:#0a2d46;color:#e0f6ff;box-shadow:0 5px 20px #0008;font-size:12px;text-align:center}
+
+/* v1.1.15 — HA yesterday/today color semantics; independent of current-day color. */
+.ha-sub.ha-transition{color:#9fb4cb;white-space:nowrap;font-size:10px;letter-spacing:.05px}
+.ha-transition-state{display:inline;font-weight:900;text-shadow:0 0 5px #0005}
+.ha-transition-state.yellow{color:var(--gold)}
+.ha-transition-state.purple{color:#dfb7ff}
+.ha-transition-state.unknown{color:#8faabe}

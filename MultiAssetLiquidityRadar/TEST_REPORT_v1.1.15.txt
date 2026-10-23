@@ -1,0 +1,13 @@
+MultiAssetLiquidityRadar v1.1.15 — 測試 OK
+來源：SStateMarketTerminal-main(20261023-004727).zip
+
+瀏覽器 Chromium 144（Playwright 實際 DOM/CSS 測試）：
+PASS 前日 黃 → 紫；黃字 #ffda4f，紫字 #dfb7ff
+PASS 前日 紫 → 紫；兩字皆紫色
+PASS 前日 紫 → 黃；紫字 / 黃字獨立顯色
+PASS 前日 黃 → 黃；兩字皆黃色
+PASS 日線資料不存在；保持「等待日線」而非假裝轉色
+PASS JavaScript 語法檢查 node --check app.js
+
+只更改顯示（app.js renderHaTransition, style.css），沒有修改
+日線 HA 算式、SState、CCI-SMA、模型、清算上下界、鈴鐺、R2。

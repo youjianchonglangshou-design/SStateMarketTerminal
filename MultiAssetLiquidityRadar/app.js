@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.1.13 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.1.15 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * No K-line charts, no frozen snapshots, no overnight settlements.
  */
@@ -220,6 +220,22 @@
  }
  const setText=(element,text)=>{element.textContent=text;return element;};
  function el(tag,cls='',txt=''){const node=document.createElement(tag);if(cls)node.className=cls;if(txt)node.textContent=txt;return node;}
+ // Distinguish a fresh HA color change (黃 → 紫) from an established trend (紫 → 紫).
+ // Both daily colors are taken directly from dailyHA(); this is presentation only.
+ function renderHaTransition(target,ha,errorMessage){
+   target.className='ha-sub ha-transition';
+   target.replaceChildren();
+   if(!ha||!['黃','紫'].includes(ha.color)){
+     target.textContent=errorMessage||'等待日線';
+     target.title='';
+     return;
+   }
+   const paint=(value,side)=>el('span','ha-transition-state '+side+' '+(value==='黃'?'yellow':value==='紫'?'purple':'unknown'),value);
+   target.append('前日 ',paint(ha.priorColor||'--','previous'),' → ',paint(ha.color,'current'));
+   target.title=ha.priorColor!==ha.color&&['黃','紫'].includes(ha.priorColor)
+     ?`平均 K：前日${ha.priorColor}，今日轉${ha.color}（轉色首日）`
+     :`平均 K：前日${ha.priorColor||'--'}，今日${ha.color}（維持原色）`;
+ }
  function makeRow(r){const tr=el('tr');const tIndex=el('td','row-index');const markBtn=el('button','liq-mark-trigger',String(r.index+1));markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.setAttribute('aria-label',`標記 ${r.id} 的顏色`);markBtn.title=`${r.id}：點擊選擇註記顏色`;tIndex.append(markBtn);const tSymbol=el('td');const name=el('div','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed',r.s.group==='stock'?'Pionex 美股／商品':'Pionex 加密合約');tSymbol.append(head,px,sf);
    const tRadar=el('td');const plot=el('div','radar-area');const micro=el('div','radar-micro');const l=el('span'),rr=el('span');micro.append(l,rr);tRadar.append(plot,micro);
    const tS=el('td');const sw=el('div','state-wrap');const sBadge=el('span','state-badge unknown','--');const sSub=el('div','state-sub','等待日線');sw.append(sBadge,sSub);tS.append(sw);
@@ -254,7 +270,8 @@
    d.midLabel.textContent=mid?mid.symbol+' '+mid.label:'--';d.midLabel.className='mid-label '+midClass;
    d.midSub.textContent=mid?.state?`${mid.recent_5d_slope_pct_per_day>0?'+':''}${mid.recent_5d_slope_pct_per_day}%/日`:'等待資料';
    d.midLabel.title=mid?`SState 最近5日中軌斜率 ${mid.recent_5d_slope_pct_per_day}%/日；前5日 ${mid.previous_5d_slope_pct_per_day}%/日；改善 ${mid.slope_improvement_pct_per_day}%/日`:'日 K 中軌斜率尚無資料';
-   d.ha.textContent=r.ha?.color||'--';d.ha.className='ha-color '+(r.ha?.color==='黃'?'yellow':r.ha?.color==='紫'?'purple':'unknown');d.hn.textContent=r.ha?'前日 '+r.ha.priorColor+' → '+r.ha.color:(r.errors.day?'日線取得失敗':'等待日線');d.hn.className='ha-sub '+(r.ha?.color==='黃'?'yellow':r.ha?.color==='紫'?'purple':'');
+   d.ha.textContent=r.ha?.color||'--';d.ha.className='ha-color '+(r.ha?.color==='黃'?'yellow':r.ha?.color==='紫'?'purple':'unknown');
+   renderHaTransition(d.hn,r.ha,r.errors.day?'日線取得失敗':'等待日線');
    d.cci.textContent=r.cci?.color==='黃'||r.cci?.color==='紫'?r.cci.color:'--';
    d.cci.className='ha-color '+(r.cci?.color==='黃'?'yellow':r.cci?.color==='紫'?'purple':'unknown');
    d.cn.textContent=r.cci?`SMA ${r.cci.value.toFixed(1)}`:(r.daily.length&&r.daily.length<34?'日 K 不足 34 根':r.errors.day?'日 K 取得失敗':'等待日 K');

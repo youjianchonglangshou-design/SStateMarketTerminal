@@ -1,7 +1,11 @@
 {
-  "version": "1.3.0",
+  "version": "1.3.1",
   "releaseDate": "2026-10-23",
   "changes": [
+    "FIX v1.3.0: table thead under .table-scroll overflow-x:auto could not stick to viewport and vanished on page scroll. Move the real sortable thead into a unified top sticky panel outside scrolling container.",
+    "Freeze title/subtitle, controls, sorting dropdown, 7D overview and all six clickable table-heading columns as one group; no duplicate table heading while scrolling.",
+    "Retain DOM for hidden group filters and search to avoid breaking original app.js; retain all stock/crypto side rails and symbol navigation.",
+    "Keep the frozen table headings horizontally synchronized with the body and measure sticky height so sidebar jumps do not hide symbol rows.",
     "Make the top control area sticky: merge the title/subtitle strip into the floating command block and keep it pinned at the viewport top while scrolling the charts.",
     "Hide the green-crossed items from the UI (group filter buttons and search field) without removing their DOM nodes, preserving existing app initialization and data logic.",
     "Keep sorting and status controls accessible at the top while charts scroll; make the table header stay directly beneath the floating controls and update row scroll offsets for jump navigation.",

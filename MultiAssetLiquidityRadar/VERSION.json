@@ -1,7 +1,15 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Only actual 4H OHLC candlesticks use the 4H timeframe; BB(20,2), BB midline slope, S state, daily HA staircase, and CCI-SMA are all calculated from genuine 1D candles.",
+    "Daily Bollinger follows the same SMA(close,20) with population stdev*2 algorithm as shared monitor-engine.js; daily bands are plotted as one 1D value per day across the 4H time coordinate, NOT recalculated from 4H closes.",
+    "Right-axis CoinGlass/proxy upper/lower tags show prices only; NOW tag retains NOW prefix; dollar signs removed from all chart and radar headline price labels.",
+    "Remove both chart-bottom microtext descriptions and omit 08:00 from bottom date ticks; the Asia/Taipei 08:00 daily alignment still applies internally.",
+    "HA hover extension label and dashed price line adopt the yellow/purple color of the daily HA stair, without dollar sign.",
+    "Reduce visual prominence of 4H candles, BB upper/mid/lower to emphasize liquidation levels and daily HA steps.",
+    "Reserve exactly three blank 4H candle slots to the right of the latest OHLC for breathing room before the price badges.",
+    "Preserve realtime refresh intervals, shared daily indicator engine, original 7D CoinGlass / proxy, alarm and color-mark sorting features.",
     "New real 4H OHLC candle chart with Bollinger(20,2) upper/middle/lower overlay and TradingView-style right-side price axis and dashed vertical Taiwan-time grid.",
     "Daily Heikin-Ashi average-K close staircase aligned to UTC midnight / Asia-Taipei 08:00 boundaries, one step per six real 4H candles; hover close to staircase draws dashed price and datetime crosshair.",
     "7D CoinGlass / explicit proxy levels and 10s NOW quote drawn as true-price horizontal lines with independently positioned right labels; retain existing source-fallback logic.",

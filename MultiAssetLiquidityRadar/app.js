@@ -1,6 +1,6 @@
-/* Multi-Asset Liquidity Radar v1.2.0 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.2.1 — exact SState S-state / midline regime integration.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
- * Interactive 4H real OHLC, Bollinger, daily HA staircase, 7D levels.
+ * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
 (()=>{'use strict';
  const $=id=>document.getElementById(id);
@@ -10,7 +10,7 @@
  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
  const priceEnough=p=>Number.isFinite(p)&&p>0;
  const livePrice=r=>r.priceAt&&Date.now()-r.priceAt<90000&&priceEnough(r.price)?r.price:null;
- const MONEY=n=>{if(!priceEnough(n))return '--';const abs=Math.abs(n),digits=abs>=100?2:abs>=1?4:abs>=.01?6:abs>=.0001?8:Math.min(16,Math.max(11,Math.ceil(-Math.log10(Math.max(abs,1e-16)))+5));return '$'+n.toLocaleString('en-US',{maximumFractionDigits:digits,minimumFractionDigits:abs>=100?2:0});};
+ const MONEY=n=>{if(!priceEnough(n))return '--';const abs=Math.abs(n),digits=abs>=100?2:abs>=1?4:abs>=.01?6:abs>=.0001?8:Math.min(16,Math.max(11,Math.ceil(-Math.log10(Math.max(abs,1e-16)))+5));return n.toLocaleString('en-US',{maximumFractionDigits:digits,minimumFractionDigits:abs>=100?2:0});};
  const pct=n=>Number.isFinite(n)?n.toFixed(2)+'%':'--';
  const tpe=t=>new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
  const json=async(url,opts={},timeout=11000)=>{const ctrl=new AbortController(),tm=setTimeout(()=>ctrl.abort(),timeout);try{const r=await fetch(url,{...opts,signal:ctrl.signal,cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(j?.ok===false||j?.result===false)throw Error(String(j.error||j.message||'API失敗'));return j;}finally{clearTimeout(tm);}};
@@ -247,8 +247,8 @@
    const tCci=el('td');const cw=el('div','ha-wrap');const cci=el('span','ha-color unknown','--');const cn=el('div','ha-sub','等待日線');cw.append(cci,cn);tCci.append(cw);
    tr.append(tIndex,tSymbol,tS,tMid,tHa,tCci);
    const chartTr=el('tr','radar-chart-row'),chartTd=el('td','radar-chart-cell');chartTd.colSpan=6;
-   const plot=el('div','radar-area radar-area-4h');const micro=el('div','radar-micro');const l=el('span'),rr=el('span');micro.append(l,rr);chartTd.append(plot,micro);chartTr.append(chartTd);
-   r.dom={tr,chartTr,tIndex,name,px,sf,plot,l,rr,sBadge,sSub,midLabel,midSub,ha,hn,cci,cn};return tr;
+   const plot=el('div','radar-area radar-area-4h');chartTd.append(plot);chartTr.append(chartTd);
+   r.dom={tr,chartTr,tIndex,name,px,sf,plot,sBadge,sSub,midLabel,midSub,ha,hn,cci,cn};return tr;
  }
  function renderRow(r){if(!r.dom)return;const d=r.dom;
    d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');
@@ -256,8 +256,6 @@
    const chart=window.LiqRadar4H;
    if(chart)chart.render(d.plot,{bars:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()});
    else d.plot.textContent='4H 圖表模組尚未載入';
-   d.l.textContent=sourceName(r)+(priceEnough(r.up)?' · 上 '+MONEY(r.up):' · 上 --');
-   d.rr.textContent='下 '+MONEY(r.down)+' · 4H K '+r.bars4h.length+' 根 · 日線平均K 每日6根4H';
    const sv=r.sstate||null,mid=r.midline;
    const stateClass=({'S3':'s3','S2':'s2','S1':'s1','S0.5':'s05','S0':'s0','OTHER-UP':'other-up','OTHER-DN':'other-dn','OTHER':'other'})[sv]||'unknown';
    const stateName=({'S3':'3浪啟動','S2':'2浪回踩','S1':'1浪突破','S0.5':'優質反轉','S0':'下殺反彈','OTHER-UP':'上軌延續','OTHER-DN':'下軌延續','OTHER':'其他'})[sv]||'等待日線';
@@ -424,7 +422,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.2.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.2.1',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

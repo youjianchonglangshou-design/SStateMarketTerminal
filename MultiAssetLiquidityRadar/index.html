@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827">
 <title>Multi-Asset Liquidity Radar | 即時清算總覽</title>
-<link rel="stylesheet" href="./style.css?v=1.2.0">
+<link rel="stylesheet" href="./style.css?v=1.2.1">
 </head>
 <body>
 <div class="shell">
 <header class="topbar">
-  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.2.0</span></div><div class="subtitle">4H 真實 K 線 × 布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
+  <div><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.2.1</span></div><div class="subtitle">4H 真實 K 線 × 日線布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
   <div class="header-status"><a class="home-link" href="../index.html" title="返回 SState Market Terminal 主站">← SState 主站</a>
     <div class="fg-popover" id="fgPopover">
       <button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button>
@@ -34,7 +34,7 @@
 <th data-sort="cci"><button class="th-sort" type="button" data-sort="cci">CCI-SMA <span class="sort-indicator"></span></button></th>
 </tr></thead>
 <tbody id="radarBody"><tr><td colspan="6" class="empty">載入 symbols.js 中…</td></tr></tbody></table></div>
-<div class="table-footer"><span id="loadedCount">尚未載入</span><span>點擊表頭排序｜NOW 現價每 10 秒｜CoinGlass 7D 每 60 秒｜4H K線每 4 分鐘｜右軸價格・每日6根4H 平均K階梯</span></div>
+<div class="table-footer"><span id="loadedCount">尚未載入</span><span>點擊表頭排序｜NOW 現價每 10 秒｜CoinGlass 7D 每 60 秒｜4H K線每 4 分鐘｜日線指標每 12 分鐘｜右側價格軸</span></div>
 <section class="footnotes"><b>資料說明：</b>真實 4H OHLC K 線及 4H 布林帶(20,2)；黃／紫階梯為日線 Heikin-Ashi 平均K的收盤值，每日台灣 08:00 換日，每日最多對應 6 根 4H K線。滑鼠靠近階梯可查看虛線價格及時間。S 狀態、中軌斜率、平均 K、CCI-SMA 四膠囊沿用主站日線定義並隨行情重算。CoinGlass 優先採 7D 資料；缺失時明確顯示 15M 代理估算。NOW 與上下界水平線均以實際價格定位，顯示在右側價格軸；沒有數據不會偽造。</section>
 <div id="liq-alert-modal" class="liq-alert-modal" hidden aria-hidden="true">
   <div class="liq-alert-backdrop" data-close-liq-alert="1"></div>
@@ -76,8 +76,8 @@
 <script defer src="../config.js"></script>
 <script defer src="../monitor-engine.js?v=0.3.22"></script>
 <script defer src="./symbols.js"></script>
-<script defer src="./chart4h.js?v=1.2.0"></script>
-<script defer src="./app.js?v=1.2.0"></script>
+<script defer src="./chart4h.js?v=1.2.1"></script>
+<script defer src="./app.js?v=1.2.1"></script>
 <script defer src="./alerts.js"></script>
 <script defer src="./color-marks.js?v=1.1.13"></script>
 <script defer src="./fear-greed-popover.js?v=1.1.14"></script>

@@ -185,7 +185,7 @@
 .ha-transition-state.purple{color:#dfb7ff}
 .ha-transition-state.unknown{color:#8faabe}
 
-/* v1.2.0 -- tall TradingView-inspired 4H OHLC chart per symbol. */
+/* v1.2.1 -- 4H OHLC / daily indicators, subdued daily BB and candles. */
 .shell{max-width:1490px}
 .radar-table{min-width:760px;width:100%;table-layout:fixed}
 .c-index{width:57px}.c-symbol{width:26%}.c-sstate{width:17%}.c-midline{width:17%}.c-ha{width:17%}.c-cci{width:auto}
@@ -210,14 +210,14 @@
 .rc-grid-v{stroke:#58758d;stroke-width:1.15;stroke-opacity:.7;stroke-dasharray:5 6}
 .rc-axis-text{fill:#afc2d7;font-size:11px;font-variant-numeric:tabular-nums}
 .rc-time-text{fill:#8aabbf;font-size:11px}
-.rc-bb{stroke:#bac2cf;stroke-width:2;fill:none;opacity:.8;vector-effect:non-scaling-stroke}
-.rc-middle{stroke:#84a6bd;stroke-width:1.8;stroke-dasharray:7 6;fill:none;opacity:.85;vector-effect:non-scaling-stroke}
-.rc-wick{stroke-width:1.5;vector-effect:non-scaling-stroke}
+.rc-bb{stroke:#bac2cf;stroke-width:1.25;fill:none;opacity:.32;vector-effect:non-scaling-stroke}
+.rc-middle{stroke:#89a8bf;stroke-width:1.25;stroke-dasharray:7 6;fill:none;opacity:.35;vector-effect:non-scaling-stroke}
+.rc-wick{stroke-width:1.15;opacity:.38;vector-effect:non-scaling-stroke}
 .rc-wick.rc-up{stroke:#25d5a8}.rc-wick.rc-down{stroke:#f17891}
-.rc-candle.rc-up{fill:#27cfa8;stroke:#16c9a4}.rc-candle.rc-down{fill:#ef748b;stroke:#ec6c88}
-.rc-ha-step{stroke-width:3;stroke-linecap:square;vector-effect:non-scaling-stroke}
+.rc-candle{opacity:.37}.rc-candle.rc-up{fill:#27cfa8;stroke:#16c9a4}.rc-candle.rc-down{fill:#ef748b;stroke:#ec6c88}
+.rc-ha-step{stroke-width:3.25;stroke-linecap:square;vector-effect:non-scaling-stroke}
 .rc-ha-yellow{stroke:#ffe448}.rc-ha-purple{stroke:#bda0e8}
-.rc-level{stroke-width:1.9;stroke-dasharray:8 5;vector-effect:non-scaling-stroke}
+.rc-level{stroke-width:2.15;stroke-dasharray:8 5;vector-effect:non-scaling-stroke}
 .rc-level-up{stroke:#48dd9c}.rc-level-down{stroke:#f07c8d}.rc-level-now{stroke:#5fe5ef;stroke-width:2.3}
 .rc-label-leader{fill:none;stroke-width:1.1}.rc-label-leader.rc-label-up{stroke:#48dd9c}.rc-label-leader.rc-label-down{stroke:#f07c8d}.rc-label-leader.rc-label-now{stroke:#5fe5ef}
 .rc-label-box.rc-label-up{fill:#135c48;stroke:#2ab38b}.rc-label-box.rc-label-down{fill:#652e44;stroke:#ed8298}.rc-label-box.rc-label-now{fill:#125974;stroke:#53cbe4}
@@ -225,8 +225,14 @@
 .rc-hover-v,.rc-hover-h{stroke:#d6e9f2;stroke-width:1;stroke-dasharray:5 5;opacity:.82;vector-effect:non-scaling-stroke}
 .rc-hover-price-box,.rc-hover-time-box{fill:#244c64;stroke:#b4d7eb;stroke-width:1}
 .rc-hover-price,.rc-hover-time{fill:#f0fbff;font-size:11px;font-weight:700}
-.rc-hover.is-ha .rc-hover-h{stroke:#ffda51;stroke-width:2}
-.rc-hover.is-ha .rc-hover-price-box{fill:#50411f;stroke:#ffd94a}
-.rc-hover-dot{fill:#ffe057;stroke:#1f2d42;stroke-width:1.5}
-.radar-chart-row .radar-micro{padding:0 5px;color:#aac5d9;font-size:11px}
+/* Hovering the daily HA ladder: both the dashed guide and the price tag inherit HA direction. */
+.rc-hover.is-ha-yellow .rc-hover-h{stroke:#ffe448;stroke-width:2}
+.rc-hover.is-ha-yellow .rc-hover-price-box{fill:#4b401c;stroke:#ffe448}
+.rc-hover.is-ha-yellow .rc-hover-price{fill:#ffe448}
+.rc-hover.is-ha-yellow .rc-hover-dot{fill:#ffe448;stroke:#172a3e}
+.rc-hover.is-ha-purple .rc-hover-h{stroke:#bda0e8;stroke-width:2}
+.rc-hover.is-ha-purple .rc-hover-price-box{fill:#39304f;stroke:#bda0e8}
+.rc-hover.is-ha-purple .rc-hover-price{fill:#e3c5ff}
+.rc-hover.is-ha-purple .rc-hover-dot{fill:#bda0e8;stroke:#172a3e}
+.rc-hover-dot{fill:#d0ddec;stroke:#1f2d42;stroke-width:1.5}
 @media(max-width:900px){.radar-table{min-width:760px}.radar-chart-row .radar-area-4h{min-height:240px}.radar-summary-row .sym-name{font-size:18px}}

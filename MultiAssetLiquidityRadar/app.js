@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.3.1 — exact SState S-state / midline regime integration.
+/* Multi-Asset Liquidity Radar v1.3.4 — side-list color flags + chart index column removal.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -228,17 +228,16 @@
  }
  function makeRow(r){
    const tr=el('tr','radar-summary-row');tr.dataset.symbol=r.id;
-   const tIndex=el('td','row-index');const markBtn=el('button','liq-mark-trigger',String(r.index+1));markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.setAttribute('aria-label',`標記 ${r.id} 的顏色`);markBtn.title=`${r.id}：點擊選擇註記顏色`;tIndex.append(markBtn);
    const tSymbol=el('td','chart-symbol-col');const name=el('span','sym-name',r.id);const bell=el('button','liq-alert-bell','🔔');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
    const head=el('div','sym-head');head.append(name,bell);const px=el('div','sym-price','--');const sf=el('div','sym-feed','4H K線 · Pionex / TradingView');tSymbol.append(head,px,sf);
    const tS=el('td');const sw=el('div','state-wrap');const sBadge=el('span','state-badge unknown','--');const sSub=el('div','state-sub','等待日線');sw.append(sBadge,sSub);tS.append(sw);
    const tMid=el('td');const mw=el('div','mid-wrap');const midLabel=el('span','mid-label unknown','--');const midSub=el('div','mid-sub','等待日線');mw.append(midLabel,midSub);tMid.append(mw);
    const tHa=el('td');const hw=el('div','ha-wrap');const ha=el('span','ha-color unknown','--');const hn=el('div','ha-sub','等待日線');hw.append(ha,hn);tHa.append(hw);
    const tCci=el('td');const cw=el('div','ha-wrap');const cci=el('span','ha-color unknown','--');const cn=el('div','ha-sub','等待日線');cw.append(cci,cn);tCci.append(cw);
-   tr.append(tIndex,tSymbol,tS,tMid,tHa,tCci);
-   const chartTr=el('tr','radar-chart-row'),chartTd=el('td','radar-chart-cell');chartTd.colSpan=6;
+   tr.append(tSymbol,tS,tMid,tHa,tCci);
+   const chartTr=el('tr','radar-chart-row'),chartTd=el('td','radar-chart-cell');chartTd.colSpan=5;
    const plot=el('div','radar-area radar-area-4h');chartTd.append(plot);chartTr.append(chartTd);
-   r.dom={tr,chartTr,tIndex,name,px,sf,plot,sBadge,sSub,midLabel,midSub,ha,hn,cci,cn};return tr;
+   r.dom={tr,chartTr,name,px,sf,plot,sBadge,sSub,midLabel,midSub,ha,hn,cci,cn};return tr;
  }
  function renderRow(r){if(!r.dom)return;const d=r.dom;
    d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');
@@ -270,13 +269,6 @@
  // Unknown values always go to the bottom; ties fall back to original watchlist order.
  function sortValue(r,key){
    if(key==='watchlist')return r.index;
-   if(key==='marked_color'){
-     // Fixed color groups: red -> orange -> yellow -> green -> blue -> purple;
-     // unmarked symbols return null, which the comparator always places last.
-     const groupOrder={red:0,orange:1,yellow:2,green:3,blue:4,purple:5};
-     const color=r.dom?.tIndex?.dataset.markColor;
-     return Object.hasOwn(groupOrder,color)?groupOrder[color]:null;
-   }
    if(key==='symbol')return r.id.toUpperCase();
    if(key==='ha')return r.ha&&['黃','紫'].includes(r.ha.color)?(r.ha.color==='黃'?1:0):null;
    if(key==='sstate')return r.sstate?({'S3':80,'S0.5':70,'S1':60,'S2':50,'S0':40,'OTHER-UP':30,'OTHER-DN':20,'OTHER':10}[r.sstate]??0):null;
@@ -340,7 +332,7 @@
    rows.forEach(r=>{frag.append(r.dom.tr,r.dom.chartTr);});
    body.replaceChildren(frag);
    if(!navJumpUntil||Date.now()>navJumpUntil)syncNavFromScroll();
-   if(!rows.length){const tr=el('tr'),td=el('td','empty','沒有符合的標的；請檢查 symbols.js 或篩選條件');td.colSpan=6;tr.append(td);body.append(tr);}
+   if(!rows.length){const tr=el('tr'),td=el('td','empty','沒有符合的標的；請檢查 symbols.js 或篩選條件');td.colSpan=5;tr.append(td);body.append(tr);}
    document.querySelectorAll('.radar-table thead th[data-sort]').forEach(th=>{
      const active=th.dataset.sort===state.sort;
      th.setAttribute('aria-sort',active?(state.sortDir===1?'ascending':'descending'):'none');
@@ -350,7 +342,22 @@
  }
  // Floating rails bind directly to symbols.js records and stable symbol identities.
  const navButtons=new Map();
+ const MARK_GROUP_ORDER=Object.freeze({red:0,orange:1,yellow:2,green:3,blue:4,purple:5});
  let navActive='',navScrollQueued=false,navJumpUntil=0,navPulseTimer=0;
+ function reorderSideNavByMarks(){
+   for(const group of ['crypto','stock']){
+     const list=$('liq-'+group+'-list');if(!list)continue;
+     const items=[...navButtons.values()].filter(item=>item.group===group);
+     items.sort((a,b)=>{
+       const ca=a.wrapper.dataset.markColor,cb=b.wrapper.dataset.markColor;
+       const ra=Object.hasOwn(MARK_GROUP_ORDER,ca)?MARK_GROUP_ORDER[ca]:999;
+       const rb=Object.hasOwn(MARK_GROUP_ORDER,cb)?MARK_GROUP_ORDER[cb]:999;
+       if(ra!==rb)return ra-rb;
+       return a.record.index-b.record.index;
+     });
+     list.replaceChildren(...items.map(item=>item.wrapper));
+   }
+ }
  function setNavActive(id){
    if(navActive===id)return;
    navActive=id;
@@ -402,6 +409,8 @@
      $('liq-'+group+'-side-count').textContent=subset.length;
      const frag=document.createDocumentFragment();
      for(const r of subset){
+       const wrapper=el('div','liq-nav-row');wrapper.dataset.symbol=r.id;
+       const markBtn=el('button','liq-nav-mark-trigger');markBtn.type='button';markBtn.dataset.markSymbol=String(r.s.pionex||r.id).toUpperCase();markBtn.dataset.radarId=r.id;markBtn.dataset.markLocation='side-nav';markBtn.title=`${r.id}：點擊選擇註記顏色`;markBtn.setAttribute('aria-label',`${r.id}：點擊選擇註記顏色`);markBtn.innerHTML='<span class="liq-nav-mark-glyph" aria-hidden="true"></span>';
        const btn=el('button','liq-nav-item');btn.type='button';btn.dataset.symbol=r.id;
        btn.title='跳至 '+r.id+' 的 4H K 線圖';
        btn.setAttribute('aria-label','跳至 '+r.id+' 的圖表');
@@ -409,7 +418,8 @@
        const change=el('span','liq-nav-change','—'),values=el('span','liq-nav-values');
        values.append(quote,change);btn.append(symbol,values);
        btn.addEventListener('click',()=>jumpToSymbol(r));
-       navButtons.set(r.id,{btn,quote,change});frag.append(btn);
+       wrapper.append(markBtn,btn);
+       navButtons.set(r.id,{wrapper,btn,quote,change,markBtn,group,record:r});frag.append(wrapper);
      }
      list.replaceChildren(frag);
      const toggle=host.querySelector('.liq-nav-toggle');
@@ -432,6 +442,7 @@
      syncNavFromScroll();
    },{passive:true});
    setNavActive(records[0]?.id||'');
+   reorderSideNavByMarks();
  }
  // Taiwan's 08:00 daily reset is UTC 00:00. Never use the TV Scanner
  // open column as daily open: it can represent the current 4H bar instead.
@@ -465,7 +476,7 @@
    }
  }
  function chooseSort(key,headerClick){
-   const defaults={watchlist:1,marked_color:1,symbol:1,near:1,sstate:-1,midline:-1,ha:-1,cci:-1,bull_pair:-1,bear_pair:-1,upper:-1,lower:-1,edge:-1};
+   const defaults={watchlist:1,symbol:1,near:1,sstate:-1,midline:-1,ha:-1,cci:-1,bull_pair:-1,bear_pair:-1,upper:-1,lower:-1,edge:-1};
    if(headerClick&&state.sort===key)state.sortDir*=-1;
    else{state.sort=key;state.sortDir=defaults[key]||1;}
    if($('sortBy'))$('sortBy').value=key;
@@ -516,7 +527,7 @@
    $('sortBy').addEventListener('change',e=>chooseSort(e.target.value,false));
    // Re-group immediately when a flag is added, changed, removed or updated from R2.
    document.addEventListener('liq-radar-marks-updated',()=>{
-     if(state.sort==='marked_color')reorder();
+     reorderSideNavByMarks();
    });
    document.querySelectorAll('.radar-table thead button[data-sort]').forEach(btn=>btn.addEventListener('click',()=>chooseSort(btn.dataset.sort,true)));
    $('diagPanel')?.addEventListener('toggle',()=>{if($('diagPanel').open)renderDiag();});
@@ -531,7 +542,7 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.3.3',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.3.4',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

@@ -1,4 +1,4 @@
-/* v1.1.13 — per-symbol TradingView-style color flags, local persistence + optional existing R2 Worker sync. */
+/* v1.2.0 — per-symbol TradingView-style color flags on side watchlists, local persistence + optional existing R2 Worker sync. */
 (()=>{'use strict';
   const worker=String(window.SSTATE_CONFIG?.workerUrl||'').replace(/\/$/,'');
   const ENDPOINT='/api/monitor/radar/marks';
@@ -7,8 +7,7 @@
   const COLORS=Object.freeze({red:'紅',orange:'橘',yellow:'黃',green:'綠',blue:'藍',purple:'紫'});
   const palette=document.getElementById('liq-mark-palette');
   const title=document.getElementById('liqMarkTitle');
-  const body=document.getElementById('radarBody');
-  if(!palette||!body)return;
+  if(!palette)return;
 
   function readStored(key){try{const data=JSON.parse(localStorage.getItem(key)||'{}');return data&&typeof data==='object'&&!Array.isArray(data)?data:{};}catch(_){return {};}}
   function cleanMarks(data,allowNull=false){
@@ -30,21 +29,30 @@
     try{localStorage.setItem(LOCAL_KEY,JSON.stringify(marks));localStorage.setItem(PENDING_KEY,JSON.stringify(pending));}
     catch(e){console.warn('[Color Marks] 無法寫入瀏覽器儲存空間',e);}
   };
-  function refreshRows(){
-    body.querySelectorAll('.liq-mark-trigger').forEach(btn=>{
+  function dispatchUpdate(){
+    document.dispatchEvent(new CustomEvent('liq-radar-marks-updated',{detail:{marks:{...marks}}}));
+  }
+  function refreshMarks(){
+    document.querySelectorAll('.liq-mark-trigger,.liq-nav-mark-trigger').forEach(btn=>{
       const symbol=btn.dataset.markSymbol;
       const color=marks[symbol]||null;
-      const td=btn.closest('.row-index');
-      if(color)td.dataset.markColor=color;
-      else td.removeAttribute('data-mark-color');
-      const label=`${btn.dataset.radarId}（編號 ${btn.textContent.trim()}）${color?'：'+COLORS[color]+'色標記':'：未標記'}；點擊選擇或清除註記`;
-      btn.title=label;
-      btn.setAttribute('aria-label',label);
+      const holder=btn.closest('.liq-nav-row')||btn.closest('.row-index')||btn;
+      if(color){
+        holder.dataset.markColor=color;
+        btn.dataset.markColor=color;
+      }else{
+        holder.removeAttribute('data-mark-color');
+        btn.removeAttribute('data-mark-color');
+      }
+      const baseLabel=btn.classList.contains('liq-nav-mark-trigger')
+        ?`${btn.dataset.radarId}：${color?COLORS[color]+'色標記':'未標記'}；點擊選擇或清除註記`
+        :`${btn.dataset.radarId}（編號 ${btn.textContent.trim()}）${color?'：'+COLORS[color]+'色標記':'：未標記'}；點擊選擇或清除註記`;
+      btn.title=baseLabel;
+      btn.setAttribute('aria-label',baseLabel);
       btn.setAttribute('aria-haspopup','dialog');
       btn.setAttribute('aria-expanded',String(active===btn&&!palette.hidden));
     });
-    // Keep the list grouped live without changing the permanent symbol numbers.
-    document.dispatchEvent(new Event('liq-radar-marks-updated'));
+    dispatchUpdate();
   }
   function refreshPalette(){
     const current=active?marks[active.dataset.markSymbol]||null:null;
@@ -73,7 +81,7 @@
     if(active===btn&&!palette.hidden){closePalette();return;}
     if(active)active.setAttribute('aria-expanded','false');
     active=btn;
-    title.textContent=`${btn.dataset.radarId} · 編號 ${btn.textContent.trim()} · 顏色註記`;
+    title.textContent=btn.classList.contains('liq-nav-mark-trigger')?`${btn.dataset.radarId} · 板塊清單顏色註記`:`${btn.dataset.radarId} · 編號 ${btn.textContent.trim()} · 顏色註記`;
     palette.hidden=false;
     btn.setAttribute('aria-expanded','true');
     refreshPalette();positionPalette();
@@ -127,7 +135,7 @@
         else remote[symbol]=color;
       }
       marks=remote;
-      saveLocal();refreshRows();refreshPalette();
+      saveLocal();refreshMarks();refreshPalette();
       await syncPending();
     }catch(e){serverAvailable=false;lastError=String(e?.message||e);}
   }
@@ -136,12 +144,12 @@
     if(color)marks[symbol]=color;
     else delete marks[symbol];
     pending[symbol]=color;
-    saveLocal();refreshRows();refreshPalette();
+    saveLocal();refreshMarks();refreshPalette();
     if(serverAvailable){void syncPending();}
     else{note('顏色已儲存於此瀏覽器；跨裝置同步需更新 Cloudflare Worker');}
   }
-  body.addEventListener('click',event=>{
-    const btn=event.target.closest('.liq-mark-trigger');
+  document.addEventListener('click',event=>{
+    const btn=event.target.closest('.liq-mark-trigger,.liq-nav-mark-trigger');
     if(!btn)return;
     event.preventDefault();event.stopPropagation();openPalette(btn);
   });
@@ -167,9 +175,9 @@
     if(event.key!==LOCAL_KEY&&event.key!==PENDING_KEY)return;
     marks=cleanMarks(readStored(LOCAL_KEY));
     pending=cleanMarks(readStored(PENDING_KEY),true);
-    refreshRows();refreshPalette();
+    refreshMarks();refreshPalette();
   });
-  refreshRows();
+  refreshMarks();
   void refreshCloud();
-  window.LIQ_MARK_TEST={getMarks:()=>({...marks}),getPending:()=>({...pending}),setMark,refreshRows,refreshCloud,closePalette};
+  window.LIQ_MARK_TEST={getMarks:()=>({...marks}),getPending:()=>({...pending}),setMark,refreshMarks,refreshCloud,closePalette};
 })();

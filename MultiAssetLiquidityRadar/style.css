@@ -381,3 +381,27 @@
 .liq-nav-item.is-flat[aria-current="location"] .liq-nav-quote{color:#bad0d9}
 /* A selected symbol without a verified daily reference stays neutral. */
 .liq-nav-item[aria-current="location"]:not(.is-up):not(.is-down):not(.is-flat) .liq-nav-quote{color:#88adc0}
+
+
+/* v1.3.4 — move persistent color flags from chart rows into side watchlists. */
+.radar-table{min-width:1180px}
+.c-symbol{width:29%}.c-sstate{width:17%}.c-midline{width:18%}.c-ha{width:18%}.c-cci{width:18%}
+.radar-sticky-table{min-width:1180px}
+.radar-table thead th:first-child,.radar-table tbody td:first-child{text-align:left}
+
+.liq-nav-row{display:flex;align-items:stretch;gap:4px}
+.liq-nav-item{flex:1 1 auto;min-width:0}
+.liq-nav-mark-trigger{flex:none;width:18px;min-width:18px;padding:0;border:1px solid #23435b;border-radius:6px;background:#0a2031;display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+.liq-nav-mark-trigger:hover,.liq-nav-mark-trigger:focus-visible{background:#15384d;border-color:#4ca2ba;outline:0;transform:translateY(-1px)}
+.liq-nav-mark-glyph{display:block;width:11px;height:14px;background:#436175;clip-path:polygon(0 0,100% 0,100% 100%,50% 76%,0 100%);opacity:.82}
+.liq-nav-row[data-mark-color]{--mark-bg:rgba(80,112,140,.15);--mark-border:#3a5b74}
+.liq-nav-row[data-mark-color] .liq-nav-item{border-color:var(--mark-border);background:color-mix(in srgb,var(--mark-bg) 55%,#0b2538)}
+.liq-nav-row[data-mark-color] .liq-nav-mark-trigger{border-color:color-mix(in srgb,var(--mark-color) 60%,#35506a);background:color-mix(in srgb,var(--mark-color) 22%,#0a2031)}
+.liq-nav-row[data-mark-color] .liq-nav-mark-glyph{background:var(--mark-color);opacity:1;filter:drop-shadow(0 0 3px rgba(0,0,0,.35))}
+.liq-nav-row[data-mark-color="red"]{--mark-color:#f14f62;--mark-bg:#4a1e2a;--mark-border:#8d4354}
+.liq-nav-row[data-mark-color="orange"]{--mark-color:#ffa347;--mark-bg:#4b3120;--mark-border:#9a6940}
+.liq-nav-row[data-mark-color="yellow"]{--mark-color:#ffe44e;--mark-bg:#534720;--mark-border:#9d8c3b}
+.liq-nav-row[data-mark-color="green"]{--mark-color:#20d6a3;--mark-bg:#183a33;--mark-border:#2b8e76}
+.liq-nav-row[data-mark-color="blue"]{--mark-color:#489dff;--mark-bg:#1a3048;--mark-border:#4f7eaf}
+.liq-nav-row[data-mark-color="purple"]{--mark-color:#b89afa;--mark-bg:#35294d;--mark-border:#7557a7}
+@media(max-width:1259px){.liq-side-nav.is-open{width:182px}}

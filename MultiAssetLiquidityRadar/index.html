@@ -27,7 +27,7 @@
   <section class="toolbar">
   <div class="filter-group" id="groupFilters"><button type="button" data-group="all" class="active">全部 <span id="allCount">0</span></button><button type="button" data-group="crypto">加密貨幣 <span id="cryptoCount">0</span></button><button type="button" data-group="stock">美股／商品 <span id="stockCount">0</span></button></div>
   <label class="search-wrap"><input id="searchInput" type="search" placeholder="搜尋 symbols.js 標的…" aria-label="搜尋標的"/></label>
-  <label class="sort-label">排序 <select id="sortBy"><option value="watchlist">清單順序</option><option value="marked_color">🎨 顏色標記集中（紅→橘→黃→綠→藍→紫）</option><option value="symbol">幣種名稱</option><option value="sstate">S 狀態：S3→S0.5→S1→S2→S0→OT-UP/DN</option><option value="midline">中軌：上斜→平緩→走平→下斜</option><option value="ha">平均 K 黃色優先（同色 CCI 優先）</option><option value="cci">CCI-SMA 黃色優先（同色平均K優先）</option><option value="bull_pair">黃／黃 組合優先</option><option value="bear_pair">紫／紫 組合優先</option><option value="near">離清算界最近</option></select></label>
+  <label class="sort-label">排序 <select id="sortBy"><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="sstate">S 狀態：S3→S0.5→S1→S2→S0→OT-UP/DN</option><option value="midline">中軌：上斜→平緩→走平→下斜</option><option value="ha">平均 K 黃色優先（同色 CCI 優先）</option><option value="cci">CCI-SMA 黃色優先（同色平均K優先）</option><option value="bull_pair">黃／黃 組合優先</option><option value="bear_pair">紫／紫 組合優先</option><option value="near">離清算界最近</option></select></label>
 </section>
   <div class="header-status"><a class="home-link" href="../index.html" title="返回 SState Market Terminal 主站">← SState 主站</a>
     <div class="fg-popover" id="fgPopover">
@@ -40,7 +40,7 @@
 
 <div class="overview"><span id="coverage">等待資料</span><span class="legend"><i class="leg up"></i>上界 <i class="leg now"></i>現價 <i class="leg down"></i>下界　<span class="ha-yellow">黃＝上升／偏多</span>　<span class="ha-purple">紫＝下降／偏空</span></span></div>
 <div class="radar-sticky-table-wrap" id="radarStickyTableWrap"><table class="radar-table radar-sticky-table">
-<colgroup><col class="c-index"><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>
+<colgroup><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>
 <thead><tr>
 <th data-sort="watchlist"><button class="th-sort" type="button" data-sort="watchlist">項次 <span class="sort-indicator">▲</span></button></th>
 <th data-sort="symbol"><button class="th-sort" type="button" data-sort="symbol">幣種 <span class="sort-indicator"></span></button></th>
@@ -52,8 +52,8 @@
 </table></div>
 </div>
 <div class="table-scroll"><table class="radar-table">
-<colgroup><col class="c-index"><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>
-<tbody id="radarBody"><tr><td colspan="6" class="empty">載入 symbols.js 中…</td></tr></tbody></table></div>
+<colgroup><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>
+<tbody id="radarBody"><tr><td colspan="5" class="empty">載入 symbols.js 中…</td></tr></tbody></table></div>
 <div class="table-footer"><span id="loadedCount">尚未載入</span><span>點擊表頭排序｜NOW 現價每 10 秒｜CoinGlass 7D 每 60 秒｜4H K線每 4 分鐘｜日線指標每 12 分鐘｜右側價格軸</span></div>
 <section class="footnotes"><b>資料說明：</b>真實 4H OHLC K 線及日線布林帶(20,2)；黃／紫階梯為日線 Heikin-Ashi 平均K的收盤值，每日台灣 08:00 換日，每日最多對應 6 根 4H K線。點擊日線平均K階梯顯示黃／紫價格延伸線，滑鼠移開圖表即消失。S 狀態、中軌斜率、平均 K、CCI-SMA 四膠囊沿用主站日線定義並隨行情重算。CoinGlass 優先採 7D 資料；缺失時明確顯示 15M 代理估算。NOW 與上下界水平線均以實際價格定位，顯示在右側價格軸；沒有數據不會偽造。</section>
 <div id="liq-alert-modal" class="liq-alert-modal" hidden aria-hidden="true">
@@ -117,8 +117,8 @@
 <script defer src="../monitor-engine.js?v=0.3.22"></script>
 <script defer src="./symbols.js?v=1.2.8"></script>
 <script defer src="./chart4h.js?v=1.2.7"></script>
-<script defer src="./app.js?v=1.3.3"></script>
+<script defer src="./app.js?v=1.3.4"></script>
 <script defer src="./alerts.js"></script>
-<script defer src="./color-marks.js?v=1.1.13"></script>
+<script defer src="./color-marks.js?v=1.2.0"></script>
 <script defer src="./fear-greed-popover.js?v=1.1.14"></script>
 </body></html>

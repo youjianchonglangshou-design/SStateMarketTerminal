@@ -49,7 +49,7 @@ jobs:
           [ "$CURRENT" = "$EXPECTED_COMMIT" ] || { echo "Worker deployment did not propagate to expected Git commit"; exit 1; }
           cat health.json
           curl -fsS --retry 3 --retry-delay 3 -X POST "$URL/mcp" -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' > mcp-tools.json
-          node -e 'const p=require("./mcp-tools.json"); if(!Array.isArray(p.result?.tools)||p.result.tools.length<10)process.exit(1); console.log("MCP tools online:",p.result.tools.map(x=>x.name).join(", "))'
+          node -e 'const p=require("./mcp-tools.json"); if(!Array.isArray(p.result?.tools)||p.result.tools.length<11 || !p.result.tools.some(t=>t.name==="get_pionex_contracts"))process.exit(1); console.log("MCP tools online:",p.result.tools.map(x=>x.name).join(", "))'
 
       - name: Probe CMC sentiment and CoinGlass bounds (provider-dependent, non-blocking)
         continue-on-error: true

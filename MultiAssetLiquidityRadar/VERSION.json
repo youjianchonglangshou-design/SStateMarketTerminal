@@ -1,7 +1,10 @@
 {
-  "version": "1.2.7",
+  "version": "1.2.8",
   "releaseDate": "2026-10-23",
   "changes": [
+    "FIX: Quote CL in symbols.js tokenized watchlist. The bare identifier CL threw ReferenceError before LIQ_SYMBOLS was created, leaving all rows and both new floating navigation panels at zero.",
+    "Preserve every configured production watchlist symbol (27 crypto and 12 tokenized/commodity) without overwriting personal watchlist choices.",
+    "Cache-bust symbols.js through ?v=1.2.8 and update the visible version badge. All existing 4H, 1D, CoinGlass, markers, alert and navigation logic remains unchanged.",
     "Add floating crypto and tokenized-stock/commodity navigation rails using symbols.js watchlist groups; show fresh quotes from existing in-page records without new API calls.",
     "Clicking a sidebar item smoothly scrolls to its original symbol row and briefly highlights it, regardless of the table sort. When a filter/search hides the symbol, reset to all and reveal it automatically.",
     "Keep sidebars visible while scrolling; current symbol is highlighted. On narrower viewports collapse rails into expandable edge tabs to avoid obscuring charts.",

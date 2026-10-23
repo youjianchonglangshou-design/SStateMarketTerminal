@@ -1,7 +1,8 @@
 {
-  "version": "1.2.3",
+  "version": "1.2.4",
   "releaseDate": "2026-10-23",
   "changes": [
+    "Make ONLY the clicked daily HA (yellow/purple average-K) price label background fully opaque (fill-opacity: 1), hiding any underlying NOW/CoinGlass labels; leave existing NOW and CoinGlass label transparency, HA guide transparency and all indicator calculations unchanged.",
     "Dismiss a click-selected daily HA extension immediately when pointer leaves the selected HA stair (in date or Y position), the plotting area, or the chart itself; also handle SVG replacement during live redraw.",
     "Render bullish 4H bodies with a translucent teal fill (~28%); bearish bodies stay hollow. Candle wicks remain outside the body.",
     "Subtly fade CoinGlass/NOW label backgrounds and edges, thin and fade level dash lines; soften selected HA extension guide and right-side numeric price badge.",

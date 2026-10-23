@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.2.3
+/* MultiAssetLiquidityRadar v1.2.4
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.

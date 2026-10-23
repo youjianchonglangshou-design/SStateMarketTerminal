@@ -234,7 +234,7 @@
 .rc-selected-guide{stroke-width:1;stroke-dasharray:4 7;opacity:.45;vector-effect:non-scaling-stroke}
 .rc-selected-dot{stroke:#101116;stroke-width:1.1;opacity:.72}
 .rc-selected-price{font-size:11px;font-weight:770;opacity:.87;font-variant-numeric:tabular-nums}
-.rc-selected-price-box{fill-opacity:.63;stroke-opacity:.60}
+.rc-selected-price-box{fill-opacity:1;stroke-opacity:.60}
 .rc-ha-selection.is-ha-yellow .rc-selected-guide{stroke:#ffe448}
 .rc-ha-selection.is-ha-yellow .rc-selected-dot{fill:#ffe448}
 .rc-ha-selection.is-ha-yellow .rc-selected-price-box{fill:#443c18;stroke:#d8bf37}

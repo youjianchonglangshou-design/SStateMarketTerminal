@@ -1,15 +1,18 @@
-/* Multi-Asset Liquidity Radar v1.1.5 · SState Monitor shared Telegram price alerts.
+/* Multi-Asset Liquidity Radar v1.8.2 · SState Monitor shared Telegram price alerts.
  * No credentials or Telegram endpoints are stored in this browser script.
  * All persistence, Cron checks, Telegram delivery and one-shot deletion
  * remain in the existing SStateMarketTerminal Cloudflare Worker.
  */
 (()=>{'use strict';
  const $=id=>document.getElementById(id);
- const ctx=window.LIQ_RADAR_ALERT_CONTEXT;
+ // The market context is asynchronous since workspace/R2 restore (v1.7).
+ // Bind only AFTER app.js has created it; never silently abandon bell listeners.
+ let ctx=null,records=[];
  const worker=String(window.SSTATE_CONFIG?.workerUrl||'').replace(/\/$/,'');
  const state={alerts:new Map(),telegramConfigured:null,activeSymbol:'',busy:false,refreshing:false,checking:false,toastTimer:null};
- const records=Array.isArray(ctx?.records)?ctx.records:[];
- const bySymbol=new Map(records.map(r=>[String(r.s.pionex||'').toUpperCase(),r]));
+ // Resolve on demand: members added to the PERP custom list must work too.
+ const bySymbol={get(symbol){return records.find(r=>String(r.s?.pionex||'').toUpperCase()===symbol);}};
+ let initialized=false;
  const formatPrice=n=>{
    const x=Number(n); if(!Number.isFinite(x)||x<=0)return '—';
    if(x>=100)return x.toLocaleString('en-US',{maximumFractionDigits:4});
@@ -125,7 +128,11 @@
    finally{state.checking=false;}
  }
  function setup(){
-   if(!ctx){console.warn('Radar context unavailable');return;}
+   if(initialized)return;
+   ctx=window.LIQ_RADAR_ALERT_CONTEXT;
+   if(!Array.isArray(ctx?.records))return;
+   records=ctx.records;
+   initialized=true;
    document.addEventListener('click',e=>{
      const btn=e.target.closest('.liq-alert-bell');if(!btn)return;
      e.preventDefault();e.stopPropagation();openModal(String(btn.dataset.alertSymbol||'').toUpperCase());
@@ -147,5 +154,8 @@
    document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAlerts();});
    window.LIQ_ALERT_TEST={state,normalizeAlert,setAlerts,refreshBells,updateHint,openModal,closeModal,saveAlert,deleteAlert,checkAlerts,currentPrice};
  }
- setup();
+ // app.js dispatches this after asynchronous workspace restore and record creation.
+ // Also handle the fast path when app.js was already initialized.
+ if(window.LIQ_RADAR_ALERT_CONTEXT)setup();
+ else window.addEventListener('liq-radar-alert-context-ready',setup,{once:true});
 })();

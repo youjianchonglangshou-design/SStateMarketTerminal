@@ -855,3 +855,23 @@ body.radar-workspace{font-size:12px;background:#061523}
  .radar-workspace .chart-taskbar-heading span:first-child{display:none}
  .radar-workspace .chart-window-message{display:none!important}
 }
+
+/* v1.8.2: true global overlays. Charts intentionally float above the market lists,
+   but never above critical price alert configuration or diagnostics. */
+.radar-workspace #liq-alert-modal{
+  position:fixed;inset:0;z-index:1200!important;
+  isolation:isolate;pointer-events:auto;
+  place-items:center;
+  padding:12px;
+}
+.radar-workspace #liq-alert-modal .liq-alert-backdrop{z-index:0;}
+.radar-workspace #liq-alert-modal .liq-alert-card{z-index:1;pointer-events:auto;}
+.radar-workspace #liq-alert-toast{z-index:1210!important;}
+.radar-workspace #diagHolder{
+  position:fixed;z-index:1050!important;isolation:isolate;
+  pointer-events:auto;left:max(12px,15vw);right:max(12px,15vw);
+  max-height:min(70dvh,660px);overflow:auto;
+  background:#0b2538;box-shadow:0 18px 65px #000d;
+}
+.radar-workspace #diagHolder[hidden],.radar-workspace #liq-alert-modal[hidden]{display:none!important;}
+@media(max-width:700px){.radar-workspace #diagHolder{left:8px;right:8px;}}

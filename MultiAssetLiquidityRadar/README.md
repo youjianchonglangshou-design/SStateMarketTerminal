@@ -235,3 +235,11 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 - `▦ 均分` 偵測到 **2 張可見圖表**：改為上／下平均分割，各占中央可用寬度，間距 6px；圖表跟隨容器重新繪製。
 - 3 張圖表維持原有兩種可輪替版型；4 張圖表維持 2 × 2。
 - 只有可見（未最小化）圖表參與均分；套用後仍可自由拖曳、縮放，並延用本機／R2 記憶功能。
+
+
+## v1.8.2 — Price bell and diagnostic overlay repair
+
+- Alert initialization now waits for the asynchronous market context (workspace state restore can delay `app.js`).
+- Price bell opens the original Telegram ABOVE/BELOW target-setting modal on fixed and custom PERP watchlists.
+- Alert modal and diagnostics panel sit **above all four floating charts**.
+- No changes to Telegram Worker endpoints, 37-rule Spotlight engine, chart price-scale/HA behavior or market refresh schedule.

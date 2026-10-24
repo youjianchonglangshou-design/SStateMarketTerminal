@@ -1,25 +1,25 @@
 {
-  "version": "1.8.1",
+  "version": "1.8.2",
   "releaseDate": "2026-10-24",
-  "baseVersion": "1.8.0",
+  "baseVersion": "1.8.1",
   "changes": [
-    "Place the Signal Spotlight radar directly left of the Tile button in the chart taskbar; keep its unread pulse and cards intact.",
-    "Reduce the dock footprint and expand the READY terminal area to show market status after bootstrap.",
-    "Persist the per-chart sent-back-to-crypto mode as an actual toggle, with pressed button styling and aria-pressed.",
-    "Normal chart clicks and taskbar single-clicks preserve sent-back status; pressing the toggle again or double-clicking that exact chart taskbar tab releases it.",
-    "Tiling/resize no longer silently clears sent-back status; restore the same state on reload."
+    "Fix asynchronous price-alert bootstrap: alerts.js waits for the actual market record context published by app.js after remote workspace restore; bell listeners no longer silently fail.",
+    "Make symbol lookup dynamic so newly added PERP custom-watchlist instruments can open the Telegram alert modal.",
+    "Guarantee Telegram alert configuration appears above all floating charts, watchlists, radar panels, and the bottom taskbar.",
+    "Raise diagnostics to a global overlay above all four floating charts while preserving normal chart interaction when diagnostics is closed.",
+    "Keep chart tiling, sent-back/locking, radar rule engine, price alerts API semantics, and all existing data sources unchanged."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/style.css",
-    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/alerts.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.1.txt"
+    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.2.txt"
   ],
   "notes": [
-    "63/63 offline Chromium fixture checks passed across 1366x768, 1600x900 and 1862x992.",
-    "Online Pionex, TradingView, CoinGlass and Telegram service delivery not re-tested.",
-    "Signal Spotlight v1.8.0 rules and local event storage unchanged."
+    "Local Chromium UI and mocked Worker responses verified; live Telegram delivery remains unverified.",
+    "No Worker changes required."
   ]
 }

@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.5.1
+/* MultiAssetLiquidityRadar v1.5.2
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
@@ -7,6 +7,8 @@
  const H4=14400000,DAY=86400000,BLANK_CANDLES=3;
  // Click a real 1D HA stair to extend its guide. Selection stays until pointer leaves this chart. Each plot owns its own state.
  const interactions=new WeakMap();
+ const SCALE_MIN=0.25,SCALE_MAX=16;
+ let clipIndex=0;
  const valid=n=>Number.isFinite(n)&&n>0;
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const clamp=(n,l,h)=>Math.max(l,Math.min(h,n));
@@ -74,7 +76,7 @@
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
- function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now()}={}){
+ function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null}={}){
    if(!target)return;
    if(bars.length<21){target.innerHTML='<div class="radar-chart-wait">等待真正的 4H K 線資料…</div>';return;}
    const rows=series(bars,daily,price,updatedAt).slice(-84);
@@ -87,10 +89,23 @@
    for(const v of [price,upper,lower])if(valid(v))vals.push(v);
    let min=Math.min(...vals),max=Math.max(...vals),span=Math.max(max-min,min*.005);
    min-=span*.085;max+=span*.085;
+   // TradingView-style vertical zoom: all plot geometry uses the SAME recalculated
+   // visible price domain. Anchor at NOW so a flattened recent market can be
+   // expanded while distant historical extremes move outside the clipped plot.
+   const autoMin=min,autoMax=max,autoSpan=autoMax-autoMin;
+   const scale=clamp(Number(priceScale)||1,SCALE_MIN,SCALE_MAX);
+   const anchor=valid(price)?price:rows.at(-1).c;
+   const anchorFraction=clamp((autoMax-anchor)/autoSpan,0,1);
+   const spanVisible=autoSpan/scale;
+   max=anchor+anchorFraction*spanVisible;
+   min=max-spanVisible;
+   if(min<=0){const floor=Math.max(anchor*.001,Number.MIN_VALUE);max+=floor-min;min=floor;}
    const y=n=>T+(max-n)/(max-min)*ph;
+   const clipId='rc-plot-clip-'+(target.dataset.chartPlot||target.id||'single').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(target.dataset.clipNonce|| (target.dataset.clipNonce=String(++clipIndex)));
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
    svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及 NOW 價格">`);
+   svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath></defs>`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
      const v=min+(max-min)*i/5,yy=y(v);
@@ -112,6 +127,9 @@
      if(entry?.date===date){entry.last=i;return;}
      daysShown.push({date,first:i,last:i,bb:r.bb});
    });
+   // Clip off-scale candles and historical bands instead of letting them run over
+   // the right price axis or title. Grid/axis and price badges stay unclipped.
+   svg.push(`<g class="rc-price-plot" clip-path="url(#${clipId})">`);
    svg.push('<g class="rc-boll">');
    for(const [key,cls] of [['upper','rc-bb'],['mid','rc-middle'],['lower','rc-bb']]){
      let d='',active=false,prevDate=null;
@@ -154,9 +172,13 @@
    for(const [kind,value] of [['up',upper],['down',lower],['now',price]]){
      if(!valid(value))continue;
      const yy=y(value);
+     // Horizontal values outside a manually zoomed range are not falsely
+     // drawn on the nearest border; zoom out or double-click axis to inspect.
+     if(yy<T||yy>plotB)continue;
      svg.push(`<line class="rc-level rc-level-${kind}" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/>`);
      labels.push({kind,real:yy,yy,text:(kind==='now'?'NOW ':'')+money(value)});
    }
+   svg.push('</g>'); // rc-price-plot clip ends before price label badges.
    // Offset only the badge, never shift the true-price horizontal line.
    const sorted=labels.slice().sort((a,b)=>a.yy-b.yy);
    for(let i=1;i<sorted.length;i++)sorted[i].yy=Math.max(sorted[i].yy,sorted[i-1].yy+22);
@@ -172,6 +194,9 @@
    svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`);
    // Moving only shows the time crosshair. HA extension is an explicit click action.
    svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text><rect class="rc-hover-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-hover-price" x="${plotR+9}" y="0">—</text></g>`);
+   // Entire right axis is a drag handle. Transparent hit area keeps badges on
+   // top visually and is inside the stable plot host's delegated pointer events.
+   svg.push(`<rect class="rc-price-axis-hit" x="${plotR}" y="${T}" width="${R}" height="${ph}" fill="transparent"><title>按住左鍵往上拉放大價格間距、往下拉縮小；雙擊恢復自動刻度</title></rect>`);
    svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
    svg.push('</svg>');
    // Small TradingView-like 4H OHLC strip: show the current candle by default,
@@ -198,10 +223,11 @@
    const cursor=element.querySelector('.rc-cursor'),selected=element.querySelector('.rc-ha-selection');
    let state=interactions.get(target);
    if(!state){
-     state={selectedTimestamp:null,inside:false,pointer:null};interactions.set(target,state);
+     state={selectedTimestamp:null,inside:false,pointer:null,axisDrag:null,scale:1};interactions.set(target,state);
      // Delegate to the stable host: refreshes replace SVG children every 10 seconds.
      // Clear ONLY when the pointer leaves the chart itself (not the selected date/price).
      const clear=()=>{
+       if(state.axisDrag)return;
        state.inside=false;state.pointer=null;state.selectedTimestamp=null;
        target.querySelector('.rc-cursor')?.setAttribute('visibility','hidden');
        target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
@@ -212,17 +238,70 @@
      // Some browsers do not deliver pointerleave when the SVG is replaced mid-hover.
      // A document-level pointer movement outside the chart must still clear it.
      document.addEventListener('pointermove',ev=>{
-       if(!state.inside)return;
+       if(!state.inside||state.axisDrag)return;
        const box=target.getBoundingClientRect();
        if(!target.isConnected||ev.clientX<box.left||ev.clientX>box.right||ev.clientY<box.top||ev.clientY>box.bottom)clear();
      },{passive:true});
+     // Capture on the stable DIV, not the SVG that is replaced while zooming.
+     // A held pointer therefore survives repeated real-time candle redraws.
+     target.addEventListener('pointerdown',ev=>{
+       if(ev.button!==0||!ev.target.closest?.('.rc-price-axis-hit'))return;
+       ev.preventDefault();ev.stopPropagation();
+       const now=Date.now(),prior=state.lastAxisPress;
+       if(prior&&now-prior.time<420&&Math.abs(prior.x-ev.clientX)<8&&Math.abs(prior.y-ev.clientY)<8){
+         state.lastAxisPress=null;
+         state.scale=1;state.scaleChange?.(1);state.scaleCommit?.(1);
+         return;
+       }
+       state.lastAxisPress={time:now,x:ev.clientX,y:ev.clientY};
+       state.axisDrag={id:ev.pointerId,startY:ev.clientY,initialScale:state.scale};
+       state.pointer=null;
+       target.classList.add('price-scale-dragging');
+       try{target.setPointerCapture(ev.pointerId);}catch(_){/* browser fallback */}
+     });
+     target.addEventListener('pointermove',ev=>{
+       const drag=state.axisDrag;
+       if(!drag||ev.pointerId!==drag.id)return;
+       ev.preventDefault();ev.stopPropagation();
+       // Positive UP distance increases candle spacing; DOWN compresses it.
+       const next=clamp(drag.initialScale*Math.exp((drag.startY-ev.clientY)*.008),SCALE_MIN,SCALE_MAX);
+       if(Math.abs(next-state.scale)>1e-5){state.scale=next;state.scaleChange?.(next);}
+     });
+     const finish=ev=>{
+       const drag=state.axisDrag;
+       if(!drag||ev.pointerId!==drag.id)return;
+       ev.preventDefault();ev.stopPropagation();
+       if(Math.abs(ev.clientY-drag.startY)>5)state.lastAxisPress=null;
+       state.axisDrag=null;target.classList.remove('price-scale-dragging');
+       try{if(target.hasPointerCapture(ev.pointerId))target.releasePointerCapture(ev.pointerId);}catch(_){/* no capture */}
+       state.scaleCommit?.(state.scale);
+       const rect=target.getBoundingClientRect();
+       if(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom){
+         state.inside=false;state.selectedTimestamp=null;
+         target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
+       }
+     };
+     target.addEventListener('pointerup',finish);
+     target.addEventListener('pointercancel',finish);
+     target.addEventListener('lostpointercapture',ev=>{if(state.axisDrag?.id===ev.pointerId)finish(ev);});
+     target.addEventListener('dblclick',ev=>{
+       const box=target.getBoundingClientRect();
+       const inAxis=ev.clientX>=box.left+box.width-(146/Math.max(420,Math.round(target.clientWidth||1200)))*box.width;
+       if(!ev.target.closest?.('.rc-price-axis-hit')&&!inAxis)return;
+       ev.preventDefault();ev.stopPropagation();
+       state.lastAxisPress=null;
+       state.scale=1;state.scaleChange?.(1);state.scaleCommit?.(1);
+     });
    }
+   state.scale=scale;
+   state.scaleChange=onPriceScaleChange;
+   state.scaleCommit=onPriceScaleCommit;
    // Refreshes replace SVG nodes; host listeners survive. Each window uses its own
    // target key so selecting another chart does not erase this chart's selection.
    state.resetOHLC=()=>showOHLC(latestBar);
    function paintSelected(){
      const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
-     if(!state.inside||i<0||!r?.ha||r.ha.color==='gray'){
+     if(!state.inside||i<0||!r?.ha||r.ha.color==='gray'||y(r.ha.price)<T||y(r.ha.price)>plotB){
        selected.setAttribute('visibility','hidden');return;
      }
      const xx=x(i),py=y(r.ha.price);

@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.5.1 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v1.5.2 — four independent floating 4H charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -31,7 +31,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized}))}));}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale}))}));}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -70,7 +70,11 @@
    w.price.textContent=d.priceText;
    w.indicator.textContent=d.indicator;
    w.source.textContent=d.source;
-   if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,d.chart);
+   if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
+     ...d.chart,priceScale:w.priceScale,
+     onPriceScaleChange:scale=>{w.priceScale=scale;w.dirty=true;schedule(w,0);},
+     onPriceScaleCommit:()=>save()
+   });
    else w.plot.textContent='4H 圖表模組尚未載入';
    w.dirty=false;
    w.renderCount++;
@@ -123,7 +127,7 @@
    const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=label;b.title=title;b.setAttribute('aria-label',title);
    b.addEventListener('click',e=>{e.stopPropagation();handler();});return b;
  }
- function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false}={}){
+ function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1}={}){
    if(windows.length>=LIMIT){announce('最多只能開啟 4 張圖表');return null;}
    if(!api.hasSymbol(symbol))return null;
    const uid=id||'chart-'+(++serial);
@@ -137,7 +141,7 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframe,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    buttons.append(w.lockButton,
      makeButton('chart-sendback','置後','將此圖表置後',()=>{sendBack(w);save();}),
@@ -247,7 +251,7 @@
      const symbol=api.hasSymbol(candidate)?candidate:(api.hasSymbol('BTC')?'BTC':null);
      if(symbol)initial=[{symbol,id:'chart-1',geom:legacy,locked:false,minimized:false}];
    }
-   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,quiet:true});
+   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
    if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
@@ -264,7 +268,7 @@
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const w of windows){w.dirty=true;schedule(w,100);}});
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
-   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty}));},
+   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
    focusWindow:uid=>activate(byId(uid)),closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
  bootstrap();

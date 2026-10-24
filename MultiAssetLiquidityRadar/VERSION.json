@@ -1,11 +1,10 @@
 {
-  "version": "1.5.1",
+  "version": "1.5.2",
   "releaseDate": "2026-10-24",
   "changes": [
-    "Restore click-to-inspect on actual 1D yellow/purple HA staircase: extend a same-color dashed guide horizontally to the right price axis with matching semantic price badge.",
-    "Make the selected HA price badge fully opaque and the last SVG drawing layer, above live NOW/liquidation/crosshair labels.",
-    "Hold the selected HA guide while the pointer stays anywhere inside its chart; clear on chart pointerleave or a different click; preserve selection through live redraw and resize.",
-    "Stop chart-focus pointerdown from replacing the SVG before its staircase click event; keep inspection independent in up to four floating windows.",
-    "Retain v1.5.0 four-window taskbar, lock/minimize/close, 21/12 fixed watchlists, data sources and alert/flag ordering."
+    "Price-axis left-button vertical drag: move up to expand vertical price spacing/candlesticks, down to compress; double-click the price axis to reset automatic scaling.",
+    "Recompute OHLC candles, daily Bollinger bands, HA steps, NOW and CoinGlass upper/lower levels on one consistent vertical price domain; clip historical structures outside a zoomed price viewport.",
+    "Keep an independent price-axis zoom multiplier (0.25x–16x) for each of the four chart windows and persist through window moves, switches, reloads, and chart resizing.",
+    "Preserve v1.5.1 semantic HA step inspection, four floating windows, fixed 21+12 symbol lists, alert/mark order, data refresh and all existing provider logic."
   ]
 }

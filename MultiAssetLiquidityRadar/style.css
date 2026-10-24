@@ -534,3 +534,8 @@ body.radar-workspace{font-size:12px;background:#061523}
 .rc-ha-selection{opacity:1;pointer-events:none}
 .rc-ha-selection .rc-selected-price-box{fill-opacity:1!important;opacity:1!important}
 .rc-ha-selection .rc-selected-price{opacity:1!important;paint-order:normal}
+
+/* v1.5.2 – draggable right-hand PRICE axis, independent per floating window. */
+.radar-workspace .rc-price-axis-hit{cursor:ns-resize;pointer-events:all;touch-action:none;}
+.radar-workspace [data-chart-plot].price-scale-dragging,
+.radar-workspace [data-chart-plot].price-scale-dragging *{cursor:ns-resize!important;user-select:none!important;}

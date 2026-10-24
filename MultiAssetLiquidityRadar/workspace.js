@@ -3,6 +3,7 @@
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
 (()=>{'use strict';
+ async function boot(){await (window.LIQ_SHARED_STATE?.ready||Promise.resolve());
  const $=id=>document.getElementById(id);
  const api=window.LIQ_CHART_API;
  const host=$('chartWindowLayer'),tabs=$('chartWindowTabs'),add=$('chartAddWindow');
@@ -11,8 +12,8 @@
  const LEGACY='SStateLiquidityRadar.workspace.v1.4';
  const LIMIT=4;
  const windows=[];
- let activeId=null,serial=0,drag=null,noticeTimer=0,resizeTimer=0;
- const min=(k)=>({w:Math.min(480,Math.max(340,innerWidth-18)),h:Math.min(285,Math.max(240,innerHeight-74))})[k];
+ let activeId=null,serial=0,drag=null,noticeTimer=0,resizeTimer=0,layoutVariant=1;
+ const min=(k)=>({w:Math.min(320,Math.max(300,innerWidth-18)),h:Math.min(250,Math.max(220,innerHeight-74))})[k];
  const clamp=(n,lo,hi)=>Math.min(Math.max(n,lo),Math.max(lo,hi));
  const maxW=()=>Math.max(min('w'),innerWidth-8);
  const maxH=()=>Math.max(min('h'),innerHeight-53);
@@ -31,7 +32,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale}))}));}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,haSelected:w.haSelected,behindCrypto:w.behindCrypto}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -41,7 +42,16 @@
  function byId(id){return windows.find(w=>w.id===id);}
  function bySymbol(id){return windows.find(w=>w.symbol===id);}
  function sortStack(){
-   windows.forEach((w,i)=>{w.el.style.zIndex=String(80+i);w.el.classList.toggle('is-focused',w.id===activeId&&!w.minimized);});
+   // Explicit three-layer market topology: stock < chart (including sent-back)
+   // < crypto for sent-back charts only. Foreground charts over both watchlists.
+   $('liq-stock-nav').style.zIndex='60';
+   $('liq-custom-nav').style.zIndex='60';
+   $('liq-crypto-nav').style.zIndex='101';
+   windows.forEach((w,i)=>{
+     w.el.style.zIndex=String(w.behindCrypto?90:120+i);
+     w.el.classList.toggle('is-focused',w.id===activeId&&!w.minimized);
+     w.el.classList.toggle('behind-crypto',w.behindCrypto);
+   });
  }
  function paint(w){
    w.geom=constrain(w.geom);
@@ -78,7 +88,9 @@
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
      ...d.chart,priceScale:w.priceScale,
      onPriceScaleChange:scale=>{w.priceScale=scale;w.dirty=true;schedule(w,0);},
-     onPriceScaleCommit:()=>save()
+     onPriceScaleCommit:()=>save(),
+     selectedTimestamp:w.haSelected,
+     onSelectionChange:t=>{w.haSelected=t;save();}
    });
    else w.plot.textContent='4H 圖表模組尚未載入';
    w.dirty=false;
@@ -103,14 +115,13 @@
    add.disabled=windows.length>=LIMIT;
  }
  function updateTabs(){windows.forEach(updateTab);$('chartWindowCount').textContent=windows.length+'/'+LIMIT;add.disabled=windows.length>=LIMIT;}
- function activate(w,{reveal=true,notify=true}={}){
+ function activate(w,{reveal=true,notify=true,preserveBack=false}={}){
    if(!w)return;
    if(reveal&&w.minimized){w.minimized=false;w.el.hidden=false;w.dirty=true;}
    activeId=w.id;
+   if(!preserveBack)w.behindCrypto=false;
    const ix=windows.indexOf(w);if(ix>=0){windows.splice(ix,1);windows.push(w);}
    sortStack();
-   // When a chart is focused, the list remains readable anywhere not overlapped.
-   $('liq-crypto-nav').style.zIndex='62';$('liq-stock-nav').style.zIndex='62';
    updateTabs();
    if(notify)api.updateActiveSelection(w.symbol);
    // Do not invalidate/rebuild an already visible SVG merely to focus the chart.
@@ -119,20 +130,16 @@
    if(w.minimized||w.dirty||!w.plot.querySelector('svg')){w.dirty=true;schedule(w);}
    save();
  }
- function focusList(group){
-   $('liq-crypto-nav').style.zIndex=group==='crypto'?'101':'65';
-   $('liq-stock-nav').style.zIndex=group==='stock'?'101':'65';
- }
+ function focusList(group){ /* Focus never changes the permanent market z-layer rules. */ sortStack(); }
  function sendBack(w){
    if(!w)return;
-   w.el.style.zIndex='30';
-   $('liq-crypto-nav').style.zIndex='75';$('liq-stock-nav').style.zIndex='75';
+   w.behindCrypto=true;sortStack();updateTabs();save();
  }
  function makeButton(cls,label,title,handler){
    const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=label;b.title=title;b.setAttribute('aria-label',title);
    b.addEventListener('click',e=>{e.stopPropagation();handler();});return b;
  }
- function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1}={}){
+ function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,haSelected=null,behindCrypto=false}={}){
    if(windows.length>=LIMIT){announce('最多只能開啟 4 張圖表');return null;}
    if(!api.hasSymbol(symbol))return null;
    const uid=id||'chart-'+(++serial);
@@ -146,9 +153,10 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframe,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    buttons.append(w.lockButton,
+     makeButton('chart-send-back','⇤','置於左側加密清單後方（再次點擊圖表可置頂）',()=>sendBack(w)),
      makeButton('chart-reset','▣','還原此圖表預設尺寸',()=>{w.geom=defaults(Math.max(0,windows.indexOf(w)));paint(w);w.dirty=true;schedule(w,50);activate(w);}),
      makeButton('chart-minimize','−','最小化此圖表（資料持續更新）',()=>minimize(w)),
      makeButton('chart-close','×','關閉此圖表視窗',()=>close(w)));
@@ -210,7 +218,7 @@
    }
    if(!w){w=[...windows].reverse().find(x=>!x.locked)||create(symbol);}
    if(!w){announce('請先解鎖或關閉其中一張圖表');return false;}
-   if(w.symbol!==symbol){window.LiqRadar4H?.clearSelection(w.plot);w.symbol=symbol;w.el.setAttribute('aria-label',symbol+' 浮動 4H 圖表');w.dirty=true;}
+   if(w.symbol!==symbol){window.LiqRadar4H?.clearSelection(w.plot);w.haSelected=null;w.symbol=symbol;w.el.setAttribute('aria-label',symbol+' 浮動 4H 圖表');w.dirty=true;}
    activate(w);return true;
  }
  function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;w.source.textContent=d.source;}
@@ -243,6 +251,34 @@
    if(wasResize){w.dirty=true;schedule(w,40);}save();
  }
  function reset(){windows.forEach((w,i)=>{w.geom=defaults(i);paint(w);w.dirty=true;schedule(w,60);});if(windows.length){activate(windows.at(-1));}save();}
+
+ function tileWindows(){
+   const visible=windows.filter(w=>!w.minimized);
+   const n=visible.length;
+   if(!n){announce('請先開啟圖表');return;}
+   const crypto=$('liq-crypto-nav').getBoundingClientRect();
+   const stock=$('liq-stock-nav').getBoundingClientRect();
+   const left=Math.ceil(crypto.right+7),right=Math.floor(stock.left-7);
+   const top=7,bottom=Math.floor(innerHeight-53);
+   const width=Math.max(1,right-left),height=Math.max(1,bottom-top),gap=6;
+   const splitW=(width-gap)/2,splitH=(height-gap)/2;
+   let regions=[];
+   const box=(x,y,ww,hh)=>({x:Math.round(x),y:Math.round(y),w:Math.round(ww),h:Math.round(hh)});
+   if(n===1)regions=[box(left,top,width,height)];
+   else if(n===2)regions=[box(left,top,splitW,height),box(left+splitW+gap,top,splitW,height)];
+   else if(n===3){
+     layoutVariant=(layoutVariant+1)%2;
+     regions=layoutVariant===0?[
+       box(left,top,splitW,splitH),box(left+splitW+gap,top,splitW,splitH),box(left,top+splitH+gap,width,splitH)
+     ]:[
+       box(left,top,width,splitH),box(left,top+splitH+gap,splitW,splitH),box(left+splitW+gap,top+splitH+gap,splitW,splitH)
+     ];
+   }else{
+     regions=[box(left,top,splitW,splitH),box(left+splitW+gap,top,splitW,splitH),box(left,top+splitH+gap,splitW,splitH),box(left+splitW+gap,top+splitH+gap,splitW,splitH)];
+   }
+   visible.forEach((w,i)=>{w.behindCrypto=false;w.geom=constrain(regions[i]);paint(w);w.dirty=true;schedule(w,25);});
+   sortStack();save();announce(n===3?'三視窗版型 '+(layoutVariant===0?'A':'B'):'已平均分割 '+n+' 張圖表');
+ }
  function bootstrap(){
    const stored=storageGet(KEY);let initial=[];
    if(stored&&Array.isArray(stored.windows)){
@@ -254,11 +290,12 @@
      const symbol=api.hasSymbol(candidate)?candidate:(api.hasSymbol('BTC')?'BTC':null);
      if(symbol)initial=[{symbol,id:'chart-1',geom:legacy,locked:false,minimized:false}];
    }
-   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,quiet:true});
+   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,haSelected:s.haSelected,behindCrypto:s.behindCrypto,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
-   if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
+   if(chosen&&!chosen.minimized)activate(chosen,{preserveBack:true});else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
  }
+ $('chartTileWindows')?.addEventListener('click',tileWindows);
  add.addEventListener('click',()=>{
    const selected=byId(activeId)?.symbol||(()=>{try{return localStorage.getItem('liq-v140-active-symbol');}catch(_){return null;}})()||'BTC';
    const w=create(api.hasSymbol(selected)?selected:(api.hasSymbol('BTC')?'BTC':null));
@@ -271,8 +308,10 @@
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const w of windows){w.dirty=true;schedule(w,100);}});
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
-   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale}));},
+   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
-   focusWindow:uid=>activate(byId(uid)),closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
+   focusWindow:uid=>activate(byId(uid)),sendBackWindow:uid=>sendBack(byId(uid)),tileWindows,closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
  bootstrap();
+ }
+ boot().catch(e=>console.error('[Radar workspace]',e));
 })();

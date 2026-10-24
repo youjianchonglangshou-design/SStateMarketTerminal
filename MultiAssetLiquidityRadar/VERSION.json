@@ -1,18 +1,26 @@
 {
-  "version": "1.6.2",
+  "version": "1.7.0",
   "releaseDate": "2026-10-24",
+  "baseVersion": "1.6.2",
   "changes": [
-    "Remove the redundant footer separator: keep only one vertical divider between terminal status and chart taskbar.",
-    "Show terminal loading progress only while the initial history jobs are pending; after completion remove the progress meter and display READY/SYNC plus monitored count, double-yellow/double-purple and K-line completion stats.",
-    "Restore homepage-inspired rounded and glossy 3D semantic capsules in chart titlebars for S-state, middle-band slope, HA and CCI; preserve their color meanings and compact four-window layout.",
-    "Keep all v1.6.1 functionality unchanged, including four charts, pinned HA guides, custom eight PERP entries, existing alerts and color marks."
+    "New installation-shared Cloudflare R2 workspace sync endpoint GET/PUT /api/monitor/radar/workspace with revision checks; all UI changes remain locally persistent if the Worker is unavailable.",
+    "Persist up to four floating chart symbols, geometry, z-layer sent-back state, locks, minimized flags, vertical price scale and selected Heikin-Ashi level timestamp across reloads and, after deploying the Worker, devices.",
+    "Sync user-added custom PERP symbols (max eight) through the same R2 snapshot without modifying symbols.js or the separate monitor.html watchlist.",
+    "Restore send-back chart control between Lock and Reset; only send chart below crypto sector list, never below stock sector list.",
+    "Resize terminal status footprint and expand compact footer chart taskbar; add a tile button on its right side.",
+    "Auto-tile two charts side-by-side, four in 2x2, and three in alternating top-2/bottom-1 or top-1/bottom-2 layouts on consecutive clicks; restore tile geometry using shared state.",
+    "Support narrow chart windows down to 320px and dynamic price-axis width, preserving all-visible 21 crypto and 12 stock rows."
   ],
   "modifiedFiles": [
-    "index.html",
-    "style.css",
-    "app.js",
-    "VERSION.json",
-    "README.md",
-    "TEST_REPORT_v1.6.2.txt"
+    "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/workspace-sync.js",
+    "MultiAssetLiquidityRadar/VERSION.json",
+    "MultiAssetLiquidityRadar/README.md",
+    "MultiAssetLiquidityRadar/TEST_REPORT_v1.7.0.txt",
+    "cloudflare/worker.js"
   ]
 }

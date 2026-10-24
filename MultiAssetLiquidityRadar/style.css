@@ -730,3 +730,50 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .floating-chart .chart-titlebar .chart-semantic.purple{
   background:linear-gradient(180deg,#e5c6ff 0%,#aa78d8 48%,#67418e 100%);color:#fdf5ff;
 }
+
+/* v1.7.0: compact terminal + wider chart taskbar, one-click mosaic button. */
+.radar-workspace .terminal-status{
+  left:max(254px,13.7vw)!important;
+  right:auto!important;
+  width:clamp(146px,12vw,206px)!important;
+  padding:3px 7px!important;
+  border-right:0!important;
+}
+.radar-workspace .terminal-line{font-size:9px}
+.radar-workspace #terminalDetail{display:none!important}
+.radar-workspace .chart-taskbar{
+  left:calc(max(254px,13.7vw) + clamp(146px,12vw,206px) + 7px)!important;
+  right:clamp(365px,23vw,445px)!important;
+  width:auto!important;
+  min-width:0!important;
+}
+.radar-workspace .chart-tile-windows{
+  order:20; flex:none; margin-left:auto; padding:5px 8px;
+  border:1px solid #54a7c6; border-radius:5px; color:#c5f5ff;
+  background:linear-gradient(#1b5a70,#103649); cursor:pointer;
+  font-size:11px;white-space:nowrap;
+}
+.radar-workspace .chart-tile-windows:hover{background:#276f85;border-color:#72d1e9}
+.radar-workspace .chart-window-message{order:19;flex:0 1 auto;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.radar-workspace .chart-taskbar-heading{flex:none}
+.radar-workspace .chart-window-tabs{min-width:0;flex:0 1 auto}
+.radar-workspace .chart-send-back{font-size:14px!important;font-weight:800}
+.radar-workspace .floating-chart.behind-crypto{box-shadow:0 12px 28px #000a}
+@media(max-width:1280px){
+ .radar-workspace .chart-taskbar-heading span:first-child{display:none}
+ .radar-workspace .chart-tile-windows{padding:5px 4px;font-size:10px}
+ .radar-workspace .chart-window-message{display:none}
+}
+
+/* Even four narrow tiled windows keep their controls on a single row. */
+.radar-workspace .floating-chart{container-type:inline-size}
+@container (max-width: 470px){
+ .radar-workspace .floating-chart .chart-titlebar{gap:3px;padding:0 5px}
+ .radar-workspace .floating-chart .chart-head-label{min-width:0;gap:3px}
+ .radar-workspace .floating-chart .chart-head-label strong{font-size:12px}
+ .radar-workspace .floating-chart .chart-timeframe,.radar-workspace .floating-chart .chart-head-price{display:none}
+ .radar-workspace .floating-chart .chart-inline-capsules{gap:2px}
+ .radar-workspace .floating-chart .chart-inline-capsules .chart-semantic{font-size:8px;padding:2px 3px}
+ .radar-workspace .floating-chart .chart-head-buttons{gap:2px}
+ .radar-workspace .floating-chart .chart-head-buttons button{min-width:22px;height:23px;padding:3px}
+}

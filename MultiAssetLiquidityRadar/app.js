@@ -399,7 +399,7 @@
  const CUSTOM_MAX=8;
  let customUniverse=[],customLoaded=false,customPartial=false;
  const customIds=()=>records.filter(row=>row.s.group==='custom').map(row=>row.id);
- const customSave=()=>{try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(customIds()));}catch(_){/* storage disabled */}};
+ const customSave=()=>{try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(customIds()));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* storage disabled */}};
  function makeCustomRecord(base){
    const id=String(base||'').toUpperCase().replace(/_USDT_PERP$/,'');
    if(!/^[A-Z0-9]{1,22}$/.test(id)||records.some(x=>x.id===id))return null;
@@ -638,7 +638,7 @@
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.6.2',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.7.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
- setup();
+ (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

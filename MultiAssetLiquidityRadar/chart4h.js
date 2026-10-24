@@ -76,13 +76,13 @@
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
- function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null}={}){
+ function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null}={}){
    if(!target)return;
    if(bars.length<21){target.innerHTML='<div class="radar-chart-wait">等待真正的 4H K 線資料…</div>';return;}
    const rows=series(bars,daily,price,updatedAt).slice(-84);
    if(rows.length<21){target.innerHTML='<div class="radar-chart-wait">4H K 線歷史不足</div>';return;}
-   const W=Math.max(420,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));
-   const L=16,R=146,T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
+   const W=Math.max(320,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));
+   const L=16,R=Math.min(146,Math.max(112,Math.round(W*.31))),T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
    const stride=pw/(rows.length+BLANK_CANDLES),x=i=>L+(i+.5)*stride;
    const vals=[];
    for(const r of rows){vals.push(r.h,r.l);if(r.bb)vals.push(r.bb.upper,r.bb.lower);if(r.ha)vals.push(r.ha.price);}
@@ -291,13 +291,17 @@
      target.addEventListener('lostpointercapture',ev=>{if(state.axisDrag?.id===ev.pointerId)finish(ev);});
      target.addEventListener('dblclick',ev=>{
        const box=target.getBoundingClientRect();
-       const inAxis=ev.clientX>=box.left+box.width-(146/Math.max(420,Math.round(target.clientWidth||1200)))*box.width;
+       const inAxis=ev.clientX>=box.left+box.width-(Math.min(146,Math.max(112,Math.round((target.clientWidth||1200)*.31)))/Math.max(320,Math.round(target.clientWidth||1200)))*box.width;
        if(!ev.target.closest?.('.rc-price-axis-hit')&&!inAxis)return;
        ev.preventDefault();ev.stopPropagation();
        state.lastAxisPress=null;
        state.scale=1;state.scaleChange?.(1);state.scaleCommit?.(1);
      });
    }
+   // A selection belongs to its WINDOW, not the ephemeral SVG nodes.
+   // Restoring from persisted timestamp tolerates a different visible price range.
+   if(state.selectedTimestamp!==selectedTimestamp)state.selectedTimestamp=Number.isFinite(Number(selectedTimestamp))&&selectedTimestamp!==null?Number(selectedTimestamp):null;
+   state.selectionChange=onSelectionChange;
    state.scale=scale;
    state.scaleChange=onPriceScaleChange;
    state.scaleCommit=onPriceScaleCommit;
@@ -361,16 +365,16 @@
      state.inside=true;
      const {r,yy}=pos,h=r?.ha;
      // Blank click NEVER dismisses a pinned HA price. Only a new stair reselects it.
-     if(h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12){state.selectedTimestamp=r.t;paintSelected();}
+     if(h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12){state.selectedTimestamp=r.t;paintSelected();state.selectionChange?.(r.t);}
    });
    selected.querySelector('.rc-selected-price-box').addEventListener('click',ev=>{
-     ev.preventDefault();ev.stopPropagation();state.selectedTimestamp=null;paintSelected();
+     ev.preventDefault();ev.stopPropagation();state.selectedTimestamp=null;paintSelected();state.selectionChange?.(null);
    });
    // Restore a crosshair during polling redraw when the pointer has not moved.
    if(state.inside&&state.pointer)movePointer(state.pointer);
    // The clicked HA guide persists across blank clicks, pointer departure and redraw.
    paintSelected();
  }
- function clearSelection(target){const state=interactions.get(target);if(state)state.selectedTimestamp=null;target?.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');}
+ function clearSelection(target){const state=interactions.get(target);if(state){state.selectedTimestamp=null;state.selectionChange?.(null);}target?.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');}
  root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection};
 })(window);

@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.4.0 — fixed all-visible sector panels and one draggable/resizable chart.
+/* Multi-Asset Liquidity Radar v1.5.0 — fixed full-market panels and up to four draggable/resizable charts.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -238,20 +238,23 @@
    };
    return r.dom;
  }
- function renderActiveChart(){
-   const r=records.find(x=>x.id===state.selected)||records[0];if(!r)return;
-   const plot=$('singleRadarPlot'),chart=window.LiqRadar4H;
-   $('activeChartSymbol').textContent=r.id;
-   $('chartPrice').textContent=priceEnough(livePrice(r))?MONEY(r.price):'--';
-   $('chartSource').textContent=sourceName(r);
-   $('chartIndicatorStrip').textContent=`${r.sstate||'--'}  ·  ${r.midline?.symbol||''}${r.midline?.label||'--'}  ·  HA ${r.ha?.color||'--'} (${r.ha?.priorColor||'--'}→${r.ha?.color||'--'})  ·  CCI ${r.cci?.color||'--'}`;
-   if(chart&&plot)chart.render(plot,{bars:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()});
-   else if(plot)plot.textContent='4H 圖表模組尚未載入';
+ function chartPayload(id){
+   const r=records.find(x=>x.id===id);
+   if(!r)return null;
+   return {symbol:r.id,priceText:priceEnough(livePrice(r))?MONEY(r.price):'--',source:sourceName(r),
+     indicator:`${r.sstate||'--'}  ·  ${r.midline?.symbol||''}${r.midline?.label||'--'}  ·  HA ${r.ha?.color||'--'} (${r.ha?.priorColor||'--'}→${r.ha?.color||'--'})  ·  CCI ${r.cci?.color||'--'}`,
+     chart:{bars:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()}};
+ }
+ function renderActiveChart(){window.LIQ_WORKSPACE?.refreshSymbol(state.selected);}
+ function updateActiveSelection(id){
+   if(!records.some(r=>r.id===id))return;
+   state.selected=id;setNavActive(id);
+   try{localStorage.setItem('liq-v140-active-symbol',id);}catch(_){}
  }
  function renderRow(r){if(!r.dom)return;const d=r.dom;
    d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');
    d.sf.textContent='4H OHLC '+(r.h4Feed?'· '+r.h4Feed:'· 等待 K 線');
-   if(state.selected===r.id)renderActiveChart();
+   window.LIQ_WORKSPACE?.refreshSymbol(r.id);
    const sv=r.sstate||null,mid=r.midline;
    const stateClass=({'S3':'s3','S2':'s2','S1':'s1','S0.5':'s05','S0':'s0','OTHER-UP':'other-up','OTHER-DN':'other-dn','OTHER':'other'})[sv]||'unknown';
    const stateName=({'S3':'3浪啟動','S2':'2浪回踩','S1':'1浪突破','S0.5':'優質反轉','S0':'下殺反彈','OTHER-UP':'上軌延續','OTHER-DN':'下軌延續','OTHER':'其他'})[sv]||'等待日線';
@@ -348,11 +351,9 @@
  }
  function syncNavFromScroll(){/* v1.4: no page scrolling or list scrolling. */}
  function jumpToSymbol(r){
-   state.selected=r.id;
-   setNavActive(r.id);
-   try{localStorage.setItem('liq-v140-active-symbol',r.id);}catch(_){/* storage disabled */}
-   renderActiveChart();
-   window.LIQ_WORKSPACE?.focusList(r.s.group);
+   if(window.LIQ_WORKSPACE){
+     if(window.LIQ_WORKSPACE.selectSymbol(r.id))updateActiveSelection(r.id);
+   }else updateActiveSelection(r.id);
  }
  function setupSideNav(){
    for(const group of ['crypto','stock']){
@@ -373,7 +374,7 @@
        const s=el('span','metric metric-s'),m=el('span','metric metric-mid'),h=el('span','metric metric-ha'),c=el('span','metric metric-cci');
        s.append(r.dom.sBadge);m.append(r.dom.midLabel);h.append(r.dom.ha);c.append(r.dom.cci);metrics.append(s,m,h,c);
        const bell=el('button','liq-alert-bell','♧');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.textContent='🔔';bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
-       wrapper.append(markBtn,btn,metrics,bell);
+       wrapper.append(markBtn,bell,btn,metrics);
        r.dom.tr=wrapper;
        navButtons.set(r.id,{wrapper,btn,quote:r.dom.px,change,markBtn,bell,group,record:r});frag.append(wrapper);
      }
@@ -482,7 +483,8 @@
    setInterval(()=>{if(!document.hidden)queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
-   window.LIQ_TEST={version:'1.4.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
+   window.LIQ_TEST={version:'1.5.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

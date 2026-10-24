@@ -493,3 +493,39 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .metric-ha .ha-color[data-prior="黃"]::before,.radar-workspace .metric-ha .ha-color[data-prior="紫"]::before{content:"";position:absolute;left:2px;top:2px;width:5px;height:5px;border-radius:50%;border:1px solid #0f2435}
 .radar-workspace .metric-ha .ha-color[data-prior="黃"]::before{background:#ffeb3b}
 .radar-workspace .metric-ha .ha-color[data-prior="紫"]::before{background:#b39ddb}
+
+/* v1.5.0 multi-window chart workspace: preserve v1.4.0 fixed 21/12 list geometry. */
+.radar-workspace .liq-sector-sort{font-size:12px!important;width:137px!important;min-width:137px;line-height:1.3;font-weight:650;padding:2px 4px}
+.radar-workspace .liq-sector-sort option{font-size:12px;font-weight:600;padding:5px 7px}
+.radar-workspace .liq-nav-heading{gap:3px}
+.radar-workspace .liq-nav-row .liq-alert-bell{order:0;width:16px!important;min-width:16px!important;font-size:14px!important;margin:0}
+.radar-workspace .liq-nav-row .liq-nav-mark-trigger{order:-1}
+.radar-workspace .liq-nav-row .liq-nav-item{order:1}
+.radar-workspace .liq-nav-row .liq-nav-indicators{order:2}
+.radar-workspace .chart-window-layer{position:fixed;inset:0 0 var(--workspace-footer-height);pointer-events:none;z-index:60}
+.radar-workspace .chart-window-layer .floating-chart{pointer-events:auto;transition:none;max-width:none;max-height:none;min-width:0;min-height:0}
+.radar-workspace .chart-window-layer .floating-chart[hidden]{display:none!important}
+.radar-workspace .floating-chart.is-focused{border-color:#5dc7e3;box-shadow:0 17px 46px #000e,0 0 0 1px #3989a0}
+.radar-workspace .chart-head-buttons button{min-width:27px;height:25px;padding:4px 6px;font-size:12px}
+.radar-workspace .chart-head-buttons button.is-locked{background:#78601d;color:#ffea9b;border-color:#b89836}
+.radar-workspace .chart-head-label strong{white-space:nowrap}
+.radar-workspace .chart-taskbar{position:fixed;z-index:115;left:calc(var(--liq-panel-width) + 16px);right:calc(var(--liq-panel-width) + 16px);bottom:calc(var(--workspace-footer-height) + 7px);max-height:47px;min-height:43px;display:flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid #356783;border-radius:9px;background:rgba(9,35,54,.97);box-shadow:0 7px 25px #0009;overflow:hidden}
+.radar-workspace .chart-taskbar-heading{display:flex;align-items:center;gap:6px;white-space:nowrap;color:#b9d9e9;font-size:11px;font-weight:800;flex:none}
+.radar-workspace #chartWindowCount{color:#78cfdf;font-size:10px}
+.radar-workspace .chart-window-tabs{display:flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:thin}
+.radar-workspace .chart-window-tabs button,.radar-workspace .chart-add-window{white-space:nowrap;flex:none;padding:6px 9px;border-radius:5px;border:1px solid #376078;background:#12364f;color:#d4eaf5;cursor:pointer;font-size:11px;min-height:29px}
+.radar-workspace .chart-window-tabs button.active{border-color:#46bfe1;background:#16546b;color:#fff}
+.radar-workspace .chart-window-tabs button.minimized{opacity:.64;border-style:dashed}
+.radar-workspace .chart-window-tabs button.locked::after{content:' 🔒';font-size:10px}
+.radar-workspace .chart-window-tabs button:hover,.radar-workspace .chart-add-window:hover{border-color:#8fdbeb;background:#20526e}
+.radar-workspace .chart-add-window:disabled{cursor:not-allowed;opacity:.4}
+.radar-workspace .chart-window-message{font-size:10px;color:#f8d482;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media(max-width:1470px){.radar-workspace .chart-taskbar-heading{font-size:10px}.radar-workspace .chart-window-tabs button,.radar-workspace .chart-add-window{font-size:10px;padding:6px 7px}.radar-workspace .chart-taskbar{gap:4px}}
+@media(max-width:1060px){.radar-workspace .chart-taskbar-heading span:first-child{display:none}.radar-workspace .chart-taskbar{left:calc(var(--liq-panel-width) + 8px);right:calc(var(--liq-panel-width) + 8px);padding:4px}}
+/* display:contents avoids a parent stacking context so list foreground clicks still work. */
+.radar-workspace .chart-window-layer{display:contents;position:static;z-index:auto;pointer-events:auto}
+.radar-workspace .floating-chart [data-chart-plot]{position:relative;flex:1 1 auto;width:100%;height:auto;min-height:0!important;aspect-ratio:auto!important;overflow:hidden;background:#101116;margin:0!important}
+.radar-workspace .floating-chart [data-chart-plot] .radar-chart-svg{width:100%;height:100%;display:block;overflow:hidden;touch-action:none}
+.radar-workspace .floating-chart [data-chart-plot] .radar-chart-wait{height:100%;min-height:0;border:none}
+.radar-workspace .floating-chart .chart-indicator-strip{overflow:hidden;text-overflow:ellipsis}
+.radar-workspace .floating-chart .chart-source{color:#69b6c6;white-space:nowrap}

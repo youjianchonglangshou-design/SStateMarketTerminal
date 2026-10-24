@@ -1,13 +1,12 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "releaseDate": "2026-10-24",
   "changes": [
-    "Fixed full-height 21-symbol crypto and 12-symbol stock/commodity monitoring lists; no list scrollbars.",
-    "One draggable, eight-handle resizable 4H chart; symbol switches retain floating chart size and position.",
-    "Inline SState, midline slope, 1D HA, and 1D CCI-SMA in both panels; independent sort and color flag grouping per sector.",
-    "Telegram alert bells moved to symbol rows, preserving existing Worker alerts.",
-    "Global search and filter removed; diagnostics and remaining commands moved to fixed footer.",
-    "Real measured chart geometry and responsive SVG redraw on resize; preserve 4H OHLC, 1D BB/HA, 7D CoinGlass and backup proxy.",
-    "Chart bounds, dimensions, selected ticker and each sector sort remembered in localStorage."
+    "Maximum four independently draggable, eight-handle resizable, closable, minimizable and lockable 4H chart windows.",
+    "Chart taskbar can add, focus and restore windows. Current unlocked chart receives watchlist symbol selections; locked charts never change tickers.",
+    "Hidden/minimized/offscreen/fully-obscured charts skip redraw; restore/focus re-renders from latest shared market data.",
+    "Each chart window saves its own ticker, geometry, lock, minimized state and z-order to browser storage, and migrates legacy v1.4 geometry.",
+    "Move Telegram bell immediately after watchlist color-mark control before symbol; increase independent sector sort dropdown typography.",
+    "Keep 21 crypto and 12 stock/commodity list items all visible, independent sorts, existing market logic and live refresh paths."
   ]
 }

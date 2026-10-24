@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.6.1 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v1.7.1 — four independent floating 4H charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -265,7 +265,7 @@
    let regions=[];
    const box=(x,y,ww,hh)=>({x:Math.round(x),y:Math.round(y),w:Math.round(ww),h:Math.round(hh)});
    if(n===1)regions=[box(left,top,width,height)];
-   else if(n===2)regions=[box(left,top,splitW,height),box(left+splitW+gap,top,splitW,height)];
+   else if(n===2)regions=[box(left,top,width,splitH),box(left,top+splitH+gap,width,splitH)];
    else if(n===3){
      layoutVariant=(layoutVariant+1)%2;
      regions=layoutVariant===0?[

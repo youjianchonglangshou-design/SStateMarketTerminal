@@ -1,26 +1,17 @@
 {
-  "version": "1.7.0",
+  "version": "1.7.1",
   "releaseDate": "2026-10-24",
-  "baseVersion": "1.6.2",
+  "baseVersion": "1.7.0",
   "changes": [
-    "New installation-shared Cloudflare R2 workspace sync endpoint GET/PUT /api/monitor/radar/workspace with revision checks; all UI changes remain locally persistent if the Worker is unavailable.",
-    "Persist up to four floating chart symbols, geometry, z-layer sent-back state, locks, minimized flags, vertical price scale and selected Heikin-Ashi level timestamp across reloads and, after deploying the Worker, devices.",
-    "Sync user-added custom PERP symbols (max eight) through the same R2 snapshot without modifying symbols.js or the separate monitor.html watchlist.",
-    "Restore send-back chart control between Lock and Reset; only send chart below crypto sector list, never below stock sector list.",
-    "Resize terminal status footprint and expand compact footer chart taskbar; add a tile button on its right side.",
-    "Auto-tile two charts side-by-side, four in 2x2, and three in alternating top-2/bottom-1 or top-1/bottom-2 layouts on consecutive clicks; restore tile geometry using shared state.",
-    "Support narrow chart windows down to 320px and dynamic price-axis width, preserving all-visible 21 crypto and 12 stock rows."
+    "Change two-window auto-tile from left/right vertical columns to top/bottom horizontal rows with equal heights and full chart width.",
+    "Keep three-window alternating layouts and four-window 2x2 layout unchanged.",
+    "Preserve window geometry persistence, custom watchlist, HA selection, price-scale zoom, locks, minimization, crypto-only send-back, and R2 cross-device state."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",
-    "MultiAssetLiquidityRadar/style.css",
-    "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/workspace-sync.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/TEST_REPORT_v1.7.0.txt",
-    "cloudflare/worker.js"
+    "MultiAssetLiquidityRadar/TEST_REPORT_v1.7.1.txt"
   ]
 }

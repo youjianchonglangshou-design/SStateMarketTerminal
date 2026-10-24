@@ -1,0 +1,17 @@
+MultiAssetLiquidityRadar v1.8.0 — 覆蓋檔案清單
+
+請將 ZIP 內的 MultiAssetLiquidityRadar/ 檔案對應覆蓋到
+SStateMarketTerminal/MultiAssetLiquidityRadar/。
+
+  index.html
+  style.css
+  app.js
+  signal-spotlight.js
+  signal-spotlight-ui.js
+  VERSION.json
+  README.md
+  TEST_REPORT_v1.8.0.txt
+
+其中 signal-spotlight.js / signal-spotlight-ui.js 為新增檔案。
+無須覆蓋主站根目錄、Cloudflare Worker、monitor-engine.js、workspace.js。
+上傳後首頁版本顯示 v1.8.0。雷達事件僅存在當前瀏覽器，不作跨裝置 R2 同步。

@@ -1,17 +1,26 @@
 {
-  "version": "1.7.1",
+  "version": "1.8.0",
   "releaseDate": "2026-10-24",
-  "baseVersion": "1.7.0",
+  "baseVersion": "1.7.1",
   "changes": [
-    "Change two-window auto-tile from left/right vertical columns to top/bottom horizontal rows with equal heights and full chart width.",
-    "Keep three-window alternating layouts and four-window 2x2 layout unchanged.",
-    "Preserve window geometry persistence, custom watchlist, HA selection, price-scale zoom, locks, minimization, crypto-only send-back, and R2 cross-device state."
+    "Add Signal Spotlight radar in the bottom chart taskbar, with pulse only for unread favored NEW events at/above the user-selected threshold (default 80).",
+    "Implement the full 37-rule daily matrix (19 below, 18 above), same historical as-of SState engine, TPE 08:00 daily boundary, 3-day rule #17, visual rounded CCI rules #23/#37, and 1D provisional scoring.",
+    "Local-only event identity, deduplication, provisional/confirmed/retracted lifecycle, historical cards and expandable HOLD/observation contexts; no new Worker or R2 write.",
+    "Click event card to safely show matching chart: restore matching locked/minimized chart, use an unlocked one if available, otherwise honor the existing four-chart limit."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",
-    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/signal-spotlight.js",
+    "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/TEST_REPORT_v1.7.1.txt"
+    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.0.txt"
+  ],
+  "notes": [
+    "Historical scores are priority rankings, not probabilities.",
+    "Browser localStorage is device/browser specific; radar events do not sync across devices.",
+    "Unverified online market services are not represented as tested."
   ]
 }

@@ -425,9 +425,10 @@
      const row=el('div','custom-manage-row');
      const label=el('span','custom-manage-name',item.id+' · PERP');
      const remove=el('button','custom-manage-remove','移除');remove.type='button';
+     // The Manage dialog already identifies the target; removal is immediate.
+     // removeCustomSymbol refreshes the watchlist, Manage dialog, and storage.
      remove.setAttribute('aria-label','移除 '+item.id);remove.addEventListener('click',()=>{
-       if(!window.confirm('從自由清單移除 '+item.id+'？\n（價格提醒不會一併刪除）'))return;
-       removeCustomSymbol(item.id);renderCustomManage();
+       removeCustomSymbol(item.id);
      });row.append(label,remove);list.append(row);
    }
  }
@@ -643,7 +644,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.8.2',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.8.3',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

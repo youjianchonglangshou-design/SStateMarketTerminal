@@ -1,25 +1,21 @@
 {
-  "version": "1.8.2",
+  "version": "1.8.3",
   "releaseDate": "2026-10-24",
-  "baseVersion": "1.8.1",
+  "baseVersion": "1.8.2",
   "changes": [
-    "Fix asynchronous price-alert bootstrap: alerts.js waits for the actual market record context published by app.js after remote workspace restore; bell listeners no longer silently fail.",
-    "Make symbol lookup dynamic so newly added PERP custom-watchlist instruments can open the Telegram alert modal.",
-    "Guarantee Telegram alert configuration appears above all floating charts, watchlists, radar panels, and the bottom taskbar.",
-    "Raise diagnostics to a global overlay above all four floating charts while preserving normal chart interaction when diagnostics is closed.",
-    "Keep chart tiling, sent-back/locking, radar rule engine, price alerts API semantics, and all existing data sources unchanged."
+    "Remove the native browser confirmation prompt from the free-PERP watchlist Manage > Remove action.",
+    "Clicking Remove immediately removes only that symbol from the custom list and updates the Manage dialog, counter, and stored state.",
+    "Leave existing Telegram price alerts untouched; preserve chart closing for removed symbols and all existing radar and chart functionality."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/index.html",
-    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/alerts.js",
+    "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.2.txt"
+    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.3.txt"
   ],
   "notes": [
-    "Local Chromium UI and mocked Worker responses verified; live Telegram delivery remains unverified.",
-    "No Worker changes required."
+    "This update does not modify Telegram alert service, Workers, or other modules.",
+    "Local browser test required before deployment."
   ]
 }

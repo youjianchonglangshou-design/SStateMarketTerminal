@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.5.0 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v1.5.1 — four independent floating 4H charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -104,7 +104,11 @@
    $('liq-crypto-nav').style.zIndex='62';$('liq-stock-nav').style.zIndex='62';
    updateTabs();
    if(notify)api.updateActiveSelection(w.symbol);
-   w.dirty=true;schedule(w);save();
+   // Do not invalidate/rebuild an already visible SVG merely to focus the chart.
+   // In particular, pointerdown inside the canvas must not replace the hit target
+   // before the matching click event can inspect a yellow/purple HA stair.
+   if(w.minimized||w.dirty||!w.plot.querySelector('svg')){w.dirty=true;schedule(w);}
+   save();
  }
  function focusList(group){
    $('liq-crypto-nav').style.zIndex=group==='crypto'?'101':'65';
@@ -155,7 +159,10 @@
    }
    head.addEventListener('pointerdown',e=>start(e,w,'move',''));
    head.addEventListener('pointermove',move);head.addEventListener('pointerup',end);head.addEventListener('pointercancel',end);
-   el.addEventListener('pointerdown',e=>{if(!e.target.closest('button,[data-resize]'))activate(w);});
+   el.addEventListener('pointerdown',e=>{
+     if(e.target.closest('button,[data-resize]'))return;
+     if(activeId!==w.id)activate(w);
+   });
    w.tab=makeButton('chart-task-tab',symbol+' 4H','前往 '+symbol+' 圖表',()=>activate(w));
    windows.push(w);host.append(el);tabs.append(w.tab);paint(w);
    if('ResizeObserver' in window){let ow=0,oh=0;w.observer=new ResizeObserver(entries=>{

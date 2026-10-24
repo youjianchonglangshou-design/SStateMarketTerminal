@@ -1,12 +1,11 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "releaseDate": "2026-10-24",
   "changes": [
-    "Maximum four independently draggable, eight-handle resizable, closable, minimizable and lockable 4H chart windows.",
-    "Chart taskbar can add, focus and restore windows. Current unlocked chart receives watchlist symbol selections; locked charts never change tickers.",
-    "Hidden/minimized/offscreen/fully-obscured charts skip redraw; restore/focus re-renders from latest shared market data.",
-    "Each chart window saves its own ticker, geometry, lock, minimized state and z-order to browser storage, and migrates legacy v1.4 geometry.",
-    "Move Telegram bell immediately after watchlist color-mark control before symbol; increase independent sector sort dropdown typography.",
-    "Keep 21 crypto and 12 stock/commodity list items all visible, independent sorts, existing market logic and live refresh paths."
+    "Restore click-to-inspect on actual 1D yellow/purple HA staircase: extend a same-color dashed guide horizontally to the right price axis with matching semantic price badge.",
+    "Make the selected HA price badge fully opaque and the last SVG drawing layer, above live NOW/liquidation/crosshair labels.",
+    "Hold the selected HA guide while the pointer stays anywhere inside its chart; clear on chart pointerleave or a different click; preserve selection through live redraw and resize.",
+    "Stop chart-focus pointerdown from replacing the SVG before its staircase click event; keep inspection independent in up to four floating windows.",
+    "Retain v1.5.0 four-window taskbar, lock/minimize/close, 21/12 fixed watchlists, data sources and alert/flag ordering."
   ]
 }

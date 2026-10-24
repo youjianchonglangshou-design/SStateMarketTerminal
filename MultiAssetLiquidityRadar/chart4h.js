@@ -1,11 +1,11 @@
-/* MultiAssetLiquidityRadar v1.4.0
+/* MultiAssetLiquidityRadar v1.5.1
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
  */
 (function(root){'use strict';
  const H4=14400000,DAY=86400000,BLANK_CANDLES=3;
- // Selection follows the clicked daily HA stair only while the pointer stays near that stair; never persists on hover-away.
+ // Click a real 1D HA stair to extend its guide. Selection stays until pointer leaves this chart. Each plot owns its own state.
  const interactions=new WeakMap();
  const valid=n=>Number.isFinite(n)&&n>0;
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -167,10 +167,13 @@
      svg.push(`<rect class="rc-label-box rc-label-${lab.kind}" x="${plotR+3}" y="${fmt(lab.yy-9)}" width="${R-7}" height="19" rx="4"/>`);
      svg.push(`<text class="rc-label-text rc-label-${lab.kind}" x="${plotR+9}" y="${fmt(lab.yy+4)}">${esc(lab.text)}</text>`);
    }
+   // Keep transparent hit surface beneath both overlays. HA inspection overlays are appended
+   // LAST in the SVG, so their opaque semantic price badge always covers NOW/axis/cursor badges.
+   svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`);
    // Moving only shows the time crosshair. HA extension is an explicit click action.
    svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text><rect class="rc-hover-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-hover-price" x="${plotR+9}" y="0">—</text></g>`);
    svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
-   svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/></svg>`);
+   svg.push('</svg>');
    // Small TradingView-like 4H OHLC strip: show the current candle by default,
    // and temporarily inspect a historical candle only while the pointer is over it.
    const ohlcStrip='<div class="rc-ohlc-overlay" aria-label="4H K線開高低收" aria-live="off">'+
@@ -197,7 +200,7 @@
    if(!state){
      state={selectedTimestamp:null,inside:false,pointer:null};interactions.set(target,state);
      // Delegate to the stable host: refreshes replace SVG children every 10 seconds.
-     // Hide immediately on leaving the plotting area, including the price-axis region.
+     // Clear ONLY when the pointer leaves the chart itself (not the selected date/price).
      const clear=()=>{
        state.inside=false;state.pointer=null;state.selectedTimestamp=null;
        target.querySelector('.rc-cursor')?.setAttribute('visibility','hidden');
@@ -209,11 +212,13 @@
      // Some browsers do not deliver pointerleave when the SVG is replaced mid-hover.
      // A document-level pointer movement outside the chart must still clear it.
      document.addEventListener('pointermove',ev=>{
-       if(state.inside&&(!target.isConnected||!target.contains(ev.target)))clear();
+       if(!state.inside)return;
+       const box=target.getBoundingClientRect();
+       if(!target.isConnected||ev.clientX<box.left||ev.clientX>box.right||ev.clientY<box.top||ev.clientY>box.bottom)clear();
      },{passive:true});
    }
-   // Refreshes replace SVG nodes; registered host pointer-leave handlers must
-   // always restore the newest candle, not a stale bar from the previous render.
+   // Refreshes replace SVG nodes; host listeners survive. Each window uses its own
+   // target key so selecting another chart does not erase this chart's selection.
    state.resetOHLC=()=>showOHLC(latestBar);
    function paintSelected(){
      const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
@@ -225,9 +230,9 @@
      selected.classList.toggle('is-ha-yellow',r.ha.color==='yellow');
      selected.classList.toggle('is-ha-purple',r.ha.color==='purple');
      const guide=selected.querySelector('.rc-selected-guide');
-     guide.setAttribute('x1',xx);guide.setAttribute('y1',py);guide.setAttribute('y2',py);
+     guide.setAttribute('x1',xx);guide.setAttribute('x2',plotR);guide.setAttribute('y1',py);guide.setAttribute('y2',py);
      const dot=selected.querySelector('.rc-selected-dot');dot.setAttribute('cx',xx);dot.setAttribute('cy',py);
-     // Actual line always uses the true HA price; only the tag may need visual offset.
+     // True HA price is never moved. Only the badge may be kept in the visible chart range.
      const ytag=clamp(py-9,T,plotB-19);
      selected.querySelector('.rc-selected-price-box').setAttribute('y',ytag);
      const label=selected.querySelector('.rc-selected-price');label.setAttribute('y',ytag+13);
@@ -246,17 +251,11 @@
      state.inside=true;
      state.pointer={clientX:ev.clientX,clientY:ev.clientY};
      const pos=locate(ev);
-     if(!pos){cursor.setAttribute('visibility','hidden');state.selectedTimestamp=null;selected.setAttribute('visibility','hidden');showOHLC(latestBar);return;}
+     if(!pos){cursor.setAttribute('visibility','hidden');showOHLC(latestBar);return;}
      const {i,yy,r,time}=pos,xx=x(i),cx=clamp(xx,L+61,plotR-61);
      showOHLC(r||latestBar);
-     // Click-to-inspect, NOT click-to-lock: leaving the clicked 1D HA stair
-     // (in price OR in date) immediately dismisses its extension and badge.
-     if(state.selectedTimestamp!==null){
-       const picked=rows.find(q=>q.t===state.selectedTimestamp);
-       if(!picked?.ha||!r.ha||dayOf(r.t)!==dayOf(picked.t)||Math.abs(yy-y(picked.ha.price))>14){
-         state.selectedTimestamp=null;selected.setAttribute('visibility','hidden');
-       }
-     }
+     // Once clicked, keep the HA guide visible while the pointer is anywhere
+     // inside this chart. Clicking elsewhere replaces/dismisses the selection.
      cursor.setAttribute('visibility','visible');
      const vLine=cursor.querySelector('.rc-hover-v');vLine.setAttribute('x1',xx);vLine.setAttribute('x2',xx);
      const hLine=cursor.querySelector('.rc-hover-h');hLine.setAttribute('y1',yy);hLine.setAttribute('y2',yy);
@@ -270,18 +269,13 @@
      const timeText=cursor.querySelector('.rc-hover-time');timeText.setAttribute('x',cx);timeText.textContent=clock(time);
    }
    hit.addEventListener('pointermove',movePointer);
-   hit.addEventListener('pointerleave',()=>{
-     state.inside=false;state.pointer=null;state.selectedTimestamp=null;
-     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');showOHLC(latestBar);
-   });
-   hit.addEventListener('mouseleave',()=>{
-     state.inside=false;state.pointer=null;state.selectedTimestamp=null;
-     cursor.setAttribute('visibility','hidden');selected.setAttribute('visibility','hidden');showOHLC(latestBar);
-   });
+   // The axis is part of the chart: traversing to the right-side price badge
+   // must NOT dismiss the inspected HA level. Host pointerleave owns clearing.
+   hit.addEventListener('pointerleave',()=>cursor.setAttribute('visibility','hidden'));
    hit.addEventListener('click',ev=>{
      const pos=locate(ev);if(!pos)return;
      state.inside=true;
-     const {r,yy}=pos,h=r.ha;
+     const {r,yy}=pos,h=r?.ha;
      // Clicking close to an actual daily HA horizontal stair segment selects it.
      // Clicking elsewhere cancels; moving alone NEVER shows an HA price label.
      state.selectedTimestamp=h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12?r.t:null;
@@ -289,7 +283,7 @@
    });
    // Restore a crosshair during polling redraw when the pointer has not moved.
    if(state.inside&&state.pointer)movePointer(state.pointer);
-   // A pending click-selected HA price survives live redraw while pointer is inside.
+   // The selected HA price survives data polls/resizes while pointer stays in this chart.
    paintSelected();
  }
  root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money};

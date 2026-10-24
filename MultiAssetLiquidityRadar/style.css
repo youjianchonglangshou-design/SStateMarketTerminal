@@ -226,7 +226,7 @@
 .rc-hover-v,.rc-hover-h{stroke:#d6e9f2;stroke-width:1;stroke-dasharray:5 5;opacity:.82;vector-effect:non-scaling-stroke}
 .rc-hover-price-box,.rc-hover-time-box{fill:#244c64;stroke:#b4d7eb;stroke-width:1}
 .rc-hover-price,.rc-hover-time{fill:#f0fbff;font-size:11px;font-weight:700}
-/* HA extension: click to inspect, moving off the clicked stair or chart dismisses it. */
+/* HA extension: click on a 1D stair; dismiss when leaving chart or clicking elsewhere. */
 .rc-hit{cursor:crosshair}
 .rc-hover-v,.rc-hover-h{opacity:.35;stroke:#9093a3;stroke-dasharray:3 6}
 .rc-hover-time-box{fill:#262833;stroke:#4c4d5b}
@@ -238,10 +238,10 @@
 .rc-ohlc-caption{color:#a2a4b2}
 .rc-ohlc-value{color:#1bc1b6}
 .rc-ohlc-overlay.is-falling .rc-ohlc-value{color:#dc6476}
-.rc-selected-guide{stroke-width:1;stroke-dasharray:4 7;opacity:.45;vector-effect:non-scaling-stroke}
-.rc-selected-dot{stroke:#101116;stroke-width:1.1;opacity:.72}
-.rc-selected-price{font-size:11px;font-weight:770;opacity:.87;font-variant-numeric:tabular-nums}
-.rc-selected-price-box{fill-opacity:1;stroke-opacity:.60}
+.rc-selected-guide{stroke-width:1.5;stroke-dasharray:6 5;opacity:1;vector-effect:non-scaling-stroke}
+.rc-selected-dot{stroke:#101116;stroke-width:1.1;opacity:1}
+.rc-selected-price{font-size:11px;font-weight:800;opacity:1;font-variant-numeric:tabular-nums}
+.rc-selected-price-box{fill-opacity:1;stroke-opacity:1;stroke-width:1.15}
 .rc-ha-selection.is-ha-yellow .rc-selected-guide{stroke:#ffe448}
 .rc-ha-selection.is-ha-yellow .rc-selected-dot{fill:#ffe448}
 .rc-ha-selection.is-ha-yellow .rc-selected-price-box{fill:#443c18;stroke:#d8bf37}
@@ -529,3 +529,8 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .floating-chart [data-chart-plot] .radar-chart-wait{height:100%;min-height:0;border:none}
 .radar-workspace .floating-chart .chart-indicator-strip{overflow:hidden;text-overflow:ellipsis}
 .radar-workspace .floating-chart .chart-source{color:#69b6c6;white-space:nowrap}
+
+/* v1.5.1: explicit independent HA price inspection sits on top of quote labels. */
+.rc-ha-selection{opacity:1;pointer-events:none}
+.rc-ha-selection .rc-selected-price-box{fill-opacity:1!important;opacity:1!important}
+.rc-ha-selection .rc-selected-price{opacity:1!important;paint-order:normal}

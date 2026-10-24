@@ -1,3 +1,9 @@
+## v1.8.1 — 工作列與持續置後修正
+
+- 雷達入口緊靠均分按鈕左邊；終端 READY 資訊恢復寬度，圖表工作列保留四圖標籤。
+- 置後為持續開關：按鈕有高亮／aria-pressed，點圖表不會解除；再按置後或雙擊同一圖表工作列標籤才解除。
+- 原有 Signal Spotlight、4H 圖表、清算監控與四視窗功能均保留。
+
 # MultiAssetLiquidityRadar v1.8.0 — Signal Spotlight 智慧事件雷達（2026-10-24）
 
 ## 新增功能

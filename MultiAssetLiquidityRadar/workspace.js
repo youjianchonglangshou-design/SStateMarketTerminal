@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.7.1 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v1.8.1 — four independent floating 4H charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -48,7 +48,7 @@
    $('liq-custom-nav').style.zIndex='60';
    $('liq-crypto-nav').style.zIndex='101';
    windows.forEach((w,i)=>{
-     w.el.style.zIndex=String(w.behindCrypto?90:120+i);
+     w.el.style.zIndex=String(w.behindCrypto?90+Math.min(i,8):120+i);
      w.el.classList.toggle('is-focused',w.id===activeId&&!w.minimized);
      w.el.classList.toggle('behind-crypto',w.behindCrypto);
    });
@@ -108,6 +108,12 @@
    w.tab.classList.toggle('locked',w.locked);
    w.tab.classList.toggle('active',w.id===activeId&&!w.minimized);
    w.tab.title=w.minimized?'點擊還原 '+w.symbol:w.locked?'已鎖定：點擊帶到前景':'點擊帶到前景 '+w.symbol;
+   w.backButton.classList.toggle('is-behind',w.behindCrypto);
+   w.backButton.setAttribute('aria-pressed',String(w.behindCrypto));
+   w.backButton.title=w.behindCrypto?'置後已啟用：再次點擊恢復前景（或雙擊下方圖表標籤）':'置於左側加密清單後方';
+   w.backButton.setAttribute('aria-label',w.backButton.title);
+   w.tab.classList.toggle('sent-back',w.behindCrypto);
+   w.tab.title=w.behindCrypto?'置後中：點一下選擇，雙擊解除置後':w.tab.title;
    w.lockButton.classList.toggle('is-locked',w.locked);
    w.lockButton.textContent=w.locked?'🔒':'🔓';
    w.lockButton.title=w.locked?'解除鎖定，允許清單換幣':'鎖定目前幣種，防止清單換幣覆蓋';
@@ -115,11 +121,10 @@
    add.disabled=windows.length>=LIMIT;
  }
  function updateTabs(){windows.forEach(updateTab);$('chartWindowCount').textContent=windows.length+'/'+LIMIT;add.disabled=windows.length>=LIMIT;}
- function activate(w,{reveal=true,notify=true,preserveBack=false}={}){
+ function activate(w,{reveal=true,notify=true}={}){
    if(!w)return;
    if(reveal&&w.minimized){w.minimized=false;w.el.hidden=false;w.dirty=true;}
    activeId=w.id;
-   if(!preserveBack)w.behindCrypto=false;
    const ix=windows.indexOf(w);if(ix>=0){windows.splice(ix,1);windows.push(w);}
    sortStack();
    updateTabs();
@@ -133,7 +138,7 @@
  function focusList(group){ /* Focus never changes the permanent market z-layer rules. */ sortStack(); }
  function sendBack(w){
    if(!w)return;
-   w.behindCrypto=true;sortStack();updateTabs();save();
+   w.behindCrypto=!w.behindCrypto;sortStack();updateTabs();save();
  }
  function makeButton(cls,label,title,handler){
    const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=label;b.title=title;b.setAttribute('aria-label',title);
@@ -153,10 +158,11 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframe,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
-   buttons.append(w.lockButton,
-     makeButton('chart-send-back','⇤','置於左側加密清單後方（再次點擊圖表可置頂）',()=>sendBack(w)),
+   w.backButton=makeButton('chart-send-back','⇤','置於左側加密清單後方',()=>sendBack(w));
+   w.backButton.setAttribute('aria-pressed',String(w.behindCrypto));
+   buttons.append(w.lockButton,w.backButton,
      makeButton('chart-reset','▣','還原此圖表預設尺寸',()=>{w.geom=defaults(Math.max(0,windows.indexOf(w)));paint(w);w.dirty=true;schedule(w,50);activate(w);}),
      makeButton('chart-minimize','−','最小化此圖表（資料持續更新）',()=>minimize(w)),
      makeButton('chart-close','×','關閉此圖表視窗',()=>close(w)));
@@ -179,6 +185,9 @@
      if(activeId!==w.id)activate(w);
    });
    w.tab=makeButton('chart-task-tab',symbol+' 4H','前往 '+symbol+' 圖表',()=>activate(w));
+   // Single-click selects/focuses without changing the persistent sent-back state.
+   // Double-click on exactly this window's taskbar tab explicitly restores foreground.
+   w.tab.addEventListener('dblclick',e=>{e.preventDefault();e.stopPropagation();if(w.behindCrypto){w.behindCrypto=false;activate(w);}else activate(w);});
    windows.push(w);host.append(el);tabs.append(w.tab);paint(w);
    if('ResizeObserver' in window){let ow=0,oh=0;w.observer=new ResizeObserver(entries=>{
      const size=entries[0]?.contentRect;if(!size)return;
@@ -276,7 +285,7 @@
    }else{
      regions=[box(left,top,splitW,splitH),box(left+splitW+gap,top,splitW,splitH),box(left,top+splitH+gap,splitW,splitH),box(left+splitW+gap,top+splitH+gap,splitW,splitH)];
    }
-   visible.forEach((w,i)=>{w.behindCrypto=false;w.geom=constrain(regions[i]);paint(w);w.dirty=true;schedule(w,25);});
+   visible.forEach((w,i)=>{w.geom=constrain(regions[i]);paint(w);w.dirty=true;schedule(w,25);});
    sortStack();save();announce(n===3?'三視窗版型 '+(layoutVariant===0?'A':'B'):'已平均分割 '+n+' 張圖表');
  }
  function bootstrap(){
@@ -292,7 +301,7 @@
    }
    for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,haSelected:s.haSelected,behindCrypto:s.behindCrypto,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
-   if(chosen&&!chosen.minimized)activate(chosen,{preserveBack:true});else{activeId=null;sortStack();updateTabs();save();}
+   if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
  }
  $('chartTileWindows')?.addEventListener('click',tileWindows);

@@ -820,3 +820,38 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .spotlight-context-item strong{color:#95dfd9;min-width:58px}
 .radar-workspace .spotlight-context-item span:last-child{flex:1;color:#bed3e1}
 @container (max-width:700px){.radar-workspace .spotlight-chart-chip{display:none}}
+
+/* v1.8.1: persistent sent-back button and a right-docked Spotlight beside Tile. */
+.radar-workspace .floating-chart .chart-head-buttons .chart-send-back.is-behind{
+ background:linear-gradient(180deg,#32bdc4,#12516a)!important;
+ color:#fff!important;border-color:#74e5e5!important;
+ box-shadow:inset 0 1px 1px #ffffff70,0 0 0 1px #47cfc760,0 0 8px #2ec6da60;
+}
+.radar-workspace .chart-taskbar .chart-task-tab.sent-back{border-bottom:2px solid #31c6c9}
+/* Reserve proper width for the boot/ready terminal status line. */
+.radar-workspace .terminal-status{
+ left:max(254px,13.7vw)!important;right:auto!important;
+ width:clamp(220px,18.5vw,325px)!important;
+ padding:3px 8px!important;
+}
+.radar-workspace .terminal-status.is-ready #terminalDetail{display:block!important;min-width:0}
+.radar-workspace .terminal-status.is-ready .terminal-line{gap:6px}
+.radar-workspace .terminal-status.is-ready #terminalProgressText{font-size:9px}
+.radar-workspace .terminal-status.is-ready #terminalDetail{font-size:9px}
+/* Smaller chart dock, but enough room for four tabs and two right-aligned controls. */
+.radar-workspace .chart-taskbar{
+ left:calc(max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px)!important;
+ right:clamp(365px,23vw,445px)!important;width:auto!important;min-width:0!important;
+ gap:4px!important;
+}
+.radar-workspace .chart-taskbar-heading{order:0}
+.radar-workspace .chart-window-tabs{order:1;min-width:0;flex:0 1 auto}
+.radar-workspace .chart-add-window{order:2}
+.radar-workspace .chart-window-message{order:3!important;flex:1 1 auto!important;max-width:none!important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.radar-workspace .signal-spotlight-trigger{order:4!important;margin-left:auto!important;flex:none}
+.radar-workspace .chart-tile-windows{order:5!important;margin-left:0!important;flex:none}
+@media(max-width:1410px){
+ .radar-workspace .terminal-status.is-ready #terminalDetail{font-size:8px}
+ .radar-workspace .chart-taskbar-heading span:first-child{display:none}
+ .radar-workspace .chart-window-message{display:none!important}
+}

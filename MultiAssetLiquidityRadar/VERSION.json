@@ -1,26 +1,25 @@
 {
-  "version": "1.8.0",
+  "version": "1.8.1",
   "releaseDate": "2026-10-24",
-  "baseVersion": "1.7.1",
+  "baseVersion": "1.8.0",
   "changes": [
-    "Add Signal Spotlight radar in the bottom chart taskbar, with pulse only for unread favored NEW events at/above the user-selected threshold (default 80).",
-    "Implement the full 37-rule daily matrix (19 below, 18 above), same historical as-of SState engine, TPE 08:00 daily boundary, 3-day rule #17, visual rounded CCI rules #23/#37, and 1D provisional scoring.",
-    "Local-only event identity, deduplication, provisional/confirmed/retracted lifecycle, historical cards and expandable HOLD/observation contexts; no new Worker or R2 write.",
-    "Click event card to safely show matching chart: restore matching locked/minimized chart, use an unlocked one if available, otherwise honor the existing four-chart limit."
+    "Place the Signal Spotlight radar directly left of the Tile button in the chart taskbar; keep its unread pulse and cards intact.",
+    "Reduce the dock footprint and expand the READY terminal area to show market status after bootstrap.",
+    "Persist the per-chart sent-back-to-crypto mode as an actual toggle, with pressed button styling and aria-pressed.",
+    "Normal chart clicks and taskbar single-clicks preserve sent-back status; pressing the toggle again or double-clicking that exact chart taskbar tab releases it.",
+    "Tiling/resize no longer silently clears sent-back status; restore the same state on reload."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/style.css",
-    "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/signal-spotlight.js",
-    "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
+    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.0.txt"
+    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.1.txt"
   ],
   "notes": [
-    "Historical scores are priority rankings, not probabilities.",
-    "Browser localStorage is device/browser specific; radar events do not sync across devices.",
-    "Unverified online market services are not represented as tested."
+    "63/63 offline Chromium fixture checks passed across 1366x768, 1600x900 and 1862x992.",
+    "Online Pionex, TradingView, CoinGlass and Telegram service delivery not re-tested.",
+    "Signal Spotlight v1.8.0 rules and local event storage unchanged."
   ]
 }

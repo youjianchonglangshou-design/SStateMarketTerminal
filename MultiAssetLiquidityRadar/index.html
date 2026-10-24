@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v1.6.0 多視窗工作台</title><link rel="stylesheet" href="./style.css?v=1.6.0"></head>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v1.6.1 多視窗工作台</title><link rel="stylesheet" href="./style.css?v=1.6.1"></head>
 <body class="radar-workspace">
 <aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣固定監控清單">
  <div class="liq-nav-content"><div class="liq-nav-heading"><span>加密貨幣</span> <span class="liq-nav-count" id="liq-crypto-side-count">21</span><select class="liq-sector-sort" id="cryptoSort" aria-label="加密貨幣獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密市場 21 檔全景"></nav></div>
@@ -9,8 +9,8 @@
 </aside>
 <aside id="liq-custom-nav" class="liq-side-nav liq-nav-custom" aria-label="自選派網合約清單">
  <div class="liq-nav-content">
-  <div class="liq-nav-heading"><span>自由清單</span><span class="liq-nav-count" id="liq-custom-side-count">0/6</span><button id="customAddSymbol" type="button" class="custom-plus" title="新增派網 PERP 合約">＋ 新增</button></div>
-  <nav class="liq-nav-list" id="liq-custom-list" aria-label="自選六檔 PERP 全景"></nav>
+  <div class="liq-nav-heading"><span>自由清單</span><span class="liq-nav-count" id="liq-custom-side-count">0/8</span><button id="customAddSymbol" type="button" class="custom-plus" title="新增派網 PERP 合約">＋ 新增</button><button id="customManageSymbol" type="button" class="custom-manage-btn" title="管理／移除自由清單標的">管理</button></div>
+  <nav class="liq-nav-list" id="liq-custom-list" aria-label="自選八檔 PERP 全景"></nav>
   <div class="custom-empty" id="customEmpty">只加入想研究的派網永續合約</div>
  </div>
 </aside>
@@ -21,8 +21,12 @@
   <button type="button" id="chartAddWindow" class="chart-add-window" title="新增圖表視窗（最多四張）">＋ 新增</button>
   <span id="chartWindowMessage" class="chart-window-message" role="status" aria-live="polite"></span>
 </section>
+<section id="terminalStatus" class="terminal-status" aria-label="行情載入進度與終端資訊">
+ <div class="terminal-line"><span id="terminalProgressText">BOOT｜歷史資料初始化</span><span id="terminalDetail">建立監控資料…</span></div>
+ <div class="terminal-meter" role="progressbar" aria-label="歷史資料載入嘗試進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="terminalProgressFill"></div></div>
+</section>
 <footer id="workspaceFooter" class="workspace-footer">
- <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v1.6.0</span></div>
+ <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v1.6.1</span></div>
  <span id="coverage" class="footer-coverage">等待資料</span>
  <div class="header-status"><a class="home-link" href="../index.html">← SState 主站</a>
   <div class="fg-popover" id="fgPopover"><button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button><section class="fg-panel" id="fgPanel" role="dialog" aria-label="恐懼與貪婪一年線圖"><iframe id="fgChartFrame" title="恐懼與貪婪一年線圖" data-src="./fear-greed.html?v=1.1.14" referrerpolicy="no-referrer" loading="lazy"></iframe></section></div>
@@ -34,9 +38,15 @@
  <div class="custom-modal-backdrop" data-custom-close="1"></div>
  <section class="custom-modal-card"><header><strong>新增派網 PERP 合約</strong><button type="button" id="customSymbolClose" aria-label="關閉">×</button></header>
  <input id="customSymbolQuery" type="search" placeholder="搜尋 BTC、EIGEN、ETHFI…" autocomplete="off" aria-label="搜尋派網合約">
- <div class="custom-modal-hint" id="customSymbolHint">僅顯示 USDT 本位 PERP，最多加入 6 檔</div>
+ <div class="custom-modal-hint" id="customSymbolHint">僅顯示 USDT 本位 PERP，最多加入 8 檔</div>
  <div class="custom-symbol-results" id="customSymbolResults"></div>
  </section>
+</div>
+<div id="customManageModal" class="custom-symbol-modal" role="dialog" aria-modal="true" aria-label="管理自由清單" hidden>
+ <div class="custom-modal-backdrop" data-manage-close="1"></div>
+ <section class="custom-modal-card custom-manage-card"><header><strong>管理自由清單 · 最多 8 檔</strong><button type="button" id="customManageClose" aria-label="關閉">×</button></header>
+ <p class="custom-manage-hint">從這裡移除標的；原有 Telegram 價格提醒不會自動刪除。</p>
+ <div id="customManageList" class="custom-manage-list"></div></section>
 </div>
 <div class="workspace-diag" id="diagHolder" hidden><details class="diag" id="diagPanel" open><summary>資料連線及錯誤診斷 <span id="diagCount">0</span></summary><div id="diagnostics"></div></details><div class="workspace-footnotes">4H 真實 OHLC；布林帶(20,2)、HA 階梯、S 狀態、中軌斜率及 CCI-SMA 使用日線，Asia/Taipei 08:00 換日。CoinGlass 7D 無有效數據時才使用明確標示的代理上下界。清單固定全數可見，最多四張浮動 4H 圖表，支援獨立鎖定、最小化、關閉、拖曳及縮放。</div></div>
 <div id="liq-alert-modal" class="liq-alert-modal" hidden aria-hidden="true">
@@ -74,5 +84,5 @@
   </div>
 </div>
 
-<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=1.6.0"></script><script defer src="./app.js?v=1.6.0"></script><script defer src="./workspace.js?v=1.6.0"></script><script defer src="./alerts.js?v=1.4.0"></script><script defer src="./color-marks.js?v=1.6.0"></script><script defer src="./fear-greed-popover.js?v=1.6.0"></script>
+<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=1.6.1"></script><script defer src="./app.js?v=1.6.1"></script><script defer src="./workspace.js?v=1.6.1"></script><script defer src="./alerts.js?v=1.4.0"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
 </body></html>

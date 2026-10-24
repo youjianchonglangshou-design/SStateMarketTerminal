@@ -1,7 +1,14 @@
 {
-  "version": "1.6.0",
+  "version": "1.6.1",
   "releaseDate": "2026-10-24",
   "changes": [
+    "Remove redundant Send Back control: clicking a chart focuses its window.",
+    "Move semantic S-state/slope/HA/CCI capsules into the chart titlebar and remove redundant CoinGlass source strip.",
+    "Persist inspected HA price guide when clicking empty plot or bringing other windows forward. Clicking another HA stair changes selection; clicking selected price badge dismisses.",
+    "Move complete breathing live-price circle 17 units inside right axis and slow pulse animation from 2 s to 4 s.",
+    "Expand custom USDT PERP list cap from six to eight with no internal scrollbar. Move deletion from hover overlay to explicit Manage dialog to avoid accidental CCI activation.",
+    "Narrow both fixed market panels while keeping all 21 crypto and 12 stock rows visible.",
+    "Move four-chart taskbar farther right in footer and use released left space for actual 15M/4H/1D loading progress and connection summary.",
     "Fear & Greed enlarged to a clickable overlay above every chart and footer; hover no longer opens it, leaving the overlay closes it.",
     "Add a third fixed custom panel underneath the twelve US stock/commodity rows with a six-contract cap. Search Pionex Worker /api/monitor/symbols; only verified USDT PERP entries are offered while the online universe is complete. Offline partial mode offers clearly marked unverified candidates.",
     "Custom contracts use the existing shared 15M/4H/1D OHLC, price and daily indicator pipeline. Custom list stays independent of original 21+12 entries; members persist in localStorage and can be individually removed.",
@@ -18,10 +25,8 @@
     "app.js",
     "chart4h.js",
     "workspace.js",
-    "fear-greed-popover.js",
-    "color-marks.js",
     "VERSION.json",
     "README.md",
-    "TEST_REPORT_v1.6.0.txt"
+    "TEST_REPORT_v1.6.1.txt"
   ]
 }

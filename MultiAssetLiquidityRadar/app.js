@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.6.0 — fixed full-market panels and up to four draggable/resizable charts.
+/* Multi-Asset Liquidity Radar v1.6.1 — fixed full-market panels and up to four draggable/resizable charts.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -383,12 +383,8 @@
        s.append(r.dom.sBadge);m.append(r.dom.midLabel);h.append(r.dom.ha);c.append(r.dom.cci);metrics.append(s,m,h,c);
        const bell=el('button','liq-alert-bell','♧');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.textContent='🔔';bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
        wrapper.append(markBtn,bell,btn,metrics);
-       if(group==='custom'){
-         const rm=el('button','custom-remove','×');rm.type='button';rm.dataset.customRemove=r.id;rm.title='移除 '+r.id+'（不刪除價格提醒）';
-         rm.setAttribute('aria-label','從自由清單移除 '+r.id);
-         rm.addEventListener('click',ev=>{ev.stopPropagation();removeCustomSymbol(r.id);});
-         wrapper.append(rm);
-       }
+       // Custom member deletion belongs to the explicit Manage dialog, not the CCI capsule.
+       // This avoids an invisible hover × intercepting the indicator cell.
        r.dom.tr=wrapper;
        navButtons.set(r.id,{wrapper,btn,quote:r.dom.px,change,markBtn,bell,group,record:r});frag.append(wrapper);
      }
@@ -400,7 +396,7 @@
  }
  // User-owned watchlist: same records / analysis pipeline, but NEVER mutates symbols.js.
  const CUSTOM_KEY='SStateLiquidityRadar.customPERP.v1';
- const CUSTOM_MAX=6;
+ const CUSTOM_MAX=8;
  let customUniverse=[],customLoaded=false,customPartial=false;
  const customIds=()=>records.filter(row=>row.s.group==='custom').map(row=>row.id);
  const customSave=()=>{try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(customIds()));}catch(_){/* storage disabled */}};
@@ -416,10 +412,27 @@
    $('liq-custom-side-count').textContent=customIds().length+'/'+CUSTOM_MAX;
    $('customEmpty').hidden=customIds().length>0;
    $('customAddSymbol').disabled=customIds().length>=CUSTOM_MAX;
+   if(!$('customManageModal')?.hidden)renderCustomManage();
  }
+ function renderCustomManage(){
+   const list=$('customManageList');if(!list)return;
+   list.replaceChildren();
+   const members=records.filter(row=>row.s.group==='custom');
+   if(!members.length){const p=el('div','custom-manage-empty','目前沒有自由清單標的');list.append(p);return;}
+   for(const item of members){
+     const row=el('div','custom-manage-row');
+     const label=el('span','custom-manage-name',item.id+' · PERP');
+     const remove=el('button','custom-manage-remove','移除');remove.type='button';
+     remove.setAttribute('aria-label','移除 '+item.id);remove.addEventListener('click',()=>{
+       if(!window.confirm('從自由清單移除 '+item.id+'？\n（價格提醒不會一併刪除）'))return;
+       removeCustomSymbol(item.id);renderCustomManage();
+     });row.append(label,remove);list.append(row);
+   }
+ }
+ const closeCustomManage=()=>{$('customManageModal').hidden=true;};
  function addCustomSymbol(raw){
    const base=String(raw||'').toUpperCase().replace(/_USDT_PERP$/,'');
-   if(customIds().length>=CUSTOM_MAX){$('customSymbolHint').textContent='最多 6 檔，請先移除其他標的';return false;}
+   if(customIds().length>=CUSTOM_MAX){$('customSymbolHint').textContent='最多 8 檔，請至「管理」移除其他標的';return false;}
    if(records.some(x=>x.id===base)){$('customSymbolHint').textContent=base+' 已在監控清單內';return false;}
    const rec=makeCustomRecord(base);if(!rec)return false;
    setupSideNav(['custom']);renderRow(rec);updateCustomPanel();customSave();renderOverview();
@@ -450,7 +463,7 @@
        .map(x=>({symbol:String(x.symbol).toUpperCase(),base:String(x.symbol).toUpperCase().replace(/_USDT_PERP$/,'')}))
        .filter(x=>/^[A-Z0-9]{1,22}$/.test(x.base));
      customLoaded=true;customPartial=Boolean(response.partial);
-     $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 6 檔';
+     $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 8 檔';
    }catch(err){customLoaded=true;customUniverse=[];customPartial=true;
      $('customSymbolHint').textContent='派網清單連線失敗，可輸入合約代碼嘗試新增；未驗證前不可視為已上市';
      log('自由清單 PERP universe：'+err.message);
@@ -486,12 +499,15 @@
    if('ResizeObserver' in window)new ResizeObserver(fitPanel).observe($('liq-stock-nav'));
    $('customAddSymbol').addEventListener('click',()=>{if(customIds().length>=CUSTOM_MAX)return;
      $('customSymbolModal').hidden=false;$('customSymbolQuery').value='';renderCustomResults();
-     if(!customLoaded)loadCustomUniverse();else $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 6 檔';
+     if(!customLoaded)loadCustomUniverse();else $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 8 檔';
      $('customSymbolQuery').focus();});
+   $('customManageSymbol').addEventListener('click',()=>{$('customManageModal').hidden=false;renderCustomManage();});
+   $('customManageClose').addEventListener('click',closeCustomManage);
+   $('customManageModal').addEventListener('click',ev=>{if(ev.target.matches('[data-manage-close]'))closeCustomManage();});
    $('customSymbolClose').addEventListener('click',closeCustomModal);
    $('customSymbolModal').addEventListener('click',ev=>{if(ev.target.matches('[data-custom-close]'))closeCustomModal();});
    $('customSymbolQuery').addEventListener('input',renderCustomResults);
-   document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('customSymbolModal').hidden)closeCustomModal();});
+   document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('customSymbolModal').hidden)closeCustomModal();if(!$('customManageModal').hidden)closeCustomManage();}});
  }
 
  // Taiwan's 08:00 daily reset is UTC 00:00. Never use the TV Scanner
@@ -532,10 +548,30 @@
    try{localStorage.setItem('liq-v140-sort-'+sector,key);}catch(_){/* no storage */}
    reorderSideNavByMarks();
  }
+ function updateTerminalProgress(){
+   const total=Math.max(1,records.length);
+   const attempts=records.reduce((n,r)=>n+['h4','day','bar'].filter(k=>r.lastAttempt?.[k]).length,0);
+   const complete=records.reduce((n,r)=>n+((r.bars4h?.length>=21)?1:0)+((r.daily?.length>=34)?1:0)+((r.bars15?.length>=2)?1:0),0);
+   const maximum=total*3;
+   const pct=Math.min(100,Math.round(attempts/maximum*100));
+   const meter=$('terminalProgressFill'),msg=$('terminalProgressText'),detail=$('terminalDetail');
+   if(!meter||!msg||!detail)return;
+   meter.style.width=pct+'%';
+   meter.parentElement.setAttribute('aria-valuenow',String(pct));
+   const fetchDone=attempts>=maximum&&state.loadingJobs===0&&state.queue.length===0;
+   if(fetchDone){
+     msg.textContent=complete===maximum?'READY｜行情歷史載入完成':'SYNC｜歷史載入已嘗試';
+     detail.textContent=`已取得 ${complete}/${maximum} 組 K 線 · ${records.length} 檔監控`;
+   }else{
+     msg.textContent=`BOOT｜歷史資料載入 ${pct}%`;
+     detail.textContent=`批次 ${attempts}/${maximum} · 成功 ${complete} 組`;
+   }
+ }
  function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,proxy=records.filter(r=>r.source==='proxy').length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
    $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
    updateNavPrices();
    $('loadedCount').textContent=`監控 ${records.length}／${records.length}`;
+   updateTerminalProgress();
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
  }
  function renderAll(){records.forEach(renderRow);reorder();renderOverview();}
@@ -565,8 +601,8 @@
      const {r,kind}=job;const interval=kind==='bar'?'15M':kind==='h4'?'4H':'1D';const count=kind==='bar'?530:kind==='h4'?130:95;const received=await loadHistory(r.s,interval,count);
      if(kind==='bar'){r.bars15=received.bars;r.barsAt=Date.now();r.errors.bar='';}else if(kind==='h4'){r.bars4h=received.bars;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';}else{r.daily=received.bars;r.dailyAt=Date.now();r.errors.day='';}
      if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);updateDerived(r);renderRow(r);reorder();renderOverview();
-   }catch(e){job.r.errors[job.kind]=String(e?.message||e);log(`${job.r.id} ${job.kind==='bar'?'15M':job.kind==='h4'?'4H':'1D'}: ${e?.message||e}`);renderRow(job.r);}finally{state.loadingJobs--;state.jobSet.delete(job.key);pump();}})();}}
- function queueAll(force=false){for(const r of records)enqueue(r,'h4',force);for(const r of records)enqueue(r,'day',force);for(const r of records)enqueue(r,'bar',force);}
+   }catch(e){job.r.errors[job.kind]=String(e?.message||e);log(`${job.r.id} ${job.kind==='bar'?'15M':job.kind==='h4'?'4H':'1D'}: ${e?.message||e}`);renderRow(job.r);}finally{state.loadingJobs--;state.jobSet.delete(job.key);updateTerminalProgress();pump();}})();}}
+ function queueAll(force=false){for(const r of records)enqueue(r,'h4',force);for(const r of records)enqueue(r,'day',force);for(const r of records)enqueue(r,'bar',force);updateTerminalProgress();}
  function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());}
  function setup(){
    const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};
@@ -594,7 +630,7 @@
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.6.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.6.1',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

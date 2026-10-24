@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.6.0 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v1.6.1 — four independent floating 4H charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -149,16 +149,14 @@
    const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    buttons.append(w.lockButton,
-     makeButton('chart-sendback','置後','將此圖表置後',()=>{sendBack(w);save();}),
      makeButton('chart-reset','▣','還原此圖表預設尺寸',()=>{w.geom=defaults(Math.max(0,windows.indexOf(w)));paint(w);w.dirty=true;schedule(w,50);activate(w);}),
      makeButton('chart-minimize','−','最小化此圖表（資料持續更新）',()=>minimize(w)),
      makeButton('chart-close','×','關閉此圖表視窗',()=>close(w)));
-   head.append(label,buttons);
-   const strip=document.createElement('div');strip.className='chart-status-strip';
-   w.indicator=document.createElement('span');w.indicator.className='chart-indicator-strip';w.indicator.textContent='日線 S · 中軌 · HA · CCI';
-   w.source=document.createElement('span');w.source.className='chart-source';strip.append(w.indicator,w.source);
+   w.indicator=document.createElement('span');w.indicator.className='chart-indicator-strip chart-inline-capsules';w.indicator.textContent='日線 S · 中軌 · HA · CCI';
+   w.source=document.createElement('span');w.source.className='chart-source';
+   head.append(label,w.indicator,buttons);
    w.plot=document.createElement('div');w.plot.className='radar-area radar-area-4h';w.plot.dataset.chartPlot=uid;
-   el.append(head,strip,w.plot);
+   el.append(head,w.plot);
    for(const dir of ['n','s','e','w','ne','nw','se','sw']){
      const handle=document.createElement('div');handle.className='chart-resize '+dir;handle.dataset.resize=dir;
      handle.setAttribute('aria-label','縮放 '+dir);

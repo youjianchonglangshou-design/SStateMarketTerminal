@@ -1,11 +1,11 @@
-/* MultiAssetLiquidityRadar v1.6.0
+/* MultiAssetLiquidityRadar v1.6.1
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
  */
 (function(root){'use strict';
  const H4=14400000,DAY=86400000,BLANK_CANDLES=3;
- // Click a real 1D HA stair to extend its guide. Selection stays until pointer leaves this chart. Each plot owns its own state.
+ // Click an HA stair to pin a semantic guide; only another stair or its price badge changes the pin.
  const interactions=new WeakMap();
  const SCALE_MIN=0.25,SCALE_MAX=16;
  let clipIndex=0;
@@ -178,12 +178,13 @@
      svg.push(`<line class="rc-level rc-level-${kind}" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/>`);
      labels.push({kind,real:yy,yy,text:(kind==='now'?'現價 ':'')+money(value)});
    }
-   // Breathing price beacon uses the exact NOW price coordinate, not any shifted badge.
-   if(valid(price) && y(price)>=T && y(price)<=plotB){
-     svg.push(`<circle class="rc-now-breathe rc-now-breathe-halo" cx="${plotR-2}" cy="${fmt(y(price))}" r="6"/>`);
-     svg.push(`<circle class="rc-now-breathe rc-now-breathe-core" cx="${plotR-2}" cy="${fmt(y(price))}" r="3"/>`);
-   }
    svg.push('</g>'); // rc-price-plot clip ends before price label badges.
+   // Beacon is OUTSIDE clipping group and 17 SVG pixels inward from the price axis.
+   // Glow must remain a complete circle rather than being cut in half at the axis.
+   if(valid(price) && y(price)>=T && y(price)<=plotB){
+     svg.push(`<circle class="rc-now-breathe rc-now-breathe-halo" cx="${plotR-17}" cy="${fmt(y(price))}" r="6" pointer-events="none"/>`);
+     svg.push(`<circle class="rc-now-breathe rc-now-breathe-core" cx="${plotR-17}" cy="${fmt(y(price))}" r="3" pointer-events="none"/>`);
+   }
    // Offset only the badge, never shift the true-price horizontal line.
    const sorted=labels.slice().sort((a,b)=>a.yy-b.yy);
    for(let i=1;i<sorted.length;i++)sorted[i].yy=Math.max(sorted[i].yy,sorted[i-1].yy+22);
@@ -202,7 +203,7 @@
    // Entire right axis is a drag handle. Transparent hit area keeps badges on
    // top visually and is inside the stable plot host's delegated pointer events.
    svg.push(`<rect class="rc-price-axis-hit" x="${plotR}" y="${T}" width="${R}" height="${ph}" fill="transparent"><title>按住左鍵往上拉放大價格間距、往下拉縮小；雙擊恢復自動刻度</title></rect>`);
-   svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
+   svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3" pointer-events="all" style="cursor:pointer"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
    svg.push('</svg>');
    // Small TradingView-like 4H OHLC strip: show the current candle by default,
    // and temporarily inspect a historical candle only while the pointer is over it.
@@ -230,7 +231,7 @@
    if(!state){
      state={selectedTimestamp:null,inside:false,pointer:null,axisDrag:null,scale:1};interactions.set(target,state);
      // Delegate to the stable host: refreshes replace SVG children every 10 seconds.
-     // Clear ONLY when the pointer leaves the chart itself (not the selected date/price).
+     // Hide only the cursor when the pointer leaves; a pinned HA selection remains.
      const clear=()=>{
        if(state.axisDrag)return;
        state.inside=false;state.pointer=null;
@@ -282,8 +283,7 @@
        state.scaleCommit?.(state.scale);
        const rect=target.getBoundingClientRect();
        if(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom){
-         state.inside=false;
-         target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
+         state.inside=false; // No pointer event may clear a pinned HA level.
        }
      };
      target.addEventListener('pointerup',finish);
@@ -360,14 +360,15 @@
      const pos=locate(ev);if(!pos)return;
      state.inside=true;
      const {r,yy}=pos,h=r?.ha;
-     // Clicking close to an actual daily HA horizontal stair segment selects it.
-     // Clicking elsewhere cancels; moving alone NEVER shows an HA price label.
-     state.selectedTimestamp=h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12?r.t:null;
-     paintSelected();
+     // Blank click NEVER dismisses a pinned HA price. Only a new stair reselects it.
+     if(h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12){state.selectedTimestamp=r.t;paintSelected();}
+   });
+   selected.querySelector('.rc-selected-price-box').addEventListener('click',ev=>{
+     ev.preventDefault();ev.stopPropagation();state.selectedTimestamp=null;paintSelected();
    });
    // Restore a crosshair during polling redraw when the pointer has not moved.
    if(state.inside&&state.pointer)movePointer(state.pointer);
-   // The clicked HA price persists through pointer departure and redraw until blank click or another HA selection.
+   // The clicked HA guide persists across blank clicks, pointer departure and redraw.
    paintSelected();
  }
  function clearSelection(target){const state=interactions.get(target);if(state)state.selectedTimestamp=null;target?.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');}

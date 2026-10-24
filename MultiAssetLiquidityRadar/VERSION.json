@@ -1,10 +1,27 @@
 {
-  "version": "1.5.2",
+  "version": "1.6.0",
   "releaseDate": "2026-10-24",
   "changes": [
-    "Price-axis left-button vertical drag: move up to expand vertical price spacing/candlesticks, down to compress; double-click the price axis to reset automatic scaling.",
-    "Recompute OHLC candles, daily Bollinger bands, HA steps, NOW and CoinGlass upper/lower levels on one consistent vertical price domain; clip historical structures outside a zoomed price viewport.",
-    "Keep an independent price-axis zoom multiplier (0.25x–16x) for each of the four chart windows and persist through window moves, switches, reloads, and chart resizing.",
-    "Preserve v1.5.1 semantic HA step inspection, four floating windows, fixed 21+12 symbol lists, alert/mark order, data refresh and all existing provider logic."
+    "Fear & Greed enlarged to a clickable overlay above every chart and footer; hover no longer opens it, leaving the overlay closes it.",
+    "Add a third fixed custom panel underneath the twelve US stock/commodity rows with a six-contract cap. Search Pionex Worker /api/monitor/symbols; only verified USDT PERP entries are offered while the online universe is complete. Offline partial mode offers clearly marked unverified candidates.",
+    "Custom contracts use the existing shared 15M/4H/1D OHLC, price and daily indicator pipeline. Custom list stays independent of original 21+12 entries; members persist in localStorage and can be individually removed.",
+    "Rename NOW label to 現價 and animate a cyan breathing dot on the actual live price horizontal line.",
+    "Render daily semantic capsules for S-state, middle-band slope, HA, and CCI in each chart window status strip.",
+    "Preserve selected HA staircase horizontal price guide across pointer departure and data redraw; only blank chart click or selection of another staircase changes the state. A new symbol clears stale selections.",
+    "Enhance crosshair and Bollinger band visibility around 30 percent.",
+    "Move four-chart taskbar into the bottom bar; remove the all-refresh and reset-layout buttons and redundant 33/33 status pill.",
+    "Retain the four draggable, individually locked/minimized, zoomable chart windows; independent sector sorting/flags/price bells."
+  ],
+  "modifiedFiles": [
+    "index.html",
+    "style.css",
+    "app.js",
+    "chart4h.js",
+    "workspace.js",
+    "fear-greed-popover.js",
+    "color-marks.js",
+    "VERSION.json",
+    "README.md",
+    "TEST_REPORT_v1.6.0.txt"
   ]
 }

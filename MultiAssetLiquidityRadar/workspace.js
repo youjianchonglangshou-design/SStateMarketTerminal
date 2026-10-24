@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.5.2 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v1.6.0 — four independent floating 4H charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -68,7 +68,12 @@
    const d=api.getData(w.symbol);if(!d)return;
    w.title.textContent=d.symbol;
    w.price.textContent=d.priceText;
-   w.indicator.textContent=d.indicator;
+   // Semantic capsules live in the status strip (never inside the SVG overlay).
+   w.indicator.replaceChildren();
+   for(const item of (d.capsules||[])){
+     const cap=document.createElement('span');cap.className='chart-semantic '+item.kind+' '+item.tone;
+     cap.textContent=item.text;cap.title=item.title||item.text;w.indicator.append(cap);
+   }
    w.source.textContent=d.source;
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
      ...d.chart,priceScale:w.priceScale,
@@ -207,10 +212,10 @@
    }
    if(!w){w=[...windows].reverse().find(x=>!x.locked)||create(symbol);}
    if(!w){announce('請先解鎖或關閉其中一張圖表');return false;}
-   if(w.symbol!==symbol){w.symbol=symbol;w.el.setAttribute('aria-label',symbol+' 浮動 4H 圖表');w.dirty=true;}
+   if(w.symbol!==symbol){window.LiqRadar4H?.clearSelection(w.plot);w.symbol=symbol;w.el.setAttribute('aria-label',symbol+' 浮動 4H 圖表');w.dirty=true;}
    activate(w);return true;
  }
- function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;w.indicator.textContent=d.indicator;w.source.textContent=d.source;}
+ function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;w.source.textContent=d.source;}
    // Rendering for minimized or totally covered charts is deferred until user restores/focuses.
    schedule(w,90);
  }}
@@ -261,7 +266,7 @@
    const w=create(api.hasSymbol(selected)?selected:(api.hasSymbol('BTC')?'BTC':null));
    if(w){activate(w);announce('已新增圖表：點擊清單可切換作用中的未鎖定圖表');}
  });
- $('resetLayoutBtn')?.addEventListener('click',reset);
+ // Reset control intentionally removed from the compact footer.
  window.addEventListener('resize',()=>{
    clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{for(const w of windows){paint(w);w.dirty=true;schedule(w,90);}save();},80);
  },{passive:true});

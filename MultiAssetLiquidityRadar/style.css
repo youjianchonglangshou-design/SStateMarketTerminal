@@ -539,3 +539,90 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .rc-price-axis-hit{cursor:ns-resize;pointer-events:all;touch-action:none;}
 .radar-workspace [data-chart-plot].price-scale-dragging,
 .radar-workspace [data-chart-plot].price-scale-dragging *{cursor:ns-resize!important;user-select:none!important;}
+
+/* v1.6.0: right-side six-symbol PERP watchlist; fixed 21/12 sector panels unchanged. */
+.radar-workspace .liq-nav-custom{
+  position:fixed;left:auto;right:7px;z-index:74;
+  top:calc(8px + 12px + 29px + 12 * (var(--watch-row-height) + 2px) + 10px);
+  bottom:calc(var(--workspace-footer-height) + 7px);height:auto;
+  max-height:none;min-height:0;width:var(--liq-panel-width);
+  overflow:hidden;padding:7px 6px 8px;
+}
+.radar-workspace .liq-nav-custom .liq-nav-content{height:100%;gap:3px;}
+.radar-workspace .liq-nav-custom .liq-nav-heading{height:29px;min-height:29px;display:flex;align-items:center;justify-content:center;gap:9px;padding:0 4px 4px;}
+.radar-workspace .liq-nav-custom .liq-nav-list{max-height:none;min-height:0;height:auto;flex:0 0 auto;gap:2px;overflow:hidden!important;}
+.radar-workspace .liq-nav-custom .liq-nav-row{height:clamp(23px,calc((100dvh - 590px)/6),38px);min-height:clamp(23px,calc((100dvh - 590px)/6),38px);max-height:clamp(23px,calc((100dvh - 590px)/6),38px)}
+.radar-workspace .liq-nav-custom .liq-nav-row:has(.custom-remove){position:relative}
+.radar-workspace .custom-plus{border:1px solid #487c92;background:#174058;border-radius:5px;color:#d3eefc;padding:3px 7px;font-size:11px;cursor:pointer}
+.radar-workspace .custom-plus:disabled{opacity:.4;cursor:not-allowed}
+.radar-workspace .custom-empty{margin:auto;text-align:center;color:#6895af;font-size:11px;padding:12px 4px;max-width:200px}
+.radar-workspace .custom-empty[hidden]{display:none!important}
+.radar-workspace .custom-remove{position:absolute;right:2px;top:1px;z-index:5;background:#5d2536;border:1px solid #b45369;border-radius:3px;color:#ffdfeb;width:18px;height:18px;font-size:14px;cursor:pointer;opacity:0;pointer-events:none}
+.radar-workspace .liq-nav-custom .liq-nav-row:hover .custom-remove,.radar-workspace .custom-remove:focus-visible{opacity:1;pointer-events:auto}
+.radar-workspace .liq-nav-custom .metric-s{width:44px}
+.radar-workspace .liq-nav-custom .metric-mid{width:52px}
+
+/* Symbol picker: same source as monitor.html, strictly PERP results. */
+.custom-symbol-modal[hidden]{display:none!important}
+.custom-symbol-modal{position:fixed;inset:0;z-index:450;display:grid;place-items:center;padding:15px}
+.custom-modal-backdrop{position:absolute;inset:0;background:#010912c9;backdrop-filter:blur(4px)}
+.custom-modal-card{position:relative;width:min(620px,calc(100vw - 30px));max-height:min(650px,85dvh);display:flex;flex-direction:column;gap:10px;padding:13px;background:#0a2337;border:1px solid #5186a1;border-radius:11px;box-shadow:0 20px 65px #000b}
+.custom-modal-card header{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:15px;color:#d9efff;border-bottom:1px solid #31576d;padding:2px 4px 10px}
+.custom-modal-card header button{background:transparent;border:0;color:#c7e4f3;cursor:pointer;font-size:23px}
+.custom-modal-card input{height:40px;border:1px solid #4b9fc0;background:#061d2f;color:#e4f7ff;border-radius:6px;padding:5px 11px;outline-color:#66c9ee;font-size:14px}
+.custom-modal-hint{font-size:11px;color:#a7cedb;line-height:1.5;padding:0 4px}
+.custom-symbol-results{min-height:120px;max-height:430px;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:4px}
+.custom-result{border:1px solid #254b60;background:#102d42;color:#d8edfd;padding:11px;border-radius:5px;cursor:pointer;display:flex;justify-content:space-between;text-align:left;font-weight:800}
+.custom-result small{color:#47ccde;font-size:10px;font-weight:700}
+.custom-result:disabled{opacity:.48;cursor:not-allowed}
+.custom-result:not(:disabled):hover{background:#17435b;border-color:#4da5bb}
+.custom-result-empty{font-size:12px;color:#98b5c9;padding:15px}
+
+/* Move the chart taskbar INTO the footer's freed center zone. */
+.radar-workspace .chart-taskbar{
+  bottom:2px;left:clamp(356px,30vw,585px);right:auto;
+  width:min(39vw,700px);height:40px;min-height:40px;max-height:40px;
+  border:0;border-left:1px solid #31546c;border-right:1px solid #31546c;
+  border-radius:0;background:transparent;box-shadow:none;padding:3px 6px;gap:6px;z-index:132;
+}
+.radar-workspace .chart-window-tabs{scrollbar-width:none;gap:4px}
+.radar-workspace .chart-window-tabs::-webkit-scrollbar{display:none}
+.radar-workspace .chart-window-tabs button,.radar-workspace .chart-add-window{font-size:10px;padding:5px 6px;min-height:25px}
+.radar-workspace .chart-window-message{flex:1;min-width:0;font-size:10px}
+.radar-workspace .footer-coverage{flex:0 1 auto;max-width:clamp(85px,12vw,220px)}
+.radar-workspace #refreshBtn,.radar-workspace #resetLayoutBtn,.radar-workspace #liveStatus{display:none!important}
+@media(max-width:1350px){.radar-workspace .chart-taskbar{left:calc(var(--liq-panel-width) + 10px);width:calc(100vw - 2 * var(--liq-panel-width) - 140px);min-width:255px}}
+
+/* Fear & Greed: click to open only, portal to <body> guarantees highest overlay layer. */
+.radar-workspace .fg-panel,.fg-panel{display:none!important}
+.radar-workspace .fg-panel.fg-click-open,.fg-panel.fg-click-open{display:block!important;position:fixed!important;z-index:400!important;max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 65px)!important;border-radius:13px;box-shadow:0 20px 90px #000d;border:2px solid #dbe6ef;background:#fff}
+.radar-workspace .fg-popover:hover .fg-panel,.radar-workspace .fg-popover:has(.fg-trigger:focus-visible) .fg-panel{display:none!important}
+
+/* Actual 4H chart indicators resume daily semantic capsule language. */
+.radar-workspace .chart-status-strip{height:26px;min-height:26px;padding:0 9px;background:#0d283a;gap:8px;overflow:visible}
+.radar-workspace .chart-indicator-strip{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;white-space:nowrap}
+.radar-workspace .chart-semantic{padding:3px 7px;border:1px solid #466a80;border-radius:4px;background:#173246;color:#b8d6e7;font-size:10px;font-weight:800;line-height:1.2}
+.radar-workspace .chart-semantic.s05{background:#5a357b;color:#ead1ff;border-color:#9571bf}
+.radar-workspace .chart-semantic.s1{background:#154361;color:#9bdcfe;border-color:#367eb2}
+.radar-workspace .chart-semantic.s2,.radar-workspace .chart-semantic.s3,.radar-workspace .chart-semantic.other-up{background:#144a3a;color:#74efbe;border-color:#299e74}
+.radar-workspace .chart-semantic.other-dn{background:#522d41;color:#ffb4d1;border-color:#965470}
+.radar-workspace .chart-semantic.rising{background:#104339;color:#66edb7;border-color:#298d6c}
+.radar-workspace .chart-semantic.flat{background:#203f53;color:#cce8f5;border-color:#50798e}
+.radar-workspace .chart-semantic.flattening{background:#533b21;color:#ffdc92;border-color:#967238}
+.radar-workspace .chart-semantic.falling{background:#512d3c;color:#ff9da9;border-color:#9c4c62}
+.radar-workspace .chart-semantic.yellow{background:#614f17;color:#ffe54a;border-color:#a78b27}
+.radar-workspace .chart-semantic.purple{background:#4d3263;color:#d9bbff;border-color:#8953b3}
+.radar-workspace .chart-source{font-size:10px;flex:none;color:#7bd5e7}
+
+/* 30% more discernible crosshair and daily Bollinger lines. */
+.radar-workspace .rc-bb{opacity:.34;stroke-width:1.50}
+.radar-workspace .rc-middle{opacity:.38;stroke-width:1.37}
+.radar-workspace .rc-hover-v,.radar-workspace .rc-hover-h{opacity:.48;stroke-width:1.30}
+/* Live NOW beacon: animates without recreating the candle chart. */
+.rc-now-breathe-halo{fill:#20c9ee;stroke:#40dfff;stroke-width:1.1;opacity:.4;transform-box:fill-box;transform-origin:center;animation:rc-now-pulse 2s ease-in-out infinite}
+.rc-now-breathe-core{fill:#b3f7ff;stroke:#17c4e8;stroke-width:1;filter:drop-shadow(0 0 3px #3febff)}
+@keyframes rc-now-pulse{0%,100%{opacity:.15;scale:.75}50%{opacity:.8;scale:1.7}}
+@media(prefers-reduced-motion:reduce){.rc-now-breathe-halo{animation:none;opacity:.65}}
+
+/* The footer coverage originally occupied the new central chart-taskbar footprint. */
+.radar-workspace .footer-coverage{display:none!important}

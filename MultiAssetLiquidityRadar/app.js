@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.5.2 — fixed full-market panels and up to four draggable/resizable charts.
+/* Multi-Asset Liquidity Radar v1.6.0 — fixed full-market panels and up to four draggable/resizable charts.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -18,7 +18,7 @@
  function canonical(s){const over=providerOverrides[String(s.id).toUpperCase()];return over?{...s,...over,cg:[...new Set([...over.cg,...(s.cg||[])])]}:{...s};}
  const entries=Array.isArray(window.LIQ_SYMBOLS)?window.LIQ_SYMBOLS.map(canonical):[];
  const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceFeed:'',bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
- const state={selected:'',sectorSort:{crypto:'marks',stock:'marks'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],jobSet:new Set(),networkLog:[],renderAt:0};
+ const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],jobSet:new Set(),networkLog:[],renderAt:0};
  const currentRows=()=>records;
  const sourceName=r=>r.source==='coinglass'?'CoinGlass 7D（1週）':r.source==='proxy'?'15M 代理估算':'等待上下界';
  // Ring-style bounded diagnostics: at most 32 entries. Avoid writing large text nodes
@@ -241,7 +241,15 @@
  function chartPayload(id){
    const r=records.find(x=>x.id===id);
    if(!r)return null;
-   return {symbol:r.id,priceText:priceEnough(livePrice(r))?MONEY(r.price):'--',source:sourceName(r),
+   const sc=r.sstate||'--', ms=r.midline?.state||'unknown',ha=r.ha?.color||'--',cci=r.cci?.color||'--';
+   const toneColor=v=>v==='黃'?'yellow':v==='紫'?'purple':'unknown';
+   const capsules=[
+     {kind:'s',tone:({'S3':'s3','S2':'s2','S1':'s1','S0.5':'s05','S0':'s0','OTHER-UP':'other-up','OTHER-DN':'other-dn','OTHER':'other'})[sc]||'unknown',text:sc==='OTHER-UP'?'OT-UP':sc==='OTHER-DN'?'OT-DN':sc},
+     {kind:'mid',tone:ms,text:(r.midline?.symbol||'')+' '+(r.midline?.label||'--')},
+     {kind:'ha',tone:toneColor(ha),text:'HA '+ha,title:'前日 '+(r.ha?.priorColor||'--')+' → '+ha},
+     {kind:'cci',tone:toneColor(cci),text:'CCI '+cci}
+   ];
+   return {capsules,symbol:r.id,priceText:priceEnough(livePrice(r))?MONEY(r.price):'--',source:sourceName(r),
      indicator:`${r.sstate||'--'}  ·  ${r.midline?.symbol||''}${r.midline?.label||'--'}  ·  HA ${r.ha?.color||'--'} (${r.ha?.priorColor||'--'}→${r.ha?.color||'--'})  ·  CCI ${r.cci?.color||'--'}`,
      chart:{bars:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()}};
  }
@@ -334,7 +342,7 @@
  const MARK_GROUP_ORDER=Object.freeze({red:0,orange:1,yellow:2,green:3,blue:4,purple:5});
  let navActive='',navScrollQueued=false,navJumpUntil=0,navPulseTimer=0;
  function reorderSideNavByMarks(){
-   for(const group of ['crypto','stock']){
+   for(const group of ['crypto','stock','custom']){
      const list=$('liq-'+group+'-list');if(!list)continue;
      const key=state.sectorSort[group]||'marks';
      const items=records.filter(r=>r.s.group===group).sort((a,b)=>compareSectorRows(a,b,key));
@@ -355,8 +363,8 @@
      if(window.LIQ_WORKSPACE.selectSymbol(r.id))updateActiveSelection(r.id);
    }else updateActiveSelection(r.id);
  }
- function setupSideNav(){
-   for(const group of ['crypto','stock']){
+ function setupSideNav(groupNames=['crypto','stock']){
+   for(const group of groupNames){
      const host=$('liq-'+group+'-nav'),list=$('liq-'+group+'-list');if(!host||!list)continue;
      const subset=records.filter(r=>r.s.group===group);
      $('liq-'+group+'-side-count').textContent=subset.length;
@@ -375,6 +383,12 @@
        s.append(r.dom.sBadge);m.append(r.dom.midLabel);h.append(r.dom.ha);c.append(r.dom.cci);metrics.append(s,m,h,c);
        const bell=el('button','liq-alert-bell','♧');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.textContent='🔔';bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
        wrapper.append(markBtn,bell,btn,metrics);
+       if(group==='custom'){
+         const rm=el('button','custom-remove','×');rm.type='button';rm.dataset.customRemove=r.id;rm.title='移除 '+r.id+'（不刪除價格提醒）';
+         rm.setAttribute('aria-label','從自由清單移除 '+r.id);
+         rm.addEventListener('click',ev=>{ev.stopPropagation();removeCustomSymbol(r.id);});
+         wrapper.append(rm);
+       }
        r.dom.tr=wrapper;
        navButtons.set(r.id,{wrapper,btn,quote:r.dom.px,change,markBtn,bell,group,record:r});frag.append(wrapper);
      }
@@ -384,6 +398,102 @@
    setNavActive(records[0]?.id||'');
    reorderSideNavByMarks();
  }
+ // User-owned watchlist: same records / analysis pipeline, but NEVER mutates symbols.js.
+ const CUSTOM_KEY='SStateLiquidityRadar.customPERP.v1';
+ const CUSTOM_MAX=6;
+ let customUniverse=[],customLoaded=false,customPartial=false;
+ const customIds=()=>records.filter(row=>row.s.group==='custom').map(row=>row.id);
+ const customSave=()=>{try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(customIds()));}catch(_){/* storage disabled */}};
+ function makeCustomRecord(base){
+   const id=String(base||'').toUpperCase().replace(/_USDT_PERP$/,'');
+   if(!/^[A-Z0-9]{1,22}$/.test(id)||records.some(x=>x.id===id))return null;
+   const symbol=id+'_USDT_PERP';
+   const s={id,group:'custom',pionex:symbol,tv:'PIONEX:'+id+'USDT.P',cg:[id]};
+   const rec={s,index:records.length,id,price:null,priceAt:0,priceFeed:'',bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null};
+   records.push(rec);makeRow(rec);return rec;
+ }
+ function updateCustomPanel(){
+   $('liq-custom-side-count').textContent=customIds().length+'/'+CUSTOM_MAX;
+   $('customEmpty').hidden=customIds().length>0;
+   $('customAddSymbol').disabled=customIds().length>=CUSTOM_MAX;
+ }
+ function addCustomSymbol(raw){
+   const base=String(raw||'').toUpperCase().replace(/_USDT_PERP$/,'');
+   if(customIds().length>=CUSTOM_MAX){$('customSymbolHint').textContent='最多 6 檔，請先移除其他標的';return false;}
+   if(records.some(x=>x.id===base)){$('customSymbolHint').textContent=base+' 已在監控清單內';return false;}
+   const rec=makeCustomRecord(base);if(!rec)return false;
+   setupSideNav(['custom']);renderRow(rec);updateCustomPanel();customSave();renderOverview();
+   for(const kind of ['h4','day','bar'])enqueue(rec,kind);
+   fetchPrices();
+   document.dispatchEvent(new CustomEvent('liq-radar-custom-updated'));
+   window.LIQ_ALERT_TEST?.refreshBells?.();
+   closeCustomModal();return true;
+ }
+ function removeCustomSymbol(id){
+   const i=records.findIndex(r=>r.id===id&&r.s.group==='custom');if(i<0)return;
+   // Closing chart windows bound to a removed custom record prevents dangling chart tabs.
+   window.LIQ_WORKSPACE?.getWindows?.().filter(w=>w.symbol===id).forEach(w=>window.LIQ_WORKSPACE.closeWindow(w.id));
+   records.splice(i,1);navButtons.delete(id);
+   state.queue=state.queue.filter(job=>job.r.id!==id);
+   if(state.selected===id)updateActiveSelection(records[0]?.id||'');
+   setupSideNav(['custom']);updateCustomPanel();customSave();renderOverview();
+   document.dispatchEvent(new CustomEvent('liq-radar-custom-updated'));
+   window.LIQ_ALERT_TEST?.refreshBells?.();
+ }
+ const closeCustomModal=()=>{$('customSymbolModal').hidden=true;};
+ async function loadCustomUniverse(){
+   $('customSymbolHint').textContent='正在載入派網 USDT 永續合約…';
+   try{
+     const response=await json(WORKER+'/api/monitor/symbols',{},16000);
+     const rows=Array.isArray(response.symbols)?response.symbols:[];
+     customUniverse=rows.filter(x=>x&&String(x.type).toUpperCase()==='PERP'&&String(x.symbol).toUpperCase().endsWith('_USDT_PERP'))
+       .map(x=>({symbol:String(x.symbol).toUpperCase(),base:String(x.symbol).toUpperCase().replace(/_USDT_PERP$/,'')}))
+       .filter(x=>/^[A-Z0-9]{1,22}$/.test(x.base));
+     customLoaded=true;customPartial=Boolean(response.partial);
+     $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 6 檔';
+   }catch(err){customLoaded=true;customUniverse=[];customPartial=true;
+     $('customSymbolHint').textContent='派網清單連線失敗，可輸入合約代碼嘗試新增；未驗證前不可視為已上市';
+     log('自由清單 PERP universe：'+err.message);
+   }
+   renderCustomResults();
+ }
+ function renderCustomResults(){
+   const term=String($('customSymbolQuery').value||'').trim().toUpperCase().replace(/_USDT_PERP$/,'').replace(/[^A-Z0-9]/g,'');
+   const existing=new Set(records.map(x=>x.id));
+   let items=customUniverse.filter(x=>!term||x.base.includes(term)).slice(0,80);
+   if(term&&!items.some(x=>x.base===term)&&/^[A-Z0-9]{1,22}$/.test(term)&&customPartial){
+     items.unshift({base:term,symbol:term+'_USDT_PERP',manual:true});
+   }
+   const holder=$('customSymbolResults');holder.replaceChildren();
+   if(!items.length){const notice=document.createElement('div');notice.className='custom-result-empty';notice.textContent=customLoaded?'沒有符合的 PERP 合約':'載入中…';holder.append(notice);return;}
+   for(const item of items){const button=document.createElement('button');button.type='button';button.className='custom-result';button.disabled=existing.has(item.base);
+     const left=document.createElement('span'),right=document.createElement('small');left.textContent=item.base;right.textContent=existing.has(item.base)?'已監控':item.manual?'候選 · 未驗證':'PERP';
+     button.append(left,right);button.addEventListener('click',()=>addCustomSymbol(item.base));holder.append(button);
+   }
+ }
+ function setupCustomSymbols(){
+   let saved=[];try{const raw=JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]');if(Array.isArray(raw))saved=raw;}catch(_){/* invalid user cache */}
+   for(const base of saved.slice(0,CUSTOM_MAX))makeCustomRecord(base);
+   setupSideNav(['custom']);updateCustomPanel();
+   // Fit the independent panel exactly below the final fixed stock row.
+   const fitPanel=()=>{
+     const stock=$('liq-stock-nav'),custom=$('liq-custom-nav');if(!stock||!custom)return;
+     const rows=stock.querySelectorAll('.liq-nav-row');
+     const y=(rows.length?rows[rows.length-1].getBoundingClientRect().bottom:stock.getBoundingClientRect().top+38)+7;
+     custom.style.top=Math.max(40,Math.ceil(y))+'px';
+   };
+   fitPanel();window.addEventListener('resize',fitPanel,{passive:true});
+   if('ResizeObserver' in window)new ResizeObserver(fitPanel).observe($('liq-stock-nav'));
+   $('customAddSymbol').addEventListener('click',()=>{if(customIds().length>=CUSTOM_MAX)return;
+     $('customSymbolModal').hidden=false;$('customSymbolQuery').value='';renderCustomResults();
+     if(!customLoaded)loadCustomUniverse();else $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 6 檔';
+     $('customSymbolQuery').focus();});
+   $('customSymbolClose').addEventListener('click',closeCustomModal);
+   $('customSymbolModal').addEventListener('click',ev=>{if(ev.target.matches('[data-custom-close]'))closeCustomModal();});
+   $('customSymbolQuery').addEventListener('input',renderCustomResults);
+   document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&!$('customSymbolModal').hidden)closeCustomModal();});
+ }
+
  // Taiwan's 08:00 daily reset is UTC 00:00. Never use the TV Scanner
  // open column as daily open: it can represent the current 4H bar instead.
  // If the daily feed has not loaded, the 00:00 UTC 4H bar is the only
@@ -416,7 +526,7 @@
    }
  }
  function chooseSort(key,sector='crypto'){
-   if(!['crypto','stock'].includes(sector))sector='crypto';
+   if(!['crypto','stock','custom'].includes(sector))sector='crypto';
    state.sectorSort[sector]=key;
    const sel=$(sector+'Sort');if(sel)sel.value=key;
    try{localStorage.setItem('liq-v140-sort-'+sector,key);}catch(_){/* no storage */}
@@ -470,9 +580,9 @@
    }
    const saved=(()=>{try{return localStorage.getItem('liq-v140-active-symbol');}catch(_){return null;}})();
    state.selected=records.some(r=>r.id===saved)?saved:records[0]?.id||'';
-   setupSideNav();setNavActive(state.selected);
+   setupSideNav();setupCustomSymbols();setNavActive(state.selected);
    document.addEventListener('liq-radar-marks-updated',reorderSideNavByMarks);
-   $('refreshBtn').addEventListener('click',()=>{fetchPrices();fetchCG(true);queueAll(true);});
+
    $('diagToggle').addEventListener('click',()=>{const d=$('diagHolder');d.hidden=!d.hidden;$('diagToggle').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)renderDiag();});
    renderAll();updateClock();
    if(records.length){fetchCG();fetchPrices();queueAll();}
@@ -484,7 +594,7 @@
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.5.2',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.6.0',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

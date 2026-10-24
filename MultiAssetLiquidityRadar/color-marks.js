@@ -177,6 +177,7 @@
     pending=cleanMarks(readStored(PENDING_KEY),true);
     refreshMarks();refreshPalette();
   });
+  document.addEventListener('liq-radar-custom-updated',refreshMarks);
   refreshMarks();
   void refreshCloud();
   window.LIQ_MARK_TEST={getMarks:()=>({...marks}),getPending:()=>({...pending}),setMark,refreshMarks,refreshCloud,closePalette};

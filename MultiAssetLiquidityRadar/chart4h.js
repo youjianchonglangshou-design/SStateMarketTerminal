@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.5.2
+/* MultiAssetLiquidityRadar v1.6.0
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
@@ -104,7 +104,7 @@
    const clipId='rc-plot-clip-'+(target.dataset.chartPlot||target.id||'single').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(target.dataset.clipNonce|| (target.dataset.clipNonce=String(++clipIndex)));
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
-   svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及 NOW 價格">`);
+   svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及現價價格">`);
    svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath></defs>`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
@@ -176,7 +176,12 @@
      // drawn on the nearest border; zoom out or double-click axis to inspect.
      if(yy<T||yy>plotB)continue;
      svg.push(`<line class="rc-level rc-level-${kind}" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/>`);
-     labels.push({kind,real:yy,yy,text:(kind==='now'?'NOW ':'')+money(value)});
+     labels.push({kind,real:yy,yy,text:(kind==='now'?'現價 ':'')+money(value)});
+   }
+   // Breathing price beacon uses the exact NOW price coordinate, not any shifted badge.
+   if(valid(price) && y(price)>=T && y(price)<=plotB){
+     svg.push(`<circle class="rc-now-breathe rc-now-breathe-halo" cx="${plotR-2}" cy="${fmt(y(price))}" r="6"/>`);
+     svg.push(`<circle class="rc-now-breathe rc-now-breathe-core" cx="${plotR-2}" cy="${fmt(y(price))}" r="3"/>`);
    }
    svg.push('</g>'); // rc-price-plot clip ends before price label badges.
    // Offset only the badge, never shift the true-price horizontal line.
@@ -228,9 +233,9 @@
      // Clear ONLY when the pointer leaves the chart itself (not the selected date/price).
      const clear=()=>{
        if(state.axisDrag)return;
-       state.inside=false;state.pointer=null;state.selectedTimestamp=null;
+       state.inside=false;state.pointer=null;
        target.querySelector('.rc-cursor')?.setAttribute('visibility','hidden');
-       target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
+       // Deliberately retain clicked HA selection after pointer leaves the chart.
        state.resetOHLC?.();
      };
      target.addEventListener('pointerleave',clear);
@@ -277,7 +282,7 @@
        state.scaleCommit?.(state.scale);
        const rect=target.getBoundingClientRect();
        if(ev.clientX<rect.left||ev.clientX>rect.right||ev.clientY<rect.top||ev.clientY>rect.bottom){
-         state.inside=false;state.selectedTimestamp=null;
+         state.inside=false;
          target.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');
        }
      };
@@ -301,7 +306,7 @@
    state.resetOHLC=()=>showOHLC(latestBar);
    function paintSelected(){
      const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
-     if(!state.inside||i<0||!r?.ha||r.ha.color==='gray'||y(r.ha.price)<T||y(r.ha.price)>plotB){
+     if(i<0||!r?.ha||r.ha.color==='gray'||y(r.ha.price)<T||y(r.ha.price)>plotB){
        selected.setAttribute('visibility','hidden');return;
      }
      const xx=x(i),py=y(r.ha.price);
@@ -362,8 +367,9 @@
    });
    // Restore a crosshair during polling redraw when the pointer has not moved.
    if(state.inside&&state.pointer)movePointer(state.pointer);
-   // The selected HA price survives data polls/resizes while pointer stays in this chart.
+   // The clicked HA price persists through pointer departure and redraw until blank click or another HA selection.
    paintSelected();
  }
- root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money};
+ function clearSelection(target){const state=interactions.get(target);if(state)state.selectedTimestamp=null;target?.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');}
+ root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection};
 })(window);

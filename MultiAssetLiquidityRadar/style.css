@@ -405,3 +405,91 @@
 .liq-nav-row[data-mark-color="blue"]{--mark-color:#489dff;--mark-bg:#1a3048;--mark-border:#4f7eaf}
 .liq-nav-row[data-mark-color="purple"]{--mark-color:#b89afa;--mark-bg:#35294d;--mark-border:#7557a7}
 @media(max-width:1259px){.liq-side-nav.is-open{width:182px}}
+/* v1.4.0 — fixed full-coverage two-sector surveillance, floating 4H chart. */
+:root{--liq-panel-width:clamp(316px,19.5vw,386px);--workspace-footer-height:45px;--watch-row-height:clamp(25px,calc((100dvh - 111px)/21 - 2px),40px)}
+html,body.radar-workspace{width:100%;height:100%;overflow:hidden;margin:0}
+body.radar-workspace{font-size:12px;background:#061523}
+.radar-workspace .liq-side-nav{position:fixed;top:7px;bottom:calc(var(--workspace-footer-height) + 4px);max-height:none;height:auto;width:var(--liq-panel-width);padding:6px;z-index:75;border-radius:9px;box-shadow:0 6px 18px #0008;gap:3px;display:flex;flex-direction:column;transition:none}
+.radar-workspace .liq-side-nav.liq-nav-left{left:7px;right:auto}
+.radar-workspace .liq-side-nav.liq-nav-right{right:7px;left:auto}
+.radar-workspace .liq-nav-toggle{display:none!important}
+.radar-workspace .liq-nav-content{display:flex!important;flex-direction:column;gap:3px;min-height:0;flex:1}
+.radar-workspace .liq-nav-heading{height:33px;min-height:33px;display:flex;align-items:center;justify-content:space-between;gap:4px;border-bottom:1px solid #315a70;padding:2px 2px 4px;font-size:11px}
+.radar-workspace .liq-nav-count{margin-left:2px}
+.radar-workspace .liq-sector-sort{width:115px;height:25px;padding:2px 3px;font-size:10px;color:#d7eafa;background:#12364f;border-color:#3c6880}
+.radar-workspace .liq-nav-list{max-height:none!important;height:100%;overflow:hidden!important;display:flex;flex-direction:column;justify-content:flex-start;gap:2px;min-height:0;flex:1}
+.radar-workspace .liq-nav-row{width:100%;height:var(--watch-row-height);min-height:var(--watch-row-height);max-height:var(--watch-row-height);display:flex;align-items:stretch;gap:3px;position:relative;flex-shrink:0}
+.radar-workspace .liq-nav-mark-trigger{width:15px;min-width:15px;border-radius:4px}
+.radar-workspace .liq-nav-mark-glyph{width:10px;height:13px}
+.radar-workspace .liq-nav-item{height:100%;min-height:0;width:unset;flex:1 1 89px;padding:1px 3px;white-space:nowrap;border-radius:4px;min-width:0;display:flex;align-items:center;justify-content:stretch}
+.radar-workspace .liq-nav-main{display:flex;width:100%;gap:2px;align-items:center;justify-content:space-between;min-width:0}
+.radar-workspace .liq-nav-symbol{font-size:clamp(9px,.72vw,11px);font-weight:800;min-width:0;overflow:hidden;text-overflow:clip;flex:0 1 auto}
+.radar-workspace .liq-nav-values{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;min-width:0;gap:0;line-height:1.1}
+.radar-workspace .liq-nav-quote,.radar-workspace .liq-nav-change{font-size:clamp(7px,.55vw,9px);max-width:none;font-weight:750;white-space:nowrap}
+.radar-workspace .liq-nav-indicators{flex:none;display:flex;align-items:center;gap:2px;height:100%}
+.radar-workspace .liq-nav-indicators .metric{display:flex;align-items:center;justify-content:center;min-width:0;white-space:nowrap;text-align:center;border:1px solid #36556b;background:#102e43;border-radius:3px;height:calc(100% - 3px);overflow:hidden}
+.radar-workspace .metric-s{width:46px}
+.radar-workspace .metric-mid{width:55px}
+.radar-workspace .metric-ha,.radar-workspace .metric-cci{width:26px}
+.radar-workspace .metric .state-badge,.radar-workspace .metric .mid-label{padding:1px!important;margin:0!important;min-width:0!important;width:100%;font-size:clamp(8px,.62vw,10px)!important;font-weight:800;line-height:1.05;white-space:nowrap;border:none!important;border-radius:2px}
+.radar-workspace .metric .ha-color{min-width:0!important;padding:0!important;width:100%;height:100%;font-size:clamp(11px,.8vw,15px)!important;display:flex;align-items:center;justify-content:center;border-radius:2px;border:0;font-weight:900}
+.radar-workspace .metric .ha-color.yellow{background:#65521a;color:#ffe448}
+.radar-workspace .metric .ha-color.purple{background:#493257;color:#dcb9ff}
+.radar-workspace .metric .ha-color.unknown{background:#173047;color:#839ba9}
+.radar-workspace .liq-alert-bell{flex:none!important;width:17px!important;min-width:17px!important;height:auto!important;min-height:0!important;font-size:15px!important;opacity:.6;filter:none!important;line-height:1!important;display:flex;align-items:center;justify-content:center;color:#b3cada;border:1px solid #345167!important;border-radius:4px;background:#10283b!important}
+.radar-workspace .liq-alert-bell.active{color:#ffe467!important;background:#53441a!important;border-color:#ba9930!important;opacity:1}
+.radar-workspace .liq-alert-bell:hover{opacity:1;transform:none}
+.radar-workspace .liq-nav-row[data-mark-color] .liq-nav-item{background:color-mix(in srgb,var(--mark-bg) 55%,#0b2538)}
+.radar-workspace .liq-nav-row:has(.liq-nav-item[aria-current="location"]){outline:1px solid #22a9b0;outline-offset:-1px;border-radius:5px}
+.radar-workspace .liq-nav-item[aria-current="location"]{box-shadow:inset 2px 0 #23c5b7}
+.radar-workspace .floating-chart{position:fixed;z-index:15;left:20%;top:9%;width:60vw;height:60vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #3d6c84;border-radius:10px;background:#101116;box-shadow:0 14px 45px #000e;min-width:340px;min-height:240px}
+.radar-workspace .chart-titlebar{height:36px;min-height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 9px;background:#0c2c43;border-bottom:1px solid #325b73;cursor:grab;user-select:none;touch-action:none}
+.radar-workspace .chart-titlebar:active{cursor:grabbing}
+.radar-workspace .chart-head-label{display:flex;gap:10px;align-items:baseline;min-width:0}
+.radar-workspace .chart-head-label strong{font-size:16px;color:#e4f6ff}
+.radar-workspace .chart-timeframe{font-size:10px;color:#94c0d1}
+.radar-workspace .chart-head-price{font-size:12px;color:#68e0f1;font-variant-numeric:tabular-nums}
+.radar-workspace .chart-head-buttons{display:flex;align-items:center;gap:5px}
+.radar-workspace .chart-head-buttons button{font-size:11px;line-height:1;padding:5px 7px;cursor:pointer}
+.radar-workspace .chart-status-strip{height:23px;min-height:23px;background:#0a2030;border-bottom:1px solid #183e53;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 12px;white-space:nowrap;color:#a8c5d6;font-size:10px;overflow:hidden}
+.radar-workspace #chartIndicatorStrip{overflow:hidden;text-overflow:ellipsis}
+.radar-workspace #chartSource{color:#69b6c6;white-space:nowrap}
+.radar-workspace #singleRadarPlot{position:relative;flex:1 1 auto;width:100%;height:auto;min-height:0!important;aspect-ratio:auto!important;overflow:hidden;background:#101116;margin:0!important}
+.radar-workspace #singleRadarPlot .radar-chart-svg{width:100%;height:100%;display:block;overflow:hidden;touch-action:none}
+.radar-workspace #singleRadarPlot .radar-chart-wait{height:100%;min-height:0;border:none}
+.radar-workspace .chart-resize{position:absolute;z-index:6;touch-action:none}
+.radar-workspace .chart-resize.n,.radar-workspace .chart-resize.s{height:6px;left:11px;right:11px;cursor:ns-resize}
+.radar-workspace .chart-resize.n{top:0}.radar-workspace .chart-resize.s{bottom:0}
+.radar-workspace .chart-resize.e,.radar-workspace .chart-resize.w{width:6px;top:11px;bottom:11px;cursor:ew-resize}
+.radar-workspace .chart-resize.e{right:0}.radar-workspace .chart-resize.w{left:0}
+.radar-workspace .chart-resize.ne,.radar-workspace .chart-resize.nw,.radar-workspace .chart-resize.se,.radar-workspace .chart-resize.sw{width:15px;height:15px}
+.radar-workspace .chart-resize.ne{top:0;right:0;cursor:nesw-resize}
+.radar-workspace .chart-resize.nw{top:0;left:0;cursor:nwse-resize}
+.radar-workspace .chart-resize.se{bottom:0;right:0;cursor:nwse-resize;background:linear-gradient(135deg,transparent 54%,#4d94ac 54%,#4d94ac 62%,transparent 62%,transparent 75%,#4d94ac 75%)}
+.radar-workspace .chart-resize.sw{bottom:0;left:0;cursor:nesw-resize}
+.radar-is-manipulating{user-select:none!important;cursor:move}
+.radar-workspace .workspace-footer{position:fixed;bottom:0;left:0;right:0;height:var(--workspace-footer-height);z-index:110;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 10px;background:#09253a;border-top:1px solid #39718b;box-shadow:0 -3px 15px #0006}
+.radar-workspace .radar-brand-block{white-space:nowrap;display:flex;align-items:center;gap:5px;min-width:0}
+.radar-workspace .brand{font-size:12px;letter-spacing:.1px}
+.radar-workspace .version{margin:0;padding:2px 4px}
+.radar-workspace .footer-coverage{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#9dc4d5}
+.radar-workspace .header-status{gap:6px;flex:none;font-size:10px}
+.radar-workspace .header-status a,.radar-workspace .header-status button{padding:5px 7px;font-size:10px;white-space:nowrap}
+.radar-workspace .header-status .status-pill{padding:5px 8px}
+.radar-workspace .workspace-diag{position:fixed;bottom:var(--workspace-footer-height);left:20%;right:20%;z-index:115;background:#0b2538;max-height:65vh;overflow:auto;padding:7px;border:1px solid #34627c;border-radius:8px 8px 0 0;box-shadow:0 -10px 24px #000b}
+.radar-workspace .workspace-diag[hidden]{display:none!important}
+.radar-workspace .workspace-footnotes{font-size:10px;color:#a5c5d6;line-height:1.5;margin-top:8px}
+.radar-workspace .fg-panel{position:fixed;z-index:170;display:none;overflow:hidden}
+.radar-workspace .fg-popover{z-index:170}
+.radar-workspace .liq-mark-palette{z-index:185}
+.radar-workspace .liq-alert-modal{z-index:200}
+.radar-workspace .liq-alert-toast{z-index:210;bottom:calc(var(--workspace-footer-height) + 12px)}
+@media(max-height:760px){:root{--watch-row-height:clamp(23px,calc((100dvh - 105px)/21 - 2px),36px)}.radar-workspace .liq-nav-heading{height:29px;min-height:29px}}
+@media(max-width:1350px){:root{--liq-panel-width:316px}.radar-workspace .footer-coverage{display:none}.radar-workspace .brand{font-size:11px}.radar-workspace .header-status{gap:4px}.radar-workspace .metric-s{width:41px}.radar-workspace .metric-mid{width:49px}.radar-workspace .metric-ha,.radar-workspace .metric-cci{width:24px}}
+@media(max-width:800px){:root{--liq-panel-width:300px}.radar-workspace .brand{display:none}.radar-workspace .header-status #clock{display:none}.radar-workspace .header-status .status-pill{display:none}.radar-workspace .metric-s{width:40px}.radar-workspace .metric-mid{width:43px}.radar-workspace .liq-nav-row{gap:2px}}
+
+/* prior HA signal remains visible even in a compact, all-21-visible list */
+.radar-workspace .metric-ha .ha-color{position:relative}
+.radar-workspace .metric-ha .ha-color[data-prior="黃"]::before,.radar-workspace .metric-ha .ha-color[data-prior="紫"]::before{content:"";position:absolute;left:2px;top:2px;width:5px;height:5px;border-radius:50%;border:1px solid #0f2435}
+.radar-workspace .metric-ha .ha-color[data-prior="黃"]::before{background:#ffeb3b}
+.radar-workspace .metric-ha .ha-color[data-prior="紫"]::before{background:#b39ddb}

@@ -1,61 +1,31 @@
 <!doctype html>
-<html lang="zh-Hant">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827">
-<title>Multi-Asset Liquidity Radar | 即時清算總覽</title>
-<link rel="stylesheet" href="./style.css?v=1.3.3">
-</head>
-<body>
-<aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣快速跳轉">
-  <button class="liq-nav-toggle" type="button" aria-expanded="false" aria-controls="liq-crypto-list">加密貨幣</button>
-  <div class="liq-nav-content">
-    <div class="liq-nav-heading">加密貨幣 <span class="liq-nav-count" id="liq-crypto-side-count">0</span></div>
-    <nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密貨幣標的導覽"></nav>
-  </div>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v1.4.0 工作台</title><link rel="stylesheet" href="./style.css?v=1.4.0"></head>
+<body class="radar-workspace">
+<aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣固定監控清單">
+ <div class="liq-nav-content"><div class="liq-nav-heading"><span>加密貨幣</span> <span class="liq-nav-count" id="liq-crypto-side-count">21</span><select class="liq-sector-sort" id="cryptoSort" aria-label="加密貨幣獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密市場 21 檔全景"></nav></div>
 </aside>
-<aside class="liq-side-nav liq-nav-right" id="liq-stock-nav" aria-label="美股代幣快速跳轉">
-  <button class="liq-nav-toggle" type="button" aria-expanded="false" aria-controls="liq-stock-list">美股／商品</button>
-  <div class="liq-nav-content">
-    <div class="liq-nav-heading">美股／商品 <span class="liq-nav-count" id="liq-stock-side-count">0</span></div>
-    <nav class="liq-nav-list" id="liq-stock-list" aria-label="美股代幣及商品標的導覽"></nav>
-  </div>
+<aside class="liq-side-nav liq-nav-right" id="liq-stock-nav" aria-label="美股商品固定監控清單">
+ <div class="liq-nav-content"><div class="liq-nav-heading"><span>美股／商品</span> <span class="liq-nav-count" id="liq-stock-side-count">12</span><select class="liq-sector-sort" id="stockSort" aria-label="美股商品獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-stock-list" aria-label="美股商品 12 檔全景"></nav></div>
 </aside>
-<div class="shell">
-<div id="radarStickyPanel" class="radar-sticky-panel">
-<header class="topbar">
-  <div class="radar-brand-block"><div class="brand">MULTI-ASSET LIQUIDITY RADAR <span class="version">v1.3.3</span></div><div class="subtitle">4H 真實 K 線 × 日線布林帶(20,2) × 日線平均K階梯 × CoinGlass 7D 即時清算</div></div>
-  <section class="toolbar">
-  <div class="filter-group" id="groupFilters"><button type="button" data-group="all" class="active">全部 <span id="allCount">0</span></button><button type="button" data-group="crypto">加密貨幣 <span id="cryptoCount">0</span></button><button type="button" data-group="stock">美股／商品 <span id="stockCount">0</span></button></div>
-  <label class="search-wrap"><input id="searchInput" type="search" placeholder="搜尋 symbols.js 標的…" aria-label="搜尋標的"/></label>
-  <label class="sort-label">排序 <select id="sortBy"><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="sstate">S 狀態：S3→S0.5→S1→S2→S0→OT-UP/DN</option><option value="midline">中軌：上斜→平緩→走平→下斜</option><option value="ha">平均 K 黃色優先（同色 CCI 優先）</option><option value="cci">CCI-SMA 黃色優先（同色平均K優先）</option><option value="bull_pair">黃／黃 組合優先</option><option value="bear_pair">紫／紫 組合優先</option><option value="near">離清算界最近</option></select></label>
-</section>
-  <div class="header-status"><a class="home-link" href="../index.html" title="返回 SState Market Terminal 主站">← SState 主站</a>
-    <div class="fg-popover" id="fgPopover">
-      <button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button>
-      <section class="fg-panel" id="fgPanel" role="dialog" aria-label="CMC 恐懼與貪婪指數一年線圖">
-        <iframe id="fgChartFrame" title="CMC 恐懼與貪婪指數一年線圖" data-src="./fear-greed.html?v=1.1.14" referrerpolicy="no-referrer" loading="lazy"></iframe>
-      </section>
-    </div><span id="liveStatus" class="status-pill waiting">連線初始化</span><span id="clock">台灣時間 --:--:--</span><button id="refreshBtn" type="button">⟳ 全部更新</button></div>
-</header>
-
-<div class="overview"><span id="coverage">等待資料</span><span class="legend"><i class="leg up"></i>上界 <i class="leg now"></i>現價 <i class="leg down"></i>下界　<span class="ha-yellow">黃＝上升／偏多</span>　<span class="ha-purple">紫＝下降／偏空</span></span></div>
-<div class="radar-sticky-table-wrap" id="radarStickyTableWrap"><table class="radar-table radar-sticky-table">
-<colgroup><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>
-<thead><tr>
-<th data-sort="watchlist"><button class="th-sort" type="button" data-sort="watchlist">項次 <span class="sort-indicator">▲</span></button></th>
-<th data-sort="symbol"><button class="th-sort" type="button" data-sort="symbol">幣種 <span class="sort-indicator"></span></button></th>
-<th data-sort="sstate"><button class="th-sort" type="button" data-sort="sstate">S 狀態 <span class="sort-indicator"></span></button></th>
-<th data-sort="midline"><button class="th-sort" type="button" data-sort="midline">中軌斜率 <span class="sort-indicator"></span></button></th>
-<th data-sort="ha"><button class="th-sort" type="button" data-sort="ha">日線平均 K <span class="sort-indicator"></span></button></th>
-<th data-sort="cci"><button class="th-sort" type="button" data-sort="cci">CCI-SMA <span class="sort-indicator"></span></button></th>
-</tr></thead>
-</table></div>
-</div>
-<div class="table-scroll"><table class="radar-table">
-<colgroup><col class="c-symbol"><col class="c-sstate"><col class="c-midline"><col class="c-ha"><col class="c-cci"></colgroup>
-<tbody id="radarBody"><tr><td colspan="5" class="empty">載入 symbols.js 中…</td></tr></tbody></table></div>
-<div class="table-footer"><span id="loadedCount">尚未載入</span><span>點擊表頭排序｜NOW 現價每 10 秒｜CoinGlass 7D 每 60 秒｜4H K線每 4 分鐘｜日線指標每 12 分鐘｜右側價格軸</span></div>
-<section class="footnotes"><b>資料說明：</b>真實 4H OHLC K 線及日線布林帶(20,2)；黃／紫階梯為日線 Heikin-Ashi 平均K的收盤值，每日台灣 08:00 換日，每日最多對應 6 根 4H K線。點擊日線平均K階梯顯示黃／紫價格延伸線，滑鼠移開圖表即消失。S 狀態、中軌斜率、平均 K、CCI-SMA 四膠囊沿用主站日線定義並隨行情重算。CoinGlass 優先採 7D 資料；缺失時明確顯示 15M 代理估算。NOW 與上下界水平線均以實際價格定位，顯示在右側價格軸；沒有數據不會偽造。</section>
+<main id="floatingChart" class="floating-chart" role="region" aria-label="可拖曳、可縮放的單一 4H K 線圖表">
+ <header id="chartTitlebar" class="chart-titlebar" aria-label="拖曳此處移動圖表">
+  <div class="chart-head-label"><strong id="activeChartSymbol">BTC</strong><span class="chart-timeframe">4H · 即時行情</span><span id="chartPrice" class="chart-head-price">--</span></div>
+  <div class="chart-head-buttons"><button id="chartSendBack" type="button" title="圖表置後，完整檢視監控清單" aria-label="圖表置後">置後</button><button id="chartResetSize" type="button" title="還原圖表預設大小" aria-label="還原圖表大小"><span aria-hidden="true">▣</span></button></div>
+ </header>
+ <div class="chart-status-strip"><span id="chartIndicatorStrip">日線 S 狀態 · 中軌斜率 · 平均 K · CCI-SMA</span><span id="chartSource"></span></div>
+ <div id="singleRadarPlot" class="radar-area radar-area-4h" aria-live="off"></div>
+ <div class="chart-resize n" data-resize="n"></div><div class="chart-resize s" data-resize="s"></div><div class="chart-resize e" data-resize="e"></div><div class="chart-resize w" data-resize="w"></div><div class="chart-resize ne" data-resize="ne"></div><div class="chart-resize nw" data-resize="nw"></div><div class="chart-resize se" data-resize="se"></div><div class="chart-resize sw" data-resize="sw"></div>
+</main>
+<footer id="workspaceFooter" class="workspace-footer">
+ <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v1.4.0</span></div>
+ <span id="coverage" class="footer-coverage">等待資料</span>
+ <div class="header-status"><a class="home-link" href="../index.html">← SState 主站</a>
+  <div class="fg-popover" id="fgPopover"><button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button><section class="fg-panel" id="fgPanel" role="dialog" aria-label="恐懼與貪婪一年線圖"><iframe id="fgChartFrame" title="恐懼與貪婪一年線圖" data-src="./fear-greed.html?v=1.1.14" referrerpolicy="no-referrer" loading="lazy"></iframe></section></div>
+  <span id="liveStatus" class="status-pill waiting">等待行情</span><span id="clock">台灣時間 --:--:--</span><button id="refreshBtn" type="button">⟳ 全部更新</button><button id="resetLayoutBtn" type="button">重置排版</button><button id="diagToggle" type="button" aria-expanded="false">診斷</button>
+ </div>
+ <span id="loadedCount" hidden>尚未載入</span><span id="cryptoCount" hidden></span><span id="stockCount" hidden></span><span id="allCount" hidden></span>
+</footer>
+<div class="workspace-diag" id="diagHolder" hidden><details class="diag" id="diagPanel" open><summary>資料連線及錯誤診斷 <span id="diagCount">0</span></summary><div id="diagnostics"></div></details><div class="workspace-footnotes">4H 真實 OHLC；布林帶(20,2)、HA 階梯、S 狀態、中軌斜率及 CCI-SMA 使用日線，Asia/Taipei 08:00 換日。CoinGlass 7D 無有效數據時才使用明確標示的代理上下界。清單固定可見，僅圖表可拖曳及縮放。</div></div>
 <div id="liq-alert-modal" class="liq-alert-modal" hidden aria-hidden="true">
   <div class="liq-alert-backdrop" data-close-liq-alert="1"></div>
   <section class="liq-alert-card" role="dialog" aria-modal="true" aria-labelledby="liq-alert-title">
@@ -90,35 +60,6 @@
     <button type="button" data-color="clear" class="mark-clear" title="解除顏色標記">× 清除標記</button>
   </div>
 </div>
-<details class="diag" id="diagPanel"><summary>資料連線及錯誤診斷 <span id="diagCount">0</span></summary><div id="diagnostics"></div></details>
-</div>
-<script>
-/* v1.3.1: measure the ONE sticky panel and align scrollable table headers. */
-(function(){
-  function ready(){
-    const root=document.documentElement;
-    const panel=document.getElementById('radarStickyPanel');
-    const plotTable=document.querySelector('.table-scroll');
-    const header=document.getElementById('radarStickyTableWrap');
-    if(!panel||!plotTable||!header)return;
-    const measure=()=>root.style.setProperty('--radar-sticky-height',Math.ceil(panel.getBoundingClientRect().height)+'px');
-    const syncScroll=()=>{header.scrollLeft=plotTable.scrollLeft;};
-    measure();syncScroll();
-    plotTable.addEventListener('scroll',syncScroll,{passive:true});
-    window.addEventListener('resize',()=>{measure();syncScroll();},{passive:true});
-    if('ResizeObserver' in window){const ro=new ResizeObserver(measure);ro.observe(panel);}
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});
-  else ready();
-})();
-</script>
-<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script>
-<script defer src="../config.js"></script>
-<script defer src="../monitor-engine.js?v=0.3.22"></script>
-<script defer src="./symbols.js?v=1.2.8"></script>
-<script defer src="./chart4h.js?v=1.2.7"></script>
-<script defer src="./app.js?v=1.3.4"></script>
-<script defer src="./alerts.js"></script>
-<script defer src="./color-marks.js?v=1.2.0"></script>
-<script defer src="./fear-greed-popover.js?v=1.1.14"></script>
+
+<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=1.4.0"></script><script defer src="./app.js?v=1.4.0"></script><script defer src="./workspace.js?v=1.4.0"></script><script defer src="./alerts.js?v=1.4.0"></script><script defer src="./color-marks.js?v=1.2.0"></script><script defer src="./fear-greed-popover.js?v=1.4.0"></script>
 </body></html>

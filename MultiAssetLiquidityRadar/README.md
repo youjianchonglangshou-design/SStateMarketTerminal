@@ -1,3 +1,35 @@
+# MultiAssetLiquidityRadar v1.4.0 — 雙市場固定監控 + 自由浮動 4H 圖表
+
+## v1.4.0 改版摘要（2026-10-24）
+
+- **唯一的可拖曳 4H 圖表**：標題列移動、四邊及四角縮放、點擊圖表置頂、點「置後」優先看清單、重置排版；縮放後直接按容器尺寸重繪 OHLC / 1D 布林帶 / HA 階梯 / NOW / 清算上下界，而不是把 SVG 當作圖片拉長。
+- **雙市場固定可視**：左側 21 檔加密、右側 12 檔美股／商品；沒有清單捲軸，頁面不需縱向捲動。已在 1862×992、1600×900、1366×768 Chromium 桌面尺寸驗證。低於此高度與窄螢幕仍可能受字體與空間物理限制影響。
+- **清單逐檔資訊**：保留標記旗幟、現價與 08:00 台灣換日漲跌幅；新增 S 狀態、中軌斜率、日線平均 K、CCI-SMA；HA 膠囊左上小色點代表前日顏色，今日顏色為膠囊內文字，滑鼠停留可看完整前日 → 今日轉色與斜率 / CCI 詳情。
+- **兩市場各自排序**：標記集中、清單順序、字母、雙黃、雙紫、平均 K、CCI、中軌、S 狀態、最近清算界；排序互不影響且不自動切換圖表。
+- **單圖點擊換幣**：點選任意清單標的直接更新中央 4H 圖表；即使圖表已經放大或移動，切換幣種依然維持圖表原本尺寸與位置，沒有自動輪播。
+- **Telegram 價格提醒移位**：兩側每個標的右側都有小鈴鐺，沿用原本 alerts.js 與 Cloudflare Worker，不更動價格穿越判定或背景提醒。
+- **底部工具列**：保留回主站、恐懼貪婪、連線狀態、台灣時間、全部更新、排版重置與診斷；移除全域搜尋、篩選及垂直多圖總表。
+- **保留演算法**：原本的 4H OHLC、日線 BB/HA/SState/CCI 計算、7D CoinGlass 與失效備援、10 秒報價、60 秒上下界、4 分鐘 4H、12 分鐘日線等流程不改。
+
+## 記憶範圍
+
+- 顏色旗標：沿用 `SStateLiquidityRadar.colorMarks.v1`，如 Worker 已配置可跨裝置同步。
+- 浮動圖表位置與大小：新增 `SStateLiquidityRadar.workspace.v1.4`（此瀏覽器 localStorage）。
+- 目前幣種與兩清單的排序：新增 `liq-v140-active-symbol`、`liq-v140-sort-crypto`、`liq-v140-sort-stock`（此瀏覽器 localStorage）。
+- 伺服器 Telegram 提醒設定沿用原本 Worker，不會移除既有提醒。
+
+## 部署
+
+將此版本壓縮檔中的 `MultiAssetLiquidityRadar/` 下檔案原路徑覆蓋到 GitHub 倉庫同名資料夾，不需要更動根目錄、`monitor-engine.js`、Worker、`symbols.js` 或 `color-marks.js`。**新增的 `workspace.js` 也必須一併上傳。**
+
+## 驗證限制
+
+在本地 headless Chromium 使用測試 OHLC 資料與隔離外部 API 完成排版、選幣、拖曳縮放、指標、選色、提醒視窗、兩清單排序等功能驗證；即時 CoinGlass/TradingView/Pionex、Telegram Worker 實際端到端網路回覆需在部署環境另行確認，不宣稱已實測遠端服務成功。
+
+---
+
+## 舊版技術說明（保留）
+
 # MultiAssetLiquidityRadar v1.2.6 · 4H 實際 K 線監控
 
 ## v1.2.5 功能

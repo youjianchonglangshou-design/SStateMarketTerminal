@@ -125,8 +125,8 @@
    finally{state.checking=false;}
  }
  function setup(){
-   if(!$('radarBody')||!ctx){console.warn('Radar context unavailable');return;}
-   $('radarBody').addEventListener('click',e=>{
+   if(!ctx){console.warn('Radar context unavailable');return;}
+   document.addEventListener('click',e=>{
      const btn=e.target.closest('.liq-alert-bell');if(!btn)return;
      e.preventDefault();e.stopPropagation();openModal(String(btn.dataset.alertSymbol||'').toUpperCase());
    });

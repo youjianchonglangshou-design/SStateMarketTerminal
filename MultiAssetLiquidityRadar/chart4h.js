@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.2.6
+/* MultiAssetLiquidityRadar v1.4.0
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
@@ -79,7 +79,8 @@
    if(bars.length<21){target.innerHTML='<div class="radar-chart-wait">等待真正的 4H K 線資料…</div>';return;}
    const rows=series(bars,daily,price,updatedAt).slice(-84);
    if(rows.length<21){target.innerHTML='<div class="radar-chart-wait">4H K 線歷史不足</div>';return;}
-   const W=1200,H=370,L=16,R=146,T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
+   const W=Math.max(420,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));
+   const L=16,R=146,T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
    const stride=pw/(rows.length+BLANK_CANDLES),x=i=>L+(i+.5)*stride;
    const vals=[];
    for(const r of rows){vals.push(r.h,r.l);if(r.bb)vals.push(r.bb.upper,r.bb.lower);if(r.ha)vals.push(r.ha.price);}
@@ -89,7 +90,7 @@
    const y=n=>T+(max-n)/(max-min)*ph;
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
-   svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及 NOW 價格">`);
+   svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及 NOW 價格">`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
      const v=min+(max-min)*i/5,yy=y(v);
@@ -97,7 +98,7 @@
    }
    // Taiwan trading day begins 08:00, only show dates to prevent axis clutter.
    rows.forEach((r,i)=>{
-     if(i!==0&&dayOf(r.t)!==dayOf(rows[i-1].t)){
+     if(i!==0&&dayOf(r.t)!==dayOf(rows[i-1].t) && (W>=700||i%12<6)){
        const at=x(i)-stride/2;
        svg.push(`<line class="rc-grid-v" x1="${fmt(at)}" x2="${fmt(at)}" y1="${T}" y2="${plotB}"/>`);
        svg.push(`<text class="rc-time-text" x="${fmt(x(i))}" y="${H-10}" text-anchor="middle">${esc(dayText(r.t))}</text>`);

@@ -1,12 +1,13 @@
 {
-  "version": "1.3.4",
+  "version": "1.4.0",
   "releaseDate": "2026-10-24",
   "changes": [
-    "Remove the chart-side index / color-flag column entirely: the sticky table header and every symbol row now start directly from 幣種, while watchlist-order sorting still remains available internally.",
-    "Move persistent TradingView-style color marking to the left/right floating sector watchlists. Each symbol now has its own small flag button beside the ticker; clicking it opens the same six-color palette with clear option.",
-    "Keep browser memory and optional Cloudflare Worker / R2 synchronization for marks. Colors stay attached to the symbol identity and survive refresh / reopen / sort changes.",
-    "Remove the top-dropdown 顏色排序 mode from the chart filter area. Main chart sorting is now independent from watchlist color grouping.",
-    "Add watchlist-side color concentration: within each floating list, marked symbols automatically group together in fixed red → orange → yellow → green → blue → purple order, then unmarked symbols follow their original watchlist order.",
-    "Preserve existing 4H charts, 1D indicators, CoinGlass / proxy levels, Telegram bells, sticky header, side jumps, and daily price / % coloring from v1.3.3."
+    "Fixed full-height 21-symbol crypto and 12-symbol stock/commodity monitoring lists; no list scrollbars.",
+    "One draggable, eight-handle resizable 4H chart; symbol switches retain floating chart size and position.",
+    "Inline SState, midline slope, 1D HA, and 1D CCI-SMA in both panels; independent sort and color flag grouping per sector.",
+    "Telegram alert bells moved to symbol rows, preserving existing Worker alerts.",
+    "Global search and filter removed; diagnostics and remaining commands moved to fixed footer.",
+    "Real measured chart geometry and responsive SVG redraw on resize; preserve 4H OHLC, 1D BB/HA, 7D CoinGlass and backup proxy.",
+    "Chart bounds, dimensions, selected ticker and each sector sort remembered in localStorage."
   ]
 }

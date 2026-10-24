@@ -25,49 +25,14 @@
   }
 
   function positionPanel() {
-    if (!desktopQuery.matches) {
-      resetDesktopLayout();
-      return;
-    }
-    const table = document.querySelector('.radar-table');
-    const tableScroll = document.querySelector('.table-scroll') || document.querySelector('.shell') || document.body;
-    const boundaryRect = tableScroll.getBoundingClientRect();
-    const triggerRect = trigger.getBoundingClientRect();
-    const gap = 7;
-
-    let targetBottom = boundaryRect.bottom - 10;
-    if (table) {
-      const rows = table.querySelectorAll('tbody tr');
-      if (rows.length >= 7) {
-        const targetRect = rows[6].getBoundingClientRect();
-        targetBottom = Math.min(boundaryRect.bottom - 10, Math.round(targetRect.bottom));
-      }
-    }
-
-    const top = Math.round(triggerRect.bottom + gap);
-    const maxViewportBottom = window.innerHeight - 16;
-    const limitedBottom = Math.min(targetBottom, maxViewportBottom);
-    const desiredHeight = Math.max(420, limitedBottom - top);
-
-    const maxWidthByBoundary = Math.max(760, Math.floor(boundaryRect.width - 8));
-    let width = Math.min(Math.round(desiredHeight * ratio), maxWidthByBoundary, 1200);
-    let height = Math.round(width / ratio);
-
-    if (top + height > limitedBottom) {
-      height = Math.max(420, desiredHeight);
-      width = Math.min(Math.round(height * ratio), maxWidthByBoundary, 1200);
-      height = Math.round(width / ratio) > desiredHeight ? desiredHeight : height;
-    }
-
-    const minLeft = Math.round(boundaryRect.left);
-    const maxLeft = Math.round(boundaryRect.right - width);
-    let left = Math.round(triggerRect.left + triggerRect.width / 2 - width / 2);
-    left = Math.min(Math.max(left, minLeft), maxLeft);
-
-    panel.style.left = `${left}px`;
-    panel.style.top = `${top}px`;
-    panel.style.width = `${width}px`;
-    panel.style.height = `${height}px`;
+    ensureLoaded();
+    const rect=trigger.getBoundingClientRect();
+    const width=Math.min(850,Math.max(330,window.innerWidth-32));
+    const height=Math.min(Math.round(width/ratio),Math.max(220,window.innerHeight-88));
+    panel.style.left=`${Math.round(Math.max(8,Math.min(window.innerWidth-width-8,rect.left+rect.width/2-width/2)))}px`;
+    panel.style.top=`${Math.round(Math.max(8,rect.top-height-8))}px`;
+    panel.style.width=`${width}px`;
+    panel.style.height=`${height}px`;
   }
 
   const openFromHover = () => {

@@ -7,6 +7,7 @@ const MEMO_KEY = "terminal/memos.json";
 const MEMO_MAX_ENTRIES = 500;
 const MONITOR_WATCHLIST_KEY = "terminal/monitor_watchlist.json";
 const RADAR_COLOR_MARKS_KEY = "terminal/radar_color_marks.json";
+const RADAR_WORKSPACE_KEY = "terminal/radar_workspace_v1.json";
 const MONITOR_UNIVERSE_KEY = "pionex/cache/monitor_universe.json";
 const MONITOR_UNIVERSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MONITOR_KLINE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -136,6 +137,13 @@ export default {
         const body = await request.json().catch(() => ({}));
         const payload = await writeMonitorWatchlist(env, body);
         return json({ ok: true, ...payload }, 200, origin);
+      }
+      if (url.pathname === "/api/monitor/radar/workspace") {
+        if (request.method === "GET") return json({ok:true,...await readRadarWorkspace(env)},200,origin);
+        if (request.method === "PUT") {
+          const body=await request.json().catch(()=>({}));
+          return json({ok:true,...await writeRadarWorkspace(env,body)},200,origin);
+        }
       }
       if (url.pathname === "/api/monitor/radar/marks") {
         if (request.method === "GET") return json({ ok:true,...await readRadarColorMarks(env) },200,origin);
@@ -3717,6 +3725,47 @@ async function readChampionLedgerRows(env,generation,days,symbol=""){
   }
   rows.sort((a,b)=>(Number(a?.decision_time||0)-Number(b?.decision_time||0))||String(a?.symbol||"").localeCompare(String(b?.symbol||"")));
   return {ok:true,generation,days,symbol:symbol||null,shards:keys.length,keys,rows};
+}
+// Shared installation-level chart workspace. R2 is the source of truth across devices.
+// This is NOT per-user authentication: deploy behind an access policy for private layouts.
+async function readRadarWorkspace(env){
+  const object=await env.JSON_BUCKET.get(RADAR_WORKSPACE_KEY);
+  if(!object)return {schema_version:"1.0",revision:0,updated_at:null,workspace:null,custom:[]};
+  try{
+    const raw=JSON.parse(await object.text());
+    return {schema_version:"1.0",revision:Number(raw.revision)||0,updated_at:raw.updated_at||null,
+      workspace:raw.workspace&&typeof raw.workspace==="object"?raw.workspace:null,
+      custom:Array.isArray(raw.custom)?raw.custom:[]};
+  }catch(_){return {schema_version:"1.0",revision:0,updated_at:null,workspace:null,custom:[]};}
+}
+async function writeRadarWorkspace(env,body){
+  const current=await readRadarWorkspace(env);
+  const revision=Number(body?.expected_revision);
+  if(!Number.isSafeInteger(revision)||revision!==current.revision)throw httpError(409,"workspace revision conflict; reload first");
+  const custom=Array.isArray(body?.custom)?body.custom:[];
+  if(custom.length>8||custom.some(x=>typeof x!=="string"||!/^[A-Z0-9]{1,22}$/.test(x)))throw httpError(400,"invalid custom PERP list");
+  const raw=body?.workspace;
+  if(raw!==null&&(!raw||typeof raw!=="object"||Array.isArray(raw)))throw httpError(400,"invalid workspace");
+  const windows=raw?.windows||[];
+  if(!Array.isArray(windows)||windows.length>4)throw httpError(400,"invalid chart count");
+  const clean=[];const ids=new Set();
+  for(const w of windows){
+    if(typeof w?.id!=="string"||!/^chart-\d{1,6}$/.test(w.id)||ids.has(w.id)||
+      typeof w.symbol!=="string"||!/^[A-Z0-9]{1,22}$/.test(w.symbol))throw httpError(400,"invalid chart window");
+    ids.add(w.id);
+    const g=w.geom||{};
+    if([g.x,g.y,g.w,g.h].some(x=>!Number.isFinite(x)||Math.abs(x)>10000))throw httpError(400,"invalid chart bounds");
+    const scale=Number(w.priceScale)||1;
+    const selected=w.haSelected==null?null:Number(w.haSelected);
+    if(!Number.isFinite(scale)||scale<.25||scale>16||
+      (selected!==null&&(!Number.isSafeInteger(selected)||selected<0||selected>9999999999999)))throw httpError(400,"invalid chart scale/selection");
+    clean.push({id:w.id,symbol:w.symbol,geom:{x:g.x,y:g.y,w:g.w,h:g.h},locked:!!w.locked,
+      minimized:!!w.minimized,behindCrypto:!!w.behindCrypto,priceScale:scale,haSelected:selected});
+  }
+  const payload={schema_version:"1.0",revision:current.revision+1,updated_at:new Date().toISOString(),
+    workspace:raw?{activeId:typeof raw.activeId==="string"?raw.activeId:null,windows:clean}:null,custom:[...new Set(custom)]};
+  await env.JSON_BUCKET.put(RADAR_WORKSPACE_KEY,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
+  return {revision:payload.revision,updated_at:payload.updated_at};
 }
 // Per-symbol color marks are shared across sessions/devices via the existing JSON_BUCKET R2.
 // Only one symbol is mutated per request; removing a mark deletes its key.

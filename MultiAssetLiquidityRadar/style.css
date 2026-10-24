@@ -664,3 +664,69 @@ body.radar-workspace{font-size:12px;background:#061523}
 .rc-now-breathe-halo{animation-duration:4s!important;filter:drop-shadow(0 0 5px #28ceef)}
 .rc-now-breathe-core{filter:drop-shadow(0 0 5px #42ddff)}
 .rc-ha-selection .rc-selected-price-box{pointer-events:all;cursor:pointer}
+
+
+/* v1.6.2: ONE footer vertical separator instead of two adjacent strokes. */
+.radar-workspace .terminal-status{border-right:0!important;left:max(254px,13.7vw)!important}
+
+/* Loading meter belongs to BOOT only; once all initial fetches have settled,
+ * expose useful market context and reclaim the meter height. */
+.radar-workspace .terminal-status.is-ready{gap:0;justify-content:center}
+.radar-workspace .terminal-status.is-ready .terminal-meter{display:none!important}
+.radar-workspace .terminal-status.is-ready .terminal-line{line-height:1.4}
+
+/* Homepage-inspired glossy, rounded semantic capsules; apply only to chart
+ * window header, not the watchlists or their compact rows. */
+.radar-workspace .floating-chart .chart-titlebar .chart-inline-capsules .chart-semantic{
+  border-radius:999px!important;
+  padding:3px 9px!important;
+  line-height:1.1!important;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.1px;
+  border:1px solid rgba(255,255,255,.24)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25),
+             inset 0 -5px 8px rgba(0,0,0,.16),
+             0 2px 5px rgba(0,0,0,.30);
+  text-shadow:0 1px 1px rgba(0,0,0,.36);
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.s0{
+  background:linear-gradient(180deg,#f8fafc 0%,#dce3ed 48%,#94a3b8 100%);
+  color:#152133;text-shadow:none;border-color:#d5dbe5!important;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.s05{
+  background:linear-gradient(180deg,#dfb1ff 0%,#a855f7 48%,#7e22ce 100%);color:#fff;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.s1{
+  background:linear-gradient(180deg,#82c4ff 0%,#3b82f6 48%,#1d4ed8 100%);color:#fff;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.s2{
+  background:linear-gradient(180deg,#68f1a0 0%,#22c55e 48%,#15803d 100%);color:#f4fff9;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.s3{
+  background:linear-gradient(180deg,#ffec80 0%,#facc15 48%,#d19a00 100%);color:#332707;text-shadow:none;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.other,
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.unknown{
+  background:linear-gradient(180deg,#64748b 0%,#475569 48%,#1e293b 100%);color:#f2f6fa;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.other-up,
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.rising{
+  background:linear-gradient(180deg,#55e5b1 0%,#0da879 53%,#08664d 100%);color:#eefff8;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.other-dn,
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.falling{
+  background:linear-gradient(180deg,#ff9cab 0%,#e85470 53%,#97334f 100%);color:#fff4f6;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.flat{
+  background:linear-gradient(180deg,#6591a8 0%,#34586f 55%,#1c394b 100%);color:#edf8ff;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.flattening{
+  background:linear-gradient(180deg,#f7ca73 0%,#ba8a34 55%,#6b4c1d 100%);color:#fff9e8;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.yellow{
+  background:linear-gradient(180deg,#fff8a1 0%,#e2bd20 48%,#8a6d0c 100%);color:#302507;text-shadow:none;
+}
+.radar-workspace .floating-chart .chart-titlebar .chart-semantic.purple{
+  background:linear-gradient(180deg,#e5c6ff 0%,#aa78d8 48%,#67418e 100%);color:#fdf5ff;
+}

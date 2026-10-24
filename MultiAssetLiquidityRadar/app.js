@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.6.1 — fixed full-market panels and up to four draggable/resizable charts.
+/* Multi-Asset Liquidity Radar v1.6.2 — fixed full-market panels and up to four draggable/resizable charts.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -548,25 +548,33 @@
    try{localStorage.setItem('liq-v140-sort-'+sector,key);}catch(_){/* no storage */}
    reorderSideNavByMarks();
  }
+ let terminalBootFinished=false;
  function updateTerminalProgress(){
-   const total=Math.max(1,records.length);
+   const total=records.length;
+   const maximum=Math.max(1,total*3);
    const attempts=records.reduce((n,r)=>n+['h4','day','bar'].filter(k=>r.lastAttempt?.[k]).length,0);
    const complete=records.reduce((n,r)=>n+((r.bars4h?.length>=21)?1:0)+((r.daily?.length>=34)?1:0)+((r.bars15?.length>=2)?1:0),0);
-   const maximum=total*3;
    const pct=Math.min(100,Math.round(attempts/maximum*100));
    const meter=$('terminalProgressFill'),msg=$('terminalProgressText'),detail=$('terminalDetail');
-   if(!meter||!msg||!detail)return;
-   meter.style.width=pct+'%';
-   meter.parentElement.setAttribute('aria-valuenow',String(pct));
-   const fetchDone=attempts>=maximum&&state.loadingJobs===0&&state.queue.length===0;
+   const container=$('terminalStatus');
+   if(!meter||!msg||!detail||!container)return;
+   if(total>0&&attempts>=maximum&&state.loadingJobs===0&&state.queue.length===0)terminalBootFinished=true;
+   const fetchDone=terminalBootFinished;
+   container.classList.toggle('is-ready',fetchDone);
+   meter.parentElement.hidden=fetchDone;
    if(fetchDone){
-     msg.textContent=complete===maximum?'READY｜行情歷史載入完成':'SYNC｜歷史載入已嘗試';
-     detail.textContent=`已取得 ${complete}/${maximum} 組 K 線 · ${records.length} 檔監控`;
+     const doubleYellow=records.filter(r=>r.ha?.color==='黃'&&r.cci?.color==='黃').length;
+     const doublePurple=records.filter(r=>r.ha?.color==='紫'&&r.cci?.color==='紫').length;
+     msg.textContent=complete===maximum?'READY｜行情載入完成':'SYNC｜歷史同步結束';
+     detail.textContent=`監控 ${total} 檔 · 雙黃 ${doubleYellow} · 雙紫 ${doublePurple} · K線 ${complete}/${maximum}`;
    }else{
+     meter.style.width=pct+'%';
+     meter.parentElement.setAttribute('aria-valuenow',String(pct));
      msg.textContent=`BOOT｜歷史資料載入 ${pct}%`;
      detail.textContent=`批次 ${attempts}/${maximum} · 成功 ${complete} 組`;
    }
  }
+
  function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,proxy=records.filter(r=>r.source==='proxy').length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
    $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
    updateNavPrices();
@@ -630,7 +638,7 @@
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.6.1',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.6.2',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  setup();
 })();

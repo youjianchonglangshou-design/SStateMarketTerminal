@@ -1,7 +1,9 @@
-/* RR detector user-adjustable settings — edit ONLY THRESHOLD to tune the trigger.
- * Valid examples: 1.50, 1.70, 2.00. Hard reload GitHub Pages after changing it.
- * Independent of timeframes, asset volatility, HA/CCI and signal spotlight.
+/* Real-time RR / daily HA confirmation settings — v1.8.5.
+ * Change THRESHOLD only to test (e.g. 1.50, 1.70, 2.00).
+ * Long: RR >= THRESHOLD AND current daily HA yellow (黃).
+ * Short: RR >= THRESHOLD AND current daily HA purple (紫).
+ * No percent-return minimum, CCI, S state or midline filters.
  */
 window.LIQ_RR_CONFIG=Object.freeze({
-  THRESHOLD: 1.70 // ← 在這裡更改做多／做空共用門檻，例如 1.50 或 2.00
+  THRESHOLD: 1.50 // ← 共用門檻，只需修改這個數字
 });

@@ -1,23 +1,22 @@
 {
-  "version": "1.8.4",
+  "version": "1.8.5",
   "releaseDate": "2026-10-25",
-  "baseVersion": "1.8.3",
+  "baseVersion": "1.8.4",
   "changes": [
-    "Three watchlists (21 crypto / 12 stock and commodities / up to 8 custom PERP): add static green/red LEDs directly after each symbol when 7D price-distance RR >= 1.70.",
-    "Use existing fresh live price and 7D upper/lower liquidations; no extra polling, no R2 writes, no min percent profitability filter.",
-    "RR threshold user-editable in MultiAssetLiquidityRadar/rr-config.js: THRESHOLD: 1.70. Invalid or stale data hides LEDs."
+    "Real-time RR threshold is 1.50: green only when long RR >= 1.50 AND current 1D HA is yellow; red only when short RR >= 1.50 AND current 1D HA is purple.",
+    "If HA is opposite, missing, or from a stale day, leave LED off. Same live P, 7D U/L and daily HA as existing chart/watchlist; no percent minimum or new data requests.",
+    "Threshold remains user-adjustable exclusively in MultiAssetLiquidityRadar/rr-config.js (THRESHOLD: 1.50)."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/rr-config.js",
+    "MultiAssetLiquidityRadar/rr-scanner.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/rr-config.js",
-    "MultiAssetLiquidityRadar/rr-scanner.js"
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "notes": [
-    "Browser-local static UI, no worker changes.",
-    "See TEST_REPORT_v1.8.4.txt for browser and arithmetic checks."
+    "Static LEDs computed at each existing quote/bounds refresh; no persistence or Worker updates.",
+    "Full browser + arithmetic verification details: TEST_REPORT_v1.8.5.txt."
   ]
 }

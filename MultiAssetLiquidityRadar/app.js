@@ -29,7 +29,7 @@
      ? state.cgAt>0&&now-state.cgAt<180000
      :r.source==='proxy'&&r.barsAt>0&&now-r.barsAt<600000;
    if(!sourceFresh)return null;
-   return {price,upper:r.up,lower:r.down,source:r.source,updatedAt:Math.max(r.priceAt,r.source==='coinglass'?state.cgAt:r.barsAt)};
+   return {price,upper:r.up,lower:r.down,haColor:r.ha?.color||null,haDayKey:r.ha?.t??null,dayKey:Math.floor(now/DAY)*DAY,source:r.source,updatedAt:Math.max(r.priceAt,r.source==='coinglass'?state.cgAt:r.barsAt)};
  }
  function refreshRRLed(r){
    const led=r.dom?.rrLed,scanner=window.LIQ_RR_SCANNER;
@@ -40,7 +40,7 @@
    const long=result.direction==='long',ratio=long?result.longRR:result.shortRR;
    const label=(long?'做多':'做空')+' 理論賺賠比 '+ratio.toFixed(2)+':1';
    led.classList.add(long?'rr-long':'rr-short');
-   led.title=label+'｜門檻 '+result.threshold.toFixed(2)+':1\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+(result.source==='coinglass'?'CoinGlass 7D':'代理估算')+'\n計算時間 '+tpe(Date.now());
+   led.title=label+'｜日線平均K '+result.haColor+'｜門檻 '+result.threshold.toFixed(2)+':1\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+(result.source==='coinglass'?'CoinGlass 7D':'代理估算')+'\n計算時間 '+tpe(Date.now());
    led.setAttribute('aria-label',label);
    led.hidden=false;
  }
@@ -671,7 +671,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.8.4',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.8.5',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

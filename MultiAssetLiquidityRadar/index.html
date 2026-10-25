@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v1.9.0 Startup Optimized</title><link rel="stylesheet" href="./style.css?v=1.9.0"></head>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.0.0 Drawing Workspace</title><link rel="stylesheet" href="./style.css?v=2.0.0"></head>
 <body class="radar-workspace">
 <aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣固定監控清單">
  <div class="liq-nav-content"><div class="liq-nav-heading"><span>加密貨幣</span> <span class="liq-nav-count" id="liq-crypto-side-count">21</span><select class="liq-sector-sort" id="cryptoSort" aria-label="加密貨幣獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密市場 21 檔全景"></nav></div>
@@ -20,6 +20,7 @@
   <div id="chartWindowTabs" class="chart-window-tabs" role="group" aria-label="切換、還原圖表視窗"></div>
   <button type="button" id="chartAddWindow" class="chart-add-window" title="新增圖表視窗（最多四張）">＋ 新增</button>
   <button type="button" id="signalSpotlightButton" class="signal-spotlight-trigger" aria-label="智慧事件雷達" aria-controls="signalSpotlightPanel" aria-expanded="false" type="button"><span class="spotlight-radar-icon" aria-hidden="true">◎</span> 雷達 <span id="signalSpotlightUnread" class="signal-spotlight-count" hidden>0</span></button>
+  <button type="button" id="drawingManageButton" class="dw-manage-trigger" title="管理 R2 各幣繪圖記憶">⚙ 繪圖</button>
   <button type="button" id="chartTileWindows" class="chart-tile-windows" title="一鍵平均分割目前可見的圖表（2 張上下排列、3 張交替兩種版型、4 張 2×2）" aria-label="一鍵平均分割圖表">▦ 均分</button>
   <span id="chartWindowMessage" class="chart-window-message" role="status" aria-live="polite"></span>
 </section>
@@ -35,7 +36,7 @@
  <div class="terminal-meter" role="progressbar" aria-label="有效日線指標初始化進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="terminalProgressFill"></div></div>
 </section>
 <footer id="workspaceFooter" class="workspace-footer">
- <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v1.9.0</span></div>
+ <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.0.0</span></div>
  <span id="coverage" class="footer-coverage">等待資料</span>
  <div class="header-status"><a class="home-link" href="../index.html">← SState 主站</a>
   <div class="fg-popover" id="fgPopover"><button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button><section class="fg-panel" id="fgPanel" role="dialog" aria-label="恐懼與貪婪一年線圖"><iframe id="fgChartFrame" title="恐懼與貪婪一年線圖" data-src="./fear-greed.html?v=1.1.14" referrerpolicy="no-referrer" loading="lazy"></iframe></section></div>
@@ -57,7 +58,7 @@
  <p class="custom-manage-hint">從這裡移除標的；原有 Telegram 價格提醒不會自動刪除。</p>
  <div id="customManageList" class="custom-manage-list"></div></section>
 </div>
-<div class="workspace-diag" id="diagHolder" hidden><details class="diag" id="diagPanel" open><summary>資料連線及錯誤診斷 <span id="diagCount">0</span></summary><div id="diagnostics"></div></details><div class="workspace-footnotes">4H 真實 OHLC；布林帶(20,2)、HA 階梯、S 狀態、中軌斜率及 CCI-SMA 使用日線，Asia/Taipei 08:00 換日。CoinGlass 7D 無有效數據時才使用明確標示的代理上下界。清單固定全數可見，最多四張浮動 4H 圖表，支援獨立鎖定、最小化、關閉、拖曳及縮放。</div></div>
+<div class="workspace-diag" id="diagHolder" hidden><details class="diag" id="diagPanel" open><summary>資料連線及錯誤診斷 <span id="diagCount">0</span></summary><div id="diagnostics"></div></details><div class="workspace-footnotes">4H 真實 OHLC；布林帶(20,2)、HA 階梯、S 狀態、中軌斜率及 CCI-SMA 使用日線，Asia/Taipei 08:00 換日。CoinGlass 7D 無有效數據時才使用明確標示的代理上下界。清單固定全數可見，最多四張浮動 4H／1D 圖表，支援獨立鎖定、最小化、關閉、拖曳及縮放。</div></div>
 <div id="liq-alert-modal" class="liq-alert-modal" hidden aria-hidden="true">
   <div class="liq-alert-backdrop" data-close-liq-alert="1"></div>
   <section class="liq-alert-card" role="dialog" aria-modal="true" aria-labelledby="liq-alert-title">
@@ -93,5 +94,27 @@
   </div>
 </div>
 
-<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=1.7.0"></script><script defer src="./workspace-sync.js?v=1.7.0"></script><script defer src="./signal-spotlight.js?v=1.8.0"></script><script defer src="./signal-spotlight-ui.js?v=1.8.0"></script><script defer src="./rr-config.js?v=1.8.5"></script><script defer src="./rr-scanner.js?v=1.8.5"></script><script defer src="./startup-cache.js?v=1.9.0"></script><script defer src="./app.js?v=1.9.0"></script><script defer src="./workspace.js?v=1.8.1"></script><script defer src="./alerts.js?v=1.8.2"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
+<div id="dwPositionModal" class="dw-modal" role="dialog" aria-modal="true" aria-label="多空部位設定" hidden>
+ <section class="dw-modal-card"><header><strong id="dwPositionTitle">部位設定</strong><button id="dwPositionCancel" type="button">×</button></header>
+ <div class="dw-modal-body">
+  <label>止損價 <input id="dwStop" type="number" step="any" min="0"></label>
+  <label>目標價 <input id="dwTarget" type="number" step="any" min="0"></label>
+  <label class="dw-toggle"><input id="dwUseLimit" type="checkbox"> 是否掛單（僅換算、不送委託）</label>
+  <label>掛單進場價格 <input id="dwLimitPrice" type="number" step="any" min="0"></label>
+  <label>預計止損金額 1 <input id="dwRisk1" type="number" step="any" min="0"></label>
+  <label>預計止損金額 2 <input id="dwRisk2" type="number" step="any" min="0"></label>
+  <div id="dwPositionCalc" class="dw-calculation">計算中…</div>
+  <small>理論換算；不包含手續費、滑價與資金費用，不進行實際下單。</small>
+  <button id="dwPositionSave" type="button">確認儲存</button>
+ </div></section>
+</div>
+<div id="dwManageModal" class="dw-modal" role="dialog" aria-modal="true" aria-label="繪圖記憶管理" hidden>
+ <section class="dw-modal-card dw-manager-card"><header><strong>繪圖記憶管理 · R2 每幣獨立 JSON</strong><button id="dwManageClose" type="button">×</button></header>
+ <div class="dw-modal-body"><p id="dwManagerStatus">讀取中…</p><div id="dwManagerList" class="dw-manager-list"></div>
+  <button id="dwManagerRefresh" type="button">重新整理遠端清單</button>
+  <small>關閉圖表或移除自由清單不會刪除繪圖。只有按「清除該幣」才會刪除其已儲存的圖形。</small></div>
+ </section>
+</div>
+
+<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=2.0.0"></script><script defer src="./workspace-sync.js?v=1.7.0"></script><script defer src="./signal-spotlight.js?v=1.8.0"></script><script defer src="./signal-spotlight-ui.js?v=1.8.0"></script><script defer src="./rr-config.js?v=1.8.5"></script><script defer src="./rr-scanner.js?v=1.8.5"></script><script defer src="./startup-cache.js?v=1.9.0"></script><script defer src="./app.js?v=2.0.0"></script><script defer src="./drawing-workspace.js?v=2.0.0"></script><script defer src="./workspace.js?v=2.0.0"></script><script defer src="./drawing-manager.js?v=2.0.0"></script><script defer src="./alerts.js?v=1.8.2"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
 </body></html>

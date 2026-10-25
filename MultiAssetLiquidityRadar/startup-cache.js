@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.9.0 — immutable history and provider startup hints.
+/* MultiAssetLiquidityRadar v2.0.0 — immutable history and provider startup hints.
  * IndexedDB failures never block live monitoring. No stale prices/signals stored.
  */
 (function(root){'use strict';
@@ -37,7 +37,7 @@
    const span=duration[interval];if(!span||!Array.isArray(bars))return false;
    const now=Date.now();
    // Closed candles only; an unfinished latest 1D/4H/15m cannot be reused as history.
-   const rows=bars.filter(valid).filter(b=>b.t+span<=now).slice(-Math.max(95,interval==='15M'?530:interval==='4H'?130:95));
+   const rows=bars.filter(valid).filter(b=>b.t+span<=now).slice(-Math.max(95,interval==='15M'?530:interval==='4H'?300:95));
    if(rows.length<MIN[interval])return false;
    const db=await open();if(!db)return false;
    return new Promise(resolve=>{try{const tx=db.transaction(STORE,'readwrite');

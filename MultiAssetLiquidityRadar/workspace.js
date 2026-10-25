@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.8.1 — four independent floating 4H charts.
+/* MultiAssetLiquidityRadar v2.0.0 — four independent floating 4H/1D charts.
  * Each view reads the same market records; no second provider connection or price poller.
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
@@ -32,7 +32,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,haSelected:w.haSelected,behindCrypto:w.behindCrypto}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -78,21 +78,41 @@
    const d=api.getData(w.symbol);if(!d)return;
    w.title.textContent=d.symbol;
    w.price.textContent=d.priceText;
+   w.onDrawingChangedPrice?.();
+   w.timeframeLabel.textContent=w.timeframe+' · '+(w.displayMode==='line'?'折線':'K線');
+   const drawing=window.DrawingWorkspace,doc=drawing?.snapshot(w.symbol),prefs=doc?.preferences||{};
+   // One-time migration of v1.9 per-window HA guide into per-symbol persistent drawing JSON.
+   if(drawing&&doc?.loaded&&Number.isFinite(w.haSelected)&&w.haSelected>0&&!w.migratedHa){
+     w.migratedHa=true;if(!doc.haSelection)drawing.setHa(w.symbol,w.haSelected);
+   }
    // Semantic capsules live in the status strip (never inside the SVG overlay).
    w.indicator.replaceChildren();
    for(const item of (d.capsules||[])){
      const cap=document.createElement('span');cap.className='chart-semantic '+item.kind+' '+item.tone;
-     cap.textContent=item.text;cap.title=item.title||item.text;w.indicator.append(cap);
+     cap.textContent=item.text;cap.title=item.title||item.text;
+     if(item.kind==='s'||item.kind==='ha'){
+       const key=item.kind==='s'?'showBollinger':'showHaSteps';
+       cap.setAttribute('role','button');cap.tabIndex=0;cap.dataset.dwToggle=key;
+       if(prefs[key]===false)cap.classList.add('dw-indicator-hidden');
+       cap.title+='｜點擊切換'+(key==='showBollinger'?'布林帶':'平均 K 階梯')+'顯示';
+       const toggle=()=>{drawing.setPrefs(w.symbol,{[key]:prefs[key]===false});w.dirty=true;schedule(w,0);};
+       cap.addEventListener('click',ev=>{ev.stopPropagation();toggle();});
+       cap.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();toggle();}});
+     }
+     w.indicator.append(cap);
    }
    w.source.textContent=d.source;
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
      ...d.chart,priceScale:w.priceScale,
+     timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,
+     showBB:prefs.showBollinger!==false,showHA:prefs.showHaSteps!==false,
      onPriceScaleChange:scale=>{w.priceScale=scale;w.dirty=true;schedule(w,0);},
      onPriceScaleCommit:()=>save(),
-     selectedTimestamp:w.haSelected,
-     onSelectionChange:t=>{w.haSelected=t;save();}
+     selectedTimestamp:doc?.haSelection?.dailyTime??null,
+     onSelectionChange:t=>{drawing?.setHa(w.symbol,t);w.haSelected=t;save();}
    });
    else w.plot.textContent='4H 圖表模組尚未載入';
+   drawing?.render(w);
    w.dirty=false;
    w.renderCount++;
  }
@@ -103,7 +123,7 @@
    w.timer=setTimeout(()=>{w.timer=0;requestAnimationFrame(()=>render(w));},delay);
  }
  function updateTab(w){
-   w.tab.textContent='▧ '+w.symbol+' 4H'+(w.minimized?' ↥':'');
+   w.tab.textContent='▧ '+w.symbol+' '+w.timeframe+(w.minimized?' ↥':'');
    w.tab.classList.toggle('minimized',w.minimized);
    w.tab.classList.toggle('locked',w.locked);
    w.tab.classList.toggle('active',w.id===activeId&&!w.minimized);
@@ -144,7 +164,27 @@
    const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=label;b.title=title;b.setAttribute('aria-label',title);
    b.addEventListener('click',e=>{e.stopPropagation();handler();});return b;
  }
- function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,haSelected=null,behindCrypto=false}={}){
+ function editPosition(w){
+   const c=w.dwController,obj=c?.getSelected();
+   if(!obj?.type?.endsWith('-position')){announce('請先點選圖表中的做多／做空部位');return;}
+   const modal=$('dwPositionModal');if(!modal)return;
+   modal.hidden=false;modal.dataset.window=w.id;modal.dataset.drawing=obj.id;
+   $('dwPositionTitle').textContent=(obj.type==='long-position'?'做多':'做空')+'部位 · '+w.symbol;
+   for(const [id,key] of [['dwStop','stop'],['dwTarget','target'],['dwLimitPrice','entry'],['dwRisk1','riskAmount1'],['dwRisk2','riskAmount2']])$(id).value=obj[key];
+   $('dwUseLimit').checked=Boolean(obj.limitEnabled);
+   const summary=$('dwPositionCalc');
+   const update=()=>{const local={...obj,entry:Number($('dwLimitPrice').value),stop:Number($('dwStop').value),target:Number($('dwTarget').value),riskAmount1:Number($('dwRisk1').value),riskAmount2:Number($('dwRisk2').value),limitEnabled:$('dwUseLimit').checked};
+     const price=api.getData(w.symbol)?.chart?.price,calc=window.DrawingWorkspace.calcPosition(local,price);
+     summary.textContent=calc?'RR '+calc.rr.toFixed(2)+'｜止損幅 '+(calc.stopPct*100).toFixed(3)+'%｜名義1 '+window.DrawingWorkspace.money(calc.nominal1)+'｜名義2 '+window.DrawingWorkspace.money(calc.nominal2):'價格方向無效／缺少即時價';
+     return {local,calc};
+   };
+   for(const id of ['dwStop','dwTarget','dwLimitPrice','dwRisk1','dwRisk2','dwUseLimit'])$(id).oninput=update;
+   $('dwPositionSave').onclick=()=>{const {local,calc}=update();if(!calc){summary.textContent='請確認進場／止損／目標方向正確';return;}
+     local.anchors=[{...obj.anchors[0],price:local.entry},{...obj.anchors[1],price:local.stop}];
+     window.DrawingWorkspace.change(w.symbol,obj.id,local);modal.hidden=true;w.onDrawingChanged?.();};
+   $('dwPositionCancel').onclick=()=>{modal.hidden=true;};update();
+ }
+ function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
    if(windows.length>=LIMIT){announce('最多只能開啟 4 張圖表');return null;}
    if(!api.hasSymbol(symbol))return null;
    const uid=id||'chart-'+(++serial);
@@ -154,11 +194,12 @@
    const head=document.createElement('header');head.className='chart-titlebar';head.title='拖曳標題列移動圖表';
    const label=document.createElement('div');label.className='chart-head-label';
    const title=document.createElement('strong');title.textContent=symbol;
-   const timeframe=document.createElement('span');timeframe.className='chart-timeframe';timeframe.textContent='4H · 即時行情';
+   const timeframeSpan=document.createElement('span');timeframeSpan.className='chart-timeframe';timeframeSpan.textContent='4H · 即時行情';
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
-   label.append(title,timeframe,price);
+   label.append(title,timeframeSpan,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Math.max(0,Number(viewOffset)||0),timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   w.timeframeLabel=timeframeSpan;
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    w.backButton=makeButton('chart-send-back','⇤','置於左側加密清單後方',()=>sendBack(w));
    w.backButton.setAttribute('aria-pressed',String(w.behindCrypto));
@@ -171,6 +212,43 @@
    head.append(label,w.indicator,buttons);
    w.plot=document.createElement('div');w.plot.className='radar-area radar-area-4h';w.plot.dataset.chartPlot=uid;
    el.append(head,w.plot);
+   const toolbar=document.createElement('div');toolbar.className='dw-toolbar';
+   const period=document.createElement('select');period.title='圖表 K 線週期';period.setAttribute('aria-label','圖表週期');
+   for(const [value,txt] of [['4H','4H'],['1D','1D']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
+   period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1D'?45:84;w.viewOffset=0;w.dirty=true;schedule(w,0);updateTabs();save();});
+   const mode=document.createElement('select');mode.title='K 線或收盤價折線';mode.setAttribute('aria-label','圖表型態');
+   for(const [value,txt] of [['candles','K線'],['line','折線']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;mode.append(opt);}mode.value=w.displayMode;
+   mode.addEventListener('change',()=>{activate(w);w.displayMode=mode.value;w.dirty=true;schedule(w,0);save();});
+   toolbar.append(period,mode);
+   let controller;
+   const tools=[['select','↖','瀏覽／移動'],['fib','Fib','對數斐波那契'],['green','▣綠','綠色矩形'],['red','▣紅','紅色矩形'],['yellow','▣黃','黃色矩形'],['long','多','做多部位'],['short','空','做空部位']];
+   const toolButtons=new Map();
+   const selectTool=key=>{controller?.setTool(key);for(const [name,btn] of toolButtons)btn.classList.toggle('active',key===name);};
+   for(const [key,txt,titleTxt] of tools){const b=document.createElement('button');b.type='button';b.textContent=txt;b.title=titleTxt+'｜CTRL 吸附 OHLC';b.dataset.tool=key;b.className=key==='select'?'active':'';
+     b.addEventListener('click',ev=>{ev.stopPropagation();activate(w);selectTool(key);});toolbar.append(b);toolButtons.set(key,b);}
+   const settings=document.createElement('button');settings.textContent='⚙ 部位';settings.title='編輯目前選取的多單／空單';settings.addEventListener('click',()=>{activate(w);editPosition(w);});toolbar.append(settings);
+   const note=document.createElement('span');note.className='dw-tools-hint';note.textContent='左鍵拖曳 · 滾輪縮放 · CTRL 磁鐵';toolbar.append(note);
+   el.append(toolbar);
+   const positionSummary=document.createElement('span');positionSummary.className='dw-position-summary';label.append(positionSummary);
+   const updatePosition=()=>{const obj=controller?.getSelected(),d=window.LIQ_CHART_API?.getData(w.symbol);
+     positionSummary.className='dw-position-summary';
+     if(!obj?.type?.endsWith('-position')){positionSummary.textContent='';return;}
+     const calc=window.DrawingWorkspace?.calcPosition(obj,d?.chart?.price);
+     const isLong=obj.type==='long-position';positionSummary.classList.add(isLong?'long':'short');
+     positionSummary.textContent=(isLong?'做多':'做空')+' · 名義1 '+(calc?window.DrawingWorkspace.money(calc.nominal1):'—')+'｜名義2 '+(calc?window.DrawingWorkspace.money(calc.nominal2):'—');
+   };
+   w.onDrawingChanged=()=>{updatePosition();w.dirty=true;schedule(w,0);};
+   controller=window.DrawingWorkspace?.attach(w,{livePrice:()=>window.LIQ_CHART_API?.getData(w.symbol)?.chart?.price,
+     refreshHeader:updatePosition,setTool:selectTool,
+     getOffset:()=>w.viewOffset,getCount:()=>w.viewCount,getTimeframe:()=>w.timeframe,
+     setOffset:n=>{if(n!==w.viewOffset){w.viewOffset=n;w.dirty=true;schedule(w,0);}},
+     setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);},
+     moreHistory:()=>window.LIQ_CHART_API?.loadExtra4H?.(w.symbol)
+   });
+   w.onDrawingChangedPrice=updatePosition;
+   w.dwController=controller;w.dwPeriod=period;w.dwMode=mode;w.dwToolButtons=toolButtons;
+   updatePosition();
+
    for(const dir of ['n','s','e','w','ne','nw','se','sw']){
      const handle=document.createElement('div');handle.className='chart-resize '+dir;handle.dataset.resize=dir;
      handle.setAttribute('aria-label','縮放 '+dir);
@@ -227,7 +305,10 @@
    }
    if(!w){w=[...windows].reverse().find(x=>!x.locked)||create(symbol);}
    if(!w){announce('請先解鎖或關閉其中一張圖表');return false;}
-   if(w.symbol!==symbol){window.LiqRadar4H?.clearSelection(w.plot);w.haSelected=null;w.symbol=symbol;w.el.setAttribute('aria-label',symbol+' 浮動 4H 圖表');w.dirty=true;}
+   if(w.symbol!==symbol){w.dwController?.reset();w.dwToolButtons?.forEach((b,k)=>b.classList.toggle('active',k==='select'));
+     w.haSelected=null;w.symbol=symbol;w.viewOffset=0;w.viewCount=w.timeframe==='1D'?45:84;
+     w.onDrawingChanged?.();w.el.setAttribute('aria-label',symbol+' 浮動 '+w.timeframe+' 圖表');w.dirty=true;}
+   // Deep 4H history remains fully on demand: never fetch 300 bars on a plain list click.
    activate(w);return true;
  }
  function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;w.source.textContent=d.source;}
@@ -235,7 +316,7 @@
    schedule(w,90);
  }}
  function start(e,w,kind,dir){
-   if(e.button!==0||e.target.closest('button,select,a'))return;
+   if(e.button!==0||e.target.closest('button,select,a,[data-dw-toggle]'))return;
    e.preventDefault();e.stopPropagation();activate(w);
    drag={pointer:e.pointerId,w,kind,dir,sx:e.clientX,sy:e.clientY,begin:{...w.geom}};
    e.currentTarget.setPointerCapture(e.pointerId);document.body.classList.add('radar-is-manipulating');
@@ -299,7 +380,7 @@
      const symbol=api.hasSymbol(candidate)?candidate:(api.hasSymbol('BTC')?'BTC':null);
      if(symbol)initial=[{symbol,id:'chart-1',geom:legacy,locked:false,minimized:false}];
    }
-   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,haSelected:s.haSelected,behindCrypto:s.behindCrypto,quiet:true});
+   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
    if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
@@ -317,9 +398,11 @@
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const w of windows){w.dirty=true;schedule(w,100);}});
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
-   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale}));},
+   getActiveWindow(){return byId(activeId)||null;},
+   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
    focusWindow:uid=>activate(byId(uid)),sendBackWindow:uid=>sendBack(byId(uid)),tileWindows,closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
+ window.DrawingWorkspace?.subscribe(symbol=>{for(const w of windows)if(window.DrawingWorkspace.symbolKey(w.symbol)===symbol){w.dirty=true;schedule(w,0);w.onDrawingChangedPrice?.();}});
  bootstrap();
  }
  boot().catch(e=>console.error('[Radar workspace]',e));

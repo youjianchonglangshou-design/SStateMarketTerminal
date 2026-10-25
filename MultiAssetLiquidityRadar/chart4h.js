@@ -1,4 +1,4 @@
-/* MultiAssetLiquidityRadar v1.6.1
+/* MultiAssetLiquidityRadar v2.0.0
  * ONLY the actual OHLC candlesticks are 4H. BB(20,2), HA stair levels,
  * S-state/midline regime and CCI-SMA are 1D (UTC 00:00 = Asia/Taipei 08:00).
  * BB algorithm is shared with the original SState monitor-engine.js.
@@ -76,31 +76,37 @@
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
- function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null}={}){
+ function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,showBB=true,showHA=true}={}){
    if(!target)return;
-   if(bars.length<21){target.innerHTML='<div class="radar-chart-wait">等待真正的 4H K 線資料…</div>';return;}
-   const rows=series(bars,daily,price,updatedAt).slice(-84);
+   const tf=timeframe==='1D'?'1D':'4H';
+   const source=tf==='1D'?normalized(projectDaily(daily,bars,price,updatedAt)):normalized(bars);
+   if(source.length<21){target.innerHTML='<div class="radar-chart-wait">等待 '+tf+' K 線資料…</div>';target.__liqProjection=null;return;}
+   let complete;
+   if(tf==='1D'){
+     const ha=dailyHA(source),bb=bollinger(source);
+     complete=source.map((r,i)=>({...r,ha:ha.get(dayOf(r.t)),bb:bb[i]}));
+   }else complete=series(bars,daily,price,updatedAt);
+   const n=clamp(Math.round(Number(viewCount)||84),21,tf==='1D'?90:270);
+   const offset=clamp(Math.round(Number(viewOffset)||0),0,Math.max(0,complete.length-21));
+   const end=Math.max(21,complete.length-offset),begin=Math.max(0,end-n);
+   const rows=complete.slice(begin,end);
    if(rows.length<21){target.innerHTML='<div class="radar-chart-wait">4H K 線歷史不足</div>';return;}
    const W=Math.max(320,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));
    const L=16,R=Math.min(146,Math.max(112,Math.round(W*.31))),T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
    const stride=pw/(rows.length+BLANK_CANDLES),x=i=>L+(i+.5)*stride;
    const vals=[];
-   for(const r of rows){vals.push(r.h,r.l);if(r.bb)vals.push(r.bb.upper,r.bb.lower);if(r.ha)vals.push(r.ha.price);}
+   for(const r of rows){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);}
    for(const v of [price,upper,lower])if(valid(v))vals.push(v);
-   let min=Math.min(...vals),max=Math.max(...vals),span=Math.max(max-min,min*.005);
-   min-=span*.085;max+=span*.085;
-   // TradingView-style vertical zoom: all plot geometry uses the SAME recalculated
-   // visible price domain. Anchor at NOW so a flattened recent market can be
-   // expanded while distant historical extremes move outside the clipped plot.
-   const autoMin=min,autoMax=max,autoSpan=autoMax-autoMin;
-   const scale=clamp(Number(priceScale)||1,SCALE_MIN,SCALE_MAX);
-   const anchor=valid(price)?price:rows.at(-1).c;
-   const anchorFraction=clamp((autoMax-anchor)/autoSpan,0,1);
-   const spanVisible=autoSpan/scale;
-   max=anchor+anchorFraction*spanVisible;
-   min=max-spanVisible;
-   if(min<=0){const floor=Math.max(anchor*.001,Number.MIN_VALUE);max+=floor-min;min=floor;}
-   const y=n=>T+(max-n)/(max-min)*ph;
+   // A single logarithmic projection drives the axis, OHLC, Fib, drawings and snap coordinates.
+   const clean=vals.filter(valid),rawMin=Math.min(...clean),rawMax=Math.max(...clean);
+   const autoLo=Math.log(rawMin),autoHi=Math.log(rawMax),range=Math.max(autoHi-autoLo,.005);
+   const mid=(autoHi+autoLo)/2,scale=clamp(Number(priceScale)||1,SCALE_MIN,SCALE_MAX);
+   const spanVisible=range*1.17/scale;
+   const anchorLog=Math.log(valid(price)?price:rows.at(-1).c);
+   const frac=clamp((autoHi-anchorLog)/(autoHi-autoLo||1),0,1);
+   const hi=anchorLog+frac*spanVisible,lo=hi-spanVisible;
+   const y=value=>valid(value)?T+(hi-Math.log(value))/(hi-lo)*ph:NaN;
+   const priceAtY=yy=>Math.exp(hi-(yy-T)/ph*(hi-lo));
    const clipId='rc-plot-clip-'+(target.dataset.chartPlot||target.id||'single').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(target.dataset.clipNonce|| (target.dataset.clipNonce=String(++clipIndex)));
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
@@ -108,7 +114,7 @@
    svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath></defs>`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
-     const v=min+(max-min)*i/5,yy=y(v);
+     const v=Math.exp(lo+(hi-lo)*i/5),yy=y(v);
      svg.push(`<line class="rc-grid-h" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/><text class="rc-axis-text" x="${plotR+7}" y="${fmt(yy+4)}">${esc(money(v))}</text>`);
    }
    // Taiwan trading day begins 08:00, only show dates to prevent axis clutter.
@@ -130,7 +136,7 @@
    // Clip off-scale candles and historical bands instead of letting them run over
    // the right price axis or title. Grid/axis and price badges stay unclipped.
    svg.push(`<g class="rc-price-plot" clip-path="url(#${clipId})">`);
-   svg.push('<g class="rc-boll">');
+   svg.push('<g class="rc-boll"'+(showBB?'':' style="display:none"')+'>');
    for(const [key,cls] of [['upper','rc-bb'],['mid','rc-middle'],['lower','rc-bb']]){
      let d='',active=false,prevDate=null;
      for(const day of daysShown){
@@ -149,7 +155,10 @@
    // TradingView-style hollow OHLC. Two distinct wicks stop at the body edges:
    // neither wick crosses its hollow (transparent) candle body.
    const w=clamp(stride*.60,3.2,10);
-   rows.forEach((r,i)=>{
+   if(displayMode==='line'){
+     const pts=rows.map((r,i)=>`${fmt(x(i))},${fmt(y(r.c))}`).join(' ');
+     svg.push(`<polyline class="rc-close-line" points="${pts}" fill="none" stroke="#36cde5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+   }else rows.forEach((r,i)=>{
      const xx=x(i),c=r.c>=r.o?'rc-up':'rc-down';
      const top=y(Math.max(r.o,r.c)),bottom=y(Math.min(r.o,r.c));
      const bodyHeight=Math.max(1.4,bottom-top), bodyTop=(top+bottom-bodyHeight)/2;
@@ -160,7 +169,7 @@
    });
    // The 1D HA close is held throughout that UTC day, usually six real 4H candles.
    let prev=null;
-   rows.forEach((r,i)=>{
+   if(showHA)rows.forEach((r,i)=>{
      const h=r.ha;if(!h||h.color==='gray'){prev=null;return;}
      const start=x(i)-stride/2,end=x(i)+stride/2,cls=h.color==='yellow'?'rc-ha-yellow':'rc-ha-purple';
      svg.push(`<line class="rc-ha-step ${cls}" x1="${fmt(start)}" x2="${fmt(end)}" y1="${fmt(y(h.price))}" y2="${fmt(y(h.price))}"/>`);
@@ -211,7 +220,25 @@
      [['open','開'],['high','高'],['low','低'],['close','收']].map(([key,title])=>
        `<span class="rc-ohlc-field" data-field="${key}"><span class="rc-ohlc-caption">${title}=</span><span class="rc-ohlc-value">—</span></span>`).join('')+'</div>';
    target.innerHTML=svg.join('')+ohlcStrip;
-   target.dataset.candles='4H';target.dataset.indicators='1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
+   target.dataset.candles=tf;target.dataset.indicators='1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
+   // Projection is replaced on every repaint. Drawing objects hold UTC timestamps and real prices.
+   const xAtTime=t=>{
+     if(!Number.isFinite(t)||!rows.length)return NaN;
+     let idx=rows.findIndex(r=>r.t>=t);
+     if(idx<0)return x(rows.length-1)+(t-rows.at(-1).t)/(tf==='1D'?DAY:H4)*stride;
+     if(idx===0)return x(0)+(t-rows[0].t)/(tf==='1D'?DAY:H4)*stride;
+     const a=rows[idx-1],b=rows[idx];return x(idx-1)+(t-a.t)/(b.t-a.t||1)*stride;
+   };
+   const timeAtX=xx=>{
+     const index=(xx-L)/stride-.5,low=Math.floor(index),fraction=index-low;
+     if(low<0)return rows[0].t+index*(tf==='1D'?DAY:H4);
+     if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*(tf==='1D'?DAY:H4);
+     return rows[low].t+fraction*(rows[low+1].t-rows[low].t);
+   };
+   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:begin,stride,
+     x:xAtTime,time:timeAtX,y,price:priceAtY,money,
+     fromEvent(ev){const rect=target.getBoundingClientRect();return {x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H};}
+   };
    const element=target.querySelector('svg'),hit=element.querySelector('.rc-hit');
    const strip=target.querySelector('.rc-ohlc-overlay');
    const showOHLC=bar=>{
@@ -310,7 +337,7 @@
    state.resetOHLC=()=>showOHLC(latestBar);
    function paintSelected(){
      const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
-     if(i<0||!r?.ha||r.ha.color==='gray'||y(r.ha.price)<T||y(r.ha.price)>plotB){
+     if(!showHA||i<0||!r?.ha||r.ha.color==='gray'||y(r.ha.price)<T||y(r.ha.price)>plotB){
        selected.setAttribute('visibility','hidden');return;
      }
      const xx=x(i),py=y(r.ha.price);
@@ -333,7 +360,7 @@
      if(i<0||i>=rows.length+BLANK_CANDLES||yy<T||yy>plotB)return null;
      // Empty future slots have a crosshair price, but no historical OHLC candle.
      const r=rows[i]||null;
-     return {i,xx,yy,r,time:r?.t??latestBar.t+(i-rows.length+1)*H4};
+     return {i,xx,yy,r,time:r?.t??latestBar.t+(i-rows.length+1)*(tf==='1D'?DAY:H4)};
    }
    function movePointer(ev){
      state.inside=true;
@@ -348,7 +375,7 @@
      const vLine=cursor.querySelector('.rc-hover-v');vLine.setAttribute('x1',xx);vLine.setAttribute('x2',xx);
      const hLine=cursor.querySelector('.rc-hover-h');hLine.setAttribute('y1',yy);hLine.setAttribute('y2',yy);
      // True cursor Y price (not the nearest candle close or snapped price level).
-     const priceAtCursor=max-(yy-T)/ph*(max-min);
+     const priceAtCursor=priceAtY(yy);
      const hoverPriceY=clamp(yy-9,T,plotB-19);
      cursor.querySelector('.rc-hover-price-box').setAttribute('y',hoverPriceY);
      const hoverPrice=cursor.querySelector('.rc-hover-price');

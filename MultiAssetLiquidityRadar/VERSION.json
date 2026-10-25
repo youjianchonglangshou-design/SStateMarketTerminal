@@ -1,24 +1,36 @@
 {
-  "version": "1.9.0",
+  "version": "2.0.0",
   "releaseDate": "2026-10-25",
-  "baseVersion": "1.8.5",
+  "baseVersion": "1.9.0",
+  "title": "Drawing Workspace",
   "changes": [
-    "Startup queues current active 4H windows and all daily 1D before nonessential 4H prefetch; preserve 10-second live indicator calculations.",
-    "Only queue 15M historical bars for a symbol after initial CoinGlass and quote probes show missing/invalid/stale 7D bounds.",
-    "IndexedDB retains confirmed historical OHLC and fetches a short tail with overlap validation; stored provider preferences reduce initialization fallback delays.",
-    "Startup meter shows valid current daily HA/CCI/S state/midline and READY/PARTIAL, rather than mere job attempts."
+    "4H/1D candles and close line, shared logarithmic price projection, 45-day wheel zoom and left-button history pan.",
+    "Ten logarithmic Fibonacci levels including exact 1.5; Ctrl OHLC snap; three translucent rectangle colors with log-midpoint.",
+    "Long/short position tools with per-object risk amounts, order-price override, RR, semantic green/red selected-position nominal display.",
+    "Hide daily BB and HA by indicator capsules without changing indicator calculations; per-symbol cross-timeframe persisted HA extensions.",
+    "Per-symbol local drawing documents, R2 Worker CRUD/list and revision/tombstone merge; manage saved symbols from taskbar.",
+    "Preserve v1.9.0 fast startup, 10-second indicators, 37-scenario radar, existing RR config, CoinGlass 7D with 15M on-demand fallback."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/startup-cache.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/drawing-manager.js",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md"
+    "MultiAssetLiquidityRadar/README.md",
+    "cloudflare/worker.js"
+  ],
+  "requiredDeploy": [
+    "GitHub Pages MultiAssetLiquidityRadar files",
+    "Existing Cloudflare Worker cloudflare/worker.js update for R2 cross-device drawings"
   ],
   "notes": [
-    "Existing rr-config.js is preserved unchanged from the uploaded project (user-set THRESHOLD: 1.20).",
-    "Existing live 10s prices, 60s liquidation updates, daily recalculation, Signal Spotlight, and RR formula/gates are unchanged.",
-    "Cached short-tail/provider preference are startup-only; live maintenance continues original full OHLC provider behavior.",
-    "No Cloudflare/R2 deployments required."
+    "Unchanged: rr-config.js THRESHOLD from uploaded base (1.20).",
+    "R2 cross-device drawing endpoint requires updating Worker, not just uploading Pages files.",
+    "Browser test ran with simulated historical/live data; online exchanges, live R2, Telegram, and full long-duration regression are not verified."
   ]
 }

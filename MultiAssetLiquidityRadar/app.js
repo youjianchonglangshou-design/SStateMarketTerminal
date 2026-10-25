@@ -709,7 +709,7 @@
  function mergeHistory(cached,latest,kind){
    const by=new Map((cached||[]).map(b=>[b.t,b]));
    for(const b of latest)by.set(b.t,b);
-   const max=kind==='day'?95:kind==='h4'?130:530;
+   const max=kind==='day'?95:kind==='h4'?300:530;
    return [...by.values()].sort((a,b)=>a.t-b.t).slice(-max);
  }
  async function pump(){
@@ -743,7 +743,9 @@
          if(incompatible){received=await loadHistory(r.s,interval,count);merged=received.bars;}
        }
        if(kind==='bar'){r.bars15=merged;r.barsAt=Date.now();r.errors.bar='';}
-       else if(kind==='h4'){r.bars4h=merged;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';}
+       else if(kind==='h4'){
+         if(r.bars4h.length>merged.length){const m=new Map([...r.bars4h,...merged].map(b=>[b.t,b]));merged=[...m.values()].sort((a,b)=>a.t-b.t).slice(-300);}
+         r.bars4h=merged;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';} 
        else{r.daily=merged;r.dailyAt=Date.now();r.errors.day='';}
        if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);
        // Persist immutable closed candles only; never persist today's evolving K.
@@ -783,6 +785,34 @@
    state.batchEnqueue=false;
    queueMissingProxies();pump();updateTerminalProgress();
  }
+ const extra4h=new Map();
+ let deepHistoryQueue=Promise.resolve(),lastDeepFetch=0;
+ async function loadExtra4H(id){
+   const r=records.find(x=>x.id===id);if(!r)return false;
+   if(r.bars4h.length>=295)return true;
+   if(extra4h.has(id))return extra4h.get(id);
+   if(r.extra4hAttempt&&Date.now()-r.extra4hAttempt<30000)return false;
+   r.extra4hAttempt=Date.now();
+   const job=(async()=>{try{
+     // Extended 300-bar history is requested ONLY after actual user exploration.
+     // One deep-history request at a time across four windows, with conservative
+     // pacing. The interactive drawing layer never floods Pionex on wheel input.
+     const process=async()=>{
+       const pause=Math.max(0,2000-(Date.now()-lastDeepFetch));
+       if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
+       lastDeepFetch=Date.now();return loadHistory(r.s,'4H',300);
+     };
+     const queued=deepHistoryQueue.then(process,process);
+     deepHistoryQueue=queued.then(()=>{},()=>{});
+     const response=await queued;
+     const combined=new Map([...r.bars4h,...response.bars].map(b=>[b.t,b]));
+     r.bars4h=[...combined.values()].sort((a,b)=>a.t-b.t).slice(-300);
+     r.h4At=Date.now();r.h4Feed=response.feed;
+     if(window.LiqHistoryCache)void window.LiqHistoryCache.write(r.s.pionex,'4H',r.bars4h,response.provider||response.feed);
+     updateDerived(r);renderRow(r);renderOverview();return true;
+   }catch(e){log(id+' 延伸 4H 歷史失敗：'+e.message);return false;}
+   finally{extra4h.delete(id);}})();extra4h.set(id,job);return job;
+ }
  function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());}
  function setup(){
    const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};
@@ -812,8 +842,8 @@
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
-   window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.9.0',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
+   window.LIQ_TEST={version:'2.0.0',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

@@ -32,7 +32,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -54,6 +54,11 @@
    });
  }
  function paint(w){
+   if(w.maximized){
+     Object.assign(w.el.style,{left:'4px',top:'4px',width:Math.max(320,innerWidth-8)+'px',height:Math.max(220,innerHeight-53)+'px',right:'auto',bottom:'auto'});
+     w.el.classList.add('is-maximized');return;
+   }
+   w.el.classList.remove('is-maximized');
    w.geom=constrain(w.geom);
    const g=w.geom;
    Object.assign(w.el.style,{left:g.x+'px',top:g.y+'px',width:g.w+'px',height:g.h+'px',right:'auto',bottom:'auto'});
@@ -103,7 +108,7 @@
    }
    w.source.textContent=d.source;
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
-     ...d.chart,priceScale:w.priceScale,
+     ...d.chart,priceScale:w.priceScale,pricePan:w.pricePan,
      timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,
      showBB:prefs.showBollinger!==false,showHA:prefs.showHaSteps!==false,
      onPriceScaleChange:scale=>{w.priceScale=scale;w.dirty=true;schedule(w,0);},
@@ -184,7 +189,7 @@
      window.DrawingWorkspace.change(w.symbol,obj.id,local);modal.hidden=true;w.onDrawingChanged?.();};
    $('dwPositionCancel').onclick=()=>{modal.hidden=true;};update();
  }
- function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
+ function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,pricePan=0,maximized=false,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
    if(windows.length>=LIMIT){announce('最多只能開啟 4 張圖表');return null;}
    if(!api.hasSymbol(symbol))return null;
    const uid=id||'chart-'+(++serial);
@@ -198,13 +203,21 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframeSpan,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Math.max(0,Number(viewOffset)||0),timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.timeframeLabel=timeframeSpan;
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    w.backButton=makeButton('chart-send-back','⇤','置於左側加密清單後方',()=>sendBack(w));
    w.backButton.setAttribute('aria-pressed',String(w.behindCrypto));
-   buttons.append(w.lockButton,w.backButton,
-     makeButton('chart-reset','▣','還原此圖表預設尺寸',()=>{w.geom=defaults(Math.max(0,windows.indexOf(w)));paint(w);w.dirty=true;schedule(w,50);activate(w);}),
+   w.maximizeButton=makeButton('chart-maximize','⛶','最大化圖表',()=>{
+     w.maximized=!w.maximized;
+     w.maximizeButton.title=w.maximized?'還原最大化前的尺寸':'最大化圖表';
+     w.maximizeButton.setAttribute('aria-label',w.maximizeButton.title);
+     w.maximizeButton.textContent=w.maximized?'❐':'⛶';
+     paint(w);w.dirty=true;schedule(w,0);save();
+   });
+   if(w.maximized){w.maximizeButton.textContent='❐';w.maximizeButton.title='還原最大化前的尺寸';}
+   buttons.append(w.lockButton,w.backButton,w.maximizeButton,
+     makeButton('chart-reset','▣','還原此圖表預設尺寸',()=>{w.maximized=false;w.maximizeButton.textContent='⛶';w.geom=defaults(Math.max(0,windows.indexOf(w)));paint(w);w.dirty=true;schedule(w,50);activate(w);}),
      makeButton('chart-minimize','−','最小化此圖表（資料持續更新）',()=>minimize(w)),
      makeButton('chart-close','×','關閉此圖表視窗',()=>close(w)));
    w.indicator=document.createElement('span');w.indicator.className='chart-indicator-strip chart-inline-capsules';w.indicator.textContent='日線 S · 中軌 · HA · CCI';
@@ -222,14 +235,21 @@
    toolbar.append(period,mode);
    let controller;
    const tools=[['select','↖','瀏覽／移動'],['fib','Fib','對數斐波那契'],['green','▣綠','綠色矩形'],['red','▣紅','紅色矩形'],['yellow','▣黃','黃色矩形'],['long','多','做多部位'],['short','空','做空部位']];
-   const toolButtons=new Map();
+   const toolButtons=new Map(),orderDefaults={long:false,short:false};
    const selectTool=key=>{controller?.setTool(key);for(const [name,btn] of toolButtons)btn.classList.toggle('active',key===name);};
    for(const [key,txt,titleTxt] of tools){const b=document.createElement('button');b.type='button';b.textContent=txt;b.title=titleTxt+'｜CTRL 吸附 OHLC';b.dataset.tool=key;b.className=key==='select'?'active':'';
-     b.addEventListener('click',ev=>{ev.stopPropagation();activate(w);selectTool(key);});toolbar.append(b);toolButtons.set(key,b);}
+     b.addEventListener('click',ev=>{ev.stopPropagation();activate(w);selectTool(key);});toolbar.append(b);toolButtons.set(key,b);
+     if(key==='long'||key==='short'){
+       const wrap=document.createElement('label');wrap.className='dw-order-default';wrap.title=(key==='long'?'做多':'做空')+'預設掛單（建立下一張部位時生效）';
+       const cb=document.createElement('input');cb.type='checkbox';cb.dataset.orderDefault=key;cb.addEventListener('change',()=>{orderDefaults[key]=cb.checked;});
+       wrap.append(cb,document.createTextNode('掛'));toolbar.append(wrap);
+     }
+   }
    const settings=document.createElement('button');settings.textContent='⚙ 部位';settings.title='編輯目前選取的多單／空單';settings.addEventListener('click',()=>{activate(w);editPosition(w);});toolbar.append(settings);
-   const note=document.createElement('span');note.className='dw-tools-hint';note.textContent='左鍵拖曳 · 滾輪縮放 · CTRL 磁鐵';toolbar.append(note);
+   const magnet=document.createElement('span');magnet.className='dw-magnet-indicator';magnet.textContent='🧲';magnet.title='按住 CTRL 磁鐵吸附 OHLC';toolbar.insertBefore(magnet,toolButtons.get('fib'));
+   const note=document.createElement('span');note.className='dw-tools-hint';note.textContent='左鍵平移 · 滾輪縮放 · CTRL 磁鐵';toolbar.append(note);
    el.append(toolbar);
-   const positionSummary=document.createElement('span');positionSummary.className='dw-position-summary';label.append(positionSummary);
+   const positionSummary=document.createElement('span');positionSummary.className='dw-position-summary';head.insertBefore(positionSummary,buttons);
    const updatePosition=()=>{const obj=controller?.getSelected(),d=window.LIQ_CHART_API?.getData(w.symbol);
      positionSummary.className='dw-position-summary';
      if(!obj?.type?.endsWith('-position')){positionSummary.textContent='';return;}
@@ -239,10 +259,13 @@
    };
    w.onDrawingChanged=()=>{updatePosition();w.dirty=true;schedule(w,0);};
    controller=window.DrawingWorkspace?.attach(w,{livePrice:()=>window.LIQ_CHART_API?.getData(w.symbol)?.chart?.price,
-     refreshHeader:updatePosition,setTool:selectTool,
-     getOffset:()=>w.viewOffset,getCount:()=>w.viewCount,getTimeframe:()=>w.timeframe,
+     refreshHeader:updatePosition,setTool:selectTool,setMagnet:on=>{const b=toolButtons.get('select');if(b)b.textContent=on?'🧲':'↖';},
+     getDefaultLimit:key=>orderDefaults[key],
+     getOffset:()=>w.viewOffset,getCount:()=>w.viewCount,getTimeframe:()=>w.timeframe,getPricePan:()=>w.pricePan,
+     setPricePan:n=>{if(Number.isFinite(n)&&n!==w.pricePan){w.pricePan=n;w.dirty=true;schedule(w,0);}},
+     commitView:()=>save(),
      setOffset:n=>{if(n!==w.viewOffset){w.viewOffset=n;w.dirty=true;schedule(w,0);}},
-     setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);},
+     setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);save();},
      moreHistory:()=>window.LIQ_CHART_API?.loadExtra4H?.(w.symbol)
    });
    w.onDrawingChangedPrice=updatePosition;
@@ -277,7 +300,7 @@
  }
  function close(w){
    if(!w)return;
-   clearTimeout(w.timer);w.observer?.disconnect();
+   clearTimeout(w.timer);w.observer?.disconnect();w.dwController?.dispose?.();
    const idx=windows.indexOf(w);if(idx>=0)windows.splice(idx,1);
    w.el.remove();w.tab.remove();
    if(activeId===w.id){activeId=null;const next=[...windows].reverse().find(x=>!x.minimized);if(next)activate(next);}
@@ -316,7 +339,7 @@
    schedule(w,90);
  }}
  function start(e,w,kind,dir){
-   if(e.button!==0||e.target.closest('button,select,a,[data-dw-toggle]'))return;
+   if(e.button!==0||w.maximized||e.target.closest('button,select,a,[data-dw-toggle]'))return;
    e.preventDefault();e.stopPropagation();activate(w);
    drag={pointer:e.pointerId,w,kind,dir,sx:e.clientX,sy:e.clientY,begin:{...w.geom}};
    e.currentTarget.setPointerCapture(e.pointerId);document.body.classList.add('radar-is-manipulating');
@@ -380,7 +403,7 @@
      const symbol=api.hasSymbol(candidate)?candidate:(api.hasSymbol('BTC')?'BTC':null);
      if(symbol)initial=[{symbol,id:'chart-1',geom:legacy,locked:false,minimized:false}];
    }
-   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
+   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,pricePan:s.pricePan,maximized:s.maximized,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
    if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
@@ -399,7 +422,7 @@
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
    getActiveWindow(){return byId(activeId)||null;},
-   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale}));},
+   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
    focusWindow:uid=>activate(byId(uid)),sendBackWindow:uid=>sendBack(byId(uid)),tileWindows,closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
  window.DrawingWorkspace?.subscribe(symbol=>{for(const w of windows)if(window.DrawingWorkspace.symbolKey(w.symbol)===symbol){w.dirty=true;schedule(w,0);w.onDrawingChangedPrice?.();}});

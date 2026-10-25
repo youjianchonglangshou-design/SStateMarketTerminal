@@ -843,7 +843,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.0.0',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.0.1',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

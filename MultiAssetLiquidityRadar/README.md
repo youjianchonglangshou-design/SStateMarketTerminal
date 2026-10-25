@@ -291,3 +291,13 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 - Source success preference is stored locally while retaining all fallbacks.
 - Startup progress counts usable current-day daily HA, CCI, S state and midline.
 - Live quote cadence, repeated derived indicator calculations, 37-signal spotlight, and the uploaded RR threshold setting (1.20) + HA gating remain unchanged.
+
+
+## v2.0.1 — Drawing UI regression fixes
+
+- Mouse wheel adjusts time density; primary-button drag pans both timeline and logarithmic price axis without zooming, including future blank space.
+- Ctrl OHLC magnet is enabled before drawing starts. Fib now uses upper first anchor = 1, lower second anchor = 0.
+- Rectangle handles include mid-edge extenders; long/short position creation is valid on first click, with a per-position limit-order toggle.
+- Click HA staircase to restore persistent price extension even when mouse pan layer captures input.
+- Right-side semantic notional header and maximize / restore.
+- Unchanged: Worker, RR thresholds, SState/HA/CCI formulae, Signal Spotlight and 10-second live monitor.

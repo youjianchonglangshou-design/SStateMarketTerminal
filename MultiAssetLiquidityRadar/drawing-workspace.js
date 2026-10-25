@@ -18,10 +18,10 @@ function clean(d){return {schemaVersion:1,symbol:d.symbol,revision:Math.max(0,Nu
  tombstones:d.tombstones&&typeof d.tombstones==='object'?d.tombstones:{}};}
 function snapshot(symbol){const s=symbolKey(symbol);if(documents.has(s))return documents.get(s);
  let raw=null;try{raw=JSON.parse(localStorage.getItem(LOCAL+s)||'null');}catch(_){}
- const d=clean({...raw,symbol:s});d.dirty=Boolean(raw?.dirty);d.loaded=false;d.timer=0;d.saving=false;documents.set(s,d);void load(s);return d;}
+ const d=clean({...raw,symbol:s});d.dirty=Boolean(raw?.dirty);d.loaded=false;d.timer=0;d.saving=false;d.localSeq=0;documents.set(s,d);void load(s);return d;}
 function localSave(d){try{localStorage.setItem(LOCAL+d.symbol,JSON.stringify({...d,dirty:d.dirty,timer:undefined,saving:undefined}));}catch(_){}}
 function notify(s){for(const fn of subscribers)try{fn(s);}catch(e){console.warn('[Drawings subscriber]',e);}}
-function mutate(symbol,change){const d=snapshot(symbol);change(d);d.dirty=true;d.updatedAt=new Date().toISOString();localSave(d);notify(d.symbol);
+function mutate(symbol,change){const d=snapshot(symbol);change(d);d.localSeq=(d.localSeq||0)+1;d.dirty=true;d.updatedAt=new Date().toISOString();localSave(d);notify(d.symbol);
  clearTimeout(d.timer);d.timer=setTimeout(()=>void push(d.symbol),950);}
 function merge(remote,local){const out=clean({...remote,symbol:local.symbol});
  const removed={...remote.tombstones,...local.tombstones};for(const [id,t] of Object.entries(removed))removed[id]=Math.max(Number(remote.tombstones?.[id])||0,Number(local.tombstones?.[id])||0);
@@ -40,7 +40,8 @@ async function request(url,init={}){const ctrl=new AbortController(),timer=setTi
  const r=await fetch(url,{cache:'no-store',...init,signal:ctrl.signal});const data=await r.json();if(!r.ok){const err=Error(data.error||'HTTP '+r.status);err.status=r.status;throw err;}return data;
  }finally{clearTimeout(timer);}}
 async function load(symbol,force=false){const d=snapshot(symbol);if(d.loaded&&!force)return d;
- try{const remote=await request(API+'?symbol='+encodeURIComponent(d.symbol));const before=d.dirty;const next=before?merge(remote,d):clean({...remote,symbol:d.symbol});
+ const startingSeq=d.localSeq||0;
+ try{const remote=await request(API+'?symbol='+encodeURIComponent(d.symbol));const before=d.dirty||(d.localSeq||0)!==startingSeq;const next=before?merge(remote,d):clean({...remote,symbol:d.symbol});
  Object.assign(d,next,{revision:Number(remote.revision)||0,loaded:true,dirty:before});localSave(d);notify(d.symbol);
  if(before)void push(d.symbol);
  }catch(e){d.loaded=true;d.syncError=String(e.message||e);notify(d.symbol);}return d;}
@@ -74,7 +75,7 @@ function place(g,obj,proj,selected,live){
  const hit={'data-dw-id':id,class:'dw-hit',cursor:'pointer'};
  if(obj.type==='fibonacci'&&a.length>1){const [p0,p1]=a.map(t=>Number(t.price));if(!good(p1))return;
   const left=Math.min(x(a[0].time),x(a[1].time)),right=proj.plotR;
-  for(const r of CFG.fib){const price=p0*Math.pow(p1/p0,r),yy=y(price),tone=[.618,.786,2].includes(r)?'#23cdeb':[1.236,1.5,1.572,1.618].includes(r)?'#f2d34f':'#b6bcca';
+  for(const r of CFG.fib){const price=p1*Math.pow(p0/p1,r),yy=y(price),tone=[.618,.786,2].includes(r)?'#23cdeb':[1.236,1.5,1.572,1.618].includes(r)?'#f2d34f':'#b6bcca';
    node(g,'line',{...hit,x1:left,x2:right,y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
    label(g,`${r} (${money(price)})`,Math.max(proj.L,Math.min(right-108,right+5)),yy-3,tone);
   }
@@ -88,12 +89,30 @@ function place(g,obj,proj,selected,live){
     const rect=(lo,hi,clr)=>node(g,'rect',{...hit,x:left,y:Math.min(y(lo),y(hi)),width,height:Math.abs(y(lo)-y(hi)),fill:clr,'fill-opacity':'.16',stroke:clr,'stroke-width':selected?2:1});
     rect(entry,target,'#28d59d');rect(entry,stop,'#e36b7a');
     node(g,'line',{...hit,x1:left,x2:left+width,y1:y(entry),y2:y(entry),stroke:'#e4e9ef','stroke-width':1.8});
-    const cc=calcPosition(obj,live);label(g,(long?'做多 ':'做空 ')+(cc?'RR '+cc.rr.toFixed(2):'價格無效'),left+4,y(entry)-5,long?'#28d59d':'#ff7889');
+    const cc=calcPosition(obj,live);
+    const description=cc?`${long?'做多':'做空'} · RR ${cc.rr.toFixed(2)} · 進場 ${money(entry)} · 目標 ${money(target)} · 止損 ${money(stop)} · 風險1 ${money(obj.riskAmount1)} · 風險2 ${money(obj.riskAmount2)} · 名義1 ${money(cc.nominal1)} · 名義2 ${money(cc.nominal2)}`:'部位價格無效';
+    const tt=node(g,'title');tt.textContent=description;
+    label(g,(long?'做多 ':'做空 ')+(cc?'RR '+cc.rr.toFixed(2):'價格無效'),left+4,y(entry)-5,long?'#28d59d':'#ff7889');
+    for(const [field,value,tone] of [['target',target,'#28d59d'],['entry',entry,'#d7e6ef'],['stop',stop,'#f17b89']]){
+      const yy=y(value);if(yy<proj.T||yy>proj.plotB)continue;
+      const tag=node(g,'g',{'data-dw-id':id,'data-dw-price':field,class:'dw-price-tag',cursor:'pointer'});
+      node(tag,'rect',{x:proj.plotR+2,y:yy-9,width:Math.max(40,proj.W-proj.plotR-5),height:18,rx:3,fill:'#0b2434',stroke:tone,'stroke-opacity':'.85'});
+      label(tag,money(value),proj.plotR+7,yy+4,tone);
+    }
+    // Checkbox is part of EACH drawing, not a single global chart setting.
+    const cb=node(g,'g',{'data-dw-order-toggle':id,class:'dw-order-toggle',cursor:'pointer'});
+    node(cb,'rect',{x:left+2,y:y(entry)+6,width:50,height:19,fill:'transparent'});
+    node(cb,'rect',{x:left+4,y:y(entry)+8,width:12,height:12,rx:2,stroke:long?'#28d59d':'#f17b89',fill:obj.limitEnabled?'#228c78':'#142435'});
+    if(obj.limitEnabled)label(cb,'✓',left+5,y(entry)+18,'#fff');
+    label(cb,'掛單',left+19,y(entry)+18,'#dce8ef');
  }
  if(selected){
    const h=(x0,y0,attrs)=>node(g,'circle',{class:'dw-handle','data-dw-id':id,...attrs,cx:x0,cy:y0,r:5.2,stroke:'#fff','stroke-width':1.2,fill:c,cursor:'move'});
    if(obj.type==='rectangle'&&a.length===2){
      for(let ti=0;ti<2;ti++)for(let pi=0;pi<2;pi++)h(x(a[ti].time),y(a[pi].price),{'data-dw-corner':ti+':'+pi});
+     const xm=(x(a[0].time)+x(a[1].time))/2, ym=y(Math.sqrt(a[0].price*a[1].price));
+     for(let ti=0;ti<2;ti++)h(x(a[ti].time),ym,{'data-dw-side':'time:'+ti});
+     for(let pi=0;pi<2;pi++)h(xm,y(a[pi].price),{'data-dw-side':'price:'+pi});
    }else if(obj.type.endsWith('-position')){
      h(x(a[0].time),y(obj.limitEnabled?obj.entry:live),{'data-dw-pos':'entry'});
      h(x(a[1]?.time||a[0].time),y(obj.stop),{'data-dw-pos':'stop'});
@@ -114,31 +133,51 @@ function snap(proj,pos,ctrl){if(!proj||!pos)return null;const yy=clamp(pos.y,pro
  for(const key of ['o','h','l','c']){const dy=Math.abs(proj.y(r[key])-yy),d=dx*.4+dy;if(d<dist){dist=d;best={time:r.t,price:r[key]};}}}
  return best||{time:Math.round(t),price:proj.price(yy)};
 }
-function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,drag:null,livePrice:callbacks.livePrice};controllers.set(w,c);
+function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,drag:null,livePrice:callbacks.livePrice,ctrl:false};controllers.set(w,c);
  const target=w.plot;
+ const syncSnapUI=()=>{const snapOn=c.ctrl&&c.tool!=='select';w.el.classList.toggle('dw-magnet-on',snapOn);callbacks.setMagnet?.(snapOn);};
+ const controlKey=ev=>{if(ev.key!=='Control')return;c.ctrl=ev.type==='keydown';syncSnapUI();};
+ document.addEventListener('keydown',controlKey);document.addEventListener('keyup',controlKey);
+ const blur=()=>{c.ctrl=false;syncSnapUI();};window.addEventListener('blur',blur);
  target.addEventListener('pointerdown',ev=>{
-  const proj=target.__liqProjection;if(ev.button!==0||!proj||ev.target.closest?.('.rc-price-axis-hit')||ev.target.closest?.('.dw-toolbar'))return;
+  const proj=target.__liqProjection;if(ev.button!==0||!proj||ev.target.closest?.('.rc-price-axis-hit,.rc-selected-price-box')||ev.target.closest?.('.dw-toolbar'))return;
+  const toggle=ev.target.closest?.('[data-dw-order-toggle]');
+  if(toggle){const id=toggle.dataset.dwOrderToggle,obj=snapshot(w.symbol).drawings.find(d=>d.id===id);
+    if(obj?.type?.endsWith('-position')){
+      const entering=!obj.limitEnabled,price=entering?(c.livePrice()||obj.entry):obj.entry;
+      change(w.symbol,id,{limitEnabled:entering,entry:price});c.selected=id;callbacks.refreshHeader();render(w);
+    }ev.preventDefault();ev.stopPropagation();return;
+  }
   const hit=ev.target.closest?.('[data-dw-id]');const point=snap(proj,proj.fromEvent(ev),ev.ctrlKey);if(!point)return;
   if(hit&&hit.dataset.dwId!=='draft'&&c.tool==='select'){
     c.selected=hit.dataset.dwId;const object=snapshot(w.symbol).drawings.find(d=>d.id===c.selected);
-    c.drag={kind:'edit',id:ev.pointerId,start:point,object:object?JSON.parse(JSON.stringify(object)):null,idx:hit.dataset.dwAnchor==null?-1:Number(hit.dataset.dwAnchor),corner:hit.dataset.dwCorner||null,pos:hit.dataset.dwPos||null,moved:false};
+    c.drag={kind:'edit',id:ev.pointerId,start:point,object:object?JSON.parse(JSON.stringify(object)):null,idx:hit.dataset.dwAnchor==null?-1:Number(hit.dataset.dwAnchor),corner:hit.dataset.dwCorner||null,side:hit.dataset.dwSide||null,pos:hit.dataset.dwPos||null,moved:false};
     ev.preventDefault();ev.stopPropagation();try{target.setPointerCapture(ev.pointerId);}catch(_){};callbacks.refreshHeader();render(w);return;
   }
   if(c.tool!=='select'){
     if(!c.draft){let type=c.tool;if(type==='long'||type==='short')type=type+'-position';if(type==='fib')type='fibonacci';
-      c.draft={type,color:['green','red','yellow'].includes(c.tool)?c.tool:'yellow',anchors:[point]};
-      if(['green','red','yellow'].includes(c.tool))c.draft.type='rectangle';
-      if(type.endsWith('-position'))Object.assign(c.draft,{entry:point.price,stop:point.price*(type==='long-position'?.98:1.02),target:point.price*(type==='long-position'?1.04:.96),riskAmount1:1000,riskAmount2:100,limitEnabled:false});
+      const base={type,color:['green','red','yellow'].includes(c.tool)?c.tool:'yellow',anchors:[point]};
+      if(['green','red','yellow'].includes(c.tool))base.type='rectangle';
+      if(type.endsWith('-position')){
+        // First click immediately creates an executable long/short layout with valid risk and target.
+        const long=type==='long-position',limitEnabled=Boolean(callbacks.getDefaultLimit?.(long?'long':'short'));
+        const entry=limitEnabled?point.price:(good(Number(c.livePrice()))?Number(c.livePrice()):point.price);
+        const step=proj.interval==='1D'?86400000:14400000;
+        Object.assign(base,{entry,stop:entry*(long?.98:1.02),target:entry*(long?1.04:.96),riskAmount1:1000,riskAmount2:100,limitEnabled,
+          anchors:[{time:point.time,price:entry},{time:Math.round(point.time+step*12),price:entry*(long?.98:1.02)}]});
+        const obj=add(w.symbol,base);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();
+      }else c.draft=base;
     }else{
       const d=c.draft;d.anchors=[d.anchors[0],point];
-      if(d.type.endsWith('-position')){d.entry=d.anchors[0].price;d.stop=point.price;d.target=d.entry+(d.entry-d.stop)*(d.type==='long-position'?2:2);if(!(d.type==='long-position'?d.stop<d.entry:d.stop>d.entry))d.stop=d.entry*(d.type==='long-position'?.98:1.02);d.target=d.entry+(d.entry-d.stop)*2;}
       const obj=add(w.symbol,d);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();
     }
     ev.preventDefault();ev.stopPropagation();render(w);return;
   }
   c.selected=null;callbacks.refreshHeader();
   if(ev.target.closest?.('.rc-hit')){
-    c.drag={kind:'pan',id:ev.pointerId,startClientX:ev.clientX,startOffset:callbacks.getOffset(),stride:proj.stride};
+    c.drag={kind:'pan',id:ev.pointerId,startClientX:ev.clientX,startClientY:ev.clientY,startOffset:callbacks.getOffset(),
+      startPricePan:callbacks.getPricePan(),stride:proj.stride,ph:proj.ph,logSpan:proj.logSpan,moved:false};
+    target.classList.add('dw-pan-ready');
     try{target.setPointerCapture(ev.pointerId);}catch(_){}
   }
   render(w);
@@ -147,15 +186,23 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
    if(c.draft){const at=snap(proj,proj.fromEvent(ev),ev.ctrlKey);if(at){c.draft.anchors[1]=at;render(w);}return;}
    const drag=c.drag;if(!drag||drag.id!==ev.pointerId)return;
    if(drag.kind==='pan'){
-     const delta=Math.round((ev.clientX-drag.startClientX)/Math.max(2,drag.stride));
-     const next=clamp(drag.startOffset+delta,0,Math.max(0,proj.total-21));
-     callbacks.setOffset(next);if(callbacks.getTimeframe()==='4H'&&next>proj.total-proj.viewCount-15)callbacks.moreHistory();
+     const dx=ev.clientX-drag.startClientX,dy=ev.clientY-drag.startClientY;
+     if(Math.hypot(dx,dy)>4){drag.moved=true;target.classList.add('dw-is-panning');}
+     if(!drag.moved)return;
+     // Fixed slot width means no wheel-style density change during panning.
+     const delta=Math.round(dx/Math.max(2,drag.stride));
+     const next=clamp(drag.startOffset-delta,-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
+     callbacks.setOffset(next);
+     callbacks.setPricePan(drag.startPricePan+dy/Math.max(20,drag.ph)*drag.logSpan);
+     if(callbacks.getTimeframe()==='4H'&&next>proj.total-proj.viewCount-15)callbacks.moreHistory();
    }else if(drag.kind==='edit'&&drag.object){
      const at=snap(proj,proj.fromEvent(ev),ev.ctrlKey);if(!at)return;drag.moved=true;
      const original=drag.object,d={...original,anchors:original.anchors.map(a=>({...a}))};
      if(drag.corner){const [ti,pi]=drag.corner.split(':').map(Number);d.anchors[ti].time=at.time;d.anchors[pi].price=at.price;}
+     else if(drag.side){const [axis,index]=drag.side.split(':');if(axis==='time')d.anchors[Number(index)].time=at.time;
+        else d.anchors[Number(index)].price=at.price;}
      else if(drag.pos){
-       if(drag.pos==='entry'){d.entry=at.price;d.anchors[0].price=at.price;d.limitEnabled=true;}
+       if(drag.pos==='entry'&&d.limitEnabled){d.entry=at.price;d.anchors[0].price=at.price;}
        if(drag.pos==='stop'){d.stop=at.price;d.anchors[1].price=at.price;}
        if(drag.pos==='target'){d.target=at.price;}
      }
@@ -168,7 +215,14 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
      change(w.symbol,d.id,d);callbacks.refreshHeader();render(w);
    }
  });
- const end=ev=>{if(c.drag?.id!==ev.pointerId)return;c.drag=null;try{target.releasePointerCapture(ev.pointerId);}catch(_){};};
+ const end=ev=>{if(c.drag?.id!==ev.pointerId)return;
+    const drag=c.drag;c.drag=null;target.classList.remove('dw-pan-ready','dw-is-panning');
+    if(drag.kind==='pan'){
+      if(!drag.moved)window.LiqRadar4H?.selectHaAt?.(target,ev);
+      else callbacks.commitView?.();
+    }
+    try{target.releasePointerCapture(ev.pointerId);}catch(_){};
+  };
  target.addEventListener('pointerup',end);target.addEventListener('pointercancel',end);
  target.addEventListener('click',ev=>{if(c.tool!=='select'||ev.target.closest?.('.dw-hit,.dw-handle')){ev.stopImmediatePropagation();}},true);
  target.addEventListener('wheel',ev=>{const proj=target.__liqProjection;if(!proj)return;ev.preventDefault();
@@ -178,13 +232,14 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
    const x=proj.fromEvent(ev).x,relative=clamp((x-proj.L)/proj.pw,0,1);
    // Keep the candle below the cursor anchored while enlarging/compressing the view.
    const off=callbacks.getOffset()+Math.round((next-cur)*(1-relative));
-   callbacks.setView(next,Math.max(0,off));if(callbacks.getTimeframe()==='4H'&&next>proj.total-callbacks.getOffset()-10)callbacks.moreHistory();
+   callbacks.setView(next,clamp(off,-Math.floor(next*.5),Math.max(0,proj.total-21)));if(callbacks.getTimeframe()==='4H'&&next>proj.total-callbacks.getOffset()-10)callbacks.moreHistory();
  },{passive:false});
- c.setTool=tool=>{c.tool=tool;c.draft=null;render(w);};
+ c.setTool=tool=>{c.tool=tool;c.draft=null;syncSnapUI();render(w);};
  c.getSelected=()=>snapshot(w.symbol).drawings.find(x=>x.id===c.selected)||null;
  c.setSelected=id=>{c.selected=id;callbacks.refreshHeader();render(w);};
- c.cancel=()=>{c.tool='select';c.draft=null;callbacks.setTool('select');render(w);};
- c.reset=()=>{c.tool='select';c.draft=null;c.selected=null;};
+ c.cancel=()=>{c.tool='select';c.draft=null;callbacks.setTool('select');syncSnapUI();render(w);};
+ c.reset=()=>{c.tool='select';c.draft=null;c.selected=null;syncSnapUI();};
+ c.dispose=()=>{document.removeEventListener('keydown',controlKey);document.removeEventListener('keyup',controlKey);window.removeEventListener('blur',blur);};
  return c;
 }
 // Inputs are never hijacked by Delete / Ctrl; four independent windows have separate selections.

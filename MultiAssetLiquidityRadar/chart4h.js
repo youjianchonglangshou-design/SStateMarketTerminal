@@ -76,7 +76,7 @@
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
- function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,showBB=true,showHA=true}={}){
+ function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,showBB=true,showHA=true}={}){
    if(!target)return;
    const tf=timeframe==='1D'?'1D':'4H';
    const source=tf==='1D'?normalized(projectDaily(daily,bars,price,updatedAt)):normalized(bars);
@@ -87,13 +87,16 @@
      complete=source.map((r,i)=>({...r,ha:ha.get(dayOf(r.t)),bb:bb[i]}));
    }else complete=series(bars,daily,price,updatedAt);
    const n=clamp(Math.round(Number(viewCount)||84),21,tf==='1D'?90:270);
-   const offset=clamp(Math.round(Number(viewOffset)||0),0,Math.max(0,complete.length-21));
-   const end=Math.max(21,complete.length-offset),begin=Math.max(0,end-n);
+   // Negative offset represents empty FUTURE space to the right of the latest candle.
+   // Keep the slot width fixed at viewCount even at a history/future boundary.
+   const offset=clamp(Math.round(Number(viewOffset)||0),-Math.floor(n*.5),Math.max(0,complete.length-21));
+   const future=Math.max(0,-offset);
+   const end=Math.min(complete.length,Math.max(21,complete.length-offset)),begin=Math.max(0,end-n);
    const rows=complete.slice(begin,end);
    if(rows.length<21){target.innerHTML='<div class="radar-chart-wait">4H K 線歷史不足</div>';return;}
    const W=Math.max(320,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));
    const L=16,R=Math.min(146,Math.max(112,Math.round(W*.31))),T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
-   const stride=pw/(rows.length+BLANK_CANDLES),x=i=>L+(i+.5)*stride;
+   const stride=pw/(n+BLANK_CANDLES),x=i=>L+(i+.5-future)*stride;
    const vals=[];
    for(const r of rows){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);}
    for(const v of [price,upper,lower])if(valid(v))vals.push(v);
@@ -104,7 +107,9 @@
    const spanVisible=range*1.17/scale;
    const anchorLog=Math.log(valid(price)?price:rows.at(-1).c);
    const frac=clamp((autoHi-anchorLog)/(autoHi-autoLo||1),0,1);
-   const hi=anchorLog+frac*spanVisible,lo=hi-spanVisible;
+   // pricePan is the persistent additive log-price translation of the viewport.
+   const pan=Number.isFinite(Number(pricePan))?Number(pricePan):0;
+   const hi=anchorLog+frac*spanVisible+pan,lo=hi-spanVisible;
    const y=value=>valid(value)?T+(hi-Math.log(value))/(hi-lo)*ph:NaN;
    const priceAtY=yy=>Math.exp(hi-(yy-T)/ph*(hi-lo));
    const clipId='rc-plot-clip-'+(target.dataset.chartPlot||target.id||'single').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(target.dataset.clipNonce|| (target.dataset.clipNonce=String(++clipIndex)));
@@ -230,12 +235,12 @@
      const a=rows[idx-1],b=rows[idx];return x(idx-1)+(t-a.t)/(b.t-a.t||1)*stride;
    };
    const timeAtX=xx=>{
-     const index=(xx-L)/stride-.5,low=Math.floor(index),fraction=index-low;
+     const index=(xx-L)/stride-.5+future,low=Math.floor(index),fraction=index-low;
      if(low<0)return rows[0].t+index*(tf==='1D'?DAY:H4);
      if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*(tf==='1D'?DAY:H4);
      return rows[low].t+fraction*(rows[low+1].t-rows[low].t);
    };
-   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:begin,stride,
+   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:begin,stride,logSpan:hi-lo,pricePan:pan,future,
      x:xAtTime,time:timeAtX,y,price:priceAtY,money,
      fromEvent(ev){const rect=target.getBoundingClientRect();return {x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H};}
    };
@@ -336,7 +341,7 @@
    // target key so selecting another chart does not erase this chart's selection.
    state.resetOHLC=()=>showOHLC(latestBar);
    function paintSelected(){
-     const i=rows.findIndex(r=>r.t===state.selectedTimestamp),r=rows[i];
+     const i=rows.findIndex(r=>dayOf(r.t)===dayOf(state.selectedTimestamp)),r=rows[i];
      if(!showHA||i<0||!r?.ha||r.ha.color==='gray'||y(r.ha.price)<T||y(r.ha.price)>plotB){
        selected.setAttribute('visibility','hidden');return;
      }
@@ -353,11 +358,20 @@
      const label=selected.querySelector('.rc-selected-price');label.setAttribute('y',ytag+13);
      label.textContent=money(r.ha.price);
    }
+   // Host pointer capture can retarget the synthetic click to the outer DIV.
+   // Explicit selection on pointerup guarantees HA selection survives pan machinery.
+   state.selectAt=ev=>{
+     if(!showHA)return false;
+     const pos=locate(ev);if(!pos||!pos.r?.ha||pos.r.ha.color==='gray')return false;
+     if(Math.abs(pos.yy-y(pos.r.ha.price))>12)return false;
+     const day=dayOf(pos.r.t);state.selectedTimestamp=day;
+     paintSelected();state.selectionChange?.(day);return true;
+   };
    function locate(ev){
      const rect=element.getBoundingClientRect();if(!rect.width||!rect.height)return null;
      const xx=(ev.clientX-rect.left)/rect.width*W,yy=(ev.clientY-rect.top)/rect.height*H;
-     const i=Math.floor((xx-L)/stride);
-     if(i<0||i>=rows.length+BLANK_CANDLES||yy<T||yy>plotB)return null;
+     const i=Math.floor((xx-L)/stride+future);
+     if(i<0||i>=rows.length+future+BLANK_CANDLES||yy<T||yy>plotB)return null;
      // Empty future slots have a crosshair price, but no historical OHLC candle.
      const r=rows[i]||null;
      return {i,xx,yy,r,time:r?.t??latestBar.t+(i-rows.length+1)*(tf==='1D'?DAY:H4)};
@@ -390,9 +404,8 @@
    hit.addEventListener('click',ev=>{
      const pos=locate(ev);if(!pos)return;
      state.inside=true;
-     const {r,yy}=pos,h=r?.ha;
-     // Blank click NEVER dismisses a pinned HA price. Only a new stair reselects it.
-     if(h&&h.color!=='gray'&&Math.abs(yy-y(h.price))<=12){state.selectedTimestamp=r.t;paintSelected();state.selectionChange?.(r.t);}
+     // Blank clicks never dismiss a pinned HA level.
+     state.selectAt?.(ev);
    });
    selected.querySelector('.rc-selected-price-box').addEventListener('click',ev=>{
      ev.preventDefault();ev.stopPropagation();state.selectedTimestamp=null;paintSelected();state.selectionChange?.(null);
@@ -403,5 +416,6 @@
    paintSelected();
  }
  function clearSelection(target){const state=interactions.get(target);if(state){state.selectedTimestamp=null;state.selectionChange?.(null);}target?.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');}
- root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection};
+ root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection,
+  selectHaAt(target,ev){return Boolean(interactions.get(target)?.selectAt?.(ev));}};
 })(window);

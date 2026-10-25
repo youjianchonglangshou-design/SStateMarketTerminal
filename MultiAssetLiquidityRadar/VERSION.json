@@ -1,21 +1,23 @@
 {
-  "version": "1.8.3",
-  "releaseDate": "2026-10-24",
-  "baseVersion": "1.8.2",
+  "version": "1.8.4",
+  "releaseDate": "2026-10-25",
+  "baseVersion": "1.8.3",
   "changes": [
-    "Remove the native browser confirmation prompt from the free-PERP watchlist Manage > Remove action.",
-    "Clicking Remove immediately removes only that symbol from the custom list and updates the Manage dialog, counter, and stored state.",
-    "Leave existing Telegram price alerts untouched; preserve chart closing for removed symbols and all existing radar and chart functionality."
+    "Three watchlists (21 crypto / 12 stock and commodities / up to 8 custom PERP): add static green/red LEDs directly after each symbol when 7D price-distance RR >= 1.70.",
+    "Use existing fresh live price and 7D upper/lower liquidations; no extra polling, no R2 writes, no min percent profitability filter.",
+    "RR threshold user-editable in MultiAssetLiquidityRadar/rr-config.js: THRESHOLD: 1.70. Invalid or stale data hides LEDs."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/TEST_REPORT_v1.8.3.txt"
+    "MultiAssetLiquidityRadar/rr-config.js",
+    "MultiAssetLiquidityRadar/rr-scanner.js"
   ],
   "notes": [
-    "This update does not modify Telegram alert service, Workers, or other modules.",
-    "Local browser test required before deployment."
+    "Browser-local static UI, no worker changes.",
+    "See TEST_REPORT_v1.8.4.txt for browser and arithmetic checks."
   ]
 }

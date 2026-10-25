@@ -21,6 +21,30 @@
  const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],jobSet:new Set(),networkLog:[],renderAt:0};
  const currentRows=()=>records;
  const sourceName=r=>r.source==='coinglass'?'CoinGlass 7D（1週）':r.source==='proxy'?'15M 代理估算':'等待上下界';
+ // RR reads the exact shared quote and liquidation bounds already used by charts.
+ // Invalid/stale values MUST clear the LED instead of retaining yesterday's signal.
+ function rrSnapshot(r,now=Date.now()){
+   const price=livePrice(r);
+   const sourceFresh=r.source==='coinglass'
+     ? state.cgAt>0&&now-state.cgAt<180000
+     :r.source==='proxy'&&r.barsAt>0&&now-r.barsAt<600000;
+   if(!sourceFresh)return null;
+   return {price,upper:r.up,lower:r.down,source:r.source,updatedAt:Math.max(r.priceAt,r.source==='coinglass'?state.cgAt:r.barsAt)};
+ }
+ function refreshRRLed(r){
+   const led=r.dom?.rrLed,scanner=window.LIQ_RR_SCANNER;
+   if(!led)return;
+   const result=scanner?.evaluate(rrSnapshot(r));
+   led.hidden=true;led.className='liq-rr-led';led.removeAttribute('title');led.removeAttribute('aria-label');
+   if(!result||result.direction==='none')return;
+   const long=result.direction==='long',ratio=long?result.longRR:result.shortRR;
+   const label=(long?'做多':'做空')+' 理論賺賠比 '+ratio.toFixed(2)+':1';
+   led.classList.add(long?'rr-long':'rr-short');
+   led.title=label+'｜門檻 '+result.threshold.toFixed(2)+':1\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+(result.source==='coinglass'?'CoinGlass 7D':'代理估算')+'\n計算時間 '+tpe(Date.now());
+   led.setAttribute('aria-label',label);
+   led.hidden=false;
+ }
+
  // Ring-style bounded diagnostics: at most 32 entries. Avoid writing large text nodes
  // every 10 seconds when the panel is closed; entries are never persisted to storage.
  const LOG_CAP=32;
@@ -231,7 +255,7 @@
  function makeRow(r){
    // Indicator nodes are mounted into the fixed sector panel; no 33-chart DOM tree.
    r.dom={
-     tr:null, name:el('span','liq-nav-symbol',r.id),
+     tr:null, name:el('span','liq-nav-symbol',r.id), rrLed:el('span','liq-rr-led'),
      px:el('span','liq-nav-quote','—'), sf:el('span'),
      sBadge:el('span','state-badge unknown','--'),sSub:el('span','state-sub','等待日線'),
      midLabel:el('span','mid-label unknown','--'),midSub:el('span','mid-sub','等待日線'),
@@ -263,6 +287,7 @@
  }
  function renderRow(r){if(!r.dom)return;const d=r.dom;
    d.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');
+   refreshRRLed(r);
    d.sf.textContent='4H OHLC '+(r.h4Feed?'· '+r.h4Feed:'· 等待 K 線');
    window.LIQ_WORKSPACE?.refreshSymbol(r.id);
    const sv=r.sstate||null,mid=r.midline;
@@ -378,7 +403,8 @@
        btn.title='檢視 '+r.id+' 的 4H K 線圖';btn.setAttribute('aria-label','切換至 '+r.id+' 的圖表');
        const values=el('span','liq-nav-values'),change=el('span','liq-nav-change','—');
        values.append(r.dom.px,change);
-       const main=el('span','liq-nav-main');main.append(r.dom.name,values);btn.append(main);
+       const symbolGroup=el('span','liq-nav-symbol-group');r.dom.rrLed.hidden=true;symbolGroup.append(r.dom.name,r.dom.rrLed);
+       const main=el('span','liq-nav-main');main.append(symbolGroup,values);btn.append(main);
        btn.addEventListener('click',()=>jumpToSymbol(r));
        const metrics=el('span','liq-nav-indicators');
        const s=el('span','metric metric-s'),m=el('span','metric metric-mid'),h=el('span','metric metric-ha'),c=el('span','metric metric-cci');
@@ -530,6 +556,7 @@
      const item=navButtons.get(r.id);if(!item)continue;
      const price=livePrice(r),open=navDayOpen(r,now);
      item.quote.textContent=priceEnough(price)?MONEY(price):'—';
+     refreshRRLed(r);
      item.btn.classList.remove('is-up','is-down','is-flat');
      if(!priceEnough(price)||!priceEnough(open)){
        item.change.textContent='—';
@@ -644,7 +671,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.8.3',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.8.4',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

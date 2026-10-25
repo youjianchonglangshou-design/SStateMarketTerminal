@@ -875,3 +875,11 @@ body.radar-workspace{font-size:12px;background:#061523}
 }
 .radar-workspace #diagHolder[hidden],.radar-workspace #liq-alert-modal[hidden]{display:none!important;}
 @media(max-width:700px){.radar-workspace #diagHolder{left:8px;right:8px;}}
+
+/* v1.8.4 — tiny RR LED immediately to the right of symbol; no new columns. */
+.radar-workspace .liq-nav-symbol-group{display:inline-flex;align-items:center;gap:3px;min-width:0;flex:0 1 auto;white-space:nowrap}
+.radar-workspace .liq-nav-symbol-group .liq-nav-symbol{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.radar-workspace .liq-nav-main .liq-rr-led{display:inline-block;flex:0 0 8px;width:8px;height:8px;border-radius:50%;box-sizing:border-box;border:1px solid rgba(255,255,255,.22);pointer-events:auto;cursor:help;animation:none!important}
+.radar-workspace .liq-nav-main .liq-rr-led[hidden]{display:none!important}
+.radar-workspace .liq-nav-main .liq-rr-led.rr-long{background:#16D99A;box-shadow:0 0 4px rgba(22,217,154,.62)}
+.radar-workspace .liq-nav-main .liq-rr-led.rr-short{background:#FF5364;box-shadow:0 0 4px rgba(255,83,100,.62)}

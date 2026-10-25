@@ -5,5 +5,5 @@
  * No percent-return minimum, CCI, S state or midline filters.
  */
 window.LIQ_RR_CONFIG=Object.freeze({
-  THRESHOLD: 1.50 // ← 共用門檻，只需修改這個數字
+  THRESHOLD: 1.20 // ← 共用門檻，只需修改這個數字
 });

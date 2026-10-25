@@ -1,22 +1,24 @@
 {
-  "version": "1.8.5",
+  "version": "1.9.0",
   "releaseDate": "2026-10-25",
-  "baseVersion": "1.8.4",
+  "baseVersion": "1.8.5",
   "changes": [
-    "Real-time RR threshold is 1.50: green only when long RR >= 1.50 AND current 1D HA is yellow; red only when short RR >= 1.50 AND current 1D HA is purple.",
-    "If HA is opposite, missing, or from a stale day, leave LED off. Same live P, 7D U/L and daily HA as existing chart/watchlist; no percent minimum or new data requests.",
-    "Threshold remains user-adjustable exclusively in MultiAssetLiquidityRadar/rr-config.js (THRESHOLD: 1.50)."
+    "Startup queues current active 4H windows and all daily 1D before nonessential 4H prefetch; preserve 10-second live indicator calculations.",
+    "Only queue 15M historical bars for a symbol after initial CoinGlass and quote probes show missing/invalid/stale 7D bounds.",
+    "IndexedDB retains confirmed historical OHLC and fetches a short tail with overlap validation; stored provider preferences reduce initialization fallback delays.",
+    "Startup meter shows valid current daily HA/CCI/S state/midline and READY/PARTIAL, rather than mere job attempts."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/rr-config.js",
-    "MultiAssetLiquidityRadar/rr-scanner.js",
     "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/startup-cache.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "notes": [
-    "Static LEDs computed at each existing quote/bounds refresh; no persistence or Worker updates.",
-    "Full browser + arithmetic verification details: TEST_REPORT_v1.8.5.txt."
+    "Existing rr-config.js is preserved unchanged from the uploaded project (user-set THRESHOLD: 1.20).",
+    "Existing live 10s prices, 60s liquidation updates, daily recalculation, Signal Spotlight, and RR formula/gates are unchanged.",
+    "Cached short-tail/provider preference are startup-only; live maintenance continues original full OHLC provider behavior.",
+    "No Cloudflare/R2 deployments required."
   ]
 }

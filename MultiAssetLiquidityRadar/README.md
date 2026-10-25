@@ -269,3 +269,12 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 - Price bell opens the original Telegram ABOVE/BELOW target-setting modal on fixed and custom PERP watchlists.
 - Alert modal and diagnostics panel sit **above all four floating charts**.
 - No changes to Telegram Worker endpoints, 37-rule Spotlight engine, chart price-scale/HA behavior or market refresh schedule.
+
+
+### v1.9.0 — Startup priority + IndexedDB history
+- Initial 1D history queues before nonessential 4H; up to four restored/active 4H windows are prioritized.
+- 15M fetches occur only for individual symbols with invalid/missing CoinGlass 7D after first 7D and quote fetches have settled.
+- Immutable closed OHLC caches in IndexedDB; upon revisit a short tail is fetched and overlap checked, with full refresh on mismatch.
+- Source success preference is stored locally while retaining all fallbacks.
+- Startup progress counts usable current-day daily HA, CCI, S state and midline.
+- Live quote cadence, repeated derived indicator calculations, 37-signal spotlight, and the uploaded RR threshold setting (1.20) + HA gating remain unchanged.

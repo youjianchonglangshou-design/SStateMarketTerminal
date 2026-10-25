@@ -1,4 +1,4 @@
-/* Multi-Asset Liquidity Radar v1.8.0 — fixed full-market panels and up to four draggable/resizable charts.
+/* Multi-Asset Liquidity Radar v1.9.0 — fixed full-market panels and up to four draggable/resizable charts.
  * Uses original source's existing Pionex, CoinGlass, BTC-model algorithms.
  * 4H OHLC, daily BB(20,2) / HA staircase / SState / CCI-SMA, 7D liquidation.
  */
@@ -18,7 +18,7 @@
  function canonical(s){const over=providerOverrides[String(s.id).toUpperCase()];return over?{...s,...over,cg:[...new Set([...over.cg,...(s.cg||[])])]}:{...s};}
  const entries=Array.isArray(window.LIQ_SYMBOLS)?window.LIQ_SYMBOLS.map(canonical):[];
  const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceFeed:'',bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
- const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],jobSet:new Set(),networkLog:[],renderAt:0};
+ const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],activeJobs:[],jobSet:new Set(),jobSeq:0,batchEnqueue:false,startupActive:false,cgInitialDone:false,priceInitialDone:false,networkLog:[],renderAt:0};
  const currentRows=()=>records;
  const sourceName=r=>r.source==='coinglass'?'CoinGlass 7D（1週）':r.source==='proxy'?'15M 代理估算':'等待上下界';
  // RR reads the exact shared quote and liquidation bounds already used by charts.
@@ -96,7 +96,7 @@
     return {bars,feed:'Pionex 官方 REST '+interval};
   }
   async function binanceBars(s,interval,count){const symbol=s.id+'USDT',tf=interval==='15M'?'15m':interval==='4H'?'4h':'1d';let last='';for(const base of ['https://fapi.binance.com/fapi/v1/klines','https://data-api.binance.vision/api/v3/klines']){
-    try{const u=new URL(base);u.searchParams.set('symbol',symbol);u.searchParams.set('interval',tf);u.searchParams.set('limit',String(Math.min(800,count)));const arr=await json(u.toString(),{},9000);const bars=normalize(arr.map(r=>({t:+r[0],o:+r[1],h:+r[2],l:+r[3],c:+r[4],v:+r[5]})));if(bars.length<35)throw Error('根數不足');return {bars,feed:base.includes('fapi')?'Binance PERP 歷史備援':'Binance SPOT 歷史備援'};}catch(e){last=e.message;}}
+    try{const u=new URL(base);u.searchParams.set('symbol',symbol);u.searchParams.set('interval',tf);u.searchParams.set('limit',String(Math.min(800,count)));const arr=await json(u.toString(),{},9000);const bars=normalize(arr.map(r=>({t:+r[0],o:+r[1],h:+r[2],l:+r[3],c:+r[4],v:+r[5]})));if(bars.length<Math.min(35,Math.max(2,count-3)))throw Error('根數不足');return {bars,feed:base.includes('fapi')?'Binance PERP 歷史備援':'Binance SPOT 歷史備援'};}catch(e){last=e.message;}}
     throw Error(last||'Binance K線失敗');}
   async function loadHistory(s,interval,count){
     const issues=[];
@@ -110,7 +110,13 @@
       : s.group==='stock'
         ? [['Pionex 官方',()=>pionexDirectBars(s,interval,count)],['SState Worker',()=>restBars(s,interval,count)],['TradingView',byTv]]
         : [['TradingView',byTv],['SState Worker',()=>restBars(s,interval,count)],['Pionex 官方',()=>pionexDirectBars(s,interval,count)]];
-    for(const [name,fn] of sources){try{return await fn();}catch(e){issues.push(name+': '+(e?.message||e));}}
+    // Startup provider preference only changes retry ORDER; every original fallback remains.
+    const preferred=state.startupActive&&!startupComplete?window.LiqHistoryCache?.preferred(s.pionex,interval):null;
+    if(preferred){const i=sources.findIndex(([name])=>name===preferred);if(i>0)sources.unshift(sources.splice(i,1)[0]);}
+    for(const [name,fn] of sources){try{
+      const result=await fn();window.LiqHistoryCache?.remember(s.pionex,interval,name);
+      return {...result,provider:name};
+    }catch(e){issues.push(name+': '+(e?.message||e));}}
     if(s.group==='crypto')try{return await binanceBars(s,interval,count);}catch(e){issues.push('Binance: '+(e?.message||e));}
     throw Error(interval+' 無法取得：'+issues.join(' / '));
   }
@@ -222,6 +228,8 @@
    if(cg&&(!priceEnough(p)||(cg.upper>p&&cg.lower<p))){r.up=cg.upper;r.down=cg.lower;r.source='coinglass';r.errors.cg='';}
    else if(r.zones.upper.length&&r.zones.lower.length){r.up=r.zones.upper[0].price;r.down=r.zones.lower[0].price;r.source='proxy';r.errors.cg=!fresh?(state.cgError||'CoinGlass 更新失敗'):!cg?'CoinGlass 無此標的':'CoinGlass 價格不包住現價';}
    else{r.up=null;r.down=null;r.source='none';r.errors.cg=!fresh?(state.cgError||'CoinGlass 尚未取得'):cg?'CoinGlass 上下界不適用當前價格':'CoinGlass 無此標的／代理資料不足';}
+   // 15M proxy requests are NOT scheduled here: startup must await the first
+   // CoinGlass and live-price responses before deciding per-symbol fallback.
    // Reuse the same projected daily candles for Signal Spotlight; no duplicate API calls.
    window.SignalSpotlight?.queueRecord?.(r,days);
    // Probability model is not calculated in the redesigned chart view.
@@ -283,6 +291,8 @@
  function updateActiveSelection(id){
    if(!records.some(r=>r.id===id))return;
    state.selected=id;setNavActive(id);
+   const selected=records.find(r=>r.id===id);
+   if(selected&&!selected.bars4h?.length)enqueue(selected,'h4',false,-15);
    try{localStorage.setItem('liq-v140-active-symbol',id);}catch(_){}
  }
  function renderRow(r){if(!r.dom)return;const d=r.dom;
@@ -465,7 +475,8 @@
    if(records.some(x=>x.id===base)){$('customSymbolHint').textContent=base+' 已在監控清單內';return false;}
    const rec=makeCustomRecord(base);if(!rec)return false;
    setupSideNav(['custom']);renderRow(rec);updateCustomPanel();customSave();renderOverview();
-   for(const kind of ['h4','day','bar'])enqueue(rec,kind);
+   enqueue(rec,'day',false,0);
+   enqueue(rec,'h4',false,5); // A newly added symbol is an intentional chart candidate.
    fetchPrices();
    document.dispatchEvent(new CustomEvent('liq-radar-custom-updated'));
    window.LIQ_ALERT_TEST?.refreshBells?.();
@@ -579,32 +590,45 @@
    reorderSideNavByMarks();
  }
  let terminalBootFinished=false;
+ // Startup progress counts VALID current-day daily indicators, never attempted requests.
+ let startupComplete=false, startupBackgroundQueued=false;
+ function dailyReady(r){
+   if(!r.dailyAt||r.daily.length<40)return false;
+   const days=dailyAsOf(r),today=Math.floor(Date.now()/DAY)*DAY;
+   const currentOpenVerified=r.daily.some(b=>b.t===today)||r.bars4h.some(b=>b.t===today);
+   return currentOpenVerified&&days.at(-1)?.t===today&&r.ha?.t===today&&!!r.cci&&!!r.sstate&&!!r.midline;
+ }
  function updateTerminalProgress(){
    const total=records.length;
-   const maximum=Math.max(1,total*3);
-   const attempts=records.reduce((n,r)=>n+['h4','day','bar'].filter(k=>r.lastAttempt?.[k]).length,0);
-   const complete=records.reduce((n,r)=>n+((r.bars4h?.length>=21)?1:0)+((r.daily?.length>=34)?1:0)+((r.bars15?.length>=2)?1:0),0);
-   const pct=Math.min(100,Math.round(attempts/maximum*100));
+   const ready=records.filter(dailyReady).length;
+   const attempted=records.filter(r=>r.lastAttempt?.day).length;
+   const active=activeChartIds().length;
+   const activeLoaded=activeChartIds().filter(id=>records.find(r=>r.id===id)?.bars4h.length>=21).length;
+   const cgWaiting=!(state.cgInitialDone&&state.priceInitialDone);
+   const importantQueued=state.queue.some(j=>j.kind==='day'||j.kind==='bar'||(j.kind==='h4'&&j.priority<=0));
+   const importantRunning=state.activeJobs.some(j=>j.kind==='day'||j.kind==='bar'||(j.kind==='h4'&&j.priority<=0));
+   const finished=state.startupActive&&!cgWaiting&&attempted===total&&!importantQueued&&!importantRunning;
    const meter=$('terminalProgressFill'),msg=$('terminalProgressText'),detail=$('terminalDetail');
-   const container=$('terminalStatus');
-   if(!meter||!msg||!detail||!container)return;
-   if(total>0&&attempts>=maximum&&state.loadingJobs===0&&state.queue.length===0)terminalBootFinished=true;
-   const fetchDone=terminalBootFinished;
-   container.classList.toggle('is-ready',fetchDone);
-   meter.parentElement.hidden=fetchDone;
-   if(fetchDone){
-     const doubleYellow=records.filter(r=>r.ha?.color==='黃'&&r.cci?.color==='黃').length;
-     const doublePurple=records.filter(r=>r.ha?.color==='紫'&&r.cci?.color==='紫').length;
-     msg.textContent=complete===maximum?'READY｜行情載入完成':'SYNC｜歷史同步結束';
-     detail.textContent=`監控 ${total} 檔 · 雙黃 ${doubleYellow} · 雙紫 ${doublePurple} · K線 ${complete}/${maximum}`;
+   const container=$('terminalStatus');if(!meter||!msg||!detail||!container)return;
+   if(finished)startupComplete=true;
+   container.classList.toggle('is-ready',startupComplete);
+   meter.parentElement.hidden=startupComplete;
+   const boundCount=records.filter(r=>{const p=livePrice(r);return priceEnough(p)&&r.down<p&&r.up>p&&
+     (r.source==='coinglass'&&state.cgAt>0&&Date.now()-state.cgAt<180000||
+       r.source==='proxy'&&r.barsAt>0&&Date.now()-r.barsAt<600000);}).length;
+   const good=ready===total&&boundCount===total;
+   const pct=total?Math.round(ready/total*100):0;
+   if(startupComplete){
+     const yellow=records.filter(r=>r.ha?.color==='黃'&&r.cci?.color==='黃').length;
+     const purple=records.filter(r=>r.ha?.color==='紫'&&r.cci?.color==='紫').length;
+     msg.textContent=good?'READY｜必要監控資料就緒':'PARTIAL｜部分日線資料不足';
+     detail.textContent=`日線 ${ready}/${total} · 上下界 ${boundCount}/${total} · 圖表 ${activeLoaded}/${active} · 雙黃 ${yellow} · 雙紫 ${purple}`;
    }else{
-     meter.style.width=pct+'%';
-     meter.parentElement.setAttribute('aria-valuenow',String(pct));
-     msg.textContent=`BOOT｜歷史資料載入 ${pct}%`;
-     detail.textContent=`批次 ${attempts}/${maximum} · 成功 ${complete} 組`;
+     meter.style.width=pct+'%';meter.parentElement.setAttribute('aria-valuenow',String(pct));
+     msg.textContent=`BOOT｜日線指標 ${pct}%`;
+     detail.textContent=`有效日線 ${ready}/${total} · 已嘗試 ${attempted}/${total} · 圖表 ${activeLoaded}/${active}`;
    }
  }
-
  function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,proxy=records.filter(r=>r.source==='proxy').length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
    $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
    updateNavPrices();
@@ -616,7 +640,8 @@
  async function fetchCG(force=false){if(state.cgBusy)return state.cgBusy;if(!force&&state.cgAt&&Date.now()-state.cgAt<50000)return;const task=(async()=>{
    try{if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('CoinGlass 解碼器尚未載入');const raw=await window.CoinGlassReader.fetchCoinGlass('7d');const decoded=extractCG(raw.data);if(!decoded.size)throw Error('已解密但沒有可辨識上下界');state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=String(raw.version||'?');state.cgError='';log(`CoinGlass 7D V${state.cgVersion} 成功 ${decoded.size} 個標的`);}
    catch(e){state.cgError=String(e?.message||e);log('CoinGlass: '+state.cgError);if(Date.now()-state.cgAt>180000){state.cgAt=0;state.cgRecords=new Map();}}
-   finally{records.forEach(updateDerived);renderAll();state.cgBusy=null;}
+   finally{records.forEach(updateDerived);renderAll();state.cgBusy=null;
+     state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();}
  })();state.cgBusy=task;return task;
  }
  async function fetchPrices(){if(state.priceBusy)return state.priceBusy;const task=(async()=>{
@@ -630,17 +655,134 @@
    if(found.size<records.length){try{const j=await json(WORKER+'/api/monitor/tickers?type=PERP',{},11000);const byP=new Map((j.tickers||[]).map(x=>[String(x.symbol).toUpperCase(),Number(x.price)]));for(const r of records){if(found.has(r.id))continue;const p=byP.get(r.s.pionex.toUpperCase());if(priceEnough(p)){r.price=p;r.priceAt=Date.now();r.priceFeed='Pionex Worker';r.liveOHLC=null;found.add(r.id);}}}catch(e){log('Pionex Worker ticker: '+e.message);}}
    // Do not label old quotes as current; bar last-close is used only for proxies, not as live price.
    records.forEach(updateDerived);state.priceAt=Date.now();renderAll();log('現價成功 '+found.size+'/'+records.length);
+   state.priceInitialDone=true;queueMissingProxies();updateTerminalProgress();
  })();state.priceBusy=task;try{return await task;}finally{state.priceBusy=null;}
  }
  const MAX_WORKERS=3,TTLS={bar:4*60_000,h4:4*60_000,day:12*60_000};
- function enqueue(r,kind,force=false){const key=r.id+':'+kind,attempt=r.lastAttempt[kind]||0,have=kind==='bar'?r.bars15.length:kind==='h4'?r.bars4h.length:r.daily.length,ttl=TTLS[kind];if(state.jobSet.has(key)||(!force&&have>=2&&Date.now()-attempt<ttl)||(!force&&Date.now()-attempt<ttl&&attempt>0))return;
-   state.jobSet.add(key);state.queue.push({r,kind,key});pump();}
- async function pump(){while(state.loadingJobs<MAX_WORKERS&&state.queue.length){const job=state.queue.shift();state.loadingJobs++;job.r.lastAttempt[job.kind]=Date.now();void(async()=>{try{
-     const {r,kind}=job;const interval=kind==='bar'?'15M':kind==='h4'?'4H':'1D';const count=kind==='bar'?530:kind==='h4'?130:95;const received=await loadHistory(r.s,interval,count);
-     if(kind==='bar'){r.bars15=received.bars;r.barsAt=Date.now();r.errors.bar='';}else if(kind==='h4'){r.bars4h=received.bars;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';}else{r.daily=received.bars;r.dailyAt=Date.now();r.errors.day='';}
-     if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);updateDerived(r);renderRow(r);reorder();renderOverview();
-   }catch(e){job.r.errors[job.kind]=String(e?.message||e);log(`${job.r.id} ${job.kind==='bar'?'15M':job.kind==='h4'?'4H':'1D'}: ${e?.message||e}`);renderRow(job.r);}finally{state.loadingJobs--;state.jobSet.delete(job.key);updateTerminalProgress();pump();}})();}}
- function queueAll(force=false){for(const r of records)enqueue(r,'h4',force);for(const r of records)enqueue(r,'day',force);for(const r of records)enqueue(r,'bar',force);updateTerminalProgress();}
+ // Chart preferences are restored without constructing or painting every chart.
+ function activeChartIds(){
+   let stored=null;
+   try{stored=JSON.parse(localStorage.getItem('SStateLiquidityRadar.workspace.v1.5')||'null');}catch(_){/* first load */}
+   if(stored&&Array.isArray(stored.windows)){
+     return [...new Set(stored.windows.filter(w=>w&&!w.minimized).slice(0,4).map(w=>w.symbol))]
+       .filter(id=>records.some(r=>r.id===id));
+   }
+   // Legacy first boot creates the BTC/last-selected window.
+   return state.selected?[state.selected]:[];
+ }
+ function validCG(r){
+   const price=livePrice(r);
+   if(!priceEnough(price)||!(state.cgAt>0&&Date.now()-state.cgAt<180000))return false;
+   const cg=resolveCG(r.s,state.cgRecords);
+   return !!cg&&cg.upper>price&&cg.lower<price;
+ }
+ function queueMissingProxies(){
+   if(!state.cgInitialDone||!state.priceInitialDone)return;
+   for(const r of records){
+     if(validCG(r)){
+       // A recovered CoinGlass symbol should not continue queued 15m jobs.
+       state.queue=state.queue.filter(j=>!(j.r===r&&j.kind==='bar'));
+       state.jobSet.delete(r.id+':bar');
+       continue;
+     }
+     if(!priceEnough(livePrice(r)))continue; // price is required for a meaningful proxy
+     if(r.bars15.length&&Date.now()-r.barsAt<TTLS.bar)continue;
+     enqueue(r,'bar',false,2);
+   }
+ }
+ function enqueue(r,kind,force=false,priority=8){
+   if(!r||!records.includes(r))return;
+   const key=r.id+':'+kind,attempt=r.lastAttempt[kind]||0;
+   const have=kind==='bar'?r.bars15.length:kind==='h4'?r.bars4h.length:r.daily.length;
+   if(state.jobSet.has(key)){
+     const queued=state.queue.find(j=>j.key===key);
+     if(queued&&priority<queued.priority){queued.priority=priority;state.queue.sort((a,b)=>a.priority-b.priority||a.seq-b.seq);}
+     return;
+   }
+   if(!force&&attempt&&Date.now()-attempt<TTLS[kind])return;
+   // Existing 15m is only reloaded when a live CoinGlass fallback is necessary.
+   if(kind==='bar'&&validCG(r))return;
+   state.jobSet.add(key);state.queue.push({r,kind,key,priority,seq:++state.jobSeq});
+   state.queue.sort((a,b)=>a.priority-b.priority||a.seq-b.seq);
+   if(!state.batchEnqueue)pump();
+ }
+ function mergeHistory(cached,latest,kind){
+   const by=new Map((cached||[]).map(b=>[b.t,b]));
+   for(const b of latest)by.set(b.t,b);
+   const max=kind==='day'?95:kind==='h4'?130:530;
+   return [...by.values()].sort((a,b)=>a.t-b.t).slice(-max);
+ }
+ async function pump(){
+   while(state.loadingJobs<MAX_WORKERS&&state.queue.length){
+     const job=state.queue.shift();
+     if(!records.includes(job.r)){state.jobSet.delete(job.key);continue;}
+     if(job.kind==='bar'&&validCG(job.r)){state.jobSet.delete(job.key);continue;}
+     state.loadingJobs++;state.activeJobs.push(job);
+     const {r,kind}=job;r.lastAttempt[kind]=Date.now();
+     void(async()=>{try{
+       const interval=kind==='bar'?'15M':kind==='h4'?'4H':'1D';
+       const count=kind==='bar'?530:kind==='h4'?130:95;
+       const cache=window.LiqHistoryCache;
+       const cached=!state.startupActive||startupComplete?null:await cache?.read(r.s.pionex,interval);
+       // Cached closed history is merged only after a fresh overlapping tail
+       // is verified; never publish unverified startup signals to the radar.
+       const usable=!!cached?.bars?.length&&cached.bars.length>=(kind==='day'?60:kind==='bar'?300:80);
+       const recent=usable&&Date.now()-cached.bars.at(-1).t<(kind==='day'?3*DAY:kind==='bar'?3*MS:3*H);
+       const fetchCount=recent?kind==='day'?16:kind==='bar'?120:36:count;
+       let received=await loadHistory(r.s,interval,fetchCount);
+       let merged=recent?mergeHistory(cached.bars,received.bars,kind):received.bars;
+       // A provider may revise completed historical OHLC; never silently mix
+       // materially conflicting source data with our cached history.
+       if(recent){
+         const matches=new Map(cached.bars.map(b=>[b.t,b]));
+         const overlap=received.bars.filter(b=>matches.has(b.t));
+         const incompatible=overlap.length<2||overlap.some(b=>{
+           const old=matches.get(b.t);
+           return ['o','h','l','c'].some(k=>Math.abs(b[k]-old[k])>Math.max(1e-9,Math.abs(old[k])*.00001));
+         });
+         if(incompatible){received=await loadHistory(r.s,interval,count);merged=received.bars;}
+       }
+       if(kind==='bar'){r.bars15=merged;r.barsAt=Date.now();r.errors.bar='';}
+       else if(kind==='h4'){r.bars4h=merged;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';}
+       else{r.daily=merged;r.dailyAt=Date.now();r.errors.day='';}
+       if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);
+       // Persist immutable closed candles only; never persist today's evolving K.
+       if(cache)void cache.write(r.s.pionex,interval,merged,received.provider);
+       updateDerived(r);renderRow(r);reorder();renderOverview();
+       if(kind==='day'&&!r.daily.some(b=>b.t===Math.floor(Date.now()/DAY)*DAY)&&!r.bars4h.some(b=>b.t===Math.floor(Date.now()/DAY)*DAY))
+         enqueue(r,'h4',false,0); // a scanner quote alone cannot certify today's daily open
+     }catch(e){r.errors[kind]=String(e?.message||e);log(`${r.id} ${kind}: ${e?.message||e}`);renderRow(r);}
+     finally{
+       state.loadingJobs--;state.activeJobs=state.activeJobs.filter(x=>x!==job);
+       state.jobSet.delete(job.key);updateTerminalProgress();
+       if(state.startupActive&&!startupBackgroundQueued&&
+          records.every(row=>!!row.lastAttempt.day)&&
+          !state.queue.some(j=>j.kind==='day')&&!state.activeJobs.some(j=>j.kind==='day')){
+         startupBackgroundQueued=true;
+         setTimeout(()=>{for(const row of records)enqueue(row,'h4',false,20);},3000);
+       }
+       pump();
+     }
+     })();
+   }
+ }
+ function queueStartup(){
+   state.batchEnqueue=true;state.startupActive=true;
+   const important=activeChartIds();
+   // One selected 4h chart can start early; daily OHLC jobs take precedence over
+   // the remaining background 4h history.
+   for(const id of important){const r=records.find(x=>x.id===id);if(r)enqueue(r,'h4',false,-5);}
+   for(const r of records)enqueue(r,'day',false,0);
+   state.batchEnqueue=false;pump();updateTerminalProgress();
+ }
+ // Maintenance keeps v1.8.5's existing 4h/1d refresh cadence unchanged.
+ function queueAll(force=false){
+   state.batchEnqueue=true;
+   for(const r of records)enqueue(r,'h4',force,5);
+   for(const r of records)enqueue(r,'day',force,5);
+   state.batchEnqueue=false;
+   queueMissingProxies();pump();updateTerminalProgress();
+ }
  function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());}
  function setup(){
    const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};
@@ -659,7 +801,7 @@
 
    $('diagToggle').addEventListener('click',()=>{const d=$('diagHolder');d.hidden=!d.hidden;$('diagToggle').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)renderDiag();});
    renderAll();updateClock();
-   if(records.length){fetchCG();fetchPrices();queueAll();}
+   if(records.length){fetchCG();fetchPrices();queueStartup();}
    else log('自選清單為空，請編輯 symbols.js');
    setInterval(updateClock,1000);
    setInterval(()=>{if(!document.hidden)fetchPrices();},10000);
@@ -671,7 +813,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection};
-   window.LIQ_TEST={version:'1.8.5',records,state,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'1.9.0',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

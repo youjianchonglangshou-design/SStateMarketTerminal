@@ -138,6 +138,16 @@ export default {
         const payload = await writeMonitorWatchlist(env, body);
         return json({ ok: true, ...payload }, 200, origin);
       }
+      if (url.pathname === "/api/monitor/radar/drawings") {
+        if (request.method === "GET" && url.searchParams.get("list") === "1")
+          return json({ok:true,items:await listRadarDrawings(env)},200,origin);
+        const symbol = cleanRadarDrawingSymbol(url.searchParams.get("symbol"));
+        if (request.method === "GET") return json({ok:true,...await readRadarDrawings(env,symbol)},200,origin);
+        if (request.method === "PUT") {
+          const body = await request.json().catch(() => ({}));
+          return json({ok:true,...await writeRadarDrawings(env,symbol,body)},200,origin);
+        }
+      }
       if (url.pathname === "/api/monitor/radar/workspace") {
         if (request.method === "GET") return json({ok:true,...await readRadarWorkspace(env)},200,origin);
         if (request.method === "PUT") {
@@ -3760,12 +3770,71 @@ async function writeRadarWorkspace(env,body){
     if(!Number.isFinite(scale)||scale<.25||scale>16||
       (selected!==null&&(!Number.isSafeInteger(selected)||selected<0||selected>9999999999999)))throw httpError(400,"invalid chart scale/selection");
     clean.push({id:w.id,symbol:w.symbol,geom:{x:g.x,y:g.y,w:g.w,h:g.h},locked:!!w.locked,
-      minimized:!!w.minimized,behindCrypto:!!w.behindCrypto,priceScale:scale,haSelected:selected});
+      minimized:!!w.minimized,behindCrypto:!!w.behindCrypto,priceScale:scale,haSelected:selected,
+      timeframe:w.timeframe==='1D'?'1D':'4H',displayMode:w.displayMode==='line'?'line':'candles',
+      viewCount:Math.max(21,Math.min(270,Number(w.viewCount)||84)),
+      viewOffset:Math.max(0,Math.min(300,Number(w.viewOffset)||0))});
   }
   const payload={schema_version:"1.0",revision:current.revision+1,updated_at:new Date().toISOString(),
     workspace:raw?{activeId:typeof raw.activeId==="string"?raw.activeId:null,windows:clean}:null,custom:[...new Set(custom)]};
   await env.JSON_BUCKET.put(RADAR_WORKSPACE_KEY,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
   return {revision:payload.revision,updated_at:payload.updated_at};
+}
+// Per-symbol drawing objects. Identical deployment model to shared workspace (no new login).
+// A separate JSON per symbol; revision+per-item tombstones avoid stale editing resurrecting deletions.
+const RADAR_DRAWING_PREFIX = 'drawings/';
+function cleanRadarDrawingSymbol(value){
+  const symbol=String(value||'').toUpperCase();
+  if(!/^[A-Z0-9]{1,24}_USDT_PERP$/.test(symbol))throw httpError(400,'invalid drawing symbol');
+  return symbol;
+}
+function radarDrawingKey(symbol){return RADAR_DRAWING_PREFIX+symbol+'.json';}
+async function readRadarDrawings(env,symbol){
+  const value=await env.JSON_BUCKET.get(radarDrawingKey(symbol));
+  if(!value)return {schemaVersion:1,symbol,revision:0,updatedAt:null,preferences:{showBollinger:true,showHaSteps:true},preferencesChangedAt:0,haSelection:null,drawings:[],tombstones:{}};
+  try{const raw=JSON.parse(await value.text());
+    return {schemaVersion:1,symbol,revision:Number(raw.revision)||0,updatedAt:raw.updatedAt||null,
+      preferences:raw.preferences||{showBollinger:true,showHaSteps:true},preferencesChangedAt:Number(raw.preferencesChangedAt)||0,
+      haSelection:raw.haSelection||null,drawings:Array.isArray(raw.drawings)?raw.drawings:[],tombstones:raw.tombstones||{}};
+  }catch(_){throw httpError(500,'drawing JSON damaged; do not overwrite');}
+}
+async function writeRadarDrawings(env,symbol,body){
+  const current=await readRadarDrawings(env,symbol),expected=Number(body?.expected_revision);
+  if(!Number.isSafeInteger(expected)||expected!==current.revision)throw httpError(409,'drawing revision conflict; fetch latest');
+  if(!Array.isArray(body?.drawings)||body.drawings.length>200)throw httpError(400,'invalid drawing count');
+  const ids=new Set(),clean=[];
+  for(const x of body.drawings){
+    if(!x||typeof x.id!=='string'||!/^[A-Za-z0-9-]{1,80}$/.test(x.id)||ids.has(x.id)||
+      !['fibonacci','rectangle','long-position','short-position'].includes(x.type))throw httpError(400,'invalid drawing');
+    ids.add(x.id);
+    if(!Array.isArray(x.anchors)||x.anchors.length!==2||x.anchors.some(a=>!Number.isSafeInteger(a?.time)||a.time<100000000000||!Number.isFinite(a?.price)||a.price<=0))throw httpError(400,'invalid drawing anchors');
+    if(x.type.endsWith('-position')&&[x.entry,x.stop,x.target,x.riskAmount1,x.riskAmount2].some(v=>!Number.isFinite(Number(v))||Number(v)<=0))throw httpError(400,'invalid position inputs');
+    if(JSON.stringify(x).length>2500)throw httpError(400,'drawing too large');
+    clean.push(x);
+  }
+  const tombstones=body?.tombstones||{};
+  if(typeof tombstones!=='object'||Array.isArray(tombstones)||Object.keys(tombstones).length>1000)throw httpError(400,'invalid tombstones');
+  for(const [id,ts] of Object.entries(tombstones))if(!/^[A-Za-z0-9-]{1,80}$/.test(id)||!Number.isFinite(ts))throw httpError(400,'invalid deleted drawing');
+  const preferences={showBollinger:body?.preferences?.showBollinger!==false,showHaSteps:body?.preferences?.showHaSteps!==false};
+  const haSelection=body?.haSelection?.dailyTime==null?null:{dailyTime:Number(body.haSelection.dailyTime)};
+  if(haSelection&&(!Number.isSafeInteger(haSelection.dailyTime)||haSelection.dailyTime<0))throw httpError(400,'invalid HA selection');
+  const payload={schemaVersion:1,symbol,revision:current.revision+1,updatedAt:new Date().toISOString(),
+    preferences,preferencesChangedAt:Number(body.preferencesChangedAt)||0,haSelection,drawings:clean,tombstones};
+  await env.JSON_BUCKET.put(radarDrawingKey(symbol),JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  return {revision:payload.revision,updatedAt:payload.updatedAt};
+}
+async function listRadarDrawings(env){
+  const result=[];let cursor;do{
+    const page=await env.JSON_BUCKET.list({prefix:RADAR_DRAWING_PREFIX,limit:1000,...(cursor?{cursor}:{})});
+    for(const item of page.objects){try{
+      const sym=item.key.slice(RADAR_DRAWING_PREFIX.length).replace(/\.json$/,'');
+      if(!/^[A-Z0-9]{1,24}_USDT_PERP$/.test(sym))continue;
+      const doc=await readRadarDrawings(env,sym),count=doc.drawings.length+(doc.haSelection?1:0);
+      if(count)result.push({symbol:sym,count,updatedAt:doc.updatedAt,revision:doc.revision});
+    }catch(_){/* malformed entry does not break entire list */}}
+    cursor=page.truncated?page.cursor:null;
+  }while(cursor&&result.length<1000);
+  return result;
 }
 // Per-symbol color marks are shared across sessions/devices via the existing JSON_BUCKET R2.
 // Only one symbol is mutated per request; removing a mark deletes its key.

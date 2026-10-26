@@ -29,7 +29,7 @@
      ? state.cgAt>0&&now-state.cgAt<180000
      :r.source==='proxy'&&r.barsAt>0&&now-r.barsAt<600000;
    if(!sourceFresh)return null;
-   return {price,upper:r.up,lower:r.down,haColor:r.ha?.color||null,haDayKey:r.ha?.t??null,dayKey:Math.floor(now/DAY)*DAY,source:r.source,updatedAt:Math.max(r.priceAt,r.source==='coinglass'?state.cgAt:r.barsAt)};
+   return {price,upper:r.up,lower:r.down,ha:r.ha,haDayKey:r.ha?.t??null,dayKey:Math.floor(now/DAY)*DAY,source:r.source,updatedAt:Math.max(r.priceAt,r.source==='coinglass'?state.cgAt:r.barsAt)};
  }
  function refreshRRLed(r){
    const led=r.dom?.rrLed,scanner=window.LIQ_RR_SCANNER;
@@ -40,10 +40,14 @@
    const long=result.direction==='long',ratio=long?result.longRR:result.shortRR;
    const label=(long?'做多':'做空')+' 理論賺賠比 '+ratio.toFixed(2)+':1';
    led.classList.add(long?'rr-long':'rr-short');
-   led.title=label+'｜日線平均K '+result.haColor+'｜門檻 '+result.threshold.toFixed(2)+':1\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+(result.source==='coinglass'?'CoinGlass 7D':'代理估算')+'\n計算時間 '+tpe(Date.now());
+   const shoulder=result.shoulder;const shoulderNote=shoulder?('\n歷史左肩膀 '+MONEY(shoulder.price)+'（'+tpe(shoulder.dayKey).slice(0,10)+'，'+shoulder.daysBack+' 日前）'):'\n此階段不需有效肩膀';
+   led.title='情境 '+result.stage+'｜'+label+'｜'+(result.group==='reversal'?'反向／轉勢':'原趨勢／延續')+'門檻 '+result.threshold.toFixed(2)+':1'+shoulderNote+'\n日線平均K '+result.haColor+'\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+(result.source==='coinglass'?'CoinGlass 7D':'代理估算')+'\n計算時間 '+tpe(Date.now());
    led.setAttribute('aria-label',label);
    led.hidden=false;
  }
+ // Used by the existing bottom R2 drawing-manager settings: re-evaluate LED
+ // immediately, without an extra market poll or a forced chart redraw.
+ window.LIQ_RR_REFRESH=()=>records.forEach(refreshRRLed);
 
  // Ring-style bounded diagnostics: at most 32 entries. Avoid writing large text nodes
  // every 10 seconds when the panel is closed; entries are never persisted to storage.
@@ -180,10 +184,11 @@
  function dailyHA(days){
    if(days.length<26)return null;
    let po=null,pc=null,before=null,cur=null;
-   for(const b of days){const ho=po===null?(b.o+b.c)/2:(po+pc)/2,hc=(b.o+b.h+b.l+b.c)/4;before=cur;cur={color:hc>=ho?'黃':'紫',ho,hc,t:b.t};po=ho;pc=hc;}
-   // Existing HA color and price algorithm is unchanged. Only expose yesterday's
-   // calculated HA CLOSE from the same full daily sequence (not raw close).
-   return cur?{...cur,priorColor:before?.color||'--',priorHc:before?.hc??null,priorT:before?.t??null}:null;
+   const history=[];
+   for(const b of days){const ho=po===null?(b.o+b.c)/2:(po+pc)/2,hc=(b.o+b.h+b.l+b.c)/4;before=cur;cur={color:hc>=ho?'黃':'紫',ho,hc,t:b.t};history.push(cur);po=ho;pc=hc;}
+   // The RR scanner uses the same complete, formed HA history as the list
+   // and chart, including today's evolving candle. No independent API fetch.
+   return cur?{...cur,priorColor:before?.color||'--',priorHc:before?.hc??null,priorT:before?.t??null,history}:null;
  }
  // v2.0.6: the prior-day dot is positioned on the same HA staircase price scale:
  // prior HA CLOSE above today's -> upper dot; below today's -> lower dot.
@@ -887,7 +892,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.0.7',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.0',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

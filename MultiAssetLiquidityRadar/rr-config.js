@@ -1,9 +1,17 @@
-/* Real-time RR / daily HA confirmation settings — v1.8.5.
- * Change THRESHOLD only to test (e.g. 1.50, 1.70, 2.00).
- * Long: RR >= THRESHOLD AND current daily HA yellow (黃).
- * Short: RR >= THRESHOLD AND current daily HA purple (紫).
- * No percent-return minimum, CCI, S state or midline filters.
+/* RR v2.2.1: global continuation / reversal thresholds, configured from the
+ * bottom "⚙ 繪圖" R2 drawing-manager modal and synchronized in workspace JSON.
+ * This does not change manually drawn position risk/target calculations.
  */
-window.LIQ_RR_CONFIG=Object.freeze({
-  THRESHOLD: 1.20 // ← 共用門檻，只需修改這個數字
-});
+(function(root){'use strict';
+ const DEFAULTS=Object.freeze({continuation:1.50,reversal:1.70});
+ let selected={...DEFAULTS};
+ const valid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=1&&v<=100;
+ function setThresholds(input){
+   if(!input||!valid(input.continuation)||!valid(input.reversal))return false;
+   selected={continuation:input.continuation,reversal:input.reversal};return true;
+ }
+ root.LIQ_RR_CONFIG=Object.freeze({DEFAULTS,getThresholds:()=>({...selected}),setThresholds,
+   // Compatibility for extensions that read the previous single threshold.
+   get THRESHOLD(){return selected.continuation;}
+ });
+})(window);

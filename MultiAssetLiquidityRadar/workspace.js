@@ -14,6 +14,7 @@
  const windows=[];
  let activeId=null,serial=0,drag=null,noticeTimer=0,resizeTimer=0,layoutVariant=1;
  let riskDefaults={riskAmount1:1000,riskAmount2:100};
+ let rrThresholds=window.LIQ_RR_CONFIG?.getThresholds?.()||{continuation:1.5,reversal:1.7};
  const min=(k)=>({w:Math.min(320,Math.max(300,innerWidth-18)),h:Math.min(250,Math.max(220,innerHeight-74))})[k];
  const clamp=(n,lo,hi)=>Math.min(Math.max(n,lo),Math.max(lo,hi));
  const maxW=()=>Math.max(min('w'),innerWidth-8);
@@ -33,7 +34,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,riskDefaults,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,toolbarPos:w.toolbarPos,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,riskDefaults,rrThresholds,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,toolbarPos:w.toolbarPos,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -438,6 +439,7 @@
  function bootstrap(){
    const stored=storageGet(KEY);let initial=[];
    for(const k of ['riskAmount1','riskAmount2'])if(Number.isFinite(Number(stored?.riskDefaults?.[k]))&&Number(stored.riskDefaults[k])>0)riskDefaults[k]=Number(stored.riskDefaults[k]);
+   if(window.LIQ_RR_CONFIG?.setThresholds?.(stored?.rrThresholds))rrThresholds=window.LIQ_RR_CONFIG.getThresholds();
    if(stored&&Array.isArray(stored.windows)){
      const used=new Set();
      initial=stored.windows.slice(0,LIMIT).filter(x=>x&&typeof x.id==='string'&&!used.has(x.id)&&used.add(x.id)&&api.hasSymbol(x.symbol));
@@ -451,6 +453,7 @@
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
    if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
+   window.LIQ_RR_REFRESH?.(); // Restore cross-device threshold state immediately.
  }
  $('chartTileWindows')?.addEventListener('click',tileWindows);
  add.addEventListener('click',()=>{
@@ -466,6 +469,11 @@
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
    getDefaultRisk:()=>({...riskDefaults}),setDefaultRisk:values=>{for(const k of ['riskAmount1','riskAmount2']){const n=Number(values[k]);if(!Number.isFinite(n)||n<=0)return false;}riskDefaults={riskAmount1:Number(values.riskAmount1),riskAmount2:Number(values.riskAmount2)};save();return true;},
+   getRRThresholds:()=>({...rrThresholds}),
+   setRRThresholds:values=>{
+     if(!window.LIQ_RR_CONFIG?.setThresholds?.(values))return false;
+     rrThresholds=window.LIQ_RR_CONFIG.getThresholds();save();window.LIQ_RR_REFRESH?.();return true;
+   },
    getActiveWindow(){return byId(activeId)||null;},
    getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},

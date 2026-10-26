@@ -1012,3 +1012,12 @@ body.radar-workspace{font-size:12px;background:#061523}
   .radar-workspace .dw-nominal-table th,.radar-workspace .dw-nominal-table td{padding:2px 3px}
   .radar-workspace .floating-chart>.dw-nominal-table{right:clamp(121px,34%,150px);bottom:29px;max-width:calc(100% - 128px)}
 }
+
+/* v2.1.0: two globally shared RR thresholds inside existing R2 manager. */
+.radar-workspace .dw-rr-thresholds{border-color:#287f96;background:rgba(17,63,80,.32)}
+.radar-workspace .dw-rr-thresholds legend{color:#80dce8}
+.radar-workspace .dw-rr-thresholds small{display:block;margin:-4px 0 5px;color:#8eafc5}
+.radar-workspace .dw-rr-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.radar-workspace .dw-rr-actions button{width:auto;max-width:none;padding:6px 13px}
+.radar-workspace #dwRRReset{background:#18364d;border:1px solid #55788b;color:#d8ebf6}
+.radar-workspace #dwRRSave{background:#087c88;border:1px solid #30a8ae;color:white}

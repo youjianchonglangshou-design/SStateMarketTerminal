@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.0.9 Nominal Position Table</title><link rel="stylesheet" href="./style.css?v=2.0.9"></head>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.1.0 Six-State RR</title><link rel="stylesheet" href="./style.css?v=2.1.0"></head>
 <body class="radar-workspace">
 <aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣固定監控清單">
  <div class="liq-nav-content"><div class="liq-nav-heading"><span>加密貨幣</span> <span class="liq-nav-count" id="liq-crypto-side-count">21</span><select class="liq-sector-sort" id="cryptoSort" aria-label="加密貨幣獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密市場 21 檔全景"></nav></div>
@@ -36,7 +36,7 @@
  <div class="terminal-meter" role="progressbar" aria-label="有效日線指標初始化進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="terminalProgressFill"></div></div>
 </section>
 <footer id="workspaceFooter" class="workspace-footer">
- <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.0.9</span></div>
+ <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.1.0</span></div>
  <span id="coverage" class="footer-coverage">等待資料</span>
  <div class="header-status"><a class="home-link" href="../index.html">← SState 主站</a>
   <div class="fg-popover" id="fgPopover"><button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button><section class="fg-panel" id="fgPanel" role="dialog" aria-label="恐懼與貪婪一年線圖"><iframe id="fgChartFrame" title="恐懼與貪婪一年線圖" data-src="./fear-greed.html?v=1.1.14" referrerpolicy="no-referrer" loading="lazy"></iframe></section></div>
@@ -110,11 +110,19 @@
 </div>
 <div id="dwManageModal" class="dw-modal" role="dialog" aria-modal="true" aria-label="繪圖記憶管理" hidden>
  <section class="dw-modal-card dw-manager-card"><header><strong>繪圖記憶管理 · R2 每幣獨立 JSON</strong><button id="dwManageClose" type="button">×</button></header>
- <div class="dw-modal-body"><fieldset class="dw-default-risk"><legend>新繪製部位的預設止損金額（多空共用）</legend><label>止損金額 1 <input id="dwDefaultRisk1" type="number" min="0.000001" step="any" value="1000"></label><label>止損金額 2 <input id="dwDefaultRisk2" type="number" min="0.000001" step="any" value="100"></label><button type="button" id="dwDefaultRiskSave">儲存預設（同步工作台）</button><small id="dwDefaultRiskStatus">僅影響之後新畫的多單／空單；舊圖維持原金額。</small></fieldset><p id="dwManagerStatus">讀取中…</p><div id="dwManagerList" class="dw-manager-list"></div>
+ <div class="dw-modal-body"><fieldset class="dw-default-risk"><legend>新繪製部位的預設止損金額（多空共用）</legend><label>止損金額 1 <input id="dwDefaultRisk1" type="number" min="0.000001" step="any" value="1000"></label><label>止損金額 2 <input id="dwDefaultRisk2" type="number" min="0.000001" step="any" value="100"></label><button type="button" id="dwDefaultRiskSave">儲存預設（同步工作台）</button><small id="dwDefaultRiskStatus">僅影響之後新畫的多單／空單；舊圖維持原金額。</small></fieldset>
+ <fieldset class="dw-default-risk dw-rr-thresholds"><legend>RR 即時偵測門檻（全雷達共用）</legend>
+  <label>原趨勢／延續 RR <input id="dwRRContinuation" type="number" min="1" max="100" step="any" value="1.50" aria-label="原趨勢延續 RR 門檻"></label>
+  <small>①、②-A、③-A、④-A、⑤、⑥-A</small>
+  <label>反向／轉勢 RR <input id="dwRRReversal" type="number" min="1" max="100" step="any" value="1.70" aria-label="反向轉勢 RR 門檻"></label>
+  <small>②-B、③-B、④-B、⑥-B</small>
+  <div class="dw-rr-actions"><button id="dwRRReset" type="button">恢復預設</button><button id="dwRRSave" type="button">套用 RR 門檻</button></div>
+  <small id="dwRRStatus" role="status">只影響監控清單的 RR LED，不改變手動多空部位的止損金額或 RR。</small>
+ </fieldset><p id="dwManagerStatus">讀取中…</p><div id="dwManagerList" class="dw-manager-list"></div>
   <button id="dwManagerRefresh" type="button">重新整理遠端清單</button>
   <small>關閉圖表或移除自由清單不會刪除繪圖。只有按「清除該幣」才會刪除其已儲存的圖形。</small></div>
  </section>
 </div>
 
-<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=2.0.3"></script><script defer src="./workspace-sync.js?v=1.7.0"></script><script defer src="./signal-spotlight.js?v=1.8.0"></script><script defer src="./signal-spotlight-ui.js?v=1.8.0"></script><script defer src="./rr-config.js?v=1.8.5"></script><script defer src="./rr-scanner.js?v=1.8.5"></script><script defer src="./startup-cache.js?v=1.9.0"></script><script defer src="./cci-hover.js?v=2.0.5"></script><script defer src="./app.js?v=2.0.7"></script><script defer src="./drawing-workspace.js?v=2.0.9"></script><script defer src="./workspace.js?v=2.0.9"></script><script defer src="./drawing-manager.js?v=2.0.3"></script><script defer src="./alerts.js?v=1.8.2"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
+<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=2.0.3"></script><script defer src="./workspace-sync.js?v=1.7.0"></script><script defer src="./signal-spotlight.js?v=1.8.0"></script><script defer src="./signal-spotlight-ui.js?v=1.8.0"></script><script defer src="./rr-config.js?v=2.1.0"></script><script defer src="./rr-scanner.js?v=2.1.0"></script><script defer src="./startup-cache.js?v=1.9.0"></script><script defer src="./cci-hover.js?v=2.0.5"></script><script defer src="./app.js?v=2.1.0"></script><script defer src="./drawing-workspace.js?v=2.1.0"></script><script defer src="./workspace.js?v=2.1.0"></script><script defer src="./drawing-manager.js?v=2.1.0"></script><script defer src="./alerts.js?v=1.8.2"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
 </body></html>

@@ -5,6 +5,18 @@
  const modal=$('dwManageModal'),status=$('dwManagerStatus'),list=$('dwManagerList');
  const clear=()=>{modal.hidden=true;};
  const fillRisk=()=>{const d=window.LIQ_WORKSPACE?.getDefaultRisk?.();if(!d)return;$('dwDefaultRisk1').value=d.riskAmount1;$('dwDefaultRisk2').value=d.riskAmount2;};
+ const fillRR=()=>{const d=window.LIQ_WORKSPACE?.getRRThresholds?.()||window.LIQ_RR_CONFIG?.getThresholds?.();
+   if(!d)return;$('dwRRContinuation').value=d.continuation;$('dwRRReversal').value=d.reversal;};
+ $('dwRRSave')?.addEventListener('click',()=>{
+   const continuation=Number($('dwRRContinuation').value),reversal=Number($('dwRRReversal').value);
+   const ok=$('dwRRContinuation').value.trim()!==''&&$('dwRRReversal').value.trim()!==''&&
+     window.LIQ_WORKSPACE?.setRRThresholds?.({continuation,reversal});
+   $('dwRRStatus').textContent=ok?'兩組 RR 門檻已套用並同步工作台，監控燈號已重新計算':'請輸入有效 RR（1.00～100.00）';
+ });
+ $('dwRRReset')?.addEventListener('click',()=>{
+   const defaults=window.LIQ_RR_CONFIG?.DEFAULTS||{continuation:1.5,reversal:1.7};
+   const ok=window.LIQ_WORKSPACE?.setRRThresholds?.({...defaults});if(ok){fillRR();$('dwRRStatus').textContent='已恢復 1.50／1.70 並套用';}
+ });
  $('dwDefaultRiskSave')?.addEventListener('click',()=>{const data={riskAmount1:Number($('dwDefaultRisk1').value),riskAmount2:Number($('dwDefaultRisk2').value)};const ok=window.LIQ_WORKSPACE?.setDefaultRisk?.(data);$('dwDefaultRiskStatus').textContent=ok?'預設金額已保存，之後新畫的部位將使用此設定':'請輸入兩個有效且大於 0 的金額';});
  async function render(){list.replaceChildren();status.textContent='正在讀取 R2 與本機繪圖…';
    const rows=await api.listRemote();status.textContent=rows.length?`共有 ${rows.length} 個具備繪圖記憶的標的`:'沒有可列出的繪圖記憶（遠端若未部署，請檢查 Worker）';
@@ -22,7 +34,7 @@
      list.append(row);
    }
  }
- $('drawingManageButton')?.addEventListener('click',()=>{modal.hidden=false;fillRisk();void render();});
+ $('drawingManageButton')?.addEventListener('click',()=>{modal.hidden=false;fillRisk();fillRR();void render();});
  $('dwManageClose')?.addEventListener('click',clear);
  $('dwManagerRefresh')?.addEventListener('click',()=>void render());
  modal.addEventListener('click',e=>{if(e.target===modal)clear();});

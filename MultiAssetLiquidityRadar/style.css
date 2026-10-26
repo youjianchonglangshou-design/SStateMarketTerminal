@@ -943,3 +943,35 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .dw-default-risk input{width:160px;max-width:52%;color:#e1eff7;background:#0a1d2b;border:1px solid #587b8c;border-radius:5px;padding:5px}
 .radar-workspace .dw-default-risk button{max-width:230px}
 .radar-workspace .dw-default-risk small{line-height:1.5;color:#9ac6d4}
+
+/* v2.0.5: ONE lazy CCI/SMA card; faithfully uses main site's CCI SVG colors. */
+.radar-workspace .metric-cci,.radar-workspace .chart-semantic.cci{cursor:help}
+.radar-workspace .radar-cci-hover-card{position:fixed;z-index:2147483000;box-sizing:border-box;width:min(510px,calc(100vw - 16px));padding:11px 13px 8px;border:1px solid #415873;border-radius:9px;background:#1e2e46;color:#dcebf9;box-shadow:0 12px 34px rgba(0,0,0,.52);pointer-events:none;font-family:system-ui,'Noto Sans TC',sans-serif}
+.radar-workspace .radar-cci-hover-card[hidden]{display:none!important}
+.radar-workspace .radar-cci-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;white-space:nowrap}
+.radar-workspace .radar-cci-title{font-size:10px;color:#a1cdf3;letter-spacing:.3px;font-weight:650}
+.radar-workspace .radar-cci-live{display:flex;gap:6px}
+.radar-workspace .radar-cci-value{padding:3px 7px;border:1px solid #526277;background:#122436;border-radius:7px;font-size:10px;line-height:1.2;white-space:nowrap}
+.radar-workspace .radar-cci-value.yellow{border-color:#facc15;color:#fde047}
+.radar-workspace .radar-cci-value.purple{border-color:#a78bfa;color:#c4b5fd}
+.radar-workspace .radar-cci-value.gray{color:#9ca3af}
+.radar-workspace .radar-cci-value.up{border-color:#22c55e;color:#86efac}
+.radar-workspace .radar-cci-value.down{border-color:#ef4444;color:#fca5a5}
+.radar-workspace .radar-cci-svg{display:block;width:100%;height:155px;overflow:visible}
+.radar-workspace .radar-cci-svg .cci-axis-text{fill:#7890ad;font-size:8px}
+.radar-workspace .radar-cci-svg .cci-date-text{font-size:8px}
+.radar-workspace .radar-cci-svg .cci-ref-line{vector-effect:non-scaling-stroke}
+.radar-workspace .radar-cci-svg .cci-ref-band{stroke:#94a3b8;stroke-width:1;stroke-dasharray:7 7;opacity:.66}
+.radar-workspace .radar-cci-svg .cci-ref-zero{stroke:#64748b;stroke-width:1;stroke-dasharray:4 6;opacity:.48}
+.radar-workspace .radar-cci-svg .cci-line{fill:none;stroke:#f8fafc;stroke-width:1.55;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.radar-workspace .radar-cci-svg .cci-sma-step{fill:none;stroke-width:2.15;stroke-linejoin:round;stroke-linecap:butt;vector-effect:non-scaling-stroke}
+.radar-workspace .radar-cci-svg .cci-sma-yellow{stroke:#fde047}
+.radar-workspace .radar-cci-svg .cci-sma-purple{stroke:#bba4e8}
+.radar-workspace .radar-cci-svg .cci-sma-flat{stroke:#64748b}
+.radar-workspace .radar-cci-svg .cci-last-dot{stroke:#f8fafc;stroke-width:1.25;vector-effect:non-scaling-stroke}
+.radar-workspace .radar-cci-svg .cci-line-dot{fill:#f8fafc}
+.radar-workspace .radar-cci-svg .cci-sma-dot-yellow{fill:#fde047}
+.radar-workspace .radar-cci-svg .cci-sma-dot-purple{fill:#bba4e8}
+.radar-workspace .radar-cci-svg .cci-sma-dot-neutral{fill:#64748b}
+.radar-workspace .radar-cci-empty{height:140px;display:grid;place-items:center;font-size:11px;color:#91a4b8}
+@media(max-width:580px){.radar-workspace .radar-cci-hover-card{padding:8px}.radar-workspace .radar-cci-title{font-size:9px}.radar-workspace .radar-cci-value{font-size:9px;padding:2px 4px}}

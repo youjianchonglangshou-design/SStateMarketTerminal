@@ -131,6 +131,29 @@ function place(g,obj,proj,selected,live){
       }
     }
     const cc=calcPosition(obj,live);
+    // v2.0.5: nominal values belong to the selected position's REAL stop boundary,
+    // OUTSIDE the risk region. Long: BELOW stop, green; short: ABOVE stop, red.
+    // Capsules never intercept price/handle dragging, and are not persisted as objects.
+    if(selected){
+      const yy=y(stop),tone=long?'#16D99A':'#FF5364';
+      if(Number.isFinite(yy)&&yy>=proj.T&&yy<=proj.plotB){
+        const names=[['名義①',cc?.nominal1],['名義②',cc?.nominal2]];
+        const txts=names.map(([name,val])=>name+' '+(Number.isFinite(val)&&val>0?money(val):'—'));
+        const labelWidths=txts.map(txt=>Math.max(43,Math.ceil(txt.length*6.15+15)));
+        const labelHeight=17, outerY=yy+(long?5:-labelHeight-5);
+        // The second capsule stays anchored at the right edge even for narrow positions.
+        // If there is not enough width to put both on the same line, stagger it
+        // further OUTSIDE the stop region instead of overlapping or crossing the stop.
+        const stagger=width<labelWidths[0]+labelWidths[1]+10;
+        const x1=left,x2=Math.max(left,left+width-labelWidths[1]);
+        txts.forEach((txt,i)=>{
+          const tx=i===0?x1:x2, ty=outerY+(stagger&&i===1?(long?labelHeight+3:-labelHeight-3):0);
+          const pill=node(g,'g',{class:'dw-nominal-pill','data-dw-nominal':String(i+1),'data-dw-side':long?'long':'short','data-dw-id':id,'pointer-events':'none'});
+          node(pill,'rect',{x:tx,y:ty,width:labelWidths[i],height:labelHeight,rx:8.5,fill:'#0b2230','fill-opacity':'.96',stroke:tone,'stroke-opacity':'.7','stroke-width':.85,'pointer-events':'none'});
+          label(pill,txt,tx+7,ty+12,tone).setAttribute('font-size','10');
+        });
+      }
+    }
     const description=cc?`${long?'做多':'做空'} · RR ${cc.rr.toFixed(2)} · 進場 ${money(entry)} · 目標 ${money(target)} · 止損 ${money(stop)} · 風險1 ${money(obj.riskAmount1)} · 風險2 ${money(obj.riskAmount2)} · 名義1 ${money(cc.nominal1)} · 名義2 ${money(cc.nominal2)}`:'部位價格無效';
     const tt=node(g,'title');tt.textContent=description;
     label(g,(long?'做多 ':'做空 ')+(cc?'RR '+cc.rr.toFixed(2):'價格無效'),left+4,y(entry)-5,long?'#28d59d':'#ff7889');

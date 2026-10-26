@@ -96,6 +96,7 @@
    for(const item of (d.capsules||[])){
      const cap=document.createElement('span');cap.className='chart-semantic '+item.kind+' '+item.tone;
      cap.textContent=item.text;cap.title=item.title||item.text;
+     if(item.kind==='cci')cap.dataset.cciHover=w.symbol;
      if(item.kind==='s'||item.kind==='ha'){
        const key=item.kind==='s'?'showBollinger':'showHaSteps';
        cap.setAttribute('role','button');cap.tabIndex=0;cap.dataset.dwToggle=key;
@@ -258,14 +259,9 @@
    const magnet=document.createElement('span');magnet.className='dw-magnet-indicator';magnet.textContent='🧲';magnet.title='按住 CTRL 磁鐵吸附 OHLC';toolbar.insertBefore(magnet,toolButtons.get('fib'));
    const note=document.createElement('span');note.className='dw-tools-hint';note.textContent='左鍵平移 · 滾輪縮放 · CTRL 磁鐵';toolbar.append(note);
    el.append(toolbar);w.applyToolbarPos=setToolbarPos;setToolbarPos();
-   const positionSummary=document.createElement('span');positionSummary.className='dw-position-summary';head.insertBefore(positionSummary,buttons);
-   const updatePosition=()=>{const obj=controller?.getSelected(),d=window.LIQ_CHART_API?.getData(w.symbol);
-     positionSummary.className='dw-position-summary';
-     if(!obj?.type?.endsWith('-position')){positionSummary.textContent='';return;}
-     const calc=window.DrawingWorkspace?.calcPosition(obj,d?.chart?.price);
-     const isLong=obj.type==='long-position';positionSummary.classList.add(isLong?'long':'short');
-     positionSummary.textContent=(isLong?'做多':'做空')+' · 名義1 '+(calc?window.DrawingWorkspace.money(calc.nominal1):'—')+'｜名義2 '+(calc?window.DrawingWorkspace.money(calc.nominal2):'—');
-   };
+   // Nominal 1/2 now render as selected drawing capsules just OUTSIDE its stop line.
+   // Keep the callback interface for existing selection/price-update paths.
+   const updatePosition=()=>{};
    w.onDrawingChanged=()=>{updatePosition();w.dirty=true;schedule(w,0);};
    controller=window.DrawingWorkspace?.attach(w,{livePrice:()=>window.LIQ_CHART_API?.getData(w.symbol)?.chart?.price,
      refreshHeader:updatePosition,setTool:selectTool,setMagnet:on=>{const b=toolButtons.get('select');if(b)b.textContent=on?'🧲':'↖';},

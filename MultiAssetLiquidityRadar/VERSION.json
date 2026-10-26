@@ -1,15 +1,22 @@
 {
-  "version": "2.0.4",
+  "version": "2.0.5",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.3",
-  "title": "Position Target/Stop Tracking Guides",
+  "baseVersion": "2.0.4",
+  "title": "Nominal Stop-Edge Capsules and Lazy CCI Trend Hover",
   "changes": [
-    "Selected long/short positions display two non-interactive full-width horizontal dashed price guides for target (green) and stop (red).",
-    "During drag of a target or stop handle, dashed guides and price/percent badges derive from the exact same live log-scale price coordinates and move together; deselection removes guides.",
-    "No changes to market feeds, 10-second derived indicator refresh, chart navigation, risk calculations, RR, Signal Spotlight, R2 or Worker."
+    "Selected long position: nominal 1 / 2 shown below STOP edge outside red risk zone in green; short above STOP edge in red.",
+    "Remove nominal 1 / 2 from chart title bar; calculation and position storage unchanged.",
+    "Add one lazy on-hover daily CCI/SMA card for both watchlist capsules and floating-chart header capsules; use SStateMonitorEngine.calculateCciSma with existing daily OHLC.",
+    "Match main site's raw CCI white polyline, SMA yellow/purple stepped chart and +100/0/-100 reference styles; no historical crosshair/interactive dates.",
+    "No new API fetches; live hover updates on existing 10-second price processing."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/cci-hover.js",
+    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],

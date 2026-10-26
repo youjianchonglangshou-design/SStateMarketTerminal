@@ -418,6 +418,7 @@
        btn.addEventListener('click',()=>jumpToSymbol(r));
        const metrics=el('span','liq-nav-indicators');
        const s=el('span','metric metric-s'),m=el('span','metric metric-mid'),h=el('span','metric metric-ha'),c=el('span','metric metric-cci');
+       c.dataset.cciHover=r.id;
        s.append(r.dom.sBadge);m.append(r.dom.midLabel);h.append(r.dom.ha);c.append(r.dom.cci);metrics.append(s,m,h,c);
        const bell=el('button','liq-alert-bell','♧');bell.type='button';bell.dataset.alertSymbol=String(r.s.pionex||'').toUpperCase();bell.dataset.radarId=r.id;bell.textContent='🔔';bell.setAttribute('aria-label',`設定 ${r.id} Telegram 價格提醒`);bell.title=`設定 ${r.id} Telegram 價格提醒`;
        wrapper.append(markBtn,bell,btn,metrics);
@@ -636,7 +637,7 @@
    updateTerminalProgress();
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
  }
- function renderAll(){records.forEach(renderRow);reorder();renderOverview();}
+ function renderAll(){records.forEach(renderRow);reorder();renderOverview();window.LiqRadarCciCard?.refresh();}
  async function fetchCG(force=false){if(state.cgBusy)return state.cgBusy;if(!force&&state.cgAt&&Date.now()-state.cgAt<50000)return;const task=(async()=>{
    try{if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('CoinGlass 解碼器尚未載入');const raw=await window.CoinGlassReader.fetchCoinGlass('7d');const decoded=extractCG(raw.data);if(!decoded.size)throw Error('已解密但沒有可辨識上下界');state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=String(raw.version||'?');state.cgError='';log(`CoinGlass 7D V${state.cgVersion} 成功 ${decoded.size} 個標的`);}
    catch(e){state.cgError=String(e?.message||e);log('CoinGlass: '+state.cgError);if(Date.now()-state.cgAt>180000){state.cgAt=0;state.cgRecords=new Map();}}
@@ -827,6 +828,7 @@
    const saved=(()=>{try{return localStorage.getItem('liq-v140-active-symbol');}catch(_){return null;}})();
    state.selected=records.some(r=>r.id===saved)?saved:records[0]?.id||'';
    setupSideNav();setupCustomSymbols();setNavActive(state.selected);
+   window.LiqRadarCciCard?.init({getDaily(symbol){const r=records.find(row=>row.id===symbol);return r?dailyAsOf(r):[];}});
    document.addEventListener('liq-radar-marks-updated',reorderSideNavByMarks);
 
    $('diagToggle').addEventListener('click',()=>{const d=$('diagHolder');d.hidden=!d.hidden;$('diagToggle').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)renderDiag();});
@@ -843,7 +845,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.0.1',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.0.5',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

@@ -1,16 +1,14 @@
 {
-  "version": "2.0.8",
+  "version": "2.0.9",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.7",
-  "title": "Selected Position Notional Table",
+  "baseVersion": "2.0.8",
+  "title": "Two-Column Nominal Table Shifted Left",
   "changes": [
-    "Replace stop-edge nominal SVG capsules with a compact three-column, two-row table fixed inside each floating chart lower-right corner.",
-    "Selected long: green nominal 1/2; selected short: red nominal 1/2; no selected position: no table. Stop price stays neutral.",
-    "Keep original calcPosition formula, limit-order following, on-drag updates, RR guides, price tags, HA/CCI, scanner, four-window interaction and R2 schema unchanged.",
-    "Each window owns its own HTML table; SVG redraw, wheel zoom, pan and resize do not alter table anchor. No new API calls or Worker changes."
+    "Remove the stop-price column from each selected-position table; only nominal value 1 and nominal value 2 remain.",
+    "Shift the chart-anchored table left in desktop and smaller windows without touching the time or price axis.",
+    "Keep both nominal values green for long and red for short; retain original order and math, four-window isolation, current quote updates and R2 state unchanged."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
@@ -18,6 +16,6 @@
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "GitHub Pages file overwrite only; no Cloudflare Worker or R2 update."
+    "GitHub Pages overwrite only; no Cloudflare Worker or R2 update."
   ]
 }

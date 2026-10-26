@@ -232,13 +232,13 @@
    // outside the plot so 10-second SVG redraws do not destroy or flash it.
    const nominalBox=document.createElement('aside');
    nominalBox.className='dw-nominal-table';
-   nominalBox.setAttribute('aria-label','選取部位下單換算');
+   nominalBox.setAttribute('aria-label','選取部位名義價值換算');
    nominalBox.hidden=true;
    const nominalGrid=document.createElement('table');
    const hdr=document.createElement('thead'),headRow=document.createElement('tr');
    const body=document.createElement('tbody'),valueRow=document.createElement('tr');
    const nominalValues=[];
-   for(const [i,titleText] of ['止損價格','名義價值①','名義價值②'].entries()){
+   for(const [i,titleText] of ['名義價值①','名義價值②'].entries()){
      const th=document.createElement('th');th.scope='col';th.textContent=titleText;headRow.append(th);
      const td=document.createElement('td');td.dataset.nominalColumn=String(i);
      td.textContent='—';valueRow.append(td);nominalValues.push(td);
@@ -282,11 +282,6 @@
    // Selected position only: reusing the unchanged DrawingWorkspace formula.
    // This updater is used on selection, mouse drag, edited settings and live
    // price changes. It does not issue requests or mutate saved drawings.
-   const stopPriceText=value=>{
-     const n=Number(value);if(!Number.isFinite(n)||n<=0)return '—';
-     const a=Math.abs(n),digits=a>=100?2:a>=1?4:a>=.01?6:a>=.0001?8:Math.min(13,Math.ceil(-Math.log10(a))+4);
-     return n.toLocaleString('en-US',{maximumFractionDigits:digits,minimumFractionDigits:a>=100?2:0});
-   };
    const nominalText=value=>Number.isFinite(value)&&value>0
      ?value.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}):'—';
    const updatePosition=()=>{
@@ -298,10 +293,10 @@
      const calc=window.DrawingWorkspace?.calcPosition(selected,marketPrice)||null;
      nominalBox.dataset.dwSide=selected.type==='long-position'?'long':'short';
      nominalBox.dataset.dwPositionId=selected.id;
-     const fields=[stopPriceText(selected.stop),nominalText(calc?.nominal1),nominalText(calc?.nominal2)];
+     const fields=[nominalText(calc?.nominal1),nominalText(calc?.nominal2)];
      for(let i=0;i<nominalValues.length;i++){
        if(nominalValues[i].textContent!==fields[i])nominalValues[i].textContent=fields[i];
-       nominalValues[i].title=['止損價格','名義價值①','名義價值②'][i]+'：'+fields[i];
+       nominalValues[i].title=['名義價值①','名義價值②'][i]+'：'+fields[i];
      }
      nominalBox.hidden=false;
    };

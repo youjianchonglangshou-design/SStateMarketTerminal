@@ -1,16 +1,17 @@
 {
-  "version": "2.0.7",
+  "version": "2.0.8",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.6",
-  "title": "HA Semantic Dot Left-Side Position Hotfix",
+  "baseVersion": "2.0.7",
+  "title": "Selected Position Notional Table",
   "changes": [
-    "Correct all previous-day HA semantic dots to the LEFT of today's color tile, irrespective of whether today is yellow or purple; preserves six existing states.",
-    "Keep vertical comparison from raw HA close: yesterday higher -> left-top, yesterday lower -> left-bottom, equal -> left-middle.",
-    "Fix yellow-yellow lower (e.g. HOLO) as yellow dot LEFT-TOP, yellow-yellow higher as yellow dot LEFT-BOTTOM, purple-to-yellow as purple dot LEFT-BOTTOM.",
-    "Use no extra API calls or R2 writes; no changes to HA formula, daily cache, chart, smart radar, RR, CCI or watchlist widths."
+    "Replace stop-edge nominal SVG capsules with a compact three-column, two-row table fixed inside each floating chart lower-right corner.",
+    "Selected long: green nominal 1/2; selected short: red nominal 1/2; no selected position: no table. Stop price stays neutral.",
+    "Keep original calcPosition formula, limit-order following, on-drag updates, RR guides, price tags, HA/CCI, scanner, four-window interaction and R2 schema unchanged.",
+    "Each window owns its own HTML table; SVG redraw, wheel zoom, pan and resize do not alter table anchor. No new API calls or Worker changes."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",

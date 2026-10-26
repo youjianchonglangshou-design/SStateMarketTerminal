@@ -984,3 +984,32 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .radar-cci-svg .cci-sma-dot-neutral{fill:#64748b}
 .radar-workspace .radar-cci-empty{height:140px;display:grid;place-items:center;font-size:11px;color:#91a4b8}
 @media(max-width:580px){.radar-workspace .radar-cci-hover-card{padding:8px}.radar-workspace .radar-cci-title{font-size:9px}.radar-workspace .radar-cci-value{font-size:9px;padding:2px 4px}}
+
+
+/* v2.0.8 — selected-position TradingView-style notional table.
+   Anchored to EACH floating window, outside the red/green SVG position box.
+   Neither price-axis width, time-axis zoom nor dragging moves the table. */
+.radar-workspace .floating-chart>.dw-nominal-table{
+  position:absolute;right:clamp(72px,8.7%,100px);bottom:34px;z-index:7;
+  max-width:calc(100% - 82px);box-sizing:border-box;
+  border:1px solid #6c7f93;border-radius:3px;
+  background:rgba(29,41,61,.94);color:#e0e8f0;
+  box-shadow:0 3px 10px #0006;pointer-events:none;
+  font-family:ui-monospace,'Noto Sans TC',Consolas,monospace;
+  font-variant-numeric:tabular-nums;
+}
+.radar-workspace .floating-chart>.dw-nominal-table[hidden]{display:none!important}
+.radar-workspace .dw-nominal-table table{border-collapse:collapse;width:100%;table-layout:auto;font-size:10px;line-height:1.25}
+.radar-workspace .dw-nominal-table th,.radar-workspace .dw-nominal-table td{
+  border:1px solid #778699;padding:3px 6px;text-align:center;white-space:nowrap;
+}
+.radar-workspace .dw-nominal-table th{font-weight:650;color:#e5eef6;background:#485367}
+.radar-workspace .dw-nominal-table td{font-weight:750;background:#29364c}
+.radar-workspace .dw-nominal-table td:first-child{color:#dce7ee}
+.radar-workspace .dw-nominal-table[data-dw-side="long"] td:not(:first-child){color:#16D99A}
+.radar-workspace .dw-nominal-table[data-dw-side="short"] td:not(:first-child){color:#FF5364}
+@container (max-width:540px){
+  .radar-workspace .dw-nominal-table table{font-size:9px}
+  .radar-workspace .dw-nominal-table th,.radar-workspace .dw-nominal-table td{padding:2px 3px}
+  .radar-workspace .floating-chart>.dw-nominal-table{right:66px;bottom:29px;max-width:calc(100% - 72px)}
+}

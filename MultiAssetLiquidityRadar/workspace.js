@@ -227,6 +227,26 @@
    head.append(label,w.indicator,buttons);
    w.plot=document.createElement('div');w.plot.className='radar-area radar-area-4h';w.plot.dataset.chartPlot=uid;
    el.append(head,w.plot);
+   // One persistent table per floating window. It is a VIEW of the selected
+   // position only; the drawings/R2 document schema is unchanged. Keep it
+   // outside the plot so 10-second SVG redraws do not destroy or flash it.
+   const nominalBox=document.createElement('aside');
+   nominalBox.className='dw-nominal-table';
+   nominalBox.setAttribute('aria-label','選取部位下單換算');
+   nominalBox.hidden=true;
+   const nominalGrid=document.createElement('table');
+   const hdr=document.createElement('thead'),headRow=document.createElement('tr');
+   const body=document.createElement('tbody'),valueRow=document.createElement('tr');
+   const nominalValues=[];
+   for(const [i,titleText] of ['止損價格','名義價值①','名義價值②'].entries()){
+     const th=document.createElement('th');th.scope='col';th.textContent=titleText;headRow.append(th);
+     const td=document.createElement('td');td.dataset.nominalColumn=String(i);
+     td.textContent='—';valueRow.append(td);nominalValues.push(td);
+   }
+   hdr.append(headRow);body.append(valueRow);nominalGrid.append(hdr,body);
+   nominalBox.append(nominalGrid);el.append(nominalBox);
+   w.nominalBox=nominalBox;
+
    const toolbar=document.createElement('div');toolbar.className='dw-toolbar';
    // Independent grab bar: dragging this control never pans the chart or moves its window.
    const grip=document.createElement('span');grip.className='dw-toolbar-grip';grip.textContent='⠿';grip.title='按住拖曳整排繪圖工具';grip.setAttribute('role','img');grip.setAttribute('aria-label','拖曳工具列');
@@ -259,9 +279,32 @@
    const magnet=document.createElement('span');magnet.className='dw-magnet-indicator';magnet.textContent='🧲';magnet.title='按住 CTRL 磁鐵吸附 OHLC';toolbar.insertBefore(magnet,toolButtons.get('fib'));
    const note=document.createElement('span');note.className='dw-tools-hint';note.textContent='左鍵平移 · 滾輪縮放 · CTRL 磁鐵';toolbar.append(note);
    el.append(toolbar);w.applyToolbarPos=setToolbarPos;setToolbarPos();
-   // Nominal 1/2 now render as selected drawing capsules just OUTSIDE its stop line.
-   // Keep the callback interface for existing selection/price-update paths.
-   const updatePosition=()=>{};
+   // Selected position only: reusing the unchanged DrawingWorkspace formula.
+   // This updater is used on selection, mouse drag, edited settings and live
+   // price changes. It does not issue requests or mutate saved drawings.
+   const stopPriceText=value=>{
+     const n=Number(value);if(!Number.isFinite(n)||n<=0)return '—';
+     const a=Math.abs(n),digits=a>=100?2:a>=1?4:a>=.01?6:a>=.0001?8:Math.min(13,Math.ceil(-Math.log10(a))+4);
+     return n.toLocaleString('en-US',{maximumFractionDigits:digits,minimumFractionDigits:a>=100?2:0});
+   };
+   const nominalText=value=>Number.isFinite(value)&&value>0
+     ?value.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}):'—';
+   const updatePosition=()=>{
+     const selected=controller?.getSelected?.();
+     if(!selected?.type?.endsWith('-position')){
+       nominalBox.hidden=true;nominalBox.removeAttribute('data-dw-position-id');return;
+     }
+     const marketPrice=Number(api.getData(w.symbol)?.chart?.price);
+     const calc=window.DrawingWorkspace?.calcPosition(selected,marketPrice)||null;
+     nominalBox.dataset.dwSide=selected.type==='long-position'?'long':'short';
+     nominalBox.dataset.dwPositionId=selected.id;
+     const fields=[stopPriceText(selected.stop),nominalText(calc?.nominal1),nominalText(calc?.nominal2)];
+     for(let i=0;i<nominalValues.length;i++){
+       if(nominalValues[i].textContent!==fields[i])nominalValues[i].textContent=fields[i];
+       nominalValues[i].title=['止損價格','名義價值①','名義價值②'][i]+'：'+fields[i];
+     }
+     nominalBox.hidden=false;
+   };
    w.onDrawingChanged=()=>{updatePosition();w.dirty=true;schedule(w,0);};
    controller=window.DrawingWorkspace?.attach(w,{livePrice:()=>window.LIQ_CHART_API?.getData(w.symbol)?.chart?.price,
      refreshHeader:updatePosition,setTool:selectTool,setMagnet:on=>{const b=toolButtons.get('select');if(b)b.textContent=on?'🧲':'↖';},

@@ -148,6 +148,13 @@ export default {
           return json({ok:true,...await writeRadarDrawings(env,symbol,body)},200,origin);
         }
       }
+      if (url.pathname === "/api/monitor/radar/settings") {
+        if (request.method === "GET") return json({ok:true,...await readRadarSettings(env)},200,origin);
+        if (request.method === "PUT") {
+          const body = await request.json().catch(() => ({}));
+          return json({ok:true,...await writeRadarSettings(env,body)},200,origin);
+        }
+      }
       if (url.pathname === "/api/monitor/radar/workspace") {
         if (request.method === "GET") return json({ok:true,...await readRadarWorkspace(env)},200,origin);
         if (request.method === "PUT") {
@@ -3735,6 +3742,50 @@ async function readChampionLedgerRows(env,generation,days,symbol=""){
   }
   rows.sort((a,b)=>(Number(a?.decision_time||0)-Number(b?.decision_time||0))||String(a?.symbol||"").localeCompare(String(b?.symbol||"")));
   return {ok:true,generation,days,symbol:symbol||null,shards:keys.length,keys,rows};
+}
+// Global defaults for newly drawn positions and live RR scanner.
+// Stored in its own R2 object, independent of chart windows and per-symbol drawings.
+const RADAR_SETTINGS_KEY = "terminal/radar_settings_v1.json";
+const RADAR_SETTINGS_RISK_DEFAULTS = Object.freeze({riskAmount1:1000,riskAmount2:100});
+const RADAR_SETTINGS_RR_DEFAULTS = Object.freeze({continuation:1.5,reversal:1.7});
+async function readRadarSettings(env){
+  const obj=await env.JSON_BUCKET.get(RADAR_SETTINGS_KEY);
+  if(!obj)return {schema_version:1,configured:false,revision:0,updated_at:null,
+    riskDefaults:{...RADAR_SETTINGS_RISK_DEFAULTS},rrThresholds:{...RADAR_SETTINGS_RR_DEFAULTS}};
+  try {
+    const raw=JSON.parse(await obj.text());
+    return {schema_version:1,configured:true,revision:Number(raw.revision)||0,
+      updated_at:raw.updated_at||null,
+      riskDefaults:raw.riskDefaults||{...RADAR_SETTINGS_RISK_DEFAULTS},
+      rrThresholds:raw.rrThresholds||{...RADAR_SETTINGS_RR_DEFAULTS}};
+  }catch(_){throw httpError(500,"invalid radar settings in R2");}
+}
+async function writeRadarSettings(env,body){
+  const current=await readRadarSettings(env);
+  const revision=Number(body?.expected_revision);
+  if(!Number.isSafeInteger(revision)||revision!==current.revision)
+    throw httpError(409,"radar settings revision conflict; fetch latest settings");
+  const section=body?.section;
+  const values=body?.values;
+  if(!values||typeof values!=="object"||Array.isArray(values))throw httpError(400,"invalid settings values");
+  let riskDefaults={...current.riskDefaults},rrThresholds={...current.rrThresholds};
+  if(section==="risk"){
+    const a=values.riskAmount1,b=values.riskAmount2;
+    if(typeof a!=="number"||!Number.isFinite(a)||a<=0||a>1e12||
+       typeof b!=="number"||!Number.isFinite(b)||b<=0||b>1e12)
+      throw httpError(400,"risk amounts must be positive finite numbers");
+    riskDefaults={riskAmount1:a,riskAmount2:b};
+  }else if(section==="rr"){
+    const a=values.continuation,b=values.reversal;
+    if(typeof a!=="number"||!Number.isFinite(a)||a<1||a>100||
+       typeof b!=="number"||!Number.isFinite(b)||b<1||b>100)
+      throw httpError(400,"RR thresholds must be between 1 and 100");
+    rrThresholds={continuation:a,reversal:b};
+  }else throw httpError(400,"unknown settings section");
+  const payload={schema_version:1,revision:current.revision+1,updated_at:new Date().toISOString(),riskDefaults,rrThresholds};
+  await env.JSON_BUCKET.put(RADAR_SETTINGS_KEY,JSON.stringify(payload),
+    {httpMetadata:{contentType:"application/json; charset=utf-8"}});
+  return payload;
 }
 // Shared installation-level chart workspace. R2 is the source of truth across devices.
 // This is NOT per-user authentication: deploy behind an access policy for private layouts.

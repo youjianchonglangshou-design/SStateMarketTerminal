@@ -1,22 +1,19 @@
 {
-  "version": "2.1.0",
-  "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.9",
-  "title": "Six-Structure Ten-Stage Bi-Directional Real-Time RR Scanner",
+  "version": "2.1.1",
+  "releaseDate": "2026-10-27",
+  "baseVersion": "2.1.0",
+  "title": "RR Structural Left Shoulder Correction",
   "changes": [
-    "Six Heikin-Ashi semantic states expanded to ten directional RR branches; continuation threshold 1.50 and reversal threshold 1.70.",
-    "Dynamic high/low shoulders for ②/④ and nearest historically closed same-color shoulders for ③/⑥; quote-driven fake-break reclassification.",
-    "Configurable global RR thresholds added to existing bottom ⚙ 繪圖 -> R2 drawing manager; restored and synchronized with workspace state.",
-    "Retain current live-quote polling, original CoinGlass/proxy input, drawings, manual position RR and other indicator calculations."
+    "Fix ③/⑥ shoulder detection: geometry-based preceding rising/falling HA stair leg, never hardcode historical same-color searches.",
+    "②/④ preserve nearest higher/lower-than-today dynamic backtracking; missing shoulders suppress speculative RR LEDs.",
+    "Keep ten RR branches: continuation 1.50 and reversal 1.70; no independent market requests or changes to manual drawing positions.",
+    "Show diagnostic shoulder price, historical date, method, candidate direction and RR on ticker hover even when LED is off.",
+    "INTCX regression: first stair of falling leg 2026-10-22 at 88.0725, not 2026-10-21 at 93.1825; no erroneous red LED."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/rr-config.js",
     "MultiAssetLiquidityRadar/rr-scanner.js",
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/drawing-manager.js",
     "MultiAssetLiquidityRadar/index.html",
-    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],

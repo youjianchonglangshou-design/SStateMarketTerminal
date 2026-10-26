@@ -36,6 +36,21 @@
    if(!led)return;
    const result=scanner?.evaluate(rrSnapshot(r));
    led.hidden=true;led.className='liq-rr-led';led.removeAttribute('title');led.removeAttribute('aria-label');
+   // Shoulder diagnostics are available on the ticker even when the LED is off.
+   // This prevents a wrong/old left shoulder from hiding behind a dark LED.
+   const name=r.dom?.name;
+   if(name){
+     if(result){
+       const sh=result.shoulder;
+       const candidate=result.candidateDirection==='long'?'多':result.candidateDirection==='short'?'空':'無';
+       const ratio=result.candidateDirection==='long'?result.longRR:result.shortRR;
+       name.title='RR 結構 '+(result.stage||'未確認')+'｜候選 '+candidate+
+         (sh?'\n左肩膀 '+MONEY(sh.price)+'（'+tpe(sh.dayKey).slice(0,10)+'，'+sh.method+'）':'\n無有效歷史肩膀')+
+         '\n現價 '+MONEY(result.price)+
+         (Number.isFinite(ratio)?'\n候選 RR '+ratio.toFixed(3)+'｜門檻 '+Number(result.threshold).toFixed(2):'')+
+         '\n結果 '+(result.direction==='none'?'未亮燈（RR未達標或結構無效）':'達標亮燈');
+     } else name.title='RR：等待有效即時價格、7D 清算界與日線階梯資料';
+   }
    if(!result||result.direction==='none')return;
    const long=result.direction==='long',ratio=long?result.longRR:result.shortRR;
    const label=(long?'做多':'做空')+' 理論賺賠比 '+ratio.toFixed(2)+':1';
@@ -892,7 +907,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.0',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.1',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

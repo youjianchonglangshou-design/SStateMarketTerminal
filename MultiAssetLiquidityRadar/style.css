@@ -924,3 +924,10 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .floating-chart.is-maximized{z-index:150!important}
 .radar-workspace .floating-chart.is-maximized .chart-resize{display:none!important}
 .radar-workspace .floating-chart .chart-maximize{font-size:15px!important}
+
+/* v2.0.2: TradingView-like bright white inspection crosshair (does not alter data). */
+.radar-workspace .radar-chart-svg .rc-hover-v,
+.radar-workspace .radar-chart-svg .rc-hover-h{stroke:#f4f8ff;stroke-width:1.15;stroke-dasharray:5 5;opacity:.88;vector-effect:non-scaling-stroke}
+.radar-workspace .dw-layer .dw-edge-price{pointer-events:all}
+.radar-workspace .dw-layer .dw-snap-preview{pointer-events:none;filter:drop-shadow(0 0 4px #43cbb5)}
+.radar-workspace .dw-magnet-on .dw-toolbar button[data-tool=select]{color:#d1fff8;border-color:#55e8dc;background:#145863}

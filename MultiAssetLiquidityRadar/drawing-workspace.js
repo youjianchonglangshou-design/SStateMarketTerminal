@@ -69,6 +69,18 @@ function calcPosition(position,live){const entry=position.limitEnabled?Number(po
 }
 function node(parent,tag,attrs={}){const e=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))if(v!=null)e.setAttribute(k,String(v));parent.append(e);return e;}
 function label(g,text,x,y,paint){const t=node(g,'text',{x,y,fill:paint||'#dbeafa','font-size':11,'font-weight':650,'pointer-events':'none'});t.textContent=text;return t;}
+// Put actual price labels on the log-price axis only while their drawings are selected.
+// Tags represent the true y(price): never clamp a price to a misleading tick.
+function edgePriceTag(g,proj,price,tone,caption,id){
+ if(!good(price))return;
+ const yy=proj.y(price);if(yy<proj.T+9||yy>proj.plotB-9)return;
+ const bg=node(g,'g',{'data-dw-id':id,class:'dw-price-tag dw-edge-price'});
+ node(bg,'rect',{x:proj.plotR+2,y:yy-10,width:Math.max(40,proj.W-proj.plotR-5),height:20,rx:3,fill:'#102535',stroke:tone,'stroke-opacity':'.95'});
+ const tx=label(bg,caption+money(price),proj.plotR+7,yy+4,tone);
+ tx.setAttribute('font-size','10.5');
+}
+function signedPct(value,entry){return !good(entry)||!Number.isFinite(value)?'—':(value>=0?'+':'')+value.toFixed(2)+'%';}
+
 function place(g,obj,proj,selected,live){
  const x=t=>proj.x(t),y=p=>proj.y(p),a=obj.anchors||[],id=obj.id,c= color[obj.color]||'#38d7e8';
  if(!a[0]||!good(a[0].price)||!validTime(a[0].time))return;
@@ -82,6 +94,11 @@ function place(g,obj,proj,selected,live){
  }else if(obj.type==='rectangle'&&a.length>1){const x0=x(a[0].time),x1=x(a[1].time),y0=y(a[0].price),y1=y(a[1].price),left=Math.min(x0,x1),top=Math.min(y0,y1),width=Math.max(2,Math.abs(x1-x0)),height=Math.max(2,Math.abs(y1-y0));
    node(g,'rect',{...hit,x:left,y:top,width,height,stroke:c,fill:c,'fill-opacity':'.09','stroke-width':selected?2.3:1.4});
    const middle=y(Math.sqrt(a[0].price*a[1].price));node(g,'line',{...hit,x1:left,x2:left+width,y1:middle,y2:middle,stroke:c,'stroke-opacity':'.65','stroke-dasharray':'4 4'});
+   if(selected){
+     // Upper/lower labels track the actual logarithmic price coordinates as handles move.
+     const high=Math.max(a[0].price,a[1].price),low=Math.min(a[0].price,a[1].price);
+     edgePriceTag(g,proj,high,c,'',id);edgePriceTag(g,proj,low,c,'',id);
+   }
  }else if(obj.type.endsWith('-position')){
     const long=obj.type==='long-position',entry=obj.limitEnabled?Number(obj.entry):Number(live),stop=Number(obj.stop),target=Number(obj.target);
     if(!good(entry)||!good(stop)||!good(target))return;
@@ -93,11 +110,21 @@ function place(g,obj,proj,selected,live){
     const description=cc?`${long?'做多':'做空'} · RR ${cc.rr.toFixed(2)} · 進場 ${money(entry)} · 目標 ${money(target)} · 止損 ${money(stop)} · 風險1 ${money(obj.riskAmount1)} · 風險2 ${money(obj.riskAmount2)} · 名義1 ${money(cc.nominal1)} · 名義2 ${money(cc.nominal2)}`:'部位價格無效';
     const tt=node(g,'title');tt.textContent=description;
     label(g,(long?'做多 ':'做空 ')+(cc?'RR '+cc.rr.toFixed(2):'價格無效'),left+4,y(entry)-5,long?'#28d59d':'#ff7889');
+    if(selected&&good(entry)){
+      const rewardPct=(long?(target-entry):(entry-target))/entry*100;
+      const lossPct=(long?(entry-stop):(stop-entry))/entry*100;
+      const rx=Math.max(proj.L+5,Math.min(proj.plotR-100,left+Math.max(10,width*.12)));
+      const ty=y(target),sy=y(stop);
+      if(ty>=proj.T+12&&ty<=proj.plotB-9)label(g,'目標 '+signedPct(rewardPct,entry),rx,ty-6,'#51efb8');
+      if(sy>=proj.T+12&&sy<=proj.plotB-9)label(g,'止損 -'+lossPct.toFixed(2)+'%',rx,sy-6,'#ff99a6');
+    }
     for(const [field,value,tone] of [['target',target,'#28d59d'],['entry',entry,'#d7e6ef'],['stop',stop,'#f17b89']]){
-      const yy=y(value);if(yy<proj.T||yy>proj.plotB)continue;
+      // Entry badge only appears when this position is selected; other lines remain visible.
+      if(field==='entry'&&!selected)continue;
+      const yy=y(value);if(yy<proj.T+9||yy>proj.plotB-9)continue;
       const tag=node(g,'g',{'data-dw-id':id,'data-dw-price':field,class:'dw-price-tag',cursor:'pointer'});
       node(tag,'rect',{x:proj.plotR+2,y:yy-9,width:Math.max(40,proj.W-proj.plotR-5),height:18,rx:3,fill:'#0b2434',stroke:tone,'stroke-opacity':'.85'});
-      label(tag,money(value),proj.plotR+7,yy+4,tone);
+      label(tag,(field==='entry'?'進場 ':'')+money(value),proj.plotR+7,yy+4,tone);
     }
     // Checkbox is part of EACH drawing, not a single global chart setting.
     const cb=node(g,'g',{'data-dw-order-toggle':id,class:'dw-order-toggle',cursor:'pointer'});
@@ -125,21 +152,50 @@ function render(w){const proj=w.plot?.__liqProjection;if(!proj)return;const svg=
  const ctl=controllers.get(w),doc=snapshot(w.symbol);if(!ctl)return;
  const local=[...doc.drawings];if(ctl.draft?.anchors?.length){local.push({...ctl.draft,id:'draft',modifiedAt:Date.now()});}
  for(const item of local){try{place(g,item,proj,ctl.selected===item.id,ctl.livePrice());}catch(e){console.warn('[Drawings] unable to draw item',e);}}
+ // Magnetic ghost shows BEFORE the first click and while editing existing handles.
+ if(ctl.ctrl&&ctl.hoverPoint&&((ctl.tool!=='select')||ctl.hoverEditing)){
+   const p=ctl.hoverPoint,x=proj.x(p.time),y=proj.y(p.price);
+   if(Number.isFinite(x)&&Number.isFinite(y)&&x>=proj.L&&x<=proj.plotR&&y>=proj.T&&y<=proj.plotB){
+     const ghost=node(g,'g',{class:'dw-snap-preview','pointer-events':'none'});
+     node(ghost,'circle',{cx:x,cy:y,r:9,fill:'#1bdac9','fill-opacity':'.16',stroke:'#69fff1','stroke-width':1.2});
+     node(ghost,'circle',{cx:x,cy:y,r:3.1,fill:'#cbfffa'});
+     label(ghost,'🧲 '+(p.field||'OHLC')+' '+money(p.price),Math.min(proj.plotR-105,x+11),Math.max(proj.T+15,y-10),'#d6fffa');
+   }
+ }
  // Persistent daily HA selection is rendered by chart4h.js, not duplicated in drawing overlay.
 }
-function snap(proj,pos,ctrl){if(!proj||!pos)return null;const yy=clamp(pos.y,proj.T,proj.plotB),xx=clamp(pos.x,proj.L,proj.plotR),t=proj.time(xx);
- if(!ctrl)return {time:Math.round(t),price:proj.price(yy)};
- let best=null,dist=Infinity;for(const r of proj.rows){const dx=Math.abs(proj.x(r.t)-xx);if(dx>proj.stride*1.5)continue;
- for(const key of ['o','h','l','c']){const dy=Math.abs(proj.y(r[key])-yy),d=dx*.4+dy;if(d<dist){dist=d;best={time:r.t,price:r[key]};}}}
- return best||{time:Math.round(t),price:proj.price(yy)};
+function snap(proj,pos,ctrl){
+ if(!proj||!pos)return null;
+ const yy=clamp(pos.y,proj.T,proj.plotB),xx=clamp(pos.x,proj.L,proj.plotR),t=proj.time(xx);
+ const free={time:Math.round(t),price:proj.price(yy)};
+ if(!ctrl)return free;
+ let candle=null,horizontal=Infinity;
+ for(const r of proj.rows){const dx=Math.abs(proj.x(r.t)-xx);
+   if(dx<horizontal){horizontal=dx;candle=r;}}
+ // No distant snapping: do not force a price from an unrelated historical bar.
+ if(!candle||horizontal>Math.max(10,proj.stride*1.25))return free;
+ let chosen='c',distance=Infinity;
+ for(const key of ['o','h','l','c']){const dy=Math.abs(proj.y(candle[key])-yy);
+   if(dy<distance){distance=dy;chosen=key;}}
+ return {time:candle.t,price:candle[chosen],field:({o:'O',h:'H',l:'L',c:'C'})[chosen],snapped:true};
 }
-function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,drag:null,livePrice:callbacks.livePrice,ctrl:false};controllers.set(w,c);
+
+function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,livePrice:callbacks.livePrice,ctrl:false,hoverPoint:null,hoverEditing:false,lastPointer:null};controllers.set(w,c);
  const target=w.plot;
- const syncSnapUI=()=>{const snapOn=c.ctrl&&c.tool!=='select';w.el.classList.toggle('dw-magnet-on',snapOn);callbacks.setMagnet?.(snapOn);};
- const controlKey=ev=>{if(ev.key!=='Control')return;c.ctrl=ev.type==='keydown';syncSnapUI();};
+ const magnetAllowed=()=>c.tool!=='select'||Boolean(c.selected)||c.drag?.kind==='edit';
+ const syncSnapUI=()=>{const snapOn=c.ctrl&&magnetAllowed();w.el.classList.toggle('dw-magnet-on',snapOn);callbacks.setMagnet?.(snapOn);};
+ const updateGhost=ev=>{if(ev)c.lastPointer={clientX:ev.clientX,clientY:ev.clientY};
+   const proj=target.__liqProjection;const last=c.lastPointer;
+   if(!proj||!last||!c.ctrl){c.hoverPoint=null;c.hoverEditing=false;return;}
+   const rect=target.getBoundingClientRect();const px=proj.fromEvent(last);
+   c.hoverEditing=c.drag?.kind==='edit'||(c.tool==='select'&&!!document.elementFromPoint(last.clientX,last.clientY)?.closest?.('.dw-hit,.dw-handle'));
+   c.hoverPoint=(c.tool!=='select'||c.hoverEditing)&&px.x>=proj.L&&px.x<=proj.plotR&&px.y>=proj.T&&px.y<=proj.plotB?snap(proj,px,true):null;
+ };
+ const controlKey=ev=>{if(ev.key!=='Control')return;c.ctrl=ev.type==='keydown';updateGhost();syncSnapUI();render(w);};
  document.addEventListener('keydown',controlKey);document.addEventListener('keyup',controlKey);
- const blur=()=>{c.ctrl=false;syncSnapUI();};window.addEventListener('blur',blur);
+ const blur=()=>{c.ctrl=false;updateGhost();syncSnapUI();render(w);};window.addEventListener('blur',blur);
  target.addEventListener('pointerdown',ev=>{
+  c.ctrl=Boolean(ev.ctrlKey||c.ctrl);syncSnapUI();
   const proj=target.__liqProjection;if(ev.button!==0||!proj||ev.target.closest?.('.rc-price-axis-hit,.rc-selected-price-box')||ev.target.closest?.('.dw-toolbar'))return;
   const toggle=ev.target.closest?.('[data-dw-order-toggle]');
   if(toggle){const id=toggle.dataset.dwOrderToggle,obj=snapshot(w.symbol).drawings.find(d=>d.id===id);
@@ -148,9 +204,9 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
       change(w.symbol,id,{limitEnabled:entering,entry:price});c.selected=id;callbacks.refreshHeader();render(w);
     }ev.preventDefault();ev.stopPropagation();return;
   }
-  const hit=ev.target.closest?.('[data-dw-id]');const point=snap(proj,proj.fromEvent(ev),ev.ctrlKey);if(!point)return;
+  const hit=ev.target.closest?.('[data-dw-id]');const point=snap(proj,proj.fromEvent(ev),Boolean(ev.ctrlKey||c.ctrl));if(!point)return;
   if(hit&&hit.dataset.dwId!=='draft'&&c.tool==='select'){
-    c.selected=hit.dataset.dwId;const object=snapshot(w.symbol).drawings.find(d=>d.id===c.selected);
+    c.selected=hit.dataset.dwId;syncSnapUI();const object=snapshot(w.symbol).drawings.find(d=>d.id===c.selected);
     c.drag={kind:'edit',id:ev.pointerId,start:point,object:object?JSON.parse(JSON.stringify(object)):null,idx:hit.dataset.dwAnchor==null?-1:Number(hit.dataset.dwAnchor),corner:hit.dataset.dwCorner||null,side:hit.dataset.dwSide||null,pos:hit.dataset.dwPos||null,moved:false};
     ev.preventDefault();ev.stopPropagation();try{target.setPointerCapture(ev.pointerId);}catch(_){};callbacks.refreshHeader();render(w);return;
   }
@@ -165,15 +221,15 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
         const step=proj.interval==='1D'?86400000:14400000;
         Object.assign(base,{entry,stop:entry*(long?.98:1.02),target:entry*(long?1.04:.96),riskAmount1:1000,riskAmount2:100,limitEnabled,
           anchors:[{time:point.time,price:entry},{time:Math.round(point.time+step*12),price:entry*(long?.98:1.02)}]});
-        const obj=add(w.symbol,base);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();
+        const obj=add(w.symbol,base);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();syncSnapUI();
       }else c.draft=base;
     }else{
       const d=c.draft;d.anchors=[d.anchors[0],point];
-      const obj=add(w.symbol,d);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();
+      const obj=add(w.symbol,d);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();syncSnapUI();
     }
     ev.preventDefault();ev.stopPropagation();render(w);return;
   }
-  c.selected=null;callbacks.refreshHeader();
+  c.selected=null;syncSnapUI();callbacks.refreshHeader();
   if(ev.target.closest?.('.rc-hit')){
     c.drag={kind:'pan',id:ev.pointerId,startClientX:ev.clientX,startClientY:ev.clientY,startOffset:callbacks.getOffset(),
       startPricePan:callbacks.getPricePan(),stride:proj.stride,ph:proj.ph,logSpan:proj.logSpan,moved:false};
@@ -183,20 +239,22 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
   render(w);
  },true);
  target.addEventListener('pointermove',ev=>{const proj=target.__liqProjection;if(!proj)return;
-   if(c.draft){const at=snap(proj,proj.fromEvent(ev),ev.ctrlKey);if(at){c.draft.anchors[1]=at;render(w);}return;}
-   const drag=c.drag;if(!drag||drag.id!==ev.pointerId)return;
+   c.ctrl=Boolean(ev.ctrlKey||c.ctrl);updateGhost(ev);syncSnapUI();
+   if(c.draft){const at=snap(proj,proj.fromEvent(ev),Boolean(ev.ctrlKey||c.ctrl));if(at){c.draft.anchors[1]=at;render(w);}return;}
+   const drag=c.drag;
+   if(!drag||drag.id!==ev.pointerId){if(c.ctrl&&magnetAllowed())render(w);return;}
    if(drag.kind==='pan'){
      const dx=ev.clientX-drag.startClientX,dy=ev.clientY-drag.startClientY;
      if(Math.hypot(dx,dy)>4){drag.moved=true;target.classList.add('dw-is-panning');}
      if(!drag.moved)return;
      // Fixed slot width means no wheel-style density change during panning.
      const delta=Math.round(dx/Math.max(2,drag.stride));
-     const next=clamp(drag.startOffset-delta,-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
+     const next=clamp(drag.startOffset+delta,-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
      callbacks.setOffset(next);
      callbacks.setPricePan(drag.startPricePan+dy/Math.max(20,drag.ph)*drag.logSpan);
      if(callbacks.getTimeframe()==='4H'&&next>proj.total-proj.viewCount-15)callbacks.moreHistory();
    }else if(drag.kind==='edit'&&drag.object){
-     const at=snap(proj,proj.fromEvent(ev),ev.ctrlKey);if(!at)return;drag.moved=true;
+     const at=snap(proj,proj.fromEvent(ev),Boolean(ev.ctrlKey||c.ctrl));if(!at)return;drag.moved=true;
      const original=drag.object,d={...original,anchors:original.anchors.map(a=>({...a}))};
      if(drag.corner){const [ti,pi]=drag.corner.split(':').map(Number);d.anchors[ti].time=at.time;d.anchors[pi].price=at.price;}
      else if(drag.side){const [axis,index]=drag.side.split(':');if(axis==='time')d.anchors[Number(index)].time=at.time;
@@ -222,6 +280,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
       else callbacks.commitView?.();
     }
     try{target.releasePointerCapture(ev.pointerId);}catch(_){};
+    updateGhost(ev);syncSnapUI();render(w);
   };
  target.addEventListener('pointerup',end);target.addEventListener('pointercancel',end);
  target.addEventListener('click',ev=>{if(c.tool!=='select'||ev.target.closest?.('.dw-hit,.dw-handle')){ev.stopImmediatePropagation();}},true);
@@ -234,11 +293,11 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,dra
    const off=callbacks.getOffset()+Math.round((next-cur)*(1-relative));
    callbacks.setView(next,clamp(off,-Math.floor(next*.5),Math.max(0,proj.total-21)));if(callbacks.getTimeframe()==='4H'&&next>proj.total-callbacks.getOffset()-10)callbacks.moreHistory();
  },{passive:false});
- c.setTool=tool=>{c.tool=tool;c.draft=null;syncSnapUI();render(w);};
+ c.setTool=tool=>{c.tool=tool;c.draft=null;updateGhost();syncSnapUI();render(w);};
  c.getSelected=()=>snapshot(w.symbol).drawings.find(x=>x.id===c.selected)||null;
- c.setSelected=id=>{c.selected=id;callbacks.refreshHeader();render(w);};
- c.cancel=()=>{c.tool='select';c.draft=null;callbacks.setTool('select');syncSnapUI();render(w);};
- c.reset=()=>{c.tool='select';c.draft=null;c.selected=null;syncSnapUI();};
+ c.setSelected=id=>{c.selected=id;syncSnapUI();callbacks.refreshHeader();render(w);};
+ c.cancel=()=>{c.tool='select';c.draft=null;c.hoverPoint=null;callbacks.setTool('select');syncSnapUI();render(w);};
+ c.reset=()=>{c.tool='select';c.draft=null;c.selected=null;c.hoverPoint=null;syncSnapUI();};
  c.dispose=()=>{document.removeEventListener('keydown',controlKey);document.removeEventListener('keyup',controlKey);window.removeEventListener('blur',blur);};
  return c;
 }

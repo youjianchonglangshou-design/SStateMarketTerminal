@@ -1,32 +1,28 @@
 {
-  "version": "2.0.1",
+  "version": "2.0.2",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.0",
-  "title": "Drawing Workspace — Interaction Regression Fixes",
+  "baseVersion": "2.0.1",
+  "title": "Drawing Interaction Fidelity — Pan, Magnet, Price Labels",
   "changes": [
-    "Independent wheel time-density zoom and four-direction mouse pan; future empty chart space; persistent log-price vertical pan.",
-    "Ctrl magnet available before first anchor; OHLC snap feedback; Fib 1 at first high and 0 at second low with logarithmic extensions.",
-    "Rectangle mid-edge length and height handles; single-click valid long/short position with per-position order checkbox and right-aligned semantic nominal.",
-    "Restored persistent HA step selection/price label when pointer events are captured by chart panning.",
-    "Floating chart maximize/restore while preserving exact original geometry.",
-    "Unchanged: v1.9.0 startup, 10-second signal/RR updates and existing R2 per-symbol data schema."
+    "Fixed chart left/right pan: dragging left moves candles left, dragging right moves candles right; neither action changes time-density/price scale.",
+    "CTRL magnet now presents pre-first-click OHLC preview and remains available when editing a selected drawing handle, with exact candle OHLC snap.",
+    "Selected rectangles show upper/lower log-price axis labels attached to the corresponding price levels.",
+    "Selected long/short positions show entry label and target/stop percentage values, preserving existing live-vs-limit entry and nominal-value semantics.",
+    "Restored high-contrast white mouse crosshair dashed lines.",
+    "Unchanged: chart engine, 4H/1D & line/candles, HA guide, startup v1.9.0, 10-second data/Signal Spotlight/RR, R2 sync API."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md",
-    "MultiAssetLiquidityRadar/app.js"
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "GitHub Pages: MultiAssetLiquidityRadar only. No Cloudflare Worker change required."
+    "GitHub Pages: replace five files in MultiAssetLiquidityRadar. No Worker redeploy."
   ],
   "notes": [
-    "RR THRESHOLD from uploaded base remains unchanged (1.20).",
-    "Per-symbol R2 drawing API and Cloudflare Worker are unchanged; no Worker redeploy for v2.0.1.",
-    "Browser tests use simulated historical/live data; exchange APIs, production R2 syncing, Telegram and 30-minute live stress were not exercised."
+    "Use the exact uploaded/previous v2.0.1 base; no exchange/Worker behavior changed.",
+    "Local Chromium interaction tests use synthetic price series, not live exchange or R2 endpoint tests."
   ]
 }

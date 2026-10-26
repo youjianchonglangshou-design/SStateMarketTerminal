@@ -181,8 +181,37 @@
    if(days.length<26)return null;
    let po=null,pc=null,before=null,cur=null;
    for(const b of days){const ho=po===null?(b.o+b.c)/2:(po+pc)/2,hc=(b.o+b.h+b.l+b.c)/4;before=cur;cur={color:hc>=ho?'黃':'紫',ho,hc,t:b.t};po=ho;pc=hc;}
-   return cur?{...cur,priorColor:before?.color||'--'}:null;
+   // Existing HA color and price algorithm is unchanged. Only expose yesterday's
+   // calculated HA CLOSE from the same full daily sequence (not raw close).
+   return cur?{...cur,priorColor:before?.color||'--',priorHc:before?.hc??null,priorT:before?.t??null}:null;
  }
+ // v2.0.6: the prior-day dot is positioned on the same HA staircase price scale:
+ // prior HA CLOSE above today's -> upper dot; below today's -> lower dot.
+ // A yellow->purple transition cannot rise and a purple->yellow transition cannot
+ // fall in a continuous HA sequence. An inconsistency hides the dot, not the tile.
+ function classifyHaSemanticDot(ha){
+   const current=ha?.color,previous=ha?.priorColor;
+   const today=ha?.hc,yesterday=ha?.priorHc;
+   if(!['黃','紫'].includes(current)||!['黃','紫'].includes(previous)||
+      !Number.isFinite(today)||!Number.isFinite(yesterday)||today<=0||yesterday<=0 ||
+      !(Number.isFinite(ha?.t)&&Number.isFinite(ha?.priorT)&&ha.t-ha.priorT===DAY)){
+     return {position:null,state:'missing',meaning:'HA 今日／昨日資料不足或日期不連續'};
+   }
+   // Relative epsilon works for both BTC and micro-priced tokens (e.g. PEPE).
+   const delta=today-yesterday;
+   const eps=16*Number.EPSILON*Math.max(Math.abs(today),Math.abs(yesterday));
+   const vertical=Math.abs(delta)<=eps?'middle':delta>0?'bottom':'top';
+   const side=current==='紫'?'left':'right';
+   if((previous==='紫'&&current==='黃'&&vertical!=='bottom')||
+      (previous==='黃'&&current==='紫'&&vertical!=='top')){
+     return {position:null,state:'anomaly',meaning:'HA 轉色與收盤價高度矛盾（需檢查日線資料）',delta};
+   }
+   const meaning=vertical==='middle'?'HA 收盤價持平':
+     current==='紫'?(vertical==='bottom'?'連續紫抬高，留意可能止跌':previous==='黃'?'黃轉紫，HA 收盤價降低':'連續紫降低，偏弱延續'):
+     vertical==='top'?'連續黃降低，留意漲勢衰退':previous==='紫'?'紫轉黃，HA 收盤價抬高':'連續黃抬高，偏強延續';
+   return {position:side+'-'+vertical,state:'valid',meaning,delta};
+ }
+ const reportedHaDotConflicts=new Set();
  function dailyCciSma(days){
    // SStateMarketTerminal/monitor-engine.js: CCI_LENGTH=20, CCI_SMOOTHING_LENGTH=14.
    const n=days.length,cci=Array(n).fill(null),sma=Array(n).fill(null);
@@ -312,7 +341,19 @@
    d.midLabel.title=mid?`SState 最近5日中軌斜率 ${mid.recent_5d_slope_pct_per_day}%/日；前5日 ${mid.previous_5d_slope_pct_per_day}%/日；改善 ${mid.slope_improvement_pct_per_day}%/日`:'日 K 中軌斜率尚無資料';
    d.ha.textContent=r.ha?.color||'--';d.ha.className='ha-color '+(r.ha?.color==='黃'?'yellow':r.ha?.color==='紫'?'purple':'unknown');
    renderHaTransition(d.hn,r.ha,r.errors.day?'日線取得失敗':'等待日線');
-   d.ha.dataset.prior=r.ha?.priorColor||'';
+   const haDot=classifyHaSemanticDot(r.ha);
+   // Attribute is intentionally absent for bad/missing data: no stale prior dot.
+   if(haDot.position){d.ha.dataset.prior=r.ha.priorColor;d.ha.dataset.haDotPosition=haDot.position;}
+   else{delete d.ha.dataset.prior;delete d.ha.dataset.haDotPosition;}
+   d.ha.title=haDot.state==='valid'
+     ?`平均 K：昨天${r.ha.priorColor} ${MONEY(r.ha.priorHc)} → 今天${r.ha.color} ${MONEY(r.ha.hc)}｜${haDot.meaning}（今日可能未收線）`
+     :haDot.meaning;
+   if(haDot.state==='anomaly'){
+     const key=r.id+':'+r.ha?.t;
+     if(!reportedHaDotConflicts.has(key)){
+       reportedHaDotConflicts.add(key);log(`${r.id} HA 語意圓點隱藏：${haDot.meaning}`);
+     }
+   }
    d.cci.textContent=r.cci?.color==='黃'||r.cci?.color==='紫'?r.cci.color:'--';
    d.cci.className='ha-color '+(r.cci?.color==='黃'?'yellow':r.cci?.color==='紫'?'purple':'unknown');
    d.cn.textContent=r.cci?`SMA ${r.cci.value.toFixed(1)}`:(r.daily.length&&r.daily.length<34?'日 K 不足 34 根':r.errors.day?'日 K 取得失敗':'等待日 K');
@@ -321,7 +362,7 @@
    if(d.tr)d.tr.title=Object.entries(r.errors).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`).join(' | ')||'';
    if(d.sBadge.parentElement){d.sBadge.parentElement.title=d.sBadge.title+'\n'+d.sSub.textContent;}
    if(d.midLabel.parentElement){d.midLabel.parentElement.title=d.midLabel.title+'\n'+d.midSub.textContent;}
-   if(d.ha.parentElement){d.ha.parentElement.title=d.hn.title+'\n'+d.hn.textContent;}
+   if(d.ha.parentElement){d.ha.parentElement.title=d.ha.title+'\n'+d.hn.textContent;}
    if(d.cci.parentElement){d.cci.parentElement.title=d.cci.title+'\n'+d.cn.textContent;}
  }
  // A header click chooses its column and a subsequent click reverses direction.
@@ -845,7 +886,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.0.5',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.0.6',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

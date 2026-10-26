@@ -1,26 +1,23 @@
 {
-  "version": "2.0.5",
+  "version": "2.0.6",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.4",
-  "title": "Nominal Stop-Edge Capsules and Lazy CCI Trend Hover",
+  "baseVersion": "2.0.5",
+  "title": "Daily HA Semantic Previous-Day Dot Position",
   "changes": [
-    "Selected long position: nominal 1 / 2 shown below STOP edge outside red risk zone in green; short above STOP edge in red.",
-    "Remove nominal 1 / 2 from chart title bar; calculation and position storage unchanged.",
-    "Add one lazy on-hover daily CCI/SMA card for both watchlist capsules and floating-chart header capsules; use SStateMonitorEngine.calculateCciSma with existing daily OHLC.",
-    "Match main site's raw CCI white polyline, SMA yellow/purple stepped chart and +100/0/-100 reference styles; no historical crosshair/interactive dates.",
-    "No new API fetches; live hover updates on existing 10-second price processing."
+    "Keep existing daily Heikin-Ashi color and OHLC calculation; expose yesterday actual HA close from the same continuous daily sequence.",
+    "Place yesterday color dot on today purple left or today yellow right; dot above when yesterday HA close is higher, below when lower; center when equal.",
+    "Use raw floating precision with relative epsilon for small-priced tokens; on missing/non-consecutive or inconsistent HA states hide dot and diagnose, preserve the current HA color.",
+    "Update on existing live quote redraw without any new fetch, API, R2, timer, or workspace changes.",
+    "Preserve 21+12+8 watchlists and existing six-color marks, CCI hover, RR, radar and charts."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/cci-hover.js",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "GitHub Pages only; Cloudflare Worker and R2 endpoints unchanged."
+    "GitHub Pages file overwrite only; no Cloudflare Worker or R2 update."
   ]
 }

@@ -114,6 +114,22 @@ function place(g,obj,proj,selected,live){
     const rect=(lo,hi,clr)=>node(g,'rect',{...hit,x:left,y:Math.min(y(lo),y(hi)),width,height:Math.abs(y(lo)-y(hi)),fill:clr,'fill-opacity':'.08',stroke:clr,'stroke-width':selected?2:1});
     rect(entry,target,'#28d59d');rect(entry,stop,'#e36b7a');
     node(g,'line',{...hit,x1:left,x2:left+width,y1:y(entry),y2:y(entry),stroke:'#e4e9ef','stroke-width':1.8});
+    // TradingView-like price alignment: while a position is selected (including
+    // during target/stop handle drag), project BOTH levels across the whole plot.
+    // These guides share exactly the same y(price) as the axis badges and are
+    // rebuilt from the current drag values, so a 10-second redraw cannot freeze
+    // a stale line.  Neither guide intercepts pointer/handle events.
+    if(selected){
+      for(const [field,value,tone] of [['target',target,'#28d59d'],['stop',stop,'#f17b89']]){
+        const yy=y(value);
+        if(!Number.isFinite(yy)||yy<proj.T||yy>proj.plotB)continue;
+        node(g,'line',{class:'dw-position-price-guide',
+          'data-dw-position-guide':field,'data-dw-guide-id':id,
+          x1:proj.L,x2:proj.plotR,y1:yy,y2:yy,stroke:tone,
+          'stroke-width':1.15,'stroke-dasharray':'6 5','stroke-opacity':'.85',
+          'vector-effect':'non-scaling-stroke','pointer-events':'none'});
+      }
+    }
     const cc=calcPosition(obj,live);
     const description=cc?`${long?'做多':'做空'} · RR ${cc.rr.toFixed(2)} · 進場 ${money(entry)} · 目標 ${money(target)} · 止損 ${money(stop)} · 風險1 ${money(obj.riskAmount1)} · 風險2 ${money(obj.riskAmount2)} · 名義1 ${money(cc.nominal1)} · 名義2 ${money(cc.nominal2)}`:'部位價格無效';
     const tt=node(g,'title');tt.textContent=description;

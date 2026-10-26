@@ -1,28 +1,19 @@
 {
-  "version": "2.0.3",
+  "version": "2.0.4",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.2",
-  "title": "Drawing UX Polish — Undo, Toolbar, Positions, Window Focus",
+  "baseVersion": "2.0.3",
+  "title": "Position Target/Stop Tracking Guides",
   "changes": [
-    "Right-click cancels incomplete Fibonacci/rectangle previews; Ctrl+Z restores the last drawing add/delete/edit (per symbol, bounded to 60 operations).",
-    "Restored OHLC overlay visibility; drawing toolbar has a draggable grip and remembers its last position across devices in existing workspace R2 sync.",
-    "All position entry/target/stop price tags appear only for the selected position; target/stop badges now include their percentages and position fills are 50% lighter.",
-    "Removed 現價 prefix from price label; removed liquidation upper/lower horizontal guide lines while retaining their price labels.",
-    "Drawing manager now edits two global risk amount defaults for new position drawings, shared with existing workspace state sync (old positions unchanged).",
-    "Fixed two simultaneous maximized chart windows so taskbar activation brings the selected window forward.",
-    "Unchanged: 10-second market indicator re-evaluation, RR / Signal Spotlight, history startup, CoinGlass/Worker, existing per-symbol R2 drawings."
+    "Selected long/short positions display two non-interactive full-width horizontal dashed price guides for target (green) and stop (red).",
+    "During drag of a target or stop handle, dashed guides and price/percent badges derive from the exact same live log-scale price coordinates and move together; deselection removes guides.",
+    "No changes to market feeds, 10-second derived indicator refresh, chart navigation, risk calculations, RR, Signal Spotlight, R2 or Worker."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/drawing-manager.js",
-    "MultiAssetLiquidityRadar/index.html",
-    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "GitHub Pages only. Cloudflare Worker and R2 endpoints unchanged."
+    "GitHub Pages only; Cloudflare Worker and R2 endpoints unchanged."
   ]
 }

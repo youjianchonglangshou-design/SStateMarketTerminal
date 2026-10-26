@@ -488,7 +488,7 @@ body.radar-workspace{font-size:12px;background:#061523}
 @media(max-width:1350px){:root{--liq-panel-width:316px}.radar-workspace .footer-coverage{display:none}.radar-workspace .brand{font-size:11px}.radar-workspace .header-status{gap:4px}.radar-workspace .metric-s{width:41px}.radar-workspace .metric-mid{width:49px}.radar-workspace .metric-ha,.radar-workspace .metric-cci{width:24px}}
 @media(max-width:800px){:root{--liq-panel-width:300px}.radar-workspace .brand{display:none}.radar-workspace .header-status #clock{display:none}.radar-workspace .header-status .status-pill{display:none}.radar-workspace .metric-s{width:40px}.radar-workspace .metric-mid{width:43px}.radar-workspace .liq-nav-row{gap:2px}}
 
-/* v2.0.6 — prior HA color + relative HA-close elevation, no new columns. */
+/* v2.0.7 — both today colors use a LEFT-side previous-day dot; vertical height expresses HA-close relation. */
 .radar-workspace .metric-ha .ha-color{position:relative}
 .radar-workspace .metric-ha .ha-color[data-ha-dot-position]::before{
  content:"";position:absolute;width:5px;height:5px;border-radius:50%;
@@ -497,13 +497,11 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .metric-ha .ha-color[data-prior="黃"][data-ha-dot-position]::before{background:#ffeb3b}
 .radar-workspace .metric-ha .ha-color[data-prior="紫"][data-ha-dot-position]::before{background:#b39ddb}
 .radar-workspace .metric-ha .ha-color[data-ha-dot-position^="left-"]::before{left:1px}
-.radar-workspace .metric-ha .ha-color[data-ha-dot-position^="right-"]::before{right:1px}
 .radar-workspace .metric-ha .ha-color[data-ha-dot-position$="-top"]::before{top:2px}
 .radar-workspace .metric-ha .ha-color[data-ha-dot-position$="-bottom"]::before{bottom:2px}
 .radar-workspace .metric-ha .ha-color[data-ha-dot-position$="-middle"]::before{top:calc(50% - 3.5px)}
 /* The compact glyph stays away from the dot, without widening 21/12/8 panels. */
 .radar-workspace .metric .ha-color[data-ha-dot-position^="left-"]{justify-content:flex-end}
-.radar-workspace .metric .ha-color[data-ha-dot-position^="right-"]{justify-content:flex-start}
 
 /* v1.5.0 multi-window chart workspace: preserve v1.4.0 fixed 21/12 list geometry. */
 .radar-workspace .liq-sector-sort{font-size:12px!important;width:137px!important;min-width:137px;line-height:1.3;font-weight:650;padding:2px 4px}

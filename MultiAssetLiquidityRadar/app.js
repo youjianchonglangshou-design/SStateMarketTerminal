@@ -201,7 +201,8 @@
    const delta=today-yesterday;
    const eps=16*Number.EPSILON*Math.max(Math.abs(today),Math.abs(yesterday));
    const vertical=Math.abs(delta)<=eps?'middle':delta>0?'bottom':'top';
-   const side=current==='紫'?'left':'right';
+   // The preceding-day dot is ALWAYS at the LEFT edge, for both yellow and purple today.
+   // Only height encodes yesterday's HA close relative to today's HA close.
    if((previous==='紫'&&current==='黃'&&vertical!=='bottom')||
       (previous==='黃'&&current==='紫'&&vertical!=='top')){
      return {position:null,state:'anomaly',meaning:'HA 轉色與收盤價高度矛盾（需檢查日線資料）',delta};
@@ -209,7 +210,7 @@
    const meaning=vertical==='middle'?'HA 收盤價持平':
      current==='紫'?(vertical==='bottom'?'連續紫抬高，留意可能止跌':previous==='黃'?'黃轉紫，HA 收盤價降低':'連續紫降低，偏弱延續'):
      vertical==='top'?'連續黃降低，留意漲勢衰退':previous==='紫'?'紫轉黃，HA 收盤價抬高':'連續黃抬高，偏強延續';
-   return {position:side+'-'+vertical,state:'valid',meaning,delta};
+   return {position:'left-'+vertical,state:'valid',meaning,delta};
  }
  const reportedHaDotConflicts=new Set();
  function dailyCciSma(days){
@@ -886,7 +887,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.0.6',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.0.7',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

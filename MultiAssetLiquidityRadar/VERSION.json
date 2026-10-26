@@ -1,14 +1,13 @@
 {
-  "version": "2.0.6",
+  "version": "2.0.7",
   "releaseDate": "2026-10-26",
-  "baseVersion": "2.0.5",
-  "title": "Daily HA Semantic Previous-Day Dot Position",
+  "baseVersion": "2.0.6",
+  "title": "HA Semantic Dot Left-Side Position Hotfix",
   "changes": [
-    "Keep existing daily Heikin-Ashi color and OHLC calculation; expose yesterday actual HA close from the same continuous daily sequence.",
-    "Place yesterday color dot on today purple left or today yellow right; dot above when yesterday HA close is higher, below when lower; center when equal.",
-    "Use raw floating precision with relative epsilon for small-priced tokens; on missing/non-consecutive or inconsistent HA states hide dot and diagnose, preserve the current HA color.",
-    "Update on existing live quote redraw without any new fetch, API, R2, timer, or workspace changes.",
-    "Preserve 21+12+8 watchlists and existing six-color marks, CCI hover, RR, radar and charts."
+    "Correct all previous-day HA semantic dots to the LEFT of today's color tile, irrespective of whether today is yellow or purple; preserves six existing states.",
+    "Keep vertical comparison from raw HA close: yesterday higher -> left-top, yesterday lower -> left-bottom, equal -> left-middle.",
+    "Fix yellow-yellow lower (e.g. HOLO) as yellow dot LEFT-TOP, yellow-yellow higher as yellow dot LEFT-BOTTOM, purple-to-yellow as purple dot LEFT-BOTTOM.",
+    "Use no extra API calls or R2 writes; no changes to HA formula, daily cache, chart, smart radar, RR, CCI or watchlist widths."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",

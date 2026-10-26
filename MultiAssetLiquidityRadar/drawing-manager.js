@@ -7,17 +7,17 @@
  const fillRisk=()=>{const d=window.LIQ_WORKSPACE?.getDefaultRisk?.();if(!d)return;$('dwDefaultRisk1').value=d.riskAmount1;$('dwDefaultRisk2').value=d.riskAmount2;};
  const fillRR=()=>{const d=window.LIQ_WORKSPACE?.getRRThresholds?.()||window.LIQ_RR_CONFIG?.getThresholds?.();
    if(!d)return;$('dwRRContinuation').value=d.continuation;$('dwRRReversal').value=d.reversal;};
- $('dwRRSave')?.addEventListener('click',()=>{
+ $('dwRRSave')?.addEventListener('click',async()=>{
    const continuation=Number($('dwRRContinuation').value),reversal=Number($('dwRRReversal').value);
    const ok=$('dwRRContinuation').value.trim()!==''&&$('dwRRReversal').value.trim()!==''&&
-     window.LIQ_WORKSPACE?.setRRThresholds?.({continuation,reversal});
-   $('dwRRStatus').textContent=ok?'兩組 RR 門檻已套用並同步工作台，監控燈號已重新計算':'請輸入有效 RR（1.00～100.00）';
+     await window.LIQ_WORKSPACE?.setRRThresholds?.({continuation,reversal});
+   $('dwRRStatus').textContent=!ok?.valid?'請輸入有效 RR（1.00～100.00）':ok.synced?'RR 已儲存到 R2，跨裝置同步生效':'RR 已存本機，R2 尚未同步成功；連線恢復後重試';
  });
- $('dwRRReset')?.addEventListener('click',()=>{
+ $('dwRRReset')?.addEventListener('click',async()=>{
    const defaults=window.LIQ_RR_CONFIG?.DEFAULTS||{continuation:1.5,reversal:1.7};
-   const ok=window.LIQ_WORKSPACE?.setRRThresholds?.({...defaults});if(ok){fillRR();$('dwRRStatus').textContent='已恢復 1.50／1.70 並套用';}
+   const ok=await window.LIQ_WORKSPACE?.setRRThresholds?.({...defaults});if(ok?.valid){fillRR();$('dwRRStatus').textContent=ok.synced?'已恢復 1.50／1.70 且儲存到 R2':'已恢復預設並存本機，R2 待同步';}
  });
- $('dwDefaultRiskSave')?.addEventListener('click',()=>{const data={riskAmount1:Number($('dwDefaultRisk1').value),riskAmount2:Number($('dwDefaultRisk2').value)};const ok=window.LIQ_WORKSPACE?.setDefaultRisk?.(data);$('dwDefaultRiskStatus').textContent=ok?'預設金額已保存，之後新畫的部位將使用此設定':'請輸入兩個有效且大於 0 的金額';});
+ $('dwDefaultRiskSave')?.addEventListener('click',async()=>{const data={riskAmount1:Number($('dwDefaultRisk1').value),riskAmount2:Number($('dwDefaultRisk2').value)};const ok=await window.LIQ_WORKSPACE?.setDefaultRisk?.(data);$('dwDefaultRiskStatus').textContent=!ok?.valid?'請輸入兩個有效且大於 0 的金額':ok.synced?'止損金額已存入獨立 R2 設定；新畫部位將使用此金額':'止損金額已存本機，R2 尚未同步成功；連線恢復後重試';});
  async function render(){list.replaceChildren();status.textContent='正在讀取 R2 與本機繪圖…';
    const rows=await api.listRemote();status.textContent=rows.length?`共有 ${rows.length} 個具備繪圖記憶的標的`:'沒有可列出的繪圖記憶（遠端若未部署，請檢查 Worker）';
    for(const x of rows){const row=document.createElement('div');row.className='dw-manager-item';

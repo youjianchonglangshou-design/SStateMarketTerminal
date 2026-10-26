@@ -1,23 +1,25 @@
 {
-  "version": "2.1.1",
+  "version": "2.1.2",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.0",
-  "title": "RR Structural Left Shoulder Correction",
+  "baseVersion": "2.1.1",
+  "title": "Persistent R2 Risk Amounts and RR Thresholds",
   "changes": [
-    "Fix ③/⑥ shoulder detection: geometry-based preceding rising/falling HA stair leg, never hardcode historical same-color searches.",
-    "②/④ preserve nearest higher/lower-than-today dynamic backtracking; missing shoulders suppress speculative RR LEDs.",
-    "Keep ten RR branches: continuation 1.50 and reversal 1.70; no independent market requests or changes to manual drawing positions.",
-    "Show diagnostic shoulder price, historical date, method, candidate direction and RR on ticker hover even when LED is off.",
-    "INTCX regression: first stair of falling leg 2026-10-22 at 88.0725, not 2026-10-21 at 93.1825; no erroneous red LED."
+    "Store global stop-loss amounts and live RR thresholds in independent terminal/radar_settings_v1.json R2 object, not in lossy shared workspace snapshot.",
+    "Preserve settings across GitHub Pages version changes and devices, with dedicated local fallback and R2 revision conflict handling.",
+    "Display distinct R2-synced and local-only messages so failed synchronization is never reported as successful.",
+    "Preserve the six-state ten-stage RR scanner, drawings and original watchlists unchanged."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/rr-scanner.js",
-    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/settings-sync.js",
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/drawing-manager.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md"
+    "MultiAssetLiquidityRadar/README.md",
+    "cloudflare/worker.js"
   ],
   "requiredDeploy": [
-    "GitHub Pages overwrite only. No change to Cloudflare Worker or R2 backend."
+    "Deploy cloudflare/worker.js to the existing SStateMarketTerminal Worker first.",
+    "Overwrite MultiAssetLiquidityRadar files in GitHub Pages second; no R2 bucket migration or deletion."
   ]
 }

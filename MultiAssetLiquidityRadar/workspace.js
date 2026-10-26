@@ -3,7 +3,7 @@
  * The complete 21/12 watchlists remain fixed and independent of the windows.
  */
 (()=>{'use strict';
- async function boot(){await (window.LIQ_SHARED_STATE?.ready||Promise.resolve());
+ async function boot(){await Promise.all([window.LIQ_SHARED_STATE?.ready||Promise.resolve(),window.LIQ_PERSISTENT_SETTINGS?.ready||Promise.resolve()]);
  const $=id=>document.getElementById(id);
  const api=window.LIQ_CHART_API;
  const host=$('chartWindowLayer'),tabs=$('chartWindowTabs'),add=$('chartAddWindow');
@@ -438,8 +438,10 @@
  }
  function bootstrap(){
    const stored=storageGet(KEY);let initial=[];
-   for(const k of ['riskAmount1','riskAmount2'])if(Number.isFinite(Number(stored?.riskDefaults?.[k]))&&Number(stored.riskDefaults[k])>0)riskDefaults[k]=Number(stored.riskDefaults[k]);
-   if(window.LIQ_RR_CONFIG?.setThresholds?.(stored?.rrThresholds))rrThresholds=window.LIQ_RR_CONFIG.getThresholds();
+   // Independent R2 settings win over the old workspace snapshot and version defaults.
+   const settings=window.LIQ_PERSISTENT_SETTINGS?.current?.();
+   if(settings?.riskDefaults)riskDefaults={...settings.riskDefaults};
+   if(window.LIQ_RR_CONFIG?.setThresholds?.(settings?.rrThresholds))rrThresholds=window.LIQ_RR_CONFIG.getThresholds();
    if(stored&&Array.isArray(stored.windows)){
      const used=new Set();
      initial=stored.windows.slice(0,LIMIT).filter(x=>x&&typeof x.id==='string'&&!used.has(x.id)&&used.add(x.id)&&api.hasSymbol(x.symbol));
@@ -468,16 +470,23 @@
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const w of windows){w.dirty=true;schedule(w,100);}});
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
-   getDefaultRisk:()=>({...riskDefaults}),setDefaultRisk:values=>{for(const k of ['riskAmount1','riskAmount2']){const n=Number(values[k]);if(!Number.isFinite(n)||n<=0)return false;}riskDefaults={riskAmount1:Number(values.riskAmount1),riskAmount2:Number(values.riskAmount2)};save();return true;},
+   getDefaultRisk:()=>({...riskDefaults}),setDefaultRisk:async values=>{for(const k of ['riskAmount1','riskAmount2']){const n=Number(values[k]);if(!Number.isFinite(n)||n<=0)return {valid:false,synced:false};}riskDefaults={riskAmount1:Number(values.riskAmount1),riskAmount2:Number(values.riskAmount2)};return window.LIQ_PERSISTENT_SETTINGS.update('risk',riskDefaults);},
    getRRThresholds:()=>({...rrThresholds}),
-   setRRThresholds:values=>{
-     if(!window.LIQ_RR_CONFIG?.setThresholds?.(values))return false;
-     rrThresholds=window.LIQ_RR_CONFIG.getThresholds();save();window.LIQ_RR_REFRESH?.();return true;
+   setRRThresholds:async values=>{
+     if(!window.LIQ_RR_CONFIG?.setThresholds?.(values))return {valid:false,synced:false};
+     rrThresholds=window.LIQ_RR_CONFIG.getThresholds();window.LIQ_RR_REFRESH?.();
+     return window.LIQ_PERSISTENT_SETTINGS.update('rr',rrThresholds);
    },
    getActiveWindow(){return byId(activeId)||null;},
    getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
    focusWindow:uid=>activate(byId(uid)),sendBackWindow:uid=>sendBack(byId(uid)),tileWindows,closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
+ window.LIQ_PERSISTENT_SETTINGS?.subscribe(({riskDefaults:nextRisk,rrThresholds:nextRR})=>{
+   if(nextRisk)riskDefaults={...nextRisk};
+   if(window.LIQ_RR_CONFIG?.setThresholds?.(nextRR)){
+     rrThresholds=window.LIQ_RR_CONFIG.getThresholds();window.LIQ_RR_REFRESH?.();
+   }
+ });
  window.DrawingWorkspace?.subscribe(symbol=>{for(const w of windows)if(window.DrawingWorkspace.symbolKey(w.symbol)===symbol){w.dirty=true;schedule(w,0);w.onDrawingChangedPrice?.();}});
  bootstrap();
  }

@@ -6,6 +6,8 @@ const NS='http://www.w3.org/2000/svg',CFG={fib:[0,.5,.618,.786,1,1.236,1.5,1.572
 const rootUrl=String(root.SSTATE_CONFIG?.workerUrl||'https://white-meadow-16bc.youjianchonglangshou.workers.dev').replace(/\/$/,'');
 const API=rootUrl+'/api/monitor/radar/drawings',LOCAL='SStateLiquidityRadar.drawings.v2.';
 const documents=new Map(),subscribers=new Set(),controllers=new WeakMap();
+const undoHistory=new Map(),MAX_UNDO=60;
+function remember(symbol,action){const key=symbolKey(symbol),items=undoHistory.get(key)||[];items.push(action);if(items.length>MAX_UNDO)items.shift();undoHistory.set(key,items);}
 const good=p=>Number.isFinite(p)&&p>0,validTime=t=>Number.isSafeInteger(t)&&t>0;
 const color={green:'#27dc9c',red:'#ff6676',yellow:'#eace47'};
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -56,9 +58,15 @@ async function push(symbol){const d=snapshot(symbol);if(!d.dirty||d.saving)retur
  }return false;
  }catch(e){d.syncError=String(e.message||e);return false;}finally{d.saving=false;if(d.dirty){clearTimeout(d.timer);d.timer=setTimeout(()=>void push(symbol),10000);}localSave(d);}}
 function subscribe(fn){subscribers.add(fn);return ()=>subscribers.delete(fn);}
-function add(symbol,item){const id=(item.type==='long-position'?'L':item.type==='short-position'?'S':'D')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);const value={...item,id,modifiedAt:Date.now()};mutate(symbol,d=>d.drawings.push(value));return value;}
-function change(symbol,id,update){mutate(symbol,d=>{const old=d.drawings.find(x=>x.id===id);if(old){Object.assign(old,update,{modifiedAt:Date.now()});}});}
-function remove(symbol,id){mutate(symbol,d=>{d.drawings=d.drawings.filter(x=>x.id!==id);d.tombstones[id]=Date.now();});}
+function add(symbol,item){const id=(item.type==='long-position'?'L':item.type==='short-position'?'S':'D')+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);const value={...item,id,modifiedAt:Date.now()};mutate(symbol,d=>d.drawings.push(value));remember(symbol,{type:'add',id});return value;}
+function change(symbol,id,update,recordUndo=true){const prev=snapshot(symbol).drawings.find(x=>x.id===id);if(!prev)return;
+ if(recordUndo)remember(symbol,{type:'restore',value:structuredClone(prev)});
+ mutate(symbol,d=>{const old=d.drawings.find(x=>x.id===id);if(old){Object.assign(old,update,{modifiedAt:Date.now()});}});}
+function remove(symbol,id){const prior=snapshot(symbol).drawings.find(x=>x.id===id);if(!prior)return;
+ remember(symbol,{type:'restore',value:structuredClone(prior)});mutate(symbol,d=>{d.drawings=d.drawings.filter(x=>x.id!==id);d.tombstones[id]=Date.now();});}
+function undo(symbol){const key=symbolKey(symbol),stack=undoHistory.get(key);if(!stack?.length)return false;const action=stack.pop();
+ mutate(symbol,d=>{if(action.type==='add'){d.drawings=d.drawings.filter(x=>x.id!==action.id);d.tombstones[action.id]=Date.now();}
+ else if(action.type==='restore'){const item={...structuredClone(action.value),modifiedAt:Date.now()};delete d.tombstones[item.id];const idx=d.drawings.findIndex(x=>x.id===item.id);if(idx>=0)d.drawings[idx]=item;else d.drawings.push(item);}});return true;}
 function setPrefs(symbol,patch){mutate(symbol,d=>{Object.assign(d.preferences,patch);d.preferencesChangedAt=Date.now();});}
 function setHa(symbol,t){mutate(symbol,d=>{d.haSelection=validTime(t)?{dailyTime:Math.floor(t/86400000)*86400000}:null;d.preferencesChangedAt=Date.now();});}
 function calcPosition(position,live){const entry=position.limitEnabled?Number(position.entry):Number(live),stop=Number(position.stop),target=Number(position.target);const long=position.type==='long-position';
@@ -103,28 +111,22 @@ function place(g,obj,proj,selected,live){
     const long=obj.type==='long-position',entry=obj.limitEnabled?Number(obj.entry):Number(live),stop=Number(obj.stop),target=Number(obj.target);
     if(!good(entry)||!good(stop)||!good(target))return;
     const x0=x(a[0].time),x1=x(a[1]?.time||a[0].time+14400000*10),left=Math.min(x0,x1),width=Math.max(25,Math.abs(x1-x0));
-    const rect=(lo,hi,clr)=>node(g,'rect',{...hit,x:left,y:Math.min(y(lo),y(hi)),width,height:Math.abs(y(lo)-y(hi)),fill:clr,'fill-opacity':'.16',stroke:clr,'stroke-width':selected?2:1});
+    const rect=(lo,hi,clr)=>node(g,'rect',{...hit,x:left,y:Math.min(y(lo),y(hi)),width,height:Math.abs(y(lo)-y(hi)),fill:clr,'fill-opacity':'.08',stroke:clr,'stroke-width':selected?2:1});
     rect(entry,target,'#28d59d');rect(entry,stop,'#e36b7a');
     node(g,'line',{...hit,x1:left,x2:left+width,y1:y(entry),y2:y(entry),stroke:'#e4e9ef','stroke-width':1.8});
     const cc=calcPosition(obj,live);
     const description=cc?`${long?'做多':'做空'} · RR ${cc.rr.toFixed(2)} · 進場 ${money(entry)} · 目標 ${money(target)} · 止損 ${money(stop)} · 風險1 ${money(obj.riskAmount1)} · 風險2 ${money(obj.riskAmount2)} · 名義1 ${money(cc.nominal1)} · 名義2 ${money(cc.nominal2)}`:'部位價格無效';
     const tt=node(g,'title');tt.textContent=description;
     label(g,(long?'做多 ':'做空 ')+(cc?'RR '+cc.rr.toFixed(2):'價格無效'),left+4,y(entry)-5,long?'#28d59d':'#ff7889');
-    if(selected&&good(entry)){
-      const rewardPct=(long?(target-entry):(entry-target))/entry*100;
-      const lossPct=(long?(entry-stop):(stop-entry))/entry*100;
-      const rx=Math.max(proj.L+5,Math.min(proj.plotR-100,left+Math.max(10,width*.12)));
-      const ty=y(target),sy=y(stop);
-      if(ty>=proj.T+12&&ty<=proj.plotB-9)label(g,'目標 '+signedPct(rewardPct,entry),rx,ty-6,'#51efb8');
-      if(sy>=proj.T+12&&sy<=proj.plotB-9)label(g,'止損 -'+lossPct.toFixed(2)+'%',rx,sy-6,'#ff99a6');
-    }
     for(const [field,value,tone] of [['target',target,'#28d59d'],['entry',entry,'#d7e6ef'],['stop',stop,'#f17b89']]){
-      // Entry badge only appears when this position is selected; other lines remain visible.
-      if(field==='entry'&&!selected)continue;
+      // All three price badges are inspection details shown only on selection.
+      if(!selected)continue;
       const yy=y(value);if(yy<proj.T+9||yy>proj.plotB-9)continue;
       const tag=node(g,'g',{'data-dw-id':id,'data-dw-price':field,class:'dw-price-tag',cursor:'pointer'});
       node(tag,'rect',{x:proj.plotR+2,y:yy-9,width:Math.max(40,proj.W-proj.plotR-5),height:18,rx:3,fill:'#0b2434',stroke:tone,'stroke-opacity':'.85'});
-      label(tag,(field==='entry'?'進場 ':'')+money(value),proj.plotR+7,yy+4,tone);
+      const pct=good(entry)?(field==='target'?(long?target-entry:entry-target)/entry*100:(field==='stop'?-(long?entry-stop:stop-entry)/entry*100:0)):0;
+      const txt=(field==='entry'?'進場 ':field==='target'?'目標 ':'止損 ')+money(value)+(field==='entry'?'':' ('+signedPct(pct,entry)+')');
+      label(tag,txt,proj.plotR+7,yy+4,tone);
     }
     // Checkbox is part of EACH drawing, not a single global chart setting.
     const cb=node(g,'g',{'data-dw-order-toggle':id,class:'dw-order-toggle',cursor:'pointer'});
@@ -219,7 +221,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
         const long=type==='long-position',limitEnabled=Boolean(callbacks.getDefaultLimit?.(long?'long':'short'));
         const entry=limitEnabled?point.price:(good(Number(c.livePrice()))?Number(c.livePrice()):point.price);
         const step=proj.interval==='1D'?86400000:14400000;
-        Object.assign(base,{entry,stop:entry*(long?.98:1.02),target:entry*(long?1.04:.96),riskAmount1:1000,riskAmount2:100,limitEnabled,
+        Object.assign(base,{entry,stop:entry*(long?.98:1.02),target:entry*(long?1.04:.96),riskAmount1:callbacks.getDefaultRisk?.()?.riskAmount1||1000,riskAmount2:callbacks.getDefaultRisk?.()?.riskAmount2||100,limitEnabled,
           anchors:[{time:point.time,price:entry},{time:Math.round(point.time+step*12),price:entry*(long?.98:1.02)}]});
         const obj=add(w.symbol,base);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();syncSnapUI();
       }else c.draft=base;
@@ -270,9 +272,11 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
      }else{const deltaT=at.time-drag.start.time,priceFactor=at.price/drag.start.price;
        d.anchors=d.anchors.map(a=>({time:Math.round(a.time+deltaT),price:a.price*priceFactor}));
        if(d.type.endsWith('-position')){d.entry*=priceFactor;d.stop*=priceFactor;d.target*=priceFactor;}}
-     change(w.symbol,d.id,d);callbacks.refreshHeader();render(w);
+     change(w.symbol,d.id,d,!drag.undoRecorded);drag.undoRecorded=true;callbacks.refreshHeader();render(w);
    }
  });
+ // TradingView-like: right-click cancels a partially placed Fib/rectangle.
+ target.addEventListener('contextmenu',ev=>{if(!c.draft)return;ev.preventDefault();ev.stopPropagation();c.draft=null;c.hoverPoint=null;c.tool='select';callbacks.setTool('select');syncSnapUI();render(w);});
  const end=ev=>{if(c.drag?.id!==ev.pointerId)return;
     const drag=c.drag;c.drag=null;target.classList.remove('dw-pan-ready','dw-is-panning');
     if(drag.kind==='pan'){
@@ -302,9 +306,11 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
  return c;
 }
 // Inputs are never hijacked by Delete / Ctrl; four independent windows have separate selections.
-document.addEventListener('keydown',ev=>{if(!['Delete','Backspace','Escape'].includes(ev.key))return;
+document.addEventListener('keydown',ev=>{const isUndo=ev.key.toLowerCase()==='z'&&(ev.ctrlKey||ev.metaKey)&&!ev.altKey;
+ if(!isUndo&&!['Delete','Backspace','Escape'].includes(ev.key))return;
  const focus=document.activeElement;if(focus?.matches?.('input,textarea,select,[contenteditable=true]'))return;
  const active=window.LIQ_WORKSPACE?.getActiveWindow?.();if(!active)return;const c=controllers.get(active);if(!c)return;
+ if(isUndo){if(undo(active.symbol)){ev.preventDefault();c.setSelected(null);active.onDrawingChanged?.();}return;}
  if(ev.key==='Escape'){c.cancel();return;}
  if(c.selected){remove(active.symbol,c.selected);c.selected=null;ev.preventDefault();active.onDrawingChanged?.();}
 });
@@ -314,5 +320,5 @@ async function listRemote(){let result=[];try{const data=await request(API+'?lis
 async function clearSymbol(symbol){const d=snapshot(symbol);mutate(symbol,d=>{for(const x of d.drawings)d.tombstones[x.id]=Date.now();d.drawings=[];d.haSelection=null;});return push(d.symbol);}
 window.addEventListener('online',()=>{for(const d of documents.values())if(d.syncError||d.dirty)void load(d.symbol,true);});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const d of documents.values())if(d.syncError||d.dirty)void load(d.symbol,true);});
-root.DrawingWorkspace={CFG,attach,render,snapshot,subscribe,add,change,remove,setPrefs,setHa,calcPosition,listRemote,clearSymbol,symbolKey,money,snap,merge};
+root.DrawingWorkspace={CFG,attach,render,snapshot,subscribe,add,change,remove,undo,setPrefs,setHa,calcPosition,listRemote,clearSymbol,symbolKey,money,snap,merge};
 })(window);

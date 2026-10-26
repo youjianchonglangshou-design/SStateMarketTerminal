@@ -921,7 +921,7 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .floating-chart .radar-area-4h{cursor:grab}
 .radar-workspace .floating-chart .radar-area-4h.dw-is-panning{cursor:grabbing!important}
 .radar-workspace .floating-chart .radar-area-4h.price-scale-dragging{cursor:ns-resize!important}
-.radar-workspace .floating-chart.is-maximized{z-index:150!important}
+.radar-workspace .floating-chart.is-maximized{isolation:isolate}/* Stacking controlled by active workspace order, also for two maximized windows. */
 .radar-workspace .floating-chart.is-maximized .chart-resize{display:none!important}
 .radar-workspace .floating-chart .chart-maximize{font-size:15px!important}
 
@@ -931,3 +931,15 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .dw-layer .dw-edge-price{pointer-events:all}
 .radar-workspace .dw-layer .dw-snap-preview{pointer-events:none;filter:drop-shadow(0 0 4px #43cbb5)}
 .radar-workspace .dw-magnet-on .dw-toolbar button[data-tool=select]{color:#d1fff8;border-color:#55e8dc;background:#145863}
+
+/* v2.0.3: movable toolbar clear of the OHLC strip; selected-only position tags. */
+.radar-workspace .floating-chart>.dw-toolbar{top:68px;overflow-x:auto}
+.radar-workspace .dw-toolbar-grip{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:24px;color:#82bbd4;border-right:1px solid #33556a;cursor:grab;user-select:none;touch-action:none;flex:none;font-size:16px;padding:0 3px}
+.radar-workspace .dw-toolbar-grip:active{cursor:grabbing;color:#e6faff}
+.radar-workspace .rc-ohlc-overlay{z-index:3;top:7px}
+.radar-workspace .dw-default-risk{display:grid;gap:8px;border:1px solid #41697f;border-radius:8px;padding:12px;margin:0;color:#e1eff7}
+.radar-workspace .dw-default-risk legend{font-weight:700;padding:0 5px}
+.radar-workspace .dw-default-risk label{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.radar-workspace .dw-default-risk input{width:160px;max-width:52%;color:#e1eff7;background:#0a1d2b;border:1px solid #587b8c;border-radius:5px;padding:5px}
+.radar-workspace .dw-default-risk button{max-width:230px}
+.radar-workspace .dw-default-risk small{line-height:1.5;color:#9ac6d4}

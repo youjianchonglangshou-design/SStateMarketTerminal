@@ -189,8 +189,8 @@
      // Horizontal values outside a manually zoomed range are not falsely
      // drawn on the nearest border; zoom out or double-click axis to inspect.
      if(yy<T||yy>plotB)continue;
-     svg.push(`<line class="rc-level rc-level-${kind}" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/>`);
-     labels.push({kind,real:yy,yy,text:(kind==='now'?'現價 ':'')+money(value)});
+     if(kind==='now')svg.push(`<line class="rc-level rc-level-${kind}" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/>`);
+     labels.push({kind,real:yy,yy,text:money(value)});
    }
    svg.push('</g>'); // rc-price-plot clip ends before price label badges.
    // Beacon is OUTSIDE clipping group and 17 SVG pixels inward from the price axis.

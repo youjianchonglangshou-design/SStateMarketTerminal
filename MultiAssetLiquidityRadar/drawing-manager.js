@@ -4,6 +4,8 @@
  if(!api)return;
  const modal=$('dwManageModal'),status=$('dwManagerStatus'),list=$('dwManagerList');
  const clear=()=>{modal.hidden=true;};
+ const fillRisk=()=>{const d=window.LIQ_WORKSPACE?.getDefaultRisk?.();if(!d)return;$('dwDefaultRisk1').value=d.riskAmount1;$('dwDefaultRisk2').value=d.riskAmount2;};
+ $('dwDefaultRiskSave')?.addEventListener('click',()=>{const data={riskAmount1:Number($('dwDefaultRisk1').value),riskAmount2:Number($('dwDefaultRisk2').value)};const ok=window.LIQ_WORKSPACE?.setDefaultRisk?.(data);$('dwDefaultRiskStatus').textContent=ok?'預設金額已保存，之後新畫的部位將使用此設定':'請輸入兩個有效且大於 0 的金額';});
  async function render(){list.replaceChildren();status.textContent='正在讀取 R2 與本機繪圖…';
    const rows=await api.listRemote();status.textContent=rows.length?`共有 ${rows.length} 個具備繪圖記憶的標的`:'沒有可列出的繪圖記憶（遠端若未部署，請檢查 Worker）';
    for(const x of rows){const row=document.createElement('div');row.className='dw-manager-item';
@@ -20,7 +22,7 @@
      list.append(row);
    }
  }
- $('drawingManageButton')?.addEventListener('click',()=>{modal.hidden=false;void render();});
+ $('drawingManageButton')?.addEventListener('click',()=>{modal.hidden=false;fillRisk();void render();});
  $('dwManageClose')?.addEventListener('click',clear);
  $('dwManagerRefresh')?.addEventListener('click',()=>void render());
  modal.addEventListener('click',e=>{if(e.target===modal)clear();});

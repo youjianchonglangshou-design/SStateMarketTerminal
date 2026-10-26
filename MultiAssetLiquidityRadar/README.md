@@ -311,3 +311,12 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 - Click HA staircase to restore persistent price extension even when mouse pan layer captures input.
 - Right-side semantic notional header and maximize / restore.
 - Unchanged: Worker, RR thresholds, SState/HA/CCI formulae, Signal Spotlight and 10-second live monitor.
+
+
+## v2.0.3 操作精修（2026-10-26）
+- Fib／矩形第一點已放置後按右鍵，取消尚未完成的圖形；Ctrl+Z 恢復每幣最近一次繪圖新增、刪除或拖曳編輯（不劫持輸入欄位）。
+- 工具列左側 ⠿ 可拖曳，位置隨工作台跨裝置同步；OHLC 置於工具列上方。
+- 只有選取多／空部位時才顯示右側進場、目標、止損價格標籤；目標／止損標籤附上百分比。
+- 多空填滿色透明度減半，現價標籤不顯示「現價」文字，清算上下界只顯示價格標籤，不畫延伸線。
+- 「⚙ 繪圖」設定新增預設止損金額 1/2，套用下一張部位，保存至現有工作台跨裝置設定。
+- 同時最大化多張圖表時，點下方視窗標籤可帶到前景。

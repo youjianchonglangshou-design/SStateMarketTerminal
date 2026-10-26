@@ -13,6 +13,7 @@
  const LIMIT=4;
  const windows=[];
  let activeId=null,serial=0,drag=null,noticeTimer=0,resizeTimer=0,layoutVariant=1;
+ let riskDefaults={riskAmount1:1000,riskAmount2:100};
  const min=(k)=>({w:Math.min(320,Math.max(300,innerWidth-18)),h:Math.min(250,Math.max(220,innerHeight-74))})[k];
  const clamp=(n,lo,hi)=>Math.min(Math.max(n,lo),Math.max(lo,hi));
  const maxW=()=>Math.max(min('w'),innerWidth-8);
@@ -32,7 +33,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,riskDefaults,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,toolbarPos:w.toolbarPos,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -56,12 +57,12 @@
  function paint(w){
    if(w.maximized){
      Object.assign(w.el.style,{left:'4px',top:'4px',width:Math.max(320,innerWidth-8)+'px',height:Math.max(220,innerHeight-53)+'px',right:'auto',bottom:'auto'});
-     w.el.classList.add('is-maximized');return;
+     w.el.classList.add('is-maximized');w.applyToolbarPos?.();return;
    }
    w.el.classList.remove('is-maximized');
    w.geom=constrain(w.geom);
    const g=w.geom;
-   Object.assign(w.el.style,{left:g.x+'px',top:g.y+'px',width:g.w+'px',height:g.h+'px',right:'auto',bottom:'auto'});
+   Object.assign(w.el.style,{left:g.x+'px',top:g.y+'px',width:g.w+'px',height:g.h+'px',right:'auto',bottom:'auto'});w.applyToolbarPos?.();
  }
  function isOccluded(w){
    if(w.minimized||!w.el.isConnected||document.hidden)return true;
@@ -189,7 +190,7 @@
      window.DrawingWorkspace.change(w.symbol,obj.id,local);modal.hidden=true;w.onDrawingChanged?.();};
    $('dwPositionCancel').onclick=()=>{modal.hidden=true;};update();
  }
- function create(symbol,{geom=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,pricePan=0,maximized=false,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
+ function create(symbol,{geom=null,toolbarPos=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,pricePan=0,maximized=false,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
    if(windows.length>=LIMIT){announce('最多只能開啟 4 張圖表');return null;}
    if(!api.hasSymbol(symbol))return null;
    const uid=id||'chart-'+(++serial);
@@ -203,7 +204,7 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframeSpan,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,toolbarPos:toolbarPos&&Number.isFinite(toolbarPos.x)&&Number.isFinite(toolbarPos.y)?{x:toolbarPos.x,y:toolbarPos.y}:{x:9,y:68},geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.timeframeLabel=timeframeSpan;
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    w.backButton=makeButton('chart-send-back','⇤','置於左側加密清單後方',()=>sendBack(w));
@@ -226,6 +227,14 @@
    w.plot=document.createElement('div');w.plot.className='radar-area radar-area-4h';w.plot.dataset.chartPlot=uid;
    el.append(head,w.plot);
    const toolbar=document.createElement('div');toolbar.className='dw-toolbar';
+   // Independent grab bar: dragging this control never pans the chart or moves its window.
+   const grip=document.createElement('span');grip.className='dw-toolbar-grip';grip.textContent='⠿';grip.title='按住拖曳整排繪圖工具';grip.setAttribute('role','img');grip.setAttribute('aria-label','拖曳工具列');
+   toolbar.append(grip);
+   const setToolbarPos=()=>{const width=el.clientWidth||w.geom.w,height=el.clientHeight||w.geom.h;w.toolbarPos.x=clamp(w.toolbarPos.x,0,Math.max(0,width-Math.min(toolbar.offsetWidth||450,width)));w.toolbarPos.y=clamp(w.toolbarPos.y,32,Math.max(32,height-35));toolbar.style.left=w.toolbarPos.x+'px';toolbar.style.top=w.toolbarPos.y+'px';};
+   let grab=null;grip.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();grab={id:ev.pointerId,x:ev.clientX,y:ev.clientY,px:w.toolbarPos.x,py:w.toolbarPos.y};grip.setPointerCapture(ev.pointerId);});
+   grip.addEventListener('pointermove',ev=>{if(!grab||grab.id!==ev.pointerId)return;w.toolbarPos.x=grab.px+ev.clientX-grab.x;w.toolbarPos.y=grab.py+ev.clientY-grab.y;setToolbarPos();});
+   const finishGrip=ev=>{if(!grab||grab.id!==ev.pointerId)return;grab=null;try{grip.releasePointerCapture(ev.pointerId);}catch(_){}save();};
+   grip.addEventListener('pointerup',finishGrip);grip.addEventListener('pointercancel',finishGrip);
    const period=document.createElement('select');period.title='圖表 K 線週期';period.setAttribute('aria-label','圖表週期');
    for(const [value,txt] of [['4H','4H'],['1D','1D']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
    period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1D'?45:84;w.viewOffset=0;w.dirty=true;schedule(w,0);updateTabs();save();});
@@ -248,7 +257,7 @@
    const settings=document.createElement('button');settings.textContent='⚙ 部位';settings.title='編輯目前選取的多單／空單';settings.addEventListener('click',()=>{activate(w);editPosition(w);});toolbar.append(settings);
    const magnet=document.createElement('span');magnet.className='dw-magnet-indicator';magnet.textContent='🧲';magnet.title='按住 CTRL 磁鐵吸附 OHLC';toolbar.insertBefore(magnet,toolButtons.get('fib'));
    const note=document.createElement('span');note.className='dw-tools-hint';note.textContent='左鍵平移 · 滾輪縮放 · CTRL 磁鐵';toolbar.append(note);
-   el.append(toolbar);
+   el.append(toolbar);w.applyToolbarPos=setToolbarPos;setToolbarPos();
    const positionSummary=document.createElement('span');positionSummary.className='dw-position-summary';head.insertBefore(positionSummary,buttons);
    const updatePosition=()=>{const obj=controller?.getSelected(),d=window.LIQ_CHART_API?.getData(w.symbol);
      positionSummary.className='dw-position-summary';
@@ -260,7 +269,7 @@
    w.onDrawingChanged=()=>{updatePosition();w.dirty=true;schedule(w,0);};
    controller=window.DrawingWorkspace?.attach(w,{livePrice:()=>window.LIQ_CHART_API?.getData(w.symbol)?.chart?.price,
      refreshHeader:updatePosition,setTool:selectTool,setMagnet:on=>{const b=toolButtons.get('select');if(b)b.textContent=on?'🧲':'↖';},
-     getDefaultLimit:key=>orderDefaults[key],
+     getDefaultLimit:key=>orderDefaults[key],getDefaultRisk:()=>({...riskDefaults}),
      getOffset:()=>w.viewOffset,getCount:()=>w.viewCount,getTimeframe:()=>w.timeframe,getPricePan:()=>w.pricePan,
      setPricePan:n=>{if(Number.isFinite(n)&&n!==w.pricePan){w.pricePan=n;w.dirty=true;schedule(w,0);}},
      commitView:()=>save(),
@@ -293,7 +302,7 @@
    if('ResizeObserver' in window){let ow=0,oh=0;w.observer=new ResizeObserver(entries=>{
      const size=entries[0]?.contentRect;if(!size)return;
      const width=Math.round(size.width),height=Math.round(size.height);
-     if(width!==ow||height!==oh){ow=width;oh=height;w.dirty=true;schedule(w,85);}
+     if(width!==ow||height!==oh){ow=width;oh=height;w.applyToolbarPos?.();w.dirty=true;schedule(w,85);}
    });w.observer.observe(w.plot);}
    if(minimized){el.hidden=true;w.plot.replaceChildren();}else if(!quiet)activate(w);
    updateTabs();if(!quiet)save();return w;
@@ -394,6 +403,7 @@
  }
  function bootstrap(){
    const stored=storageGet(KEY);let initial=[];
+   for(const k of ['riskAmount1','riskAmount2'])if(Number.isFinite(Number(stored?.riskDefaults?.[k]))&&Number(stored.riskDefaults[k])>0)riskDefaults[k]=Number(stored.riskDefaults[k]);
    if(stored&&Array.isArray(stored.windows)){
      const used=new Set();
      initial=stored.windows.slice(0,LIMIT).filter(x=>x&&typeof x.id==='string'&&!used.has(x.id)&&used.add(x.id)&&api.hasSymbol(x.symbol));
@@ -403,7 +413,7 @@
      const symbol=api.hasSymbol(candidate)?candidate:(api.hasSymbol('BTC')?'BTC':null);
      if(symbol)initial=[{symbol,id:'chart-1',geom:legacy,locked:false,minimized:false}];
    }
-   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,pricePan:s.pricePan,maximized:s.maximized,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
+   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,toolbarPos:s.toolbarPos,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,pricePan:s.pricePan,maximized:s.maximized,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
    if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
@@ -421,6 +431,7 @@
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const w of windows){w.dirty=true;schedule(w,100);}});
  window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
+   getDefaultRisk:()=>({...riskDefaults}),setDefaultRisk:values=>{for(const k of ['riskAmount1','riskAmount2']){const n=Number(values[k]);if(!Number.isFinite(n)||n<=0)return false;}riskDefaults={riskAmount1:Number(values.riskAmount1),riskAmount2:Number(values.riskAmount2)};save();return true;},
    getActiveWindow(){return byId(activeId)||null;},
    getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},

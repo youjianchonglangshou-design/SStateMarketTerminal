@@ -1150,3 +1150,8 @@ body.radar-workspace{font-size:12px;background:#061523}
 }
 
 /* v2.1.9: slight (20px) additional right-edge inset only; retain v2.1.8 button ordering and yellow limit status. */
+
+/* v2.1.10 — Fib 0 start marker: visual dot above a 24px selection target. */
+.radar-workspace .dw-layer .dw-fib-zero-hit:hover + .dw-fib-zero-dot{
+  fill:#80eaff;stroke:#d1fbff;filter:drop-shadow(0 0 4px #28d9ee);
+}

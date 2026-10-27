@@ -99,6 +99,18 @@ function place(g,obj,proj,selected,live){
    node(g,'line',{...hit,x1:left,x2:right,y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
    label(g,`${r} (${money(price)})`,Math.max(proj.L,Math.min(right-108,right+5)),yy-3,tone);
   }
+  // Fib 0: a solid, easy-to-select dot just ahead of the thin 0-level dash.
+  // The transparent 24px hit target uses the existing drawing ID, so selection,
+  // dragging, Delete/Backspace and saved drawing coordinates stay unchanged.
+  const y0=y(p1);
+  if(Number.isFinite(y0)&&y0>=proj.T&&y0<=proj.plotB&&left<=right-12){
+   const dotX=clamp(left-7,proj.L+12,right-12);
+   const target=node(g,'circle',{...hit,class:'dw-hit dw-fib-zero-hit',
+    cx:dotX,cy:y0,r:12,fill:'transparent',stroke:'none','pointer-events':'all'});
+   node(target,'title').textContent='選取斐波那契（按 Delete 刪除）';
+   node(g,'circle',{class:'dw-fib-zero-dot',cx:dotX,cy:y0,r:5.2,
+    fill:selected?'#80eaff':'#f2f8ff',stroke:'#133044','stroke-width':1.3,'pointer-events':'none'});
+  }
  }else if(obj.type==='rectangle'&&a.length>1){const x0=x(a[0].time),x1=x(a[1].time),y0=y(a[0].price),y1=y(a[1].price),left=Math.min(x0,x1),top=Math.min(y0,y1),width=Math.max(2,Math.abs(x1-x0)),height=Math.max(2,Math.abs(y1-y0));
    node(g,'rect',{...hit,x:left,y:top,width,height,stroke:c,fill:c,'fill-opacity':'.09','stroke-width':selected?2.3:1.4});
    const middle=y(Math.sqrt(a[0].price*a[1].price));node(g,'line',{...hit,x1:left,x2:left+width,y1:middle,y2:middle,stroke:c,'stroke-opacity':'.65','stroke-dasharray':'4 4'});

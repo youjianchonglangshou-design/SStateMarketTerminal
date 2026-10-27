@@ -1,20 +1,21 @@
 {
-  "version": "2.1.9",
+  "version": "2.1.10",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.8",
-  "title": "Slight right-edge reduction for chart taskbar without changing controls",
+  "baseVersion": "2.1.9",
+  "title": "Fib 0-Level Selection Dot",
   "changes": [
-    "Reduce the chart taskbar right edge by 20 additional pixels from v2.1.8 at desktop and supported responsive breakpoints.",
-    "Preserve the v2.1.8 left edge, original Drawing/tabs/Add/Tile order, yellow four-window limit notice, and all existing behavior.",
-    "Do not change runtime JavaScript, market data, notifications, radar calculations, saved settings, or Cloudflare Worker."
+    "Add a visible solid dot immediately before the Fibonacci 0 dashed line, with a 24px invisible click target.",
+    "Reuse the existing drawing selection/drag/Delete workflow; Fibonacci level prices and stored anchors remain unchanged.",
+    "Preserve the chart taskbar, notifications, radar, market calculations and Cloudflare integration."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite only these four frontend files in MultiAssetLiquidityRadar; no Worker changes."
+    "Overwrite only these five frontend files in MultiAssetLiquidityRadar; no Worker changes."
   ]
 }

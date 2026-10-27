@@ -1,31 +1,27 @@
 {
-  "version": "2.1.4",
+  "version": "2.1.5",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.3",
-  "title": "Workspace UX, Nine Custom PERPs, Line Close-Only Magnet and Radar Cleanup",
+  "baseVersion": "2.1.4",
+  "title": "Browser Notification Monitor: RR LED Transitions and Fresh Signal Spotlight Events",
   "changes": [
-    "Add per-symbol checkboxes, select-all and confirmed batch deletion for stored R2 drawings.",
-    "Increase custom Pionex PERP list to nine; Worker workspace validation updated to accept nine across devices.",
-    "CTRL magnetic snapping in line display mode attaches ONLY to the nearest candle close (C); OHLC in K mode remains unchanged.",
-    "Add CoinMarketCap external Direct Link beside CMC fear/greed API retry.",
-    "Prune deleted custom symbols from persisted radar events and hide non-event observation section.",
-    "Only show all-four-charts-locked warning when four charts are truly open and locked."
+    "Page-open-only RR/browser notifications: notify on valid LED transitions, not every quote refresh; no cooldown.",
+    "Live Signal Spotlight notifications use first-seen NEW event IDs only; no prior events, context-only, or removed symbols.",
+    "No replay after Ctrl+F5, reload, version updates, initial load, missing or restored prices, or changes to RR thresholds.",
+    "Independent opt-in toggles, user-gesture permission request, permission status and test button.",
+    "Local seven-day event log, per-day long/short/radar frequencies, attempts and monitored-hour normalized statistics.",
+    "Same-origin coordination with browser Web Locks and localStorage avoids duplicate multi-tab event notifications where supported.",
+    "No Worker, R2, Telegram, existing RR rules, polling cadence or price feeds changed."
   ],
   "modifiedFiles": [
+    "MultiAssetLiquidityRadar/browser-notifications.js",
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/chart4h.js",
-    "MultiAssetLiquidityRadar/drawing-manager.js",
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/fear-greed.html",
-    "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
+    "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md",
-    "cloudflare/worker.js"
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "First deploy cloudflare/worker.js to existing Worker (nine custom symbols validation).",
-    "Then overwrite listed MultiAssetLiquidityRadar frontend files via GitHub Pages."
+    "Overwrite only these seven MultiAssetLiquidityRadar frontend files; no Cloudflare Worker changes."
   ]
 }

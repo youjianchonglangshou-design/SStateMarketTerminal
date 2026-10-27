@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.1.4 Workspace UX Improvements</title><link rel="stylesheet" href="./style.css?v=2.1.4"></head>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.1.5 Browser Notifications</title><link rel="stylesheet" href="./style.css?v=2.1.5"></head>
 <body class="radar-workspace">
 <aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣固定監控清單">
  <div class="liq-nav-content"><div class="liq-nav-heading"><span>加密貨幣</span> <span class="liq-nav-count" id="liq-crypto-side-count">21</span><select class="liq-sector-sort" id="cryptoSort" aria-label="加密貨幣獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密市場 21 檔全景"></nav></div>
@@ -19,6 +19,7 @@
   <div class="chart-taskbar-heading"><span>▦ 圖表工作列</span><span id="chartWindowCount">0/4</span></div>
   <div id="chartWindowTabs" class="chart-window-tabs" role="group" aria-label="切換、還原圖表視窗"></div>
   <button type="button" id="chartAddWindow" class="chart-add-window" title="新增圖表視窗（最多四張）">＋ 新增</button>
+  <button type="button" id="browserNotifyButton" class="browser-notify-trigger" aria-controls="browserNotifyPanel" aria-expanded="false" aria-label="網頁通知與觸發統計">🔔 通知</button>
   <button type="button" id="signalSpotlightButton" class="signal-spotlight-trigger" aria-label="智慧事件雷達" aria-controls="signalSpotlightPanel" aria-expanded="false" type="button"><span class="spotlight-radar-icon" aria-hidden="true">◎</span> 雷達 <span id="signalSpotlightUnread" class="signal-spotlight-count" hidden>0</span></button>
   <button type="button" id="drawingManageButton" class="dw-manage-trigger" title="管理 R2 各幣繪圖記憶">⚙ 繪圖</button>
   <button type="button" id="chartTileWindows" class="chart-tile-windows" title="一鍵平均分割目前可見的圖表（2 張上下排列、3 張交替兩種版型、4 張 2×2）" aria-label="一鍵平均分割圖表">▦ 均分</button>
@@ -31,12 +32,24 @@
  <p id="signalSpotlightNotice" class="spotlight-notice" role="status" aria-live="polite"></p>
  <footer class="spotlight-foot">形成中＝日線尚未收盤 · 確認＝08:00 後核對｜分數是優先度，並非勝率。事件與已讀狀態僅儲存於本瀏覽器。</footer>
 </section>
+<section id="browserNotifyPanel" class="browser-notify-panel" role="dialog" aria-label="網頁通知設定與頻率統計" hidden>
+  <header class="browser-notify-head"><div><strong>🔔 網頁通知觀測器</strong><small>RR 亮燈變化 · 雷達新事件 · 本機 7 日統計</small></div><button type="button" id="browserNotifyClose" aria-label="關閉通知設定">×</button></header>
+  <div class="browser-notify-content">
+    <div class="browser-notify-options"><label><input id="browserNotifyRR" type="checkbox"> RR 達標通知</label><label><input id="browserNotifyRadar" type="checkbox"> 智慧雷達新事件通知</label></div>
+    <p id="browserNotifyPermission" class="browser-notify-permission">通知權限載入中…</p>
+    <div class="browser-notify-actions"><button type="button" id="browserNotifyPermissionButton">允許通知</button><button type="button" id="browserNotifyTest">測試通知</button></div>
+    <div class="browser-notify-metrics"><div><strong id="browserNotifyRRCount">0</strong><small>今日 RR 觸發</small></div><div><strong id="browserNotifyLongCount">0</strong><small>多方</small></div><div><strong id="browserNotifyShortCount">0</strong><small>空方</small></div><div><strong id="browserNotifyRadarCount">0</strong><small>雷達新事件</small></div><div><strong id="browserNotifyHourly">—</strong><small>RR / 有效小時</small></div><div><strong id="browserNotifyAttemptCount">0</strong><small>通知嘗試數</small></div></div>
+    <p id="browserNotifyTop" class="browser-notify-top">尚無 RR 達標事件</p><p id="browserNotifyObserved" class="browser-notify-observed">觀測狀態載入中</p>
+    <div class="browser-notify-label">最近事件（包含熄燈，熄燈不發通知）</div><div id="browserNotifyEvents" class="browser-notify-events"></div>
+    <p class="browser-notify-foot">首次載入、重新整理、修改 RR 門檻或資料恢復只建立基準。關閉網頁就停止；Telegram 價格鈴鐺維持獨立運作。</p>
+  </div>
+</section>
 <section id="terminalStatus" class="terminal-status" aria-label="行情載入進度與終端資訊">
  <div class="terminal-line"><span id="terminalProgressText">BOOT｜歷史資料初始化</span><span id="terminalDetail">建立監控資料…</span></div>
  <div class="terminal-meter" role="progressbar" aria-label="有效日線指標初始化進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="terminalProgressFill"></div></div>
 </section>
 <footer id="workspaceFooter" class="workspace-footer">
- <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.1.4</span></div>
+ <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.1.5</span></div>
  <span id="coverage" class="footer-coverage">等待資料</span>
  <div class="header-status"><a class="home-link" href="../index.html">← SState 主站</a>
   <div class="fg-popover" id="fgPopover"><button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button><section class="fg-panel" id="fgPanel" role="dialog" aria-label="恐懼與貪婪一年線圖"><iframe id="fgChartFrame" title="恐懼與貪婪一年線圖" data-src="./fear-greed.html?v=2.1.4" referrerpolicy="no-referrer" loading="lazy"></iframe></section></div>
@@ -124,7 +137,7 @@
  </section>
 </div>
 
-<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=2.1.4"></script><script defer src="./settings-sync.js?v=2.1.2"></script><script defer src="./workspace-sync.js?v=1.7.0"></script><script defer src="./signal-spotlight.js?v=1.8.0"></script><script defer src="./signal-spotlight-ui.js?v=2.1.4"></script><script defer src="./rr-config.js?v=2.1.0"></script><script defer src="./rr-scanner.js?v=2.1.3"></script><script defer src="./startup-cache.js?v=1.9.0"></script><script defer src="./cci-hover.js?v=2.0.5"></script><script defer src="./app.js?v=2.1.4"></script><script defer src="./drawing-workspace.js?v=2.1.4"></script><script defer src="./workspace.js?v=2.1.2"></script><script defer src="./drawing-manager.js?v=2.1.4"></script><script defer src="./alerts.js?v=1.8.2"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
+<script defer src="https://youjianchonglangshou-design.github.io/BTC_iquidation/coinglass-decrypt.js"></script><script defer src="../config.js"></script><script defer src="../monitor-engine.js?v=0.3.22"></script><script defer src="./symbols.js?v=1.2.8"></script><script defer src="./chart4h.js?v=2.1.4"></script><script defer src="./settings-sync.js?v=2.1.2"></script><script defer src="./workspace-sync.js?v=1.7.0"></script><script defer src="./signal-spotlight.js?v=1.8.0"></script><script defer src="./rr-config.js?v=2.1.0"></script><script defer src="./browser-notifications.js?v=2.1.5"></script><script defer src="./signal-spotlight-ui.js?v=2.1.5"></script><script defer src="./rr-scanner.js?v=2.1.3"></script><script defer src="./startup-cache.js?v=1.9.0"></script><script defer src="./cci-hover.js?v=2.0.5"></script><script defer src="./app.js?v=2.1.5"></script><script defer src="./drawing-workspace.js?v=2.1.4"></script><script defer src="./workspace.js?v=2.1.2"></script><script defer src="./drawing-manager.js?v=2.1.4"></script><script defer src="./alerts.js?v=1.8.2"></script><script defer src="./color-marks.js?v=1.6.1"></script><script defer src="./fear-greed-popover.js?v=1.6.1"></script>
 <script>
 /* Only the displayed release version is read; does not block radar initialization. */
 fetch('./VERSION.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(info=>{

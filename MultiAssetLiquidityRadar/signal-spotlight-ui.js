@@ -6,7 +6,7 @@
  if(!core||!button||!panel)return;
  const KEY='SStateLiquidityRadar.signalSpotlight.v1',MAX_HISTORY=240,MAX_QUEUE=90;
  const $=id=>document.getElementById(id);
- const events=new Map(),contexts=new Map(),fingerprints=new Map(),pending=new Map();
+ const events=new Map(),contexts=new Map(),fingerprints=new Map(),pending=new Map(),seededSymbols=new Set();
  let scanning=false,visible=false,threshold=80,unknown=0,complete=0;
  const nowDay=()=>Math.floor(Date.now()/core.DAY)*core.DAY;
  const timeFmt=ms=>new Date(ms).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
@@ -44,6 +44,7 @@
   if(!tracked(symbol))return;
   if(!result||result.reason==='insufficient_history'||result.reason==='missing_daily_candle'||!result.signalDayKey)return;
   const day=result.signalDayKey,ids=new Set(result.rules.map(r=>r.id));
+  const firstObservation=!seededSymbols.has(symbol);seededSymbols.add(symbol);
   // A forming daily candle may lose a previous event; keep the audit record as retracted.
   for(const e of events.values()){
    if(e.symbol!==symbol||e.signalDayKey!==day)continue;
@@ -57,6 +58,8 @@
   if(main){const eventId=core.eventId(symbol,main.id,day),existing=events.get(eventId);
    const item={eventId,symbol,signalDayKey:day,region:result.region,primaryRuleId:main.id,primaryTitle:main.title,matchedRuleIds:result.rules.map(r=>r.id),eventType:'NEW',favorite:true,status:provisional?'provisional':'confirmed',baseScore:main.score,attentionScore:result.attentionScore,firstSeenAt:existing?.firstSeenAt||Date.now(),lastSeenAt:Date.now(),viewedAt:existing?.viewedAt||null,dataSource:source};
    events.set(eventId,item);
+   // Only a newly created event AFTER the first live evaluation may notify.
+   if(!existing&&!firstObservation&&result.notify&&item.attentionScore>=threshold&&!item.viewedAt)window.LIQ_BROWSER_NOTIFICATIONS?.onRadar(item);
   }
   if(provisional)contexts.set(symbol,{region:result.region,rules:result.rules.map(x=>x.id),day});
   for(const e of [...events.values()]){if(Date.now()-e.firstSeenAt>35*core.DAY&&!isUnread(e))events.delete(e.eventId);}

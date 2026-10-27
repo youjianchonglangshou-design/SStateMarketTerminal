@@ -422,3 +422,8 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 更新 Worker 後，請把希望保留的數值再儲存一次，確認介面顯示「已存入 R2」。
 若 R2 連線失敗，前端會顯示「已存本機，R2 尚未同步成功」，不可將其視為跨裝置同步完成。
 舊的 R2 圖表記憶、止損/進場/目標繪圖數值不需要重建。
+
+
+## v2.1.5 Browser Notification Monitor
+
+RR LED transitions and new Signal Spotlight events can generate **page-lifetime-only** browser notifications. A `♧ 通知` button on the chart dock provides opt-in RR/radar toggles, notification-permission request, a test button, and 7-day local event statistics. First valid observation is always baseline, after refresh/invalid feed/revision no backlog is sent. RR thresholds and all market calculations remain untouched, and there are **no new network requests or Cloudflare/R2 deployments**. Multi-tab event deduplication uses Web Locks where available and localStorage as a best-effort fallback. Browser/OS settings can suppress notification display even if the app attempts to send.

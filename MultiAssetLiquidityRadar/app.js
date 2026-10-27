@@ -35,6 +35,7 @@
    const led=r.dom?.rrLed,scanner=window.LIQ_RR_SCANNER;
    if(!led)return;
    const result=scanner?.evaluate(rrSnapshot(r));
+   window.LIQ_BROWSER_NOTIFICATIONS?.onRR(r.id,result);
    led.hidden=true;led.className='liq-rr-led';led.removeAttribute('title');led.removeAttribute('aria-label');
    // Shoulder diagnostics are available on the ticker even when the LED is off.
    // This prevents a wrong/old left shoulder from hiding behind a dark LED.
@@ -62,7 +63,7 @@
  }
  // Used by the existing bottom R2 drawing-manager settings: re-evaluate LED
  // immediately, without an extra market poll or a forced chart redraw.
- window.LIQ_RR_REFRESH=()=>records.forEach(refreshRRLed);
+ window.LIQ_RR_REFRESH=()=>{window.LIQ_BROWSER_NOTIFICATIONS?.resetRRBaseline();records.forEach(refreshRRLed);};
 
  // Ring-style bounded diagnostics: at most 32 entries. Avoid writing large text nodes
  // every 10 seconds when the panel is closed; entries are never persisted to storage.
@@ -898,16 +899,16 @@
    if(records.length){fetchCG();fetchPrices();queueStartup();}
    else log('自選清單為空，請編輯 symbols.js');
    setInterval(updateClock,1000);
-   setInterval(()=>{if(!document.hidden)fetchPrices();},10000);
-   setInterval(()=>{if(!document.hidden)fetchCG();},60000);
-   setInterval(()=>{if(!document.hidden)queueAll();},60000);
+   setInterval(()=>{if(!document.hidden||window.LIQ_BROWSER_NOTIFICATIONS?.isMonitoring?.())fetchPrices();},10000);
+   setInterval(()=>{if(!document.hidden||window.LIQ_BROWSER_NOTIFICATIONS?.isMonitoring?.())fetchCG();},60000);
+   setInterval(()=>{if(!document.hidden||window.LIQ_BROWSER_NOTIFICATIONS?.isMonitoring?.())queueAll();},60000);
    document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.4',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.5',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

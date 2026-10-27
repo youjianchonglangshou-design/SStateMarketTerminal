@@ -1029,3 +1029,22 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .dw-manager-batch button:disabled{opacity:.45;cursor:not-allowed}
 .radar-workspace .dw-manager-checkbox{flex:none;width:16px;height:16px;accent-color:#3fcec2;cursor:pointer}
 .radar-workspace .dw-manager-item>span{flex:1;min-width:0}
+
+/* v2.1.5: page-only browser notifications and local frequency observer. */
+.radar-workspace .chart-taskbar .browser-notify-trigger{order:4!important;margin-left:auto!important;flex:none;background:#133649;border:1px solid #498095;color:#c6ebf5;border-radius:5px;padding:4px 6px;min-height:27px;font-size:11px;cursor:pointer;white-space:nowrap}
+.radar-workspace .chart-taskbar .browser-notify-trigger:hover,.radar-workspace .chart-taskbar .browser-notify-trigger[aria-expanded="true"]{background:#1b5066;border-color:#62c5d1}
+.radar-workspace .chart-taskbar .signal-spotlight-trigger{order:5!important;margin-left:0!important}
+.radar-workspace .chart-taskbar .chart-tile-windows{order:6!important}
+.radar-workspace .browser-notify-panel{position:fixed;bottom:45px;left:clamp(10px,38vw,690px);z-index:800;width:min(440px,calc(100vw - 20px));max-height:calc(100dvh - 62px);display:flex;flex-direction:column;background:#0c273b;color:#def5ff;border:1px solid #42768f;border-radius:11px;box-shadow:0 15px 65px #000d;overflow:hidden;font-size:12px}
+.radar-workspace .browser-notify-panel[hidden]{display:none!important}
+.radar-workspace .browser-notify-head{background:#123b52;border-bottom:1px solid #41677b;padding:10px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.radar-workspace .browser-notify-head>div{display:flex;flex-direction:column;gap:3px}.radar-workspace .browser-notify-head strong{font-size:14px;color:#a1eada}.radar-workspace .browser-notify-head small{font-size:10px;color:#9cbccc}
+.radar-workspace #browserNotifyClose{background:#103447;border:1px solid #426a82;border-radius:5px;color:#e1f7ff;font-size:18px;cursor:pointer;padding:1px 9px}
+.radar-workspace .browser-notify-content{padding:12px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.radar-workspace .browser-notify-options{display:flex;flex-wrap:wrap;gap:12px}.radar-workspace .browser-notify-options label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.radar-workspace .browser-notify-options input{accent-color:#15c5ae}
+.radar-workspace .browser-notify-permission,.radar-workspace .browser-notify-observed,.radar-workspace .browser-notify-top,.radar-workspace .browser-notify-foot{margin:0;font-size:11px;color:#adc7d7;line-height:1.6}
+.radar-workspace .browser-notify-actions{display:flex;gap:8px}.radar-workspace .browser-notify-actions button{background:#155365;border:1px solid #478999;color:#e6faff;border-radius:5px;padding:5px 12px;cursor:pointer}.radar-workspace .browser-notify-actions button:disabled{opacity:.4;cursor:default}
+.radar-workspace .browser-notify-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.radar-workspace .browser-notify-metrics>div{background:#102f42;border:1px solid #31536b;border-radius:5px;padding:8px;text-align:center;display:flex;flex-direction:column;gap:3px}.radar-workspace .browser-notify-metrics strong{font-size:20px;color:#84e5d3;font-variant-numeric:tabular-nums}.radar-workspace .browser-notify-metrics small{color:#9fc5d3;font-size:10px}
+.radar-workspace .browser-notify-label{border-top:1px solid #31536b;padding-top:8px;font-size:11px;font-weight:700;color:#b5dae8}.radar-workspace .browser-notify-events{max-height:140px;min-height:22px;overflow-y:auto;border:1px solid #28495c;border-radius:6px;padding:5px;color:#b8ccdd;font-size:10px}.radar-workspace .browser-notify-event{padding:5px 3px;border-bottom:1px solid #1b4057}.radar-workspace .browser-notify-event:last-child{border-bottom:0}
+@media(max-width:1200px){.radar-workspace .chart-taskbar .browser-notify-trigger{font-size:10px;padding:4px}.radar-workspace .browser-notify-panel{left:12px}}

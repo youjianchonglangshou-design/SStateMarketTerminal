@@ -1,4 +1,4 @@
-/* SStateMarketTerminal — RR structural-shoulder correction v2.1.1.
+/* SStateMarketTerminal — RR geometric pivot-shoulder correction v2.1.3 (spec v2.4).
  * Inputs are the SAME projected daily HA candles as the list and chart.
  * The historical shoulder is selected by the preceding stair structure,
  * never by blindly searching for today's yellow/purple HA color.
@@ -38,70 +38,44 @@
    const r=rows[index];return {price:r.hc,dayKey:r.t,color:r.color,
      daysBack:Math.round((current.t-r.t)/DAY),method,leg};
  }
- // ②/④: exact user-defined dynamic HA stair search. Start at the day before
- // yesterday and continue left through already-closed daily candles.
- function scanBeyondToday(rows,kind){
-   const c=rows.at(-1),sign=kind===2?1:-1;
-   for(let i=rows.length-3;i>=0;i--){
-     if(cmp(rows[i].hc,c.hc)===sign){
-       return result(rows,i,c,kind===2?'nearest_higher_stair':'nearest_lower_stair','backtrack');
+ // Spec v2.4: A shoulder is the DAILY HA CLOSE of the bar immediately
+ // BEFORE the most recent confirmed relative trough or peak.
+ // ② and ⑥: valley = falling staircase followed by a rising staircase.
+ // ③ and ④: peak   = rising staircase followed by a falling staircase.
+ // Colors classify one of six states; they NEVER constrain shoulder history.
+ // The forming today bar is allowed as confirmation (real-time reversibility),
+ // but cannot itself be a confirmed pivot until a later day reverses.
+ // Do not search for a higher/lower past stair or use the largest move.
+ // Flat plateaus: use their LAST bar as the pivot; the shoulder is literally
+ // that bar's previous daily close, even if the two closes are equal.
+ function geometricShoulder(rows,kind){
+   if(rows.length<3)return null;
+   const valley=kind===2||kind===6;
+   const rise=valley?1:-1;
+   const fall=-rise;
+   const current=rows.at(-1);
+   // Never choose today's bar as pivot: it has no right-hand confirmation yet.
+   for(let i=rows.length-2;i>=1;i--){
+     // Today's changing HA is permitted as the RIGHT-HAND confirmation.
+     if(cmp(rows[i+1].hc,rows[i].hc)!==rise)continue;
+     let plateauStart=i;
+     while(plateauStart>0&&cmp(rows[plateauStart].hc,rows[plateauStart-1].hc)===0){
+       plateauStart--;
      }
+     if(plateauStart<1||cmp(rows[plateauStart].hc,rows[plateauStart-1].hc)!==fall){
+       continue;
+     }
+     const shoulderIndex=i-1; // ALWAYS pivot day minus ONE calendar day.
+     return result(rows,shoulderIndex,current,valley?'valley_previous_day':'peak_previous_day',{
+       pivotDayKey:rows[i].t,pivotPrice:rows[i].hc,
+       plateauDays:i-plateauStart+1,
+     });
    }
    return null;
  }
- // ③/⑥: choose the left shoulder of the most recent opposite-price leg.
- // Operates solely on HA_Close stair GEOMETRY — no historical color filter.
- // ⑥ searches the latest trough and its earlier falling leg.
- // ③ mirrors this via the latest peak and its earlier rising leg.
- // With a multi-step fall (or rise), anchor the FIRST step after the earlier
- // high (low) plateau; do not substitute a much older, higher yellow (purple)
- // peak. Example: INTCX 10/21 high 93.1825, 10/22 first falling stair
- // 88.0725, 10/23 trough, and a rebound into 10/26 => 10/22 is the shoulder.
- // A one-step V / inverted-V uses the earlier plateau as the left shoulder.
- function swingShoulder(rows,kind){
-   const current=rows.at(-1),closed=rows.slice(0,-1),n=closed.length;
-   const sign=kind===6?-1:1; // direction of leg before the turning point
-   // Search the latest confirmed change of HA staircase slope, excluding the
-   // forming daily candle. A pivot at the last closed bar is allowed.
-   let pivot=-1;
-   for(let j=n-1;j>=1;j--){
-     const prior=cmp(closed[j].hc,closed[j-1].hc);
-     if(prior!==sign)continue;
-     if(j===n-1){pivot=j;break;} // extremum immediately before current turn
-     // At j, subsequent step must be opposite (flat steps can intervene).
-     let k=j+1;while(k<n&&cmp(closed[k].hc,closed[k-1].hc)===0)k++;
-     if(k<n && cmp(closed[k].hc,closed[k-1].hc)===-sign){pivot=j;break;}
-   }
-   if(pivot<1)return null;
-   let start=pivot;
-   while(start>0){
-     const step=cmp(closed[start].hc,closed[start-1].hc);
-     if(step===sign){start--;continue;}
-     if(step===0){start--;continue;}
-     break;
-   }
-   // Multi-step legs: anchor at the first occurrence of the DOMINANT
-   // downward/upward step of this swing. This locates the meaningful first
-   // breakdown staircase rather than an older shallow price drift preceding it.
-   // Example 94 -> 93.1825 -> 88.0725 -> 85.8: 10/22 (88.0725), NOT
-   // the preceding 10/21 93.1825. With a single step, keep its left plateau.
-   const steps=pivot-start;
-   if(steps<=0)return null;
-   let chosen=start;
-   if(steps>=2){
-     let magnitude=-Infinity;
-     for(let j=start+1;j<=pivot;j++){
-       const movement=Math.abs(closed[j].hc-closed[j-1].hc);
-       if(movement>magnitude){magnitude=movement;chosen=j;}
-     }
-   }
-   if(chosen<0||chosen>=n)return null;
-   return result(rows,chosen,current,kind===6?'dominant_falling_stair':'dominant_rising_stair',
-     {pivotDayKey:closed[pivot].t,pivotPrice:closed[pivot].hc,steps});
- }
  function shoulderFor(ha,kind){
    if(!validHistory(ha)||![2,3,4,6].includes(kind))return null;
-   return kind===2||kind===4?scanBeyondToday(ha.history,kind):swingShoulder(ha.history,kind);
+   return geometricShoulder(ha.history,kind);
  }
  function chooseStage(ha,p){
    const kind=classify(ha);

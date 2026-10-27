@@ -1,25 +1,23 @@
 {
-  "version": "2.1.2",
+  "version": "2.1.3",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.1",
-  "title": "Persistent R2 Risk Amounts and RR Thresholds",
+  "baseVersion": "2.1.2",
+  "title": "RR Geometry Shoulder Search (v2.4 Specification)",
   "changes": [
-    "Store global stop-loss amounts and live RR thresholds in independent terminal/radar_settings_v1.json R2 object, not in lossy shared workspace snapshot.",
-    "Preserve settings across GitHub Pages version changes and devices, with dedicated local fallback and R2 revision conflict handling.",
-    "Display distinct R2-synced and local-only messages so failed synchronization is never reported as successful.",
-    "Preserve the six-state ten-stage RR scanner, drawings and original watchlists unchanged."
+    "For ②/⑥ locate the most recent confirmed HA-close valley, then take the calendar day immediately before that valley as shoulder.",
+    "For ③/④ locate the most recent confirmed HA-close peak, then take the calendar day immediately before that peak as shoulder.",
+    "Use stair geometry only (no same-color, nearest-higher/lower, or biggest-drop shortcuts). The evolving current day can confirm yesterday’s pivot.",
+    "Preserve ① direct short and ⑤ direct long, all ten RR stages and user-adjusted 1.50/1.70 thresholds.",
+    "Preserve persistent R2 risk/RR settings, drawings, charts, 7D bounds and 10-second updates without new requests."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/settings-sync.js",
-    "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/drawing-manager.js",
+    "MultiAssetLiquidityRadar/rr-scanner.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md",
-    "cloudflare/worker.js"
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Deploy cloudflare/worker.js to the existing SStateMarketTerminal Worker first.",
-    "Overwrite MultiAssetLiquidityRadar files in GitHub Pages second; no R2 bucket migration or deletion."
+    "Overwrite exactly the four MultiAssetLiquidityRadar files in GitHub Pages.",
+    "Cloudflare Worker / R2 migration NOT required; user settings and drawings are unchanged."
   ]
 }

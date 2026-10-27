@@ -436,10 +436,10 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 RR LED transitions and new Signal Spotlight events can generate **page-lifetime-only** browser notifications. A `♧ 通知` button on the chart dock provides opt-in RR/radar toggles, notification-permission request, a test button, and 7-day local event statistics. First valid observation is always baseline, after refresh/invalid feed/revision no backlog is sent. RR thresholds and all market calculations remain untouched, and there are **no new network requests or Cloudflare/R2 deployments**. Multi-tab event deduplication uses Web Locks where available and localStorage as a best-effort fallback. Browser/OS settings can suppress notification display even if the app attempts to send.
 
 
-## v2.1.7 — 圖表工作列緊湊化（2026-10-27）
+## v2.1.8 — 圖表工作列留白與上限提醒修正（2026-10-27）
 
-- 底部圖表工作列改為依已開啟的圖表分頁及操作按鈕自動決定寬度，不再佔滿中央整段。
-- 「▦ 均分」緊接「＋ 新增」與「⚙ 繪圖」，收回原本夾在中間的大片空白。
-- 保留 0–4 張圖表切換、鎖定、縮小、平均分割、繪圖管理與事件訊息；分頁空間不足時可水平捲動。
-- 窄視窗時把工作列移到頁尾上方，防止遮住通知／雷達／恐懼與貪婪。
-- 此次僅修改前端版面，不變更行情、RR、智慧雷達、通知與 Cloudflare Worker。
+- 回復 v2.1.6 原本的視覺按鈕位置：工作列標題、繪圖、圖表分頁、新增、黃色訊息區、均分。
+- 只比 v2.1.6 微縮 12px 的工作列寬度，不再像 v2.1.7 大幅縮短造成中央空白。
+- 當已經開啟四張圖，新增按鈕保持可點擊；點擊時顯示「最多只能開啟 4 張圖表」，不會真的新增第五張。
+- 較窄畫面無法容納完整提醒時，黃色文字暫時浮在工作列上方，4 秒自動消失。
+- 保留通知、智慧雷達、恐懼與貪婪、RR、繪圖設定、日線行情、雲端同步等原始功能。

@@ -1,22 +1,23 @@
 {
-  "version": "2.1.7",
+  "version": "2.1.8",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.6",
-  "title": "Compact chart taskbar to reclaim empty footer space",
+  "baseVersion": "2.1.7",
+  "title": "Restore chart taskbar button positions with minimal spacing adjustment and visible 4-chart limit notice",
   "changes": [
-    "Automatically fit the bottom chart taskbar to its actual tab/button content instead of stretching across the center footer.",
-    "Keep 均分 immediately beside 新增 and 繪圖; remove the long empty horizontal gap.",
-    "Keep all four chart tabs accessible with horizontal overflow when necessary; preserve existing IDs, events, drawing settings and chart-layout actions.",
-    "On narrow screens, place the chart taskbar just above the footer to avoid collision with right-side controls.",
-    "No changes to notification permissions, radar rules, market feeds, RR calculations, storage or Cloudflare Worker."
+    "Undo v2.1.7 content-sized chart taskbar and restore the v2.1.6 visual button positions; do not move Drawing, Add, or Tile controls.",
+    "Make only a 12px additional reduction to the taskbar width to leave a little extra space, rather than hundreds of pixels.",
+    "Preserve the yellow maximum-4-charts message zone; on tighter viewports display the message above the taskbar instead of hiding it.",
+    "Keep Add clickable when four charts are already open so an attempted fifth triggers the existing warning without creating a fifth window.",
+    "Keep market data, RR, notification permissions, Signal Spotlight, existing panel positions, drawing logic, storage, and Cloudflare Worker unchanged."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite these four frontend files in MultiAssetLiquidityRadar; no Cloudflare Worker change required."
+    "Overwrite these five frontend files in MultiAssetLiquidityRadar; no Cloudflare Worker change required."
   ]
 }

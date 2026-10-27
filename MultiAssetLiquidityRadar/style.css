@@ -1082,40 +1082,69 @@ body.radar-workspace{font-size:12px;background:#061523}
 }
 
 
-/* v2.1.7 — compact, content-sized chart window dock.
-   Previously the dock filled the whole center footer slot and sent "均分"
-   to its far edge, leaving a large dead zone. Keep controls in one group. */
-.radar-workspace #chartTaskbar.chart-taskbar {
+/* v2.1.8 — correction: original v2.1.6 layout, only a SMALL width reduction.
+   Do NOT reorder Drawing, Add, Tile controls or pack the whole bar to the left.
+   Keep the available center space for the original yellow status message. */
+.radar-workspace #chartTaskbar.chart-taskbar{
   left:calc(max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px)!important;
-  right:auto!important;
-  width:max-content!important;
-  max-width:calc(100vw - (max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px) - clamp(418px,25vw,465px) - 12px)!important;
+  right:calc(clamp(418px,25vw,465px) + 12px)!important;
+  width:auto!important;
   min-width:0!important;
-  justify-content:flex-start;
-  gap:4px!important;
+  justify-content:normal!important;
 }
+/* Match v2.1.6 *visual* order: title, Drawing, tabs, Add, message, Tile. */
+.radar-workspace #chartTaskbar #drawingManageButton{order:0!important;flex:none}
 .radar-workspace #chartTaskbar .chart-taskbar-heading{order:0;flex:none}
 .radar-workspace #chartTaskbar .chart-window-tabs{order:1;flex:0 1 auto;min-width:0;overflow-x:auto}
-.radar-workspace #chartTaskbar .chart-add-window{order:2;flex:none}
-.radar-workspace #chartTaskbar #drawingManageButton{order:3;flex:none}
-.radar-workspace #chartTaskbar #chartTileWindows{order:4!important;margin-left:0!important;flex:none}
-.radar-workspace #chartTaskbar #chartWindowMessage{order:5!important;flex:0 1 auto!important;max-width:80px!important;min-width:0!important}
-.radar-workspace #chartTaskbar #chartWindowMessage:empty{display:none!important}
-@media (max-width:1260px){
-  .radar-workspace #chartTaskbar.chart-taskbar{
-    max-width:calc(100vw - (max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px) - clamp(334px,28vw,370px) - 12px)!important;
+.radar-workspace #chartTaskbar #chartAddWindow{order:2!important;flex:none}
+.radar-workspace #chartTaskbar #chartWindowMessage{
+  order:3!important;flex:1 1 auto!important;max-width:none!important;
+  min-width:0!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:#f8d482;
+}
+.radar-workspace #chartTaskbar #chartTileWindows{order:6!important;flex:none;margin-left:0!important}
+.radar-workspace #chartTaskbar #chartAddWindow.at-limit{
+  opacity:1!important;cursor:pointer!important;border-color:#997a33;color:#f9da89;
+}
+/* Smaller viewports have no inline room for the full sentence: show a
+   temporary yellow notice ABOVE the bar instead of hiding or clipping it. */
+@media(max-width:1630px){
+  .radar-workspace #chartTaskbar #chartWindowMessage:not(:empty){
+    display:block!important;position:fixed!important;
+    left:calc(max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px)!important;
+    bottom:calc(var(--workspace-footer-height) + 8px)!important;
+    width:max-content!important;max-width:min(300px,75vw)!important;
+    padding:6px 11px!important;background:#302813!important;
+    border:1px solid #ae8c42;border-radius:5px;
+    color:#ffe08c;font-size:11px!important;font-weight:700;
+    box-shadow:0 4px 16px #0009;z-index:160!important;
+    overflow:visible!important;text-overflow:clip!important;
   }
 }
-@media (max-width:1060px){
-  /* Keep both the dock and the footer controls fully usable on narrower screens. */
+@media(max-width:1260px){
+  .radar-workspace #chartTaskbar.chart-taskbar{
+    right:calc(clamp(334px,28vw,370px) + 12px)!important;
+  }
+}
+@media(max-width:940px){
+  .radar-workspace #chartTaskbar.chart-taskbar{
+    right:calc(clamp(235px,26vw,285px) + 12px)!important;
+  }
+}
+@media(max-width:1060px){
+  .radar-workspace #chartTaskbar #chartWindowMessage:not(:empty){
+    left:calc(var(--liq-panel-width) + 8px)!important;
+    bottom:calc(var(--workspace-footer-height) + 52px)!important;
+  }
+}
+
+@media(max-width:1060px){
+  /* Preserve narrow-screen usability without touching the original button order. */
   .radar-workspace #chartTaskbar.chart-taskbar{
     left:calc(var(--liq-panel-width) + 9px)!important;
+    right:auto!important;
+    width:calc(100vw - 2 * var(--liq-panel-width) - 18px)!important;
     bottom:calc(var(--workspace-footer-height) + 2px)!important;
-    max-width:calc(100vw - 2 * var(--liq-panel-width) - 18px)!important;
-    background:#092536;
-    border:1px solid #356783;
-    border-radius:7px;
+    background:#092536;border:1px solid #356783;border-radius:7px;
   }
-  .radar-workspace #chartTaskbar .chart-taskbar-heading span:first-child{display:none}
-  .radar-workspace #chartTaskbar #chartWindowMessage{display:none!important}
 }

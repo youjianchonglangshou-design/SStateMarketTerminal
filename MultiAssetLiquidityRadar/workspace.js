@@ -146,9 +146,9 @@
    w.lockButton.textContent=w.locked?'🔒':'🔓';
    w.lockButton.title=w.locked?'解除鎖定，允許清單換幣':'鎖定目前幣種，防止清單換幣覆蓋';
    $('chartWindowCount').textContent=windows.length+'/'+LIMIT;
-   add.disabled=windows.length>=LIMIT;
+   add.classList.toggle('at-limit',windows.length>=LIMIT);add.title=windows.length>=LIMIT?'已達上限：最多只能開啟 4 張圖表（點擊顯示提醒）':'新增圖表視窗（最多四張）';
  }
- function updateTabs(){windows.forEach(updateTab);$('chartWindowCount').textContent=windows.length+'/'+LIMIT;add.disabled=windows.length>=LIMIT;}
+ function updateTabs(){windows.forEach(updateTab);$('chartWindowCount').textContent=windows.length+'/'+LIMIT;add.classList.toggle('at-limit',windows.length>=LIMIT);add.title=windows.length>=LIMIT?'已達上限：最多只能開啟 4 張圖表（點擊顯示提醒）':'新增圖表視窗（最多四張）';}
  function activate(w,{reveal=true,notify=true}={}){
    if(!w)return;
    if(reveal&&w.minimized){w.minimized=false;w.el.hidden=false;w.dirty=true;}

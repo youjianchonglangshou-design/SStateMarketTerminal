@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.1.5 Browser Notifications</title><link rel="stylesheet" href="./style.css?v=2.1.5"></head>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#071827"><title>Multi-Asset Liquidity Radar | v2.1.6 Footer Notification and Radar Layout</title><link rel="stylesheet" href="./style.css?v=2.1.6"></head>
 <body class="radar-workspace">
 <aside class="liq-side-nav liq-nav-left" id="liq-crypto-nav" aria-label="加密貨幣固定監控清單">
  <div class="liq-nav-content"><div class="liq-nav-heading"><span>加密貨幣</span> <span class="liq-nav-count" id="liq-crypto-side-count">21</span><select class="liq-sector-sort" id="cryptoSort" aria-label="加密貨幣獨立排序"><option value="marks">標記集中</option><option value="watchlist">清單順序</option><option value="symbol">幣種名稱</option><option value="bull_pair">雙黃優先</option><option value="bear_pair">雙紫優先</option><option value="ha">平均K 黃優先</option><option value="cci">CCI 黃優先</option><option value="midline">中軌上斜優先</option><option value="sstate">S 狀態優先</option><option value="near">最近清算界</option></select></div><nav class="liq-nav-list" id="liq-crypto-list" aria-label="加密市場 21 檔全景"></nav></div>
@@ -19,8 +19,6 @@
   <div class="chart-taskbar-heading"><span>▦ 圖表工作列</span><span id="chartWindowCount">0/4</span></div>
   <div id="chartWindowTabs" class="chart-window-tabs" role="group" aria-label="切換、還原圖表視窗"></div>
   <button type="button" id="chartAddWindow" class="chart-add-window" title="新增圖表視窗（最多四張）">＋ 新增</button>
-  <button type="button" id="browserNotifyButton" class="browser-notify-trigger" aria-controls="browserNotifyPanel" aria-expanded="false" aria-label="網頁通知與觸發統計">🔔 通知</button>
-  <button type="button" id="signalSpotlightButton" class="signal-spotlight-trigger" aria-label="智慧事件雷達" aria-controls="signalSpotlightPanel" aria-expanded="false" type="button"><span class="spotlight-radar-icon" aria-hidden="true">◎</span> 雷達 <span id="signalSpotlightUnread" class="signal-spotlight-count" hidden>0</span></button>
   <button type="button" id="drawingManageButton" class="dw-manage-trigger" title="管理 R2 各幣繪圖記憶">⚙ 繪圖</button>
   <button type="button" id="chartTileWindows" class="chart-tile-windows" title="一鍵平均分割目前可見的圖表（2 張上下排列、3 張交替兩種版型、4 張 2×2）" aria-label="一鍵平均分割圖表">▦ 均分</button>
   <span id="chartWindowMessage" class="chart-window-message" role="status" aria-live="polite"></span>
@@ -49,9 +47,13 @@
  <div class="terminal-meter" role="progressbar" aria-label="有效日線指標初始化進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="terminalProgressFill"></div></div>
 </section>
 <footer id="workspaceFooter" class="workspace-footer">
- <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.1.5</span></div>
+ <div class="radar-brand-block"><span class="brand">MULTI-ASSET LIQUIDITY RADAR</span><span class="version">v2.1.6</span></div>
  <span id="coverage" class="footer-coverage">等待資料</span>
  <div class="header-status"><a class="home-link" href="../index.html">← SState 主站</a>
+  <div class="footer-radar-actions" role="group" aria-label="通知與智慧雷達">
+  <button type="button" id="browserNotifyButton" class="browser-notify-trigger" aria-controls="browserNotifyPanel" aria-expanded="false" aria-label="網頁通知與觸發統計">🔔 通知</button>
+  <button type="button" id="signalSpotlightButton" class="signal-spotlight-trigger" aria-label="智慧事件雷達" aria-controls="signalSpotlightPanel" aria-expanded="false" type="button"><span class="spotlight-radar-icon" aria-hidden="true">◎</span> 雷達 <span id="signalSpotlightUnread" class="signal-spotlight-count" hidden>0</span></button>
+  </div>
   <div class="fg-popover" id="fgPopover"><button class="fg-trigger" id="fgTrigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="fgPanel">恐懼與貪婪</button><section class="fg-panel" id="fgPanel" role="dialog" aria-label="恐懼與貪婪一年線圖"><iframe id="fgChartFrame" title="恐懼與貪婪一年線圖" data-src="./fear-greed.html?v=2.1.4" referrerpolicy="no-referrer" loading="lazy"></iframe></section></div>
   <span id="liveStatus" class="status-pill waiting" hidden>等待行情</span><span id="clock">台灣時間 --:--:--</span><button id="diagToggle" type="button" aria-expanded="false">診斷</button>
  </div>

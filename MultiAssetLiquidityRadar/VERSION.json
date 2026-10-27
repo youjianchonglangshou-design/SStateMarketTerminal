@@ -1,27 +1,21 @@
 {
-  "version": "2.1.5",
+  "version": "2.1.6",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.4",
-  "title": "Browser Notification Monitor: RR LED Transitions and Fresh Signal Spotlight Events",
+  "baseVersion": "2.1.5",
+  "title": "Move notification and Signal Spotlight controls directly left of Fear & Greed in footer",
   "changes": [
-    "Page-open-only RR/browser notifications: notify on valid LED transitions, not every quote refresh; no cooldown.",
-    "Live Signal Spotlight notifications use first-seen NEW event IDs only; no prior events, context-only, or removed symbols.",
-    "No replay after Ctrl+F5, reload, version updates, initial load, missing or restored prices, or changes to RR thresholds.",
-    "Independent opt-in toggles, user-gesture permission request, permission status and test button.",
-    "Local seven-day event log, per-day long/short/radar frequencies, attempts and monitored-hour normalized statistics.",
-    "Same-origin coordination with browser Web Locks and localStorage avoids duplicate multi-tab event notifications where supported.",
-    "No Worker, R2, Telegram, existing RR rules, polling cadence or price feeds changed."
+    "Move the existing notification and Signal Spotlight trigger buttons together from the chart-window taskbar to the footer immediately left of Fear & Greed.",
+    "Preserve the original button IDs, unread radar badge, browser permission flow, persisted preferences, notification state and all event handlers.",
+    "Rebalance dock and overlay positioning to avoid collisions with the expanded footer controls.",
+    "No changes to trading, notifications, radar detection, RR thresholds, storage keys, Worker or feed polling."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/browser-notifications.js",
-    "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite only these seven MultiAssetLiquidityRadar frontend files; no Cloudflare Worker changes."
+    "Overwrite these four frontend files in MultiAssetLiquidityRadar; no Cloudflare Worker change required."
   ]
 }

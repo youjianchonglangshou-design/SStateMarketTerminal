@@ -1048,3 +1048,35 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .browser-notify-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.radar-workspace .browser-notify-metrics>div{background:#102f42;border:1px solid #31536b;border-radius:5px;padding:8px;text-align:center;display:flex;flex-direction:column;gap:3px}.radar-workspace .browser-notify-metrics strong{font-size:20px;color:#84e5d3;font-variant-numeric:tabular-nums}.radar-workspace .browser-notify-metrics small{color:#9fc5d3;font-size:10px}
 .radar-workspace .browser-notify-label{border-top:1px solid #31536b;padding-top:8px;font-size:11px;font-weight:700;color:#b5dae8}.radar-workspace .browser-notify-events{max-height:140px;min-height:22px;overflow-y:auto;border:1px solid #28495c;border-radius:6px;padding:5px;color:#b8ccdd;font-size:10px}.radar-workspace .browser-notify-event{padding:5px 3px;border-bottom:1px solid #1b4057}.radar-workspace .browser-notify-event:last-child{border-bottom:0}
 @media(max-width:1200px){.radar-workspace .chart-taskbar .browser-notify-trigger{font-size:10px;padding:4px}.radar-workspace .browser-notify-panel{left:12px}}
+
+
+/* v2.1.6 — keep the ORIGINAL notification/radar controls together in the
+   right-hand footer, immediately to the left of Fear & Greed. */
+.radar-workspace .header-status{flex-wrap:nowrap;min-width:0}
+.radar-workspace .footer-radar-actions{display:inline-flex;align-items:center;gap:4px;flex:none;white-space:nowrap}
+.radar-workspace .header-status .footer-radar-actions .browser-notify-trigger{
+  order:0!important;margin:0!important;flex:none;display:inline-flex;align-items:center;
+  justify-content:center;background:#133649;border:1px solid #498095;color:#c6ebf5;
+  border-radius:5px;padding:5px 7px;min-height:27px;font-size:10px;cursor:pointer;
+}
+.radar-workspace .header-status .footer-radar-actions .browser-notify-trigger:hover,
+.radar-workspace .header-status .footer-radar-actions .browser-notify-trigger[aria-expanded="true"]{
+  background:#1b5066;border-color:#62c5d1;
+}
+.radar-workspace .header-status .footer-radar-actions .signal-spotlight-trigger{
+  order:0!important;margin:0!important;flex:none;display:inline-flex;align-items:center;
+  justify-content:center;gap:4px;padding:5px 7px;min-height:27px;font-size:10px;
+}
+/* Make room for the expanded right footer without covering chart-window tabs. */
+.radar-workspace .chart-taskbar{right:clamp(418px,25vw,465px)!important}
+/* Popups still use their original IDs, JS state and event listeners. */
+.radar-workspace .browser-notify-panel{left:auto;right:clamp(12px,13vw,230px)}
+.radar-workspace .signal-spotlight-panel{left:auto;right:clamp(12px,10vw,175px)}
+@media(max-width:1260px){
+  .radar-workspace .header-status #clock{display:none}
+  .radar-workspace .chart-taskbar{right:clamp(334px,28vw,370px)!important}
+}
+@media(max-width:940px){
+  .radar-workspace .header-status .home-link{display:none}
+  .radar-workspace .chart-taskbar{right:clamp(235px,26vw,285px)!important}
+}

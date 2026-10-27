@@ -1080,3 +1080,42 @@ body.radar-workspace{font-size:12px;background:#061523}
   .radar-workspace .header-status .home-link{display:none}
   .radar-workspace .chart-taskbar{right:clamp(235px,26vw,285px)!important}
 }
+
+
+/* v2.1.7 — compact, content-sized chart window dock.
+   Previously the dock filled the whole center footer slot and sent "均分"
+   to its far edge, leaving a large dead zone. Keep controls in one group. */
+.radar-workspace #chartTaskbar.chart-taskbar {
+  left:calc(max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px)!important;
+  right:auto!important;
+  width:max-content!important;
+  max-width:calc(100vw - (max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px) - clamp(418px,25vw,465px) - 12px)!important;
+  min-width:0!important;
+  justify-content:flex-start;
+  gap:4px!important;
+}
+.radar-workspace #chartTaskbar .chart-taskbar-heading{order:0;flex:none}
+.radar-workspace #chartTaskbar .chart-window-tabs{order:1;flex:0 1 auto;min-width:0;overflow-x:auto}
+.radar-workspace #chartTaskbar .chart-add-window{order:2;flex:none}
+.radar-workspace #chartTaskbar #drawingManageButton{order:3;flex:none}
+.radar-workspace #chartTaskbar #chartTileWindows{order:4!important;margin-left:0!important;flex:none}
+.radar-workspace #chartTaskbar #chartWindowMessage{order:5!important;flex:0 1 auto!important;max-width:80px!important;min-width:0!important}
+.radar-workspace #chartTaskbar #chartWindowMessage:empty{display:none!important}
+@media (max-width:1260px){
+  .radar-workspace #chartTaskbar.chart-taskbar{
+    max-width:calc(100vw - (max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px) - clamp(334px,28vw,370px) - 12px)!important;
+  }
+}
+@media (max-width:1060px){
+  /* Keep both the dock and the footer controls fully usable on narrower screens. */
+  .radar-workspace #chartTaskbar.chart-taskbar{
+    left:calc(var(--liq-panel-width) + 9px)!important;
+    bottom:calc(var(--workspace-footer-height) + 2px)!important;
+    max-width:calc(100vw - 2 * var(--liq-panel-width) - 18px)!important;
+    background:#092536;
+    border:1px solid #356783;
+    border-radius:7px;
+  }
+  .radar-workspace #chartTaskbar .chart-taskbar-heading span:first-child{display:none}
+  .radar-workspace #chartTaskbar #chartWindowMessage{display:none!important}
+}

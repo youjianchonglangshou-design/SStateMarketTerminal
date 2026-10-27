@@ -434,3 +434,12 @@ v1.2.5 將 4H K 棒改成紅色空心、綠色半透明實體；上下影線仍�
 ## v2.1.5 Browser Notification Monitor
 
 RR LED transitions and new Signal Spotlight events can generate **page-lifetime-only** browser notifications. A `♧ 通知` button on the chart dock provides opt-in RR/radar toggles, notification-permission request, a test button, and 7-day local event statistics. First valid observation is always baseline, after refresh/invalid feed/revision no backlog is sent. RR thresholds and all market calculations remain untouched, and there are **no new network requests or Cloudflare/R2 deployments**. Multi-tab event deduplication uses Web Locks where available and localStorage as a best-effort fallback. Browser/OS settings can suppress notification display even if the app attempts to send.
+
+
+## v2.1.7 — 圖表工作列緊湊化（2026-10-27）
+
+- 底部圖表工作列改為依已開啟的圖表分頁及操作按鈕自動決定寬度，不再佔滿中央整段。
+- 「▦ 均分」緊接「＋ 新增」與「⚙ 繪圖」，收回原本夾在中間的大片空白。
+- 保留 0–4 張圖表切換、鎖定、縮小、平均分割、繪圖管理與事件訊息；分頁空間不足時可水平捲動。
+- 窄視窗時把工作列移到頁尾上方，防止遮住通知／雷達／恐懼與貪婪。
+- 此次僅修改前端版面，不變更行情、RR、智慧雷達、通知與 Cloudflare Worker。

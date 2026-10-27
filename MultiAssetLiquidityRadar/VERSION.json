@@ -1,13 +1,14 @@
 {
-  "version": "2.1.6",
+  "version": "2.1.7",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.5",
-  "title": "Move notification and Signal Spotlight controls directly left of Fear & Greed in footer",
+  "baseVersion": "2.1.6",
+  "title": "Compact chart taskbar to reclaim empty footer space",
   "changes": [
-    "Move the existing notification and Signal Spotlight trigger buttons together from the chart-window taskbar to the footer immediately left of Fear & Greed.",
-    "Preserve the original button IDs, unread radar badge, browser permission flow, persisted preferences, notification state and all event handlers.",
-    "Rebalance dock and overlay positioning to avoid collisions with the expanded footer controls.",
-    "No changes to trading, notifications, radar detection, RR thresholds, storage keys, Worker or feed polling."
+    "Automatically fit the bottom chart taskbar to its actual tab/button content instead of stretching across the center footer.",
+    "Keep 均分 immediately beside 新增 and 繪圖; remove the long empty horizontal gap.",
+    "Keep all four chart tabs accessible with horizontal overflow when necessary; preserve existing IDs, events, drawing settings and chart-layout actions.",
+    "On narrow screens, place the chart taskbar just above the footer to avoid collision with right-side controls.",
+    "No changes to notification permissions, radar rules, market feeds, RR calculations, storage or Cloudflare Worker."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",

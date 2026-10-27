@@ -1,23 +1,20 @@
 {
-  "version": "2.1.8",
+  "version": "2.1.9",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.7",
-  "title": "Restore chart taskbar button positions with minimal spacing adjustment and visible 4-chart limit notice",
+  "baseVersion": "2.1.8",
+  "title": "Slight right-edge reduction for chart taskbar without changing controls",
   "changes": [
-    "Undo v2.1.7 content-sized chart taskbar and restore the v2.1.6 visual button positions; do not move Drawing, Add, or Tile controls.",
-    "Make only a 12px additional reduction to the taskbar width to leave a little extra space, rather than hundreds of pixels.",
-    "Preserve the yellow maximum-4-charts message zone; on tighter viewports display the message above the taskbar instead of hiding it.",
-    "Keep Add clickable when four charts are already open so an attempted fifth triggers the existing warning without creating a fifth window.",
-    "Keep market data, RR, notification permissions, Signal Spotlight, existing panel positions, drawing logic, storage, and Cloudflare Worker unchanged."
+    "Reduce the chart taskbar right edge by 20 additional pixels from v2.1.8 at desktop and supported responsive breakpoints.",
+    "Preserve the v2.1.8 left edge, original Drawing/tabs/Add/Tile order, yellow four-window limit notice, and all existing behavior.",
+    "Do not change runtime JavaScript, market data, notifications, radar calculations, saved settings, or Cloudflare Worker."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/style.css",
-    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite these five frontend files in MultiAssetLiquidityRadar; no Cloudflare Worker change required."
+    "Overwrite only these four frontend files in MultiAssetLiquidityRadar; no Worker changes."
   ]
 }

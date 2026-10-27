@@ -1087,7 +1087,7 @@ body.radar-workspace{font-size:12px;background:#061523}
    Keep the available center space for the original yellow status message. */
 .radar-workspace #chartTaskbar.chart-taskbar{
   left:calc(max(254px,13.7vw) + clamp(220px,18.5vw,325px) + 7px)!important;
-  right:calc(clamp(418px,25vw,465px) + 12px)!important;
+  right:calc(clamp(418px,25vw,465px) + 32px)!important;
   width:auto!important;
   min-width:0!important;
   justify-content:normal!important;
@@ -1123,12 +1123,12 @@ body.radar-workspace{font-size:12px;background:#061523}
 }
 @media(max-width:1260px){
   .radar-workspace #chartTaskbar.chart-taskbar{
-    right:calc(clamp(334px,28vw,370px) + 12px)!important;
+    right:calc(clamp(334px,28vw,370px) + 32px)!important;
   }
 }
 @media(max-width:940px){
   .radar-workspace #chartTaskbar.chart-taskbar{
-    right:calc(clamp(235px,26vw,285px) + 12px)!important;
+    right:calc(clamp(235px,26vw,285px) + 32px)!important;
   }
 }
 @media(max-width:1060px){
@@ -1148,3 +1148,5 @@ body.radar-workspace{font-size:12px;background:#061523}
     background:#092536;border:1px solid #356783;border-radius:7px;
   }
 }
+
+/* v2.1.9: slight (20px) additional right-edge inset only; retain v2.1.8 button ordering and yellow limit status. */

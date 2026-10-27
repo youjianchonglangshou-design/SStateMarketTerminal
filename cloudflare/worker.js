@@ -3804,7 +3804,7 @@ async function writeRadarWorkspace(env,body){
   const revision=Number(body?.expected_revision);
   if(!Number.isSafeInteger(revision)||revision!==current.revision)throw httpError(409,"workspace revision conflict; reload first");
   const custom=Array.isArray(body?.custom)?body.custom:[];
-  if(custom.length>8||custom.some(x=>typeof x!=="string"||!/^[A-Z0-9]{1,22}$/.test(x)))throw httpError(400,"invalid custom PERP list");
+  if(custom.length>9||custom.some(x=>typeof x!=="string"||!/^[A-Z0-9]{1,22}$/.test(x)))throw httpError(400,"invalid custom PERP list");
   const raw=body?.workspace;
   if(raw!==null&&(!raw||typeof raw!=="object"||Array.isArray(raw)))throw httpError(400,"invalid workspace");
   const windows=raw?.windows||[];

@@ -195,6 +195,9 @@ function snap(proj,pos,ctrl){
    if(dx<horizontal){horizontal=dx;candle=r;}}
  // No distant snapping: do not force a price from an unrelated historical bar.
  if(!candle||horizontal>Math.max(10,proj.stride*1.25))return free;
+ // In close-price line mode, magnet always snaps to that candle's C.
+ // Candlestick mode keeps its existing O/H/L/C proximity behavior.
+ if(proj.displayMode==='line')return {time:candle.t,price:candle.c,field:'C',snapped:true};
  let chosen='c',distance=Infinity;
  for(const key of ['o','h','l','c']){const dy=Math.abs(proj.y(candle[key])-yy);
    if(dy<distance){distance=dy;chosen=key;}}

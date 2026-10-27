@@ -644,7 +644,7 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .liq-nav-row{gap:2px}
 .radar-workspace .liq-nav-values{letter-spacing:-.08px}
 .radar-workspace .liq-nav-custom .liq-nav-list{flex:1 1 auto!important;height:auto!important;min-height:0!important;overflow:hidden!important}
-.radar-workspace .liq-nav-custom .liq-nav-row{height:min(33px,calc((100% - 14px)/8))!important;min-height:0!important;max-height:33px!important;flex:0 0 min(33px,calc((100% - 14px)/8))!important}
+.radar-workspace .liq-nav-custom .liq-nav-row{height:min(33px,calc((100% - 16px)/9))!important;min-height:0!important;max-height:33px!important;flex:0 0 min(33px,calc((100% - 16px)/9))!important}
 .radar-workspace .liq-nav-custom .liq-nav-heading{justify-content:space-between;gap:4px;padding:0 2px 3px}
 .radar-workspace .custom-plus{padding:3px 4px}
 .radar-workspace .custom-manage-btn{border:1px solid #487c92;background:#173d56;border-radius:5px;color:#d4efff;padding:3px 5px;font-size:10px;cursor:pointer;flex:none}
@@ -1021,3 +1021,11 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .dw-rr-actions button{width:auto;max-width:none;padding:6px 13px}
 .radar-workspace #dwRRReset{background:#18364d;border:1px solid #55788b;color:#d8ebf6}
 .radar-workspace #dwRRSave{background:#087c88;border:1px solid #30a8ae;color:white}
+
+/* v2.1.4: per-symbol R2 drawing bulk selection */
+.radar-workspace .dw-manager-batch{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#12354a;border:1px solid #365d73;border-radius:6px;padding:8px 10px}
+.radar-workspace .dw-manager-batch label{display:flex;align-items:center;gap:8px;cursor:pointer;color:#d9edf5}
+.radar-workspace .dw-manager-batch button{border:1px solid #b87581;background:#653441;border-radius:5px;color:#ffdae0;padding:6px 9px;cursor:pointer}
+.radar-workspace .dw-manager-batch button:disabled{opacity:.45;cursor:not-allowed}
+.radar-workspace .dw-manager-checkbox{flex:none;width:16px;height:16px;accent-color:#3fcec2;cursor:pointer}
+.radar-workspace .dw-manager-item>span{flex:1;min-width:0}

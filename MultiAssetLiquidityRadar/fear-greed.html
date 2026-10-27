@@ -30,7 +30,7 @@ canvas{width:100%;height:100%;display:block;cursor:crosshair}
 .tip-dock[data-mode="lime"]{background:#f2fbdc;border-color:#deefb6;border-left-color:#9cdb00}
 .tip-dock[data-mode="green"]{background:#eafaf3;border-color:#bbebd6;border-left-color:#16c784}
 .foot{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:#9aa7b8}
-.foot button{border:0;background:transparent;color:#486dd6;cursor:pointer;font-size:12px;white-space:nowrap;padding:3px 0}
+.foot button{border:0;background:transparent;color:#486dd6;cursor:pointer;font-size:12px;white-space:nowrap;padding:3px 0}.foot .fg-direct{font-size:12px;color:#1a6597;font-weight:700;text-decoration:none;border:1px solid #c0d8e6;border-radius:5px;background:#eaf5fb;padding:4px 9px;white-space:nowrap}.foot .fg-direct:hover{background:#d9eef9}
 .foot button:disabled{opacity:.55;cursor:wait}
 .status{min-height:14px;max-height:34px;overflow:hidden;font-size:10px;color:#9da8b8;line-height:1.45}
 .status.error{color:#d53b48;max-height:none}
@@ -46,7 +46,7 @@ canvas{width:100%;height:100%;display:block;cursor:crosshair}
   <div class="legend"><i></i>CMC 加密貨幣恐懼與貪婪指數</div>
   <div class="chart-wrap" id="chartWrap"><canvas id="chart" aria-label="CMC 一年情緒指數 0 至 100 線圖"></canvas></div>
   <div class="tip-dock" id="tip" aria-live="off"><span>滑鼠移至曲線，可查看日期、情緒指數與顏色狀態</span></div>
-  <div class="foot"><span id="dateRange">--</span><button id="refresh" type="button">↻ 重新讀取 API</button></div>
+  <div class="foot"><span id="dateRange">--</span><div style="display:flex;gap:12px;align-items:center"><a class="fg-direct" href="https://coinmarketcap.com/zh-tw/charts/fear-and-greed-index/" target="_blank" rel="noopener noreferrer" aria-label="直接前往 CoinMarketCap 恐懼與貪婪指數（開啟新分頁）">直接前往</a><button id="refresh" type="button">↻ 重新讀取 API</button></div></div>
   <div class="status" id="status" role="status">正在讀取 CMC 官方指數…</div>
 </main>
 <script>

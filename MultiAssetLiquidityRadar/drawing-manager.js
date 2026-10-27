@@ -4,6 +4,38 @@
  if(!api)return;
  const modal=$('dwManageModal'),status=$('dwManagerStatus'),list=$('dwManagerList');
  const clear=()=>{modal.hidden=true;};
+ const selected=new Set();let deleting=false;
+ const selectAll=$('dwManagerSelectAll'),batch=$('dwManagerBatchDelete');
+ function updateSelection(){
+   const checks=[...list.querySelectorAll('input[data-dw-symbol]')];
+   const checked=checks.filter(c=>c.checked);
+   batch.disabled=deleting||checked.length===0;
+   batch.textContent=`清除勾選 (${checked.length})`;
+   selectAll.disabled=deleting||checks.length===0;
+   selectAll.checked=checks.length>0&&checked.length===checks.length;
+   selectAll.indeterminate=checked.length>0&&checked.length<checks.length;
+ }
+ selectAll.addEventListener('change',()=>{
+   for(const box of list.querySelectorAll('input[data-dw-symbol]')){
+     box.checked=selectAll.checked;
+     if(box.checked)selected.add(box.dataset.dwSymbol);else selected.delete(box.dataset.dwSymbol);
+   }updateSelection();
+ });
+ batch.addEventListener('click',async()=>{
+   if(deleting)return;
+   const symbols=[...list.querySelectorAll('input[data-dw-symbol]:checked')].map(c=>c.dataset.dwSymbol);
+   if(!symbols.length||!confirm(`確定清除已勾選的 ${symbols.length} 個幣種所有繪圖記憶？\n只清除繪圖及 HA 延伸，不會刪除監控清單。`))return;
+   deleting=true;updateSelection();let okCount=0,failed=[];
+   for(let i=0;i<symbols.length;i++){
+     status.textContent=`正在清除 ${i+1}/${symbols.length}：${symbols[i]}`;
+     try{if(await api.clearSymbol(symbols[i]))okCount++;else failed.push(symbols[i]);}
+     catch(e){failed.push(symbols[i]);}
+     selected.delete(symbols[i]);
+   }
+   deleting=false;
+   await render();
+   status.textContent=`已清除並同步 R2：${okCount} 檔`+(failed.length?`；${failed.length} 檔本機已處理、遠端待同步：${failed.join('、')}`:'');
+ });
  const fillRisk=()=>{const d=window.LIQ_WORKSPACE?.getDefaultRisk?.();if(!d)return;$('dwDefaultRisk1').value=d.riskAmount1;$('dwDefaultRisk2').value=d.riskAmount2;};
  const fillRR=()=>{const d=window.LIQ_WORKSPACE?.getRRThresholds?.()||window.LIQ_RR_CONFIG?.getThresholds?.();
    if(!d)return;$('dwRRContinuation').value=d.continuation;$('dwRRReversal').value=d.reversal;};
@@ -20,7 +52,11 @@
  $('dwDefaultRiskSave')?.addEventListener('click',async()=>{const data={riskAmount1:Number($('dwDefaultRisk1').value),riskAmount2:Number($('dwDefaultRisk2').value)};const ok=await window.LIQ_WORKSPACE?.setDefaultRisk?.(data);$('dwDefaultRiskStatus').textContent=!ok?.valid?'請輸入兩個有效且大於 0 的金額':ok.synced?'止損金額已存入獨立 R2 設定；新畫部位將使用此金額':'止損金額已存本機，R2 尚未同步成功；連線恢復後重試';});
  async function render(){list.replaceChildren();status.textContent='正在讀取 R2 與本機繪圖…';
    const rows=await api.listRemote();status.textContent=rows.length?`共有 ${rows.length} 個具備繪圖記憶的標的`:'沒有可列出的繪圖記憶（遠端若未部署，請檢查 Worker）';
+   const present=new Set(rows.map(x=>x.symbol));for(const id of selected)if(!present.has(id))selected.delete(id);
    for(const x of rows){const row=document.createElement('div');row.className='dw-manager-item';
+     const cb=document.createElement('input');cb.type='checkbox';cb.className='dw-manager-checkbox';cb.dataset.dwSymbol=x.symbol;
+     cb.setAttribute('aria-label','選取 '+x.symbol+' 繪圖記憶');cb.checked=selected.has(x.symbol);
+     cb.addEventListener('change',()=>{if(cb.checked)selected.add(x.symbol);else selected.delete(x.symbol);updateSelection();});
      const info=document.createElement('span');info.textContent=`${x.symbol}｜${x.count||0} 個｜${x.updatedAt?new Date(x.updatedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'本機資料'}`;
      const del=document.createElement('button');del.type='button';del.textContent='清除該幣';del.title='僅清除此幣的繪圖及 HA 延伸，不影響監控清單與視窗';
      del.addEventListener('click',async()=>{if(!confirm('確定清空 '+x.symbol+' 所有繪圖記憶？\n不會刪除監控清單或圖表視窗。'))return;
@@ -29,10 +65,10 @@
      if(window.LIQ_CHART_API?.hasSymbol?.(short)){
        const show=document.createElement('button');show.type='button';show.textContent='開啟圖表';
        show.addEventListener('click',()=>{window.LIQ_WORKSPACE?.addWindow?.(short);modal.hidden=true;});
-       row.append(info,show,del);
-     }else row.append(info,del);
+       row.append(cb,info,show,del);
+     }else row.append(cb,info,del);
      list.append(row);
-   }
+   }updateSelection();
  }
  $('drawingManageButton')?.addEventListener('click',()=>{modal.hidden=false;fillRisk();fillRR();void render();});
  $('dwManageClose')?.addEventListener('click',clear);

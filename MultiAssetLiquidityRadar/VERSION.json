@@ -1,23 +1,31 @@
 {
-  "version": "2.1.3",
+  "version": "2.1.4",
   "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.2",
-  "title": "RR Geometry Shoulder Search (v2.4 Specification)",
+  "baseVersion": "2.1.3",
+  "title": "Workspace UX, Nine Custom PERPs, Line Close-Only Magnet and Radar Cleanup",
   "changes": [
-    "For ②/⑥ locate the most recent confirmed HA-close valley, then take the calendar day immediately before that valley as shoulder.",
-    "For ③/④ locate the most recent confirmed HA-close peak, then take the calendar day immediately before that peak as shoulder.",
-    "Use stair geometry only (no same-color, nearest-higher/lower, or biggest-drop shortcuts). The evolving current day can confirm yesterday’s pivot.",
-    "Preserve ① direct short and ⑤ direct long, all ten RR stages and user-adjusted 1.50/1.70 thresholds.",
-    "Preserve persistent R2 risk/RR settings, drawings, charts, 7D bounds and 10-second updates without new requests."
+    "Add per-symbol checkboxes, select-all and confirmed batch deletion for stored R2 drawings.",
+    "Increase custom Pionex PERP list to nine; Worker workspace validation updated to accept nine across devices.",
+    "CTRL magnetic snapping in line display mode attaches ONLY to the nearest candle close (C); OHLC in K mode remains unchanged.",
+    "Add CoinMarketCap external Direct Link beside CMC fear/greed API retry.",
+    "Prune deleted custom symbols from persisted radar events and hide non-event observation section.",
+    "Only show all-four-charts-locked warning when four charts are truly open and locked."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/rr-scanner.js",
+    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/drawing-manager.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/fear-greed.html",
     "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
+    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md"
+    "MultiAssetLiquidityRadar/README.md",
+    "cloudflare/worker.js"
   ],
   "requiredDeploy": [
-    "Overwrite exactly the four MultiAssetLiquidityRadar files in GitHub Pages.",
-    "Cloudflare Worker / R2 migration NOT required; user settings and drawings are unchanged."
+    "First deploy cloudflare/worker.js to existing Worker (nine custom symbols validation).",
+    "Then overwrite listed MultiAssetLiquidityRadar frontend files via GitHub Pages."
   ]
 }

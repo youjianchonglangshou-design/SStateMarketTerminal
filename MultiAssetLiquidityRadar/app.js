@@ -497,7 +497,7 @@
  }
  // User-owned watchlist: same records / analysis pipeline, but NEVER mutates symbols.js.
  const CUSTOM_KEY='SStateLiquidityRadar.customPERP.v1';
- const CUSTOM_MAX=8;
+ const CUSTOM_MAX=9;
  let customUniverse=[],customLoaded=false,customPartial=false;
  const customIds=()=>records.filter(row=>row.s.group==='custom').map(row=>row.id);
  const customSave=()=>{try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(customIds()));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* storage disabled */}};
@@ -534,7 +534,7 @@
  const closeCustomManage=()=>{$('customManageModal').hidden=true;};
  function addCustomSymbol(raw){
    const base=String(raw||'').toUpperCase().replace(/_USDT_PERP$/,'');
-   if(customIds().length>=CUSTOM_MAX){$('customSymbolHint').textContent='最多 8 檔，請至「管理」移除其他標的';return false;}
+   if(customIds().length>=CUSTOM_MAX){$('customSymbolHint').textContent='最多 9 檔，請至「管理」移除其他標的';return false;}
    if(records.some(x=>x.id===base)){$('customSymbolHint').textContent=base+' 已在監控清單內';return false;}
    const rec=makeCustomRecord(base);if(!rec)return false;
    setupSideNav(['custom']);renderRow(rec);updateCustomPanel();customSave();renderOverview();
@@ -566,7 +566,7 @@
        .map(x=>({symbol:String(x.symbol).toUpperCase(),base:String(x.symbol).toUpperCase().replace(/_USDT_PERP$/,'')}))
        .filter(x=>/^[A-Z0-9]{1,22}$/.test(x.base));
      customLoaded=true;customPartial=Boolean(response.partial);
-     $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 8 檔';
+     $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 9 檔';
    }catch(err){customLoaded=true;customUniverse=[];customPartial=true;
      $('customSymbolHint').textContent='派網清單連線失敗，可輸入合約代碼嘗試新增；未驗證前不可視為已上市';
      log('自由清單 PERP universe：'+err.message);
@@ -602,7 +602,7 @@
    if('ResizeObserver' in window)new ResizeObserver(fitPanel).observe($('liq-stock-nav'));
    $('customAddSymbol').addEventListener('click',()=>{if(customIds().length>=CUSTOM_MAX)return;
      $('customSymbolModal').hidden=false;$('customSymbolQuery').value='';renderCustomResults();
-     if(!customLoaded)loadCustomUniverse();else $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 8 檔';
+     if(!customLoaded)loadCustomUniverse();else $('customSymbolHint').textContent='派網 PERP 清單 '+customUniverse.length+' 檔'+(customPartial?'（部分清單）':'')+'；最多新增 9 檔';
      $('customSymbolQuery').focus();});
    $('customManageSymbol').addEventListener('click',()=>{$('customManageModal').hidden=false;renderCustomManage();});
    $('customManageClose').addEventListener('click',closeCustomManage);
@@ -907,7 +907,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.1',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.4',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

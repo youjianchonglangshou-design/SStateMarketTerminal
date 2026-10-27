@@ -240,7 +240,7 @@
      if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*(tf==='1D'?DAY:H4);
      return rows[low].t+fraction*(rows[low+1].t-rows[low].t);
    };
-   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:begin,stride,logSpan:hi-lo,pricePan:pan,future,
+   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:begin,stride,logSpan:hi-lo,pricePan:pan,future,
      x:xAtTime,time:timeAtX,y,price:priceAtY,money,
      fromEvent(ev){const rect=target.getBoundingClientRect();return {x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H};}
    };

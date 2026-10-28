@@ -1,21 +1,19 @@
 {
-  "version": "2.1.10",
-  "releaseDate": "2026-10-27",
-  "baseVersion": "2.1.9",
-  "title": "Fib 0-Level Selection Dot",
+  "version": "2.1.11",
+  "releaseDate": "2026-10-28",
+  "baseVersion": "2.1.10",
+  "title": "S-State Capsule Colors Aligned with SStateMarketTerminal",
   "changes": [
-    "Add a visible solid dot immediately before the Fibonacci 0 dashed line, with a 24px invisible click target.",
-    "Reuse the existing drawing selection/drag/Delete workflow; Fibonacci level prices and stored anchors remain unchanged.",
-    "Preserve the chart taskbar, notifications, radar, market calculations and Cloudflare integration."
+    "Synchronize radar S-state capsules (S3/S2/S1/S0.5/S0/OTHER/OTHER-UP/OTHER-DN) with the existing SStateMarketTerminal monitor.css palette; PEPE S3 is now yellow instead of green.",
+    "Preserve S-state classification via the shared monitor engine and existing floating chart titlebar gradients; no signal, RR, notification, data, layout, or Worker changes."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite only these five frontend files in MultiAssetLiquidityRadar; no Worker changes."
+    "Overwrite the four frontend files listed in modifiedFiles; no Worker changes."
   ]
 }

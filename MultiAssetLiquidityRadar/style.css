@@ -65,12 +65,12 @@
 .radar-table tbody td:nth-child(4),.radar-table tbody td:nth-child(5),.radar-table tbody td:nth-child(6),.radar-table tbody td:nth-child(7){padding-left:4px;padding-right:4px;text-align:center}
 .state-wrap,.mid-wrap{text-align:center}
 .state-badge{display:inline-block;border-radius:100px;min-width:49px;padding:5px 7px;font-size:11px;line-height:1.2;font-weight:850;border:1px solid}
-.state-badge.s3{color:#8af6cd;background:#164c41;border-color:#1a9f83}
-.state-badge.s2{color:#69e9a8;background:#0e493b;border-color:#2a9f70}
-.state-badge.s1{color:#7bcfff;background:#153d57;border-color:#2c83ba}
-.state-badge.s05{color:#ead0ff;background:#54367b;border-color:#9160b8}
-.state-badge.s0{color:#dce9f6;background:#374b64;border-color:#8398ad}
-.state-badge.other{color:#c1ccd9;background:#2b3b4b;border-color:#58677a}
+.state-badge.s3{color:#fff2a2;background:#5e4a02;border-color:#ffd02a}
+.state-badge.s2{color:#d0ffe9;background:#0d5940;border-color:#4ade80}
+.state-badge.s1{color:#cfe8ff;background:#163f75;border-color:#60a5fa}
+.state-badge.s05{color:#f4e7ff;background:#63359c;border-color:#c084fc}
+.state-badge.s0{color:#142032;background:#dbeafe;border-color:#fff}
+.state-badge.other{color:#d5dee8;background:#273547;border-color:#64748b}
 .state-badge.unknown,.mid-label.unknown{color:#8197a7;background:#193246;border-color:#35506a}
 .state-sub,.mid-sub{font-size:9px;color:#9cb6c7;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mid-label{display:inline-block;white-space:nowrap;font-weight:850;font-size:12px;padding:6px 3px;border-radius:4px;border:1px solid transparent}
@@ -134,8 +134,8 @@
 .radar-price-label.now{left:auto;right:0;max-width:27%;margin-left:0;font-size:9px;padding:2px 6px;line-height:12px;z-index:2;text-align:left}
 
 /* v1.1.7: shared SState OTHER-UP/OTHER-DN extension; compact labels. */
-.state-badge.other-up{background:#0c463a;color:#67f4c3;border-color:#23b994;min-width:49px;padding-inline:4px;font-size:10px}
-.state-badge.other-dn{background:#532b3a;color:#ff9fb1;border-color:#d85378;min-width:49px;padding-inline:4px;font-size:10px}
+.state-badge.other-up{background:#083e35;color:#63f1b9;border-color:#14a985;min-width:49px;padding-inline:4px;font-size:10px;box-shadow:inset 0 0 6px #1ac6a31d}
+.state-badge.other-dn{background:#55252e;color:#ff9caa;border-color:#e4637b;min-width:49px;padding-inline:4px;font-size:10px;box-shadow:inset 0 0 6px #ed647b1d}
 
 /* v1.1.8: CMC Fear & Greed hover capsule. Scoped: radar calculation and cards unchanged. */
 .header-status{overflow:visible}

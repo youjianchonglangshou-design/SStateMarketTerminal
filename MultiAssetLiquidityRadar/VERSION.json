@@ -1,19 +1,20 @@
 {
-  "version": "2.1.11",
+  "version": "2.1.12",
   "releaseDate": "2026-10-28",
-  "baseVersion": "2.1.10",
-  "title": "S-State Capsule Colors Aligned with SStateMarketTerminal",
+  "baseVersion": "2.1.11",
+  "title": "Signal Spotlight Taiwan Midnight Daily Reset",
   "changes": [
-    "Synchronize radar S-state capsules (S3/S2/S1/S0.5/S0/OTHER/OTHER-UP/OTHER-DN) with the existing SStateMarketTerminal monitor.css palette; PEPE S3 is now yellow instead of green.",
-    "Preserve S-state classification via the shared monitor engine and existing floating chart titlebar gradients; no signal, RR, notification, data, layout, or Worker changes."
+    "At 00:00 Asia/Taipei, clear Signal Spotlight daily events and unread counters, and begin a fresh calendar-day queue without any Cloudflare scheduling or new data API calls.",
+    "Retain compact event-ID deduplication to prevent yesterday signals from reappearing; resume/reload/multi-tab checks and 08:00 daily-candle rollover are independent.",
+    "Preserve radar threshold, 37-rule evaluation, RR and browser notification seven-day audit, charts, drawings, market data and R2 settings."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite the four frontend files listed in modifiedFiles; no Worker changes."
+    "Overwrite the four frontend files listed in modifiedFiles; no Worker or R2 changes."
   ]
 }

@@ -1,4 +1,4 @@
-/* Pionex WebSocket live prices proof-of-concept v1.1.1.
+/* Pionex WebSocket live prices proof-of-concept v1.1.2.
  * Source list: live MultiAssetLiquidityRadar/symbols.js with bundled fallback.
  * Quote data: Pionex PUBLIC TRADE stream via existing SState Cloudflare WS relay.
  * NO quote polling, NO fabricated quotations, NO API credentials.
@@ -8,12 +8,17 @@ const ENDPOINT='wss://white-meadow-16bc.youjianchonglangshou.workers.dev/api/mon
 const REMOTE_SYMBOLS='https://youjianchonglangshou-design.github.io/SStateMarketTerminal/MultiAssetLiquidityRadar/symbols.js';
 const PACE_MS=340; // ~2.94 subscriptions/sec, leaving room under Pionex's documented outgoing-message limit
 const STALE_MS=30000;
+// WebSocket can remain OPEN after traffic stops. When Chrome throttles/freeze-suspends
+// a background tab, timers may not run; resume/visibility/focus recheck on return.
+const FEED_SILENCE_MS=90000, HEALTH_CHECK_MS=15000, RESUME_GRACE_MS=1800;
+const RECOVERY_COOLDOWN_MS=35000, CONNECT_STALL_MS=20000;
 const $=id=>document.getElementById(id);
 const nowTime=ms=>new Date(ms).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
 let symbols=[], rows=new Map(), prices=new Map(), socket=null, manualStop=false, reconnectTimer=null, subscribeTimer=null;
 let generation=0, retryCount=0, connectedAt=0, successful=new Set(), subs=new Set(), failures=new Map();
 let tickCount=0, lastPushed=0, logCount=0, flushTimer=null, pendingRender=new Set(), sourceName='';
 let connectionMode='connecting', connectMode='all', openedThisAttempt=false, handshakeFailures=0, handshakeTimer=null;
+ let startedAt=0, lastRecoveryAt=0, recoveryTimer=null;
 function isLocal(){return location.protocol==='file:';}
 function clearHandshakeTimer(){if(handshakeTimer){clearTimeout(handshakeTimer);handshakeTimer=null;}}
 function originHelp(){
@@ -155,9 +160,43 @@ function handleMessage(evt,gen){
 }
 function cancelSubs(){if(subscribeTimer){clearInterval(subscribeTimer);subscribeTimer=null;}}
 function cancelRetry(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}}
+function cancelRecoveryTimer(){if(recoveryTimer){clearTimeout(recoveryTimer);recoveryTimer=null;}}
+function healFeed(reason){
+  if(manualStop || !symbols.length || (typeof navigator!=='undefined' && navigator.onLine===false))return false;
+  if(handshakeFailures>=2 && (!socket || socket.readyState!==WebSocket.OPEN))return false;
+  const now=Date.now();
+  if(now-lastRecoveryAt<RECOVERY_COOLDOWN_MS)return false;
+  lastRecoveryAt=now;
+  log('行情自動修復：'+reason+'；重新建立 Worker WebSocket 並重新訂閱。','error');
+  start(connectMode);return true;
+}
+function checkFeedHealth(source='定期巡檢'){
+  if(manualStop || !symbols.length || (typeof navigator!=='undefined' && navigator.onLine===false))return;
+  const now=Date.now(),state=socket?.readyState;
+  if(state===WebSocket.OPEN){
+    // BTC is always in this watchlist and trades frequently; do not infer health
+    // merely from readyState=OPEN or from occasional server PING frames.
+    const newestCurrentTrade=lastPushed>=connectedAt?lastPushed:connectedAt;
+    if(connectedAt>0 && now-connectedAt>=FEED_SILENCE_MS && now-newestCurrentTrade>=FEED_SILENCE_MS){
+      healFeed(source+'：超過 90 秒未接收新成交');
+    }
+  }else if(state===WebSocket.CONNECTING){
+    if(startedAt>0 && now-startedAt>CONNECT_STALL_MS)healFeed(source+'：連線逾時');
+  }else if((state===WebSocket.CLOSED || state===WebSocket.CLOSING || !socket) &&
+           (source!=='定期巡檢'||!reconnectTimer)){
+    healFeed(source+'：連線已中斷');
+  }
+}
+function checkAfterResume(source){
+  if(manualStop)return;
+  cancelRecoveryTimer();
+  // Let Chrome deliver queued WS messages after unfreezing before judging staleness.
+  recoveryTimer=setTimeout(()=>{recoveryTimer=null;checkFeedHealth(source);refreshAll();},RESUME_GRACE_MS);
+}
 function closeOld(){cancelSubs();clearHandshakeTimer();if(socket){const prev=socket;socket=null;prev.onclose=null;prev.onmessage=null;prev.onerror=null;prev.onopen=null;try{prev.close(1000,'replace');}catch(_){}}}
 function start(mode=connectMode){
- connectMode=mode;manualStop=false;cancelRetry();closeOld();const gen=++generation;
+ connectMode=mode;manualStop=false;cancelRetry();cancelRecoveryTimer();closeOld();const gen=++generation;
+  startedAt=Date.now();
  subs=new Set();successful=new Set();failures=new Map();openedThisAttempt=false;connectedAt=0;
  status('connecting','連線至 SState Worker 中繼…');refreshAll();
  log(`連線階段：${isLocal()?'file://':'HTTPS'} · 透過 Worker 中繼 · ${connectMode==='btc'?'僅 BTC':'BTC 成功後擴展全部 '+symbols.length+' 檔'}`);
@@ -223,7 +262,7 @@ function scheduleRetry(gen){
  status('retry',`約 ${Math.ceil(delay/1000)} 秒後重連 (${handshakeFailures}/2 次握手失敗)`);refreshAll();
  reconnectTimer=setTimeout(()=>{reconnectTimer=null;if(gen===generation&&!manualStop)start(connectMode);},delay);
 }
-function stop(){manualStop=true;generation++;cancelRetry();closeOld();status('offline','使用者已停止連線');refreshAll();log('已手動停止，不會自動重連');}
+function stop(){manualStop=true;generation++;cancelRetry();cancelRecoveryTimer();closeOld();status('offline','使用者已停止連線');refreshAll();log('已手動停止，不會自動重連');}
 function loadScript(url,timeout=6500){return new Promise((resolve,reject)=>{
  const sc=document.createElement('script');let finished=false;
  const timer=setTimeout(()=>finish(false),timeout);
@@ -252,8 +291,16 @@ async function boot(){
  log(`成功載入 ${symbols.length} 檔：加密 ${symbols.filter(x=>x.group==='crypto').length}、美股商品 ${symbols.filter(x=>x.group!=='crypto').length}`,'ok');
  build();start('all');
  setInterval(()=>{if(!symbols.length)return;refreshAll();},3000);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll();});
- window.PIONEX_WS_DEMO={inspect:()=>({version:'1.1.1',endpoint:ENDPOINT,connectionMode,openedThisAttempt,handshakeFailures,connectMode,total:symbols.length,subscriptions:[...subs],received:[...successful],ticks:tickCount,errors:Object.fromEntries(failures),lastPushed,source:sourceName})};
+ // Background timers may be throttled, but WS pushes run while Chrome permits.
+ // Check for a stale stream, and always recheck after returning to the page.
+ setInterval(()=>checkFeedHealth(),HEALTH_CHECK_MS);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAfterResume('回到分頁');});
+ document.addEventListener('resume',()=>checkAfterResume('解除背景凍結'));
+ window.addEventListener('focus',()=>checkAfterResume('視窗重新取得焦點'));
+ window.addEventListener('pageshow',e=>{if(e.persisted)checkAfterResume('頁面快取還原');});
+ window.addEventListener('online',()=>checkAfterResume('網路重新連接'));
+
+ window.PIONEX_WS_DEMO={inspect:()=>({version:'1.1.2',endpoint:ENDPOINT,connectionMode,openedThisAttempt,handshakeFailures,connectMode,total:symbols.length,subscriptions:[...subs],received:[...successful],ticks:tickCount,errors:Object.fromEntries(failures),lastPushed,connectedAt,lastRecoveryAt,socketState:socket?.readyState??WebSocket.CLOSED,hidden:document.hidden,source:sourceName}),healthCheck:()=>checkFeedHealth('手動狀態檢查')};
 }
 boot();
 })();

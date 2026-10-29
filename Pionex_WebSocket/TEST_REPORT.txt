@@ -1,0 +1,17 @@
+PASS 33 檔讀取
+PASS BTC 先訂閱
+PASS 真實狀態出價
+PASS 全清單33筆訂閱
+PASS 全清單ACK
+PASS PONG對應
+PASS 單幣BTC測試
+PASS 小窗錯誤為零
+PASS 第一次1006顯示握手未建立
+PASS 第二次後停止重連
+PASS 握手失敗停止
+PASS 打開診斷區
+PASS 不繼續無限建立連線
+PASS 無頁面JS錯誤
+PASS 手動重新測試
+
+Browser: simulated WebSocket; real remote connection NOT tested (network DNS unavailable).

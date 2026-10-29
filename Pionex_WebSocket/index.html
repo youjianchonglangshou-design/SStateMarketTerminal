@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#071827">
-<title>Pionex WebSocket｜33 檔即時成交價測試 v1.0.1</title>
+<title>Pionex WebSocket｜33 檔即時成交價測試 v1.1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23091829'/%3E%3Ccircle cx='24' cy='24' r='15' fill='none' stroke='%2327d9d0' stroke-width='4'/%3E%3Cpath d='M24 24 36 12' stroke='%23ffd65b' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='24' cy='24' r='4' fill='%2327d9d0'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -16,7 +16,7 @@
   <div class="connection"><span id="connDot" class="conn-dot"></span><div><strong id="connState">初始化中</strong><small id="connDetail">準備載入清單</small></div></div>
  </header>
  <section class="hero">
-  <div class="hero-text"><div class="overline">REAL-TIME FEED / LIVE TAPE</div><h2>直接接收派網成交推送<span class="accent">.</span></h2><p>不再每秒重複發 HTTP 查價。只顯示你指定清單中的成交價格；沒有成交時，不假裝行情正在更新。</p></div>
+  <div class="hero-text"><div class="overline">REAL-TIME FEED / LIVE TAPE</div><h2>派網逐筆成交，即時推送<span class="accent">.</span></h2><p>透過你已測通的 SState Cloudflare Worker 中繼取得 Pionex TRADE 資料；不輪詢價格 API。沒有成交時，維持最後價格並標示更新時間。</p></div>
   <div class="controls"><button id="probeBtn" class="btn" type="button">只測 BTC 連線</button><button id="connectBtn" class="btn primary" type="button">全部 33 檔連線</button><button id="stopBtn" class="btn" type="button">停止</button></div>
  </section>
  <div id="originNotice" class="origin-note" role="status"></div>
@@ -32,9 +32,9 @@
   <section class="panel"><div class="panel-title"><div><span class="section-dot crypto"></span><h3>加密貨幣</h3><span class="category-name">CRYPTO PERP</span></div><strong id="cryptoCount">21</strong></div><div class="table-head"><span>合約</span><span>最新成交價 (USDT)</span><span>更新</span></div><div id="cryptoRows" class="rows"></div></section>
   <section class="panel"><div class="panel-title"><div><span class="section-dot stock"></span><h3>美股 / 商品代幣</h3><span class="category-name">TOKENIZED ASSETS</span></div><strong id="stockCount">12</strong></div><div class="table-head"><span>合約</span><span>最新成交價 (USDT)</span><span>更新</span></div><div id="stockRows" class="rows"></div></section>
  </main>
- <div class="bottom"><div class="legend"><span><b class="legend-dot live"></b> 新鮮成交（30 秒內）</span><span><b class="legend-dot idle"></b> 久未成交 / 尚未收到</span><span><b class="legend-dot error"></b> 訂閱錯誤</span></div><div>數據源：<code>wss://ws.pionex.com/wsPub</code> ｜ TRADE（最新成交價 ≠ 標記價）</div></div>
+ <div class="bottom"><div class="legend"><span><b class="legend-dot live"></b> 新鮮成交（30 秒內）</span><span><b class="legend-dot idle"></b> 久未成交 / 尚未收到</span><span><b class="legend-dot error"></b> 訂閱錯誤</span></div><div>數據源：<code>Pionex TRADE → SState Worker /api/monitor/ws</code> ｜ 最新成交價 ≠ 標記價</div></div>
  <details class="diagnostics" id="diagnostics"><summary>連線診斷與異常紀錄 <span id="errorCount" class="error-num">0</span></summary><div id="logs" class="logs" aria-live="polite"></div></details>
- <footer>純前端測試頁 · 只讀公開行情 · 無 API Key · 無 Cloudflare / 無 TradingView Scanner · 連線可能受到網路、交易所限制或瀏覽器安全策略影響。</footer>
+ <footer>獨立測試頁 · 只讀公開行情 · 無 API Key · 使用既有 SState Cloudflare Worker 中繼 · 不使用 TradingView Scanner · 不修改正式清算雷達。</footer>
 </div>
 <script src="./app.js" defer></script>
 </body>

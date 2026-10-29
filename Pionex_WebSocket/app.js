@@ -1,11 +1,12 @@
-/* Pionex WebSocket live prices proof-of-concept v1.0.1.
- * Sources: live symbols.js (GitHub Pages, with bundled fallback), Pionex PUBLIC futures TRADE WS.
- * NO polling, NO fabricated quotations, NO API credentials.
+/* Pionex WebSocket live prices proof-of-concept v1.1.0.
+ * Source list: live MultiAssetLiquidityRadar/symbols.js with bundled fallback.
+ * Quote data: Pionex PUBLIC TRADE stream via existing SState Cloudflare WS relay.
+ * NO quote polling, NO fabricated quotations, NO API credentials.
  */
 (()=>{'use strict';
-const ENDPOINT='wss://ws.pionex.com/wsPub';
+const ENDPOINT='wss://white-meadow-16bc.youjianchonglangshou.workers.dev/api/monitor/ws';
 const REMOTE_SYMBOLS='https://youjianchonglangshou-design.github.io/SStateMarketTerminal/MultiAssetLiquidityRadar/symbols.js';
-const PACE_MS=340; // under published <=5 outgoing messages / second connection limit (and PONG headroom)
+const PACE_MS=340; // ~2.94 subscriptions/sec, leaving room under Pionex's documented outgoing-message limit
 const STALE_MS=30000;
 const $=id=>document.getElementById(id);
 const nowTime=ms=>new Date(ms).toLocaleTimeString('zh-TW',{timeZone:'Asia/Taipei',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -17,13 +18,8 @@ function isLocal(){return location.protocol==='file:';}
 function clearHandshakeTimer(){if(handshakeTimer){clearTimeout(handshakeTimer);handshakeTimer=null;}}
 function originHelp(){
  const n=$('originNotice');if(!n)return;
- if(isLocal()){
-  n.className='origin-note caution';
-  n.innerHTML='<strong>目前使用本機 file:// 開啟</strong>：若 WebSocket 連續出現 1006，請再以 GitHub Pages HTTPS 開啟相同網頁對照。1006 不能單獨證明是 file:// 導致。<span>Chrome 按 F12 → Network → WS → 選 wsPub 查看握手回應；若沒有 101 Switching Protocols，表示尚未建立連線。</span>';
- }else{
-  n.className='origin-note';
-  n.textContent='目前來源：'+location.origin+'。若連線失敗，使用 F12 → Network → WS 查找 wsPub 的握手 HTTP 狀態，可能是交易所連線策略、網路或瀏覽器限制。';
- }
+ n.className='origin-note';
+ n.textContent=`即時成交來源：Pionex 官方 TRADE → 既有 Cloudflare Worker 中繼 → ${isLocal()?'本機 HTML':'GitHub Pages'}。直接連派網 wsPub 已測得 HTTP 403；目前使用經 BTC 實測成功的中繼。沒有價格輪詢，也不產生模擬報價。`;
 }
 
 function log(message,level='info'){
@@ -86,8 +82,8 @@ function refreshRow(symbol){
  if(failures.has(symbol)){description='訂閱失敗';state='error';}
  else if(val){
    time=nowTime(val.tradeTime||val.received);
-   if(age<STALE_MS&&connectionMode==='connected'){description='剛更新';state='live';}
-   else {description=connectionMode==='connected'?'暫無新成交':'等待恢復連線';state='idle';}
+   if(age<STALE_MS&&connectionMode==='connected'&&val.received>=connectedAt){description='剛更新';state='live';}
+   else {description=connectionMode==='connected'?'等待本次連線新成交':'等待恢復連線';state='idle';}
  } else if(subs.has(symbol))description='已訂閱・待成交';
  else if(connectionMode==='connected')description='正在訂閱';
  else if(connectionMode==='retry'||connectionMode==='error')description='等待重連';
@@ -141,11 +137,11 @@ function handleMessage(evt,gen){
   return;
  }
  if(op==='SUBSCRIBED'){
-  const s=String(parsed.symbol||'').toUpperCase();if(rows.has(s)){subs.add(s);failures.delete(s);scheduleDraw(s);}return;
+  const s=String(parsed.symbol||'').toUpperCase();if(rows.has(s)){subs.add(s);failures.delete(s);scheduleDraw(s);updateNumbers();}return;
  }
  if(op==='ERROR'||op==='SUBSCRIBE_ERROR'||parsed.error){
   const symbol=String(parsed.symbol||'').toUpperCase();const msg=String(parsed.message||parsed.msg||parsed.error||parsed.code||'訂閱出錯');
-  if(rows.has(symbol)){failures.set(symbol,msg);scheduleDraw(symbol);}
+  if(rows.has(symbol)){failures.set(symbol,msg);subs.delete(symbol);scheduleDraw(symbol);updateNumbers();}
   log((symbol||'WS')+'：'+msg,'error');return;
  }
  if(String(parsed.topic||'').toUpperCase()==='TRADE')tradeMessage(parsed);
@@ -155,21 +151,21 @@ function cancelRetry(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnect
 function closeOld(){cancelSubs();clearHandshakeTimer();if(socket){const prev=socket;socket=null;prev.onclose=null;prev.onmessage=null;prev.onerror=null;prev.onopen=null;try{prev.close(1000,'replace');}catch(_){}}}
 function start(mode=connectMode){
  connectMode=mode;manualStop=false;cancelRetry();closeOld();const gen=++generation;
- subs=new Set();failures=new Map();openedThisAttempt=false;connectedAt=0;
- status('connecting','先測試 BTC WebSocket 握手…');refreshAll();
- log(`連線階段：${isLocal()?'file://':'HTTPS'} · ${connectMode==='btc'?'僅 BTC':'BTC 成功後擴展所有合約'} · ${ENDPOINT}`);
+ subs=new Set();successful=new Set();failures=new Map();openedThisAttempt=false;connectedAt=0;
+ status('connecting','連線至 SState Worker 中繼…');refreshAll();
+ log(`連線階段：${isLocal()?'file://':'HTTPS'} · 透過 Worker 中繼 · ${connectMode==='btc'?'僅 BTC':'BTC 成功後擴展全部 '+symbols.length+' 檔'}`);
  try{socket=new WebSocket(ENDPOINT);}catch(e){log('WebSocket 無法建立：'+e.message,'error');onConnectFail(gen);return;}
  const ws=socket;
  handshakeTimer=setTimeout(()=>{
   if(gen!==generation||openedThisAttempt||ws.readyState===WebSocket.OPEN)return;
-  log('等待 WebSocket 開啟超過 12 秒，診斷為握手逾時；無法確認交易所是否收到請求。','error');
+  log('等待 Worker WebSocket 開啟超過 12 秒；請檢查 /api/monitor/ws 是否能完成 101 握手。','error');
   try{ws.close();}catch(_){onConnectFail(gen);}
  },12000);
  ws.onopen=()=>{
   if(gen!==generation)return;
   openedThisAttempt=true;clearHandshakeTimer();handshakeFailures=0;connectedAt=Date.now();
-  status('connected',connectMode==='btc'?'BTC 測試：連線建立成功':'握手成功，先訂閱 BTC 再擴展清單');
-  log('WebSocket 握手成功 (OPEN)，開始訂閱 '+(connectMode==='btc'?'BTC':'全部 '+symbols.length+' 檔'),'ok');refreshAll();
+  status('connected',connectMode==='btc'?'BTC 測試：中繼連線成功':'Worker 中繼成功，開始訂閱 33 檔');
+  log('Worker WebSocket 握手成功 (OPEN)，開始訂閱 '+(connectMode==='btc'?'BTC':'全部 '+symbols.length+' 檔'),'ok');refreshAll();
   const btc=symbols.find(s=>s.id==='BTC')||symbols[0];
   const queue=connectMode==='btc'?[btc]:[btc,...symbols.filter(s=>s.pionex!==btc.pionex)];
   let index=0;
@@ -187,13 +183,13 @@ function start(mode=connectMode){
    subscribeTimer=setTimeout(()=>{
     subscribeTimer=null;
     if(gen!==generation||ws.readyState!==WebSocket.OPEN)return;
-    log('BTC 握手已成功，繼續訂閱其他 '+(queue.length-1)+' 檔','ok');
+    log('BTC 訂閱已送出，開始擴展另外 '+(queue.length-1)+' 檔','ok');
     sendNext();if(index<queue.length)subscribeTimer=setInterval(sendNext,PACE_MS);
    },1800);
   }
  };
  ws.onmessage=e=>handleMessage(e,gen);
- ws.onerror=()=>{if(gen===generation)log('瀏覽器收到 WebSocket error，但 JS 無法讀取 HTTP 握手失敗原因；請用 F12 → Network → WS 檢查。','error');};
+ ws.onerror=()=>{if(gen===generation)log('Worker WebSocket 連線發生錯誤；請用 F12 → Network → WS 檢查 /api/monitor/ws。','error');};
  ws.onclose=e=>{
   if(gen!==generation)return;
   clearHandshakeTimer();cancelSubs();socket=null;
@@ -203,7 +199,7 @@ function start(mode=connectMode){
    log(`握手未成功：code ${e.code}、wasClean=${e.wasClean}。這不是「沒有成交」，而是 WebSocket 尚未建立。`,'error');
    if(handshakeFailures>=2){
     status('error','握手連續失敗，已停止自動重試；請看下方診斷。');
-    log('已停止重連，避免反覆敲擊派網伺服器。請比較 HTTPS GitHub Pages 與 file://，並檢查 F12 → Network → WS 的回應碼。','error');
+    log('已停止重連，避免反覆連線。請檢查 Worker 是否已部署 /api/monitor/ws，以及 F12 → Network → WS 的 HTTP 回應碼。','error');
     $('diagnostics').open=true;refreshAll();return;
    }
   }else{
@@ -249,7 +245,7 @@ async function boot(){
  build();start('all');
  setInterval(()=>{if(!symbols.length)return;refreshAll();},3000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll();});
- window.PIONEX_WS_DEMO={inspect:()=>({connectionMode,openedThisAttempt,handshakeFailures,connectMode,total:symbols.length,subscriptions:[...subs],received:[...successful],ticks:tickCount,errors:Object.fromEntries(failures),lastPushed,source:sourceName})};
+ window.PIONEX_WS_DEMO={inspect:()=>({version:'1.1.0',endpoint:ENDPOINT,connectionMode,openedThisAttempt,handshakeFailures,connectMode,total:symbols.length,subscriptions:[...subs],received:[...successful],ticks:tickCount,errors:Object.fromEntries(failures),lastPushed,source:sourceName})};
 }
 boot();
 })();

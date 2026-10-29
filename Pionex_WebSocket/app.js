@@ -1,4 +1,4 @@
-/* Pionex WebSocket live prices proof-of-concept v1.1.0.
+/* Pionex WebSocket live prices proof-of-concept v1.1.1.
  * Source list: live MultiAssetLiquidityRadar/symbols.js with bundled fallback.
  * Quote data: Pionex PUBLIC TRADE stream via existing SState Cloudflare WS relay.
  * NO quote polling, NO fabricated quotations, NO API credentials.
@@ -40,6 +40,13 @@ function formatPrice(raw){
  if(n<0.001)decimals=Math.max(decimals,8);
  decimals=Math.min(12,Math.max(decimals,n>=1000?2:n>=1?3:n>=0.01?5:6));
  return n.toLocaleString('en-US',{minimumFractionDigits:n>=1?2:0,maximumFractionDigits:decimals});
+}
+// Main radar uses CL as its display symbol, whereas the Pionex PERP contract
+// is WTI_USDT_PERP. Normalize both CL and WTI input lists before building
+// subscription keys and rows; never rewrite the independent main watchlist.
+function normalizeSymbol(entry){
+ if(!entry||!['CL','WTI'].includes(String(entry.id||'').toUpperCase()))return entry;
+ return {...entry,pionex:'WTI_USDT_PERP'};
 }
 function isSymbolValid(entry){return entry&&/^[A-Z0-9]{1,20}_USDT_PERP$/.test(entry.pionex)&&/^[A-Z0-9]{1,20}$/.test(entry.id);}
 function makeRow(s){
@@ -237,15 +244,16 @@ async function boot(){
   else {try{await loadScript('./symbols.js');sourceName='ZIP 內附 symbols.js（備援）';}
    catch(err){status('error','無法載入 symbols.js');log('本地清單載入失敗：'+err.message,'error');return;}}
  }
- const seen=new Set();symbols=(window.LIQ_SYMBOLS||[]).filter(s=>{
+ const seen=new Set();symbols=(window.LIQ_SYMBOLS||[]).map(normalizeSymbol).filter(s=>{
   if(!isSymbolValid(s)||seen.has(s.pionex))return false;seen.add(s.pionex);return true;
  });
  if(!symbols.length){status('error','清單不存在或沒有可用合約');log('symbols.js 沒有合法的 USDT_PERP 資料','error');return;}
+ if(symbols.some(s=>s.pionex==='WTI_USDT_PERP'))log('商品代碼映射：CL（或 WTI）→ WTI_USDT_PERP；已使用派網實際合約代碼訂閱。','ok');
  log(`成功載入 ${symbols.length} 檔：加密 ${symbols.filter(x=>x.group==='crypto').length}、美股商品 ${symbols.filter(x=>x.group!=='crypto').length}`,'ok');
  build();start('all');
  setInterval(()=>{if(!symbols.length)return;refreshAll();},3000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll();});
- window.PIONEX_WS_DEMO={inspect:()=>({version:'1.1.0',endpoint:ENDPOINT,connectionMode,openedThisAttempt,handshakeFailures,connectMode,total:symbols.length,subscriptions:[...subs],received:[...successful],ticks:tickCount,errors:Object.fromEntries(failures),lastPushed,source:sourceName})};
+ window.PIONEX_WS_DEMO={inspect:()=>({version:'1.1.1',endpoint:ENDPOINT,connectionMode,openedThisAttempt,handshakeFailures,connectMode,total:symbols.length,subscriptions:[...subs],received:[...successful],ticks:tickCount,errors:Object.fromEntries(failures),lastPushed,source:sourceName})};
 }
 boot();
 })();

@@ -1,5 +1,12 @@
 # Pionex WebSocket 即時價格測試 v1.1.0 — SState Worker 中繼版
 
+## v1.1.1｜CL → WTI 合約代碼修正
+
+- **根本原因：** 測試頁預設先載入 `MultiAssetLiquidityRadar/symbols.js`，所以只修改 `Pionex_WebSocket/symbols.js` 不會影響正常連線時使用的清單；原本雷達來源 CL 對應 `CL_USDT_PERP`，但派網實際可用合約是 `WTI_USDT_PERP`。
+- **修正：** WebSocket 頁在載入任何來源清單後，一律將名稱為 `CL` 或 `WTI` 的項目對應到 `WTI_USDT_PERP`，訂閱、回覆確認、成交推送、搜尋與 UI 皆使用此實際合約 ID。當來源是原雷達清單時，畫面仍顯示 `CL` 以便辨識，同時在下一行顯示 `WTI_USDT_PERP`。
+- 本地備援 `symbols.js` 同步映射，正式 `MultiAssetLiquidityRadar/symbols.js`、Worker 與 RR 指標皆不修改。
+- 此版本**不能保證** WTI 必然有新成交；確認成功須在部署後看到 `SUBSCRIBED` 和 WTI 真正的 `TRADE` 訊息。
+
 ## 已知、已確認的事實
 
 - 瀏覽器直接連 `wss://ws.pionex.com/wsPub` 在使用者環境遭 HTTP 403。

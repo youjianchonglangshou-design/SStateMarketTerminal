@@ -196,13 +196,13 @@
   function resolveCG(s,records){
     if(!s||!(records instanceof Map))return null;
     const aliases=[...new Set([...(s.cg||[]).map(x=>String(x).toUpperCase()),
-      ...(s.group==='crypto'?['1000'+s.id]:[])])];
+      ...(['crypto','custom'].includes(s.group)&&!/^[0-9]/.test(s.id)?['1000'+s.id]:[])])];
     for(const id of aliases){
       const row=records.get(id);
       if(!row)continue;
       let factor=1;
       const lot=id.match(/^(\d+)([A-Z].*)$/);
-      if(s.group==='crypto'&&lot&&lot[2]===s.id&&+lot[1]>1)factor=+lot[1];
+      if(['crypto','custom'].includes(s.group)&&lot&&lot[2]===s.id&&+lot[1]>1)factor=+lot[1];
       // Explicit per-symbol scale may be supplied in symbols.js later, but not required for PEPE.
       if(Number.isFinite(Number(s.cgPriceUnit))&&Number(s.cgPriceUnit)>0)factor=Number(s.cgPriceUnit);
       return {...row,upper:row.upper/factor,lower:row.lower/factor,
@@ -562,11 +562,19 @@
  let customUniverse=[],customLoaded=false,customPartial=false;
  const customIds=()=>records.filter(row=>row.s.group==='custom').map(row=>row.id);
  const customSave=()=>{try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(customIds()));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* storage disabled */}};
+ // Custom symbols are not restricted to the 21 crypto + 12 stock tickers.
+ // CoinGlass uses the underlying stock symbol for Pionex's tokenized XXX X names.
+ // Prefer the exact CoinGlass ticker first; only then try the unwrapped stock name.
+ function customCoinGlassAliases(id){
+   const aliases=[id];
+   if(id.endsWith('X')&&id.length>2)aliases.push(id.slice(0,-1));
+   return [...new Set(aliases)];
+ }
  function makeCustomRecord(base){
    const id=String(base||'').toUpperCase().replace(/_USDT_PERP$/,'');
    if(!/^[A-Z0-9]{1,22}$/.test(id)||records.some(x=>x.id===id))return null;
    const symbol=id+'_USDT_PERP';
-   const s={id,group:'custom',pionex:symbol,tv:'PIONEX:'+id+'USDT.P',cg:[id]};
+   const s={id,group:'custom',pionex:symbol,tv:'PIONEX:'+id+'USDT.P',cg:customCoinGlassAliases(id)};
    const rec={s,index:records.length,id,price:null,priceAt:0,priceEventAt:0,priceFeed:'',live4h:null,bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null};
    records.push(rec);makeRow(rec);return rec;
  }
@@ -598,10 +606,18 @@
    if(customIds().length>=CUSTOM_MAX){$('customSymbolHint').textContent='最多 9 檔，請至「管理」移除其他標的';return false;}
    if(records.some(x=>x.id===base)){$('customSymbolHint').textContent=base+' 已在監控清單內';return false;}
    const rec=makeCustomRecord(base);if(!rec)return false;
-   setupSideNav(['custom']);renderRow(rec);updateCustomPanel();customSave();renderOverview();
+   setupSideNav(['custom']);
+   // First show a matching 7D level immediately from the already decoded market snapshot.
+   // A newly created record must NOT wait for the next 60-second global polling tick
+   // or an unrelated K-line history request to call updateDerived().
+   updateDerived(rec);renderRow(rec);updateCustomPanel();customSave();renderOverview();
    enqueue(rec,'day',false,0);
    enqueue(rec,'h4',false,5); // A newly added symbol is an intentional chart candidate.
    window.LIQ_PRICE_STREAM?.sync(records.map(r=>r.s));
+   // Force the ORIGINAL CoinGlass 7D fetch immediately on every user addition.
+   // fetchCG() coalesces overlapping requests; it returns the full 7D market list
+   // and matches it against the CURRENT records, including newly added custom ones.
+   void fetchCG(true);
    fetchPrices();
    document.dispatchEvent(new CustomEvent('liq-radar-custom-updated'));
    window.LIQ_ALERT_TEST?.refreshBells?.();
@@ -1070,7 +1086,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.17',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.19',records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

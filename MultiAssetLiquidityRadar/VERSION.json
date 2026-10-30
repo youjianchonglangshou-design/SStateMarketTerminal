@@ -1,27 +1,23 @@
 {
-  "version": "2.1.17",
+  "version": "2.1.19",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.16",
-  "title": "CoinGlass 7D restored local decoder and optional official V4 authenticated transport",
-  "status": "integration-ready; live 7D authorization still unverified",
+  "baseVersion": "2.1.17",
+  "title": "Instant CoinGlass 7D coverage for dynamically added Pionex PERP custom symbols",
   "changes": [
-    "Restore local six-version CoinGlass decoder from surviving project source; remove deleted BTC_iquidation dependency.",
-    "Add official licensed CoinGlass V4 7d max-pain via Cloudflare Worker COINGLASS_API_KEY secret, with 60-second edge cache and normalized authenticated upstream records.",
-    "Fallback to preserved six-version legacy reader only if official V4 is unavailable; do not synthesize 15-minute liquidation levels.",
-    "Preserve last verified genuine CoinGlass data on error, display stale and suppress RR until fresh success.",
-    "Keep WebSocket prices, charts, indicators, CL/WTI mapping, 00:00 and 08:00 clocks unmodified."
+    "On each new custom PERP symbol, immediately resolve any already decoded real CoinGlass 7D levels and show them without waiting for candle-history loading.",
+    "Trigger an immediate coalesced full-market CoinGlass 7D refresh after custom additions, reusing the existing six-version local decoder and existing transport.",
+    "Support exact custom CoinGlass symbols and tokenized-stock trailing-X aliases (e.g. GOOGLX to GOOGL); support 1000-lot scale for custom symbols with the existing rule.",
+    "Preserve the fixed crypto/stock lists, separate dynamic custom list, CoinGlass-only policy, RR rules, prices, daily indicators, four chart windows and alerts.",
+    "Do not add browser extensions, bookmark workflows, new APIs, Worker changes or proxy liquidation zones."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/coinglass-decrypt.js",
     "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md",
-    "cloudflare/worker.js"
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite the five frontend files in MultiAssetLiquidityRadar, including the new decoder.",
-    "Deploy updated cloudflare/worker.js to existing Worker.",
-    "For the official V4 max-pain path, configure Cloudflare Worker Secret COINGLASS_API_KEY using a CoinGlass Professional or Enterprise API key; without this, legacy access may still fail (HTTP 403)."
-  ]
+    "Overwrite four frontend files in the same GitHub Pages directory. No Cloudflare Worker or other project changes."
+  ],
+  "limitation": "A custom ticker absent from the genuine CoinGlass 7D market response cannot be given a fabricated liquidation boundary."
 }

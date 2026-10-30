@@ -761,34 +761,51 @@
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
  }
  function renderAll(){records.forEach(renderRow);reorder();renderOverview();window.LiqRadarCciCard?.refresh();}
- async function fetchCG(force=false){
-   if(state.cgBusy)return state.cgBusy;
-   // A cache restored during startup must not suppress an immediate fresh fetch.
-   if(!force&&cgFresh()&&Date.now()-state.cgAt<50000)return;
-   const task=(async()=>{
-     const attemptedAt=Date.now();
-     state.cgDiagnostics={...state.cgDiagnostics,at:attemptedAt,origin:'CoinGlassReader 7d 嘗試中'};
-     try{
-       if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('CoinGlass 解碼器尚未載入（請檢查外部 script 請求）');
-       const raw=await window.CoinGlassReader.fetchCoinGlass('7d');
-       const decoded=extractCG(raw.data),matched=matchedCG(decoded),sample=[...decoded.keys()].slice(0,10);
-       state.cgDiagnostics={at:attemptedAt,origin:'CoinGlassReader 7d 已解密',version:String(raw.version??'?'),decoded:decoded.size,matched,sample};
-       if(!decoded.size)throw Error('解密成功但解析不到有效上下界；可能是回應欄位格式變動');
-       if(!matched)throw Error(`解析出 ${decoded.size} 個鍵，但 0/${records.length} 能對應清單，樣本 ${sample.join(',')}`);
-       state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=String(raw.version||'?');state.cgError='';
-       state.cgDiagnostics.origin='CoinGlassReader 7d 即時抓取';
-       rememberCG(decoded,state.cgVersion);
-       log(`CoinGlass 7D V${state.cgVersion} 成功：解析 ${decoded.size} 個鍵，清單對應 ${matched}/${records.length}`);
-     }catch(e){
-       state.cgError=String(e?.message||e);
-       state.cgDiagnostics={...state.cgDiagnostics,at:attemptedAt,origin:state.cgDiagnostics?.origin==='CoinGlassReader 7d 嘗試中'?'CoinGlassReader 抓取／解密失敗':state.cgDiagnostics?.origin||'CoinGlassReader 失敗'};
-       log('CoinGlass 7D 無法更新（絕不切換代理）：'+state.cgError);
-     }finally{
-       records.forEach(updateDerived);renderAll();state.cgBusy=null;
-       state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();
-     }
-   })();state.cgBusy=task;return task;
- }
+  // CoinGlass 7D: official authorized API first; restored six-version legacy reader
+  // is a secondary path ONLY if the former is not configured/unavailable.
+  // NO Pionex/15M-derived liquidation levels may ever enter this function.
+  async function fetchCG(force=false){
+    if(state.cgBusy)return state.cgBusy;
+    if(!force&&cgFresh()&&Date.now()-state.cgAt<50000)return;
+    const task=(async()=>{
+      const attemptedAt=Date.now(),failures=[];
+      state.cgDiagnostics={...state.cgDiagnostics,at:attemptedAt,origin:'CoinGlass 7D 嘗試中'};
+      try{
+        let data,origin,version;
+        try{
+          const res=await fetch(WORKER+'/api/monitor/coinglass-7d?range=7d',{cache:'no-store'});
+          const payload=await res.json();
+          if(!res.ok||!payload?.ok||payload.range!=='7d'||!Array.isArray(payload.data))
+            throw Error(String(payload?.error||'Worker HTTP '+res.status));
+          data=payload.data;origin='CoinGlass V4 正式授權 API';version=String(payload.version||'official-v4');
+        }catch(e){failures.push('官方 V4：'+String(e?.message||e));}
+        if(!data){
+          try{
+            if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('本地六版本解碼器未載入');
+            const result=await window.CoinGlassReader.fetchCoinGlass('7d');
+            data=result.data;origin='CoinGlassReader 六版本（舊資料接口）';version=String(result.version||'?');
+          }catch(e){failures.push('六版本舊接口：'+String(e?.message||e));}
+        }
+        if(!data)throw Error(failures.join(' / '));
+        const decoded=extractCG(data),matched=matchedCG(decoded),sample=[...decoded.keys()].slice(0,10);
+        state.cgDiagnostics={at:attemptedAt,origin,version,decoded:decoded.size,matched,sample};
+        if(!decoded.size)throw Error(origin+' 有回應，但 0 筆有效 CoinGlass 7D 清算上下界（欄位可能改版）');
+        if(!matched)throw Error(origin+' 解出 '+decoded.size+' 筆，但清單對應 0/'+records.length+'：'+sample.join(','));
+        state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=version;state.cgError='';
+        // Keep legacy cache schema for compatibility: this only writes verified
+        // genuine CoinGlass records, irrespective of official/legacy transport.
+        rememberCG(decoded,version);
+        log('CoinGlass 7D '+origin+' 成功：解析 '+decoded.size+' 筆，清單對應 '+matched+'/'+records.length);
+      }catch(e){
+        state.cgError=String(e?.message||e);
+        state.cgDiagnostics={...state.cgDiagnostics,at:attemptedAt,origin:'CoinGlass 7D 取得／解析失敗'};
+        log('CoinGlass 7D 無法更新（絕不使用代理）：'+state.cgError);
+      }finally{
+        records.forEach(updateDerived);renderAll();state.cgBusy=null;
+        state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();
+      }
+    })();state.cgBusy=task;return task;
+  }
  // Quote layer: WS writes immediately; UI/RR batch at 300ms; 1D indicators at 3s.
  const wsDirty=new Set(),wsDerived=new Set();let wsFlushTimer=null,wsDerivedTimer=null;
  function updateLiveBar(r,price,receivedAt,tickHigh=price,tickLow=price){
@@ -1053,7 +1070,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.16',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.17',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

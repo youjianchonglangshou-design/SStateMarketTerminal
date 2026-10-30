@@ -1,22 +1,27 @@
 {
-  "version": "2.1.16",
+  "version": "2.1.17",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.15",
-  "title": "CoinGlass 7D data recovery, symbol recognition, and transparent diagnostics",
+  "baseVersion": "2.1.16",
+  "title": "CoinGlass 7D restored local decoder and optional official V4 authenticated transport",
+  "status": "integration-ready; live 7D authorization still unverified",
   "changes": [
-    "Preserve CoinGlass-only 7D bounds; no 15M proxy or price-crossing source switches.",
-    "Repair common decrypted symbol aliases such as BTCUSDT/BTC_USDT_PERP while retaining CoinGlass exact symbol names and existing decrypt reader support.",
-    "On verified successful CoinGlass 7D responses save a local read-only last-known snapshot; show previous genuine bounds (marked stale and RR disabled) during subsequent fetch failures or reloads.",
-    "Expose fetching/decryption/parsing/coverage status, symbol samples, last version and error in the existing diagnostic panel.",
-    "Preserve Pionex WebSocket, chart price sync, 1D indicator logic, RR rules, drawings, 00:00 and 08:00 clocks."
+    "Restore local six-version CoinGlass decoder from surviving project source; remove deleted BTC_iquidation dependency.",
+    "Add official licensed CoinGlass V4 7d max-pain via Cloudflare Worker COINGLASS_API_KEY secret, with 60-second edge cache and normalized authenticated upstream records.",
+    "Fallback to preserved six-version legacy reader only if official V4 is unavailable; do not synthesize 15-minute liquidation levels.",
+    "Preserve last verified genuine CoinGlass data on error, display stale and suppress RR until fresh success.",
+    "Keep WebSocket prices, charts, indicators, CL/WTI mapping, 00:00 and 08:00 clocks unmodified."
   ],
   "modifiedFiles": [
+    "MultiAssetLiquidityRadar/coinglass-decrypt.js",
     "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md"
+    "MultiAssetLiquidityRadar/README.md",
+    "cloudflare/worker.js"
   ],
   "requiredDeploy": [
-    "Overwrite four frontend files; no Cloudflare Worker, R2, or Pionex_WebSocket changes."
+    "Overwrite the five frontend files in MultiAssetLiquidityRadar, including the new decoder.",
+    "Deploy updated cloudflare/worker.js to existing Worker.",
+    "For the official V4 max-pain path, configure Cloudflare Worker Secret COINGLASS_API_KEY using a CoinGlass Professional or Enterprise API key; without this, legacy access may still fail (HTTP 403)."
   ]
 }

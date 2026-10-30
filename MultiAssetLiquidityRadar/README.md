@@ -512,3 +512,12 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - 成功取得且能對應清單的 CoinGlass 7D 資料，才寫入本機最後有效快取；下一次抓取失敗時可保留上次的真實界限，但明確標示過期並停用 RR。
 - 診斷面板顯示抓取／解密／解析與對應成功數量、版本、錯誤與識別鍵樣本。
 - 此版本無法替代實際 CoinGlass API：如果 CoinGlassReader 遇到 HTTP、CORS、解密金鑰或尚未支援的新加密版本，會保留明確錯誤，**不會**生成假清算線。
+
+
+## v2.1.17 CoinGlass 7D 取得與解碼器修復（2026-10-30）
+
+- 在 `MultiAssetLiquidityRadar` 內部署恢復的 `coinglass-decrypt.js`（支援 V0、V1、V2、V55、V66、V77），不再依賴已刪除的 `BTC_iquidation`。
+- 優先由既有 Cloudflare Worker `/api/monitor/coinglass-7d?range=7d` 取得經授權的 CoinGlass 官方 V4 `max-pain`；需部署 `cloudflare/worker.js` 並安全設定 `COINGLASS_API_KEY`，其 API 方案須支援 Professional/Enterprise。
+- 若 V4 未設定/遭拒，僅嘗試保留的六版本舊接口；若兩邊皆不可用，診斷顯示原因並保留最後成功的真實 CoinGlass 快取（過期時停用 RR），**不**啟動 15M 代理。
+- 本次已完成模擬資料與程式測試；因無使用者授權的官方 V4 金鑰、舊接口回傳 403，**尚未通過真實 7D 連線的最終驗收**。請勿將部署完成誤認為真實數據已恢復。
+- 安全：API Key 僅存在 Worker Secret，不得存入 GitHub、R2 公開資源或瀏覽器 localStorage。

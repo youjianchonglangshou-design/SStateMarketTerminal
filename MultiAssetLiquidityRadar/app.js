@@ -891,7 +891,19 @@
      }wsDerived.clear();if(did){reorder();renderOverview();window.LiqRadarCciCard?.refresh();}
    },3000);
  }
- function applyWsQuote(q){const rec=records.find(r=>r.s.pionex===q.symbol);
+  // The tab title is updated immediately from a real WS trade event; do not
+  // wait for background-throttled 250ms/300ms UI timers. Only the foremost
+  // chart's own quote is touched. Normal batching still updates every row.
+  function applyFastTabQuote(q){
+    const top=window.LIQ_WORKSPACE?.getTopWindow?.();
+    if(!top||!priceEnough(q?.price))return;
+    const rec=records.find(r=>r.id===top.symbol);
+    if(!rec||rec.s.pionex!==q.symbol||Number(q.tradeAt)<Number(rec.priceEventAt||0))return;
+    rec.price=q.price;rec.priceAt=q.receivedAt;rec.priceEventAt=q.tradeAt;
+    rec.priceFeed='Pionex WebSocket';
+    updateTabTitle();
+  }
+  function applyWsQuote(q){const rec=records.find(r=>r.s.pionex===q.symbol);
    if(!rec||!priceEnough(q.price))return;
    // Ignore out-of-order batches and prices older than a newer fallback observation.
    if(q.tradeAt<Number(rec.priceEventAt||0))return;
@@ -1094,7 +1106,7 @@
    $('diagToggle').addEventListener('click',()=>{const d=$('diagHolder');d.hidden=!d.hidden;$('diagToggle').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)renderDiag();});
    restoreCG();records.forEach(updateDerived);renderAll();updateClock();
    if(records.length){
-     window.LIQ_PRICE_STREAM?.start({symbols:records.map(r=>r.s),onQuote:applyWsQuote,
+     window.LIQ_PRICE_STREAM?.start({symbols:records.map(r=>r.s),onQuote:applyWsQuote,onFastQuote:applyFastTabQuote,
        onState:s=>{state.diagDirty=true;if($('diagPanel')?.open)renderDiag();}});
      fetchCG();fetchPrices();queueStartup();
    }
@@ -1109,7 +1121,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.20',updateTabTitle,navDayOpen,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.21',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

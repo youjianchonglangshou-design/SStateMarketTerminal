@@ -1,3 +1,11 @@
+## v2.1.21 — 背景分頁標題 WebSocket 即時更新（2026-10-30）
+
+- **原本分頁標題規格完全不變**：`HOODX｜87.5｜-0.02%`，依最上層可見圖表、現價、台灣 08:00 開盤漲跌幅顯示。
+- 新增 `price-stream.js` 可選 `onFastQuote` 回呼：只在 Pionex WebSocket TRADE 收到有效報價事件時，立刻更新最前景圖表幣種的 `document.title`；不再等待背景可能遭節流的 250ms / 300ms `setTimeout`。
+- **只讓分頁標題快速更新**；原本 WebSocket 的 250ms 報價批次、300ms UI 更新、3 秒日線導出、其他幣種清單、圖表繪製完全不變，也沒有第二個 WebSocket、額外 API 或 Worker。
+- 網路斷線、Chrome 凍結／丟棄背景頁籤時無法保證持續跳價；恢復前景後沿用原本自動重新連線邏輯。此為瀏覽器限制而非額外代理需求。
+- 覆蓋 `app.js`、`price-stream.js`、`index.html`、`VERSION.json`、`README.md`。不修改 CoinGlass 7D、SState、RR、Pionex Worker、R2 或其餘專案檔。
+
 ## v2.1.20 — Chrome 分頁標題即時行情系統（2026-10-30）
 
 - 分頁標題只顯示最上層可見圖表：`幣種｜現價｜今日漲跌%`，例如 `HOODX｜87.5｜-0.02%`。

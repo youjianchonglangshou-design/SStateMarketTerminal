@@ -9,7 +9,7 @@
  let reconnectTimer=null,handshakeTimer=null,sendTimer=null,healthTimer=null,resumeTimer=null;
  let reconnectCount=0,handshakeFailures=0,attempt=0,sentCount=0,tickCount=0;
  let desired=new Set(),subscribed=new Set(),failed=new Map(),received=new Set(),pending=[],lastEventTime=new Map();
- let status='idle',onQuote=()=>{},onState=()=>{},lastReportedAt=0;
+ let status='idle',onQuote=()=>{},onFastQuote=()=>{},onState=()=>{},lastReportedAt=0;
  let quoteBatch=new Map(),quoteTimer=null;
  const now=()=>Date.now();
  const clearTimer=(h)=>{if(h)clearTimeout(h);};
@@ -55,7 +55,11 @@
   for(const q of newest.values()){
    if(q.tradeAt<(lastEventTime.get(q.symbol)||0))continue;
    lastEventTime.set(q.symbol,q.tradeAt);lastTradeAt=now();received.add(q.symbol);failed.delete(q.symbol);tickCount++;
-   bufferQuote({...q,receivedAt:lastTradeAt,source:'Pionex WebSocket'});
+   const quote={...q,receivedAt:lastTradeAt,source:'Pionex WebSocket'};
+   // Direct, event-driven tab-title update on receipt. The existing 250ms
+   // batch remains in place for watchlists and chart calculations.
+   try{onFastQuote(quote);}catch(err){console.warn('[Radar tab quote]',err);}
+   bufferQuote(quote);
   }
   if(newest.size&&now()-lastReportedAt>=2000){lastReportedAt=now();onState(snapshot());}
  }
@@ -93,7 +97,7 @@
   else if(force&&!reconnectTimer&&t-lastRecoveryAt>COOLDOWN){lastRecoveryAt=t;connect();}
  }
  function resume(){clearTimer(resumeTimer);resumeTimer=setTimeout(()=>check(true),1800);}
- function start(config){if(shouldRun)return;onQuote=config?.onQuote||onQuote;onState=config?.onState||onState;shouldRun=true;sync(config?.symbols||[]);connect();
+ function start(config){if(shouldRun)return;onQuote=config?.onQuote||onQuote;onFastQuote=config?.onFastQuote||onFastQuote;onState=config?.onState||onState;shouldRun=true;sync(config?.symbols||[]);connect();
   healthTimer=setInterval(()=>check(false),15000);
   document.addEventListener('visibilitychange',visibility);root.addEventListener('focus',resume);root.addEventListener('pageshow',pageShow);root.addEventListener('online',resume);
  }

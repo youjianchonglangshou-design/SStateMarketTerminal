@@ -1,25 +1,22 @@
 {
-  "version": "2.1.20",
+  "version": "2.1.21",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.19",
-  "title": "Chrome live browser tab title follows frontmost floating chart",
+  "baseVersion": "2.1.20",
+  "title": "Event-driven background tab title from existing Pionex WebSocket trades",
   "changes": [
-    "Follow the actual topmost non-minimized chart by window z-index, including front/back, create, close, minimize, lock and symbol switching.",
-    "Reuse existing Pionex cached quote and existing Asia/Taipei 08:00 daily-open function; no extra API or indicator calculations.",
-    "Display symbol｜current price｜daily percent (exactly 2 decimals, signed +/-; no arrow glyphs).",
-    "Set fallback document title when all chart windows are closed/minimized, suppress NaN and stale quotes.",
-    "Keep original CoinGlass 7D, price stream, RR, radar, drawings and workspace persistence unchanged."
+    "Update document.title directly when the foreground chart symbol receives an existing WebSocket TRADE event; no wait for background-throttled 250ms/300ms timers.",
+    "Retain the original 250ms/300ms batching for watchlist and chart; no additional WebSocket/API/Worker or UI refresh.",
+    "Preserve six-version CoinGlass 7D decoding, RR, indicator calculation, four-chart z-order, original 08:00 daily-open baseline and missing-value policy.",
+    "Browser freezing/discard/network interruption can still suspend JavaScript: resumes on focus via original stream health logic."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/price-stream.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite five frontend files in MultiAssetLiquidityRadar. No Cloudflare Worker or API change."
-  ],
-  "limitation": "A custom ticker absent from the genuine CoinGlass 7D market response cannot be given a fabricated liquidation boundary.",
-  "status": "front-end integration tested; live upstream network not required"
+    "Overwrite five files in MultiAssetLiquidityRadar; no Cloudflare Worker/R2 changes."
+  ]
 }

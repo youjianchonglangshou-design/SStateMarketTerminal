@@ -200,6 +200,12 @@ export default {
         const payload = await loadMonitorUniverse(env);
         return json({ ok: true, ...payload }, 200, origin);
       }
+      // Verified CoinGlass 7D only; never synthesize a 15m proxy or leak the API key.
+      if (request.method === "GET" && url.pathname === "/api/monitor/coinglass-7d") {
+        if ((url.searchParams.get("range") || "7d") !== "7d")
+          return json({ok:false,error:"Only CoinGlass 7d is supported"},400,origin);
+        return await serveCoinGlass7d(request, env, origin);
+      }
       if (request.method === "GET" && url.pathname === "/api/monitor/tickers") {
         const type = String(url.searchParams.get("type") || "PERP").toUpperCase();
         if (!['PERP','SPOT'].includes(type)) throw httpError(400,"monitor ticker type must be PERP or SPOT");
@@ -4495,5 +4501,48 @@ function safeModelId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.tes
 function requireInternal(request, env){ const auth=request.headers.get("Authorization")||""; if(!env.CALLBACK_TOKEN || auth!==`Bearer ${env.CALLBACK_TOKEN}`) throw httpError(401,"unauthorized"); }
 function httpError(status,message){ const e=new Error(message); e.status=status; return e; }
 function json(value,status,origin){ const headers=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}); applyCors(headers,origin); return new Response(JSON.stringify(value,null,2),{status,headers}); }
+
+// CoinGlass V4 maximum-pain. This is an authenticated CoinGlass response,
+// not a transformed live Pionex price. Cloudflare cache bounds API usage.
+async function serveCoinGlass7d(request,env,origin){
+  const key=String(env.COINGLASS_API_KEY||'').trim();
+  if(!key)return json({ok:false,error:'CoinGlass official 7D API not configured: set COINGLASS_API_KEY (Professional / Enterprise plan)',code:'COINGLASS_KEY_NOT_CONFIGURED'},503,origin);
+  const cacheKey=new Request(new URL('/api/monitor/coinglass-7d?range=7d',request.url).href);
+  const cache=typeof caches!=='undefined'&&caches.default?caches.default:null;
+  if(cache){
+    try{const hit=await cache.match(cacheKey);if(hit)return cors(hit,origin);}catch(_){/* cache is optional */}
+  }
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),14000);
+  let upstream;
+  try{
+    upstream=await fetch('https://open-api-v4.coinglass.com/api/futures/liquidation/max-pain?range=7d',{
+      signal:ctrl.signal,headers:{accept:'application/json','CG-API-KEY':key},redirect:'error'});
+  }catch(err){
+    return json({ok:false,code:'COINGLASS_NETWORK',error:'CoinGlass V4 connection failed: '+String(err?.message||err)},502,origin);
+  }finally{clearTimeout(timer);}
+  if(!upstream.ok)return json({ok:false,code:'COINGLASS_HTTP',error:'CoinGlass V4 HTTP '+upstream.status},502,origin);
+  let body;
+  try{body=await upstream.json();}catch(_){return json({ok:false,code:'COINGLASS_BAD_JSON',error:'CoinGlass V4 did not return JSON'},502,origin);}
+  if(String(body?.code)!=='0'||!Array.isArray(body?.data))return json({ok:false,code:'COINGLASS_BAD_RESPONSE',error:'CoinGlass V4 invalid response: '+String(body?.msg||body?.code||'no data')},502,origin);
+  const valid=x=>{const n=typeof x==='string'?Number(x.replaceAll(',','')):Number(x);return Number.isFinite(n)&&n>0?n:null;};
+  const data=[];
+  for(const item of body.data){
+    const symbol=String(item?.symbol||'').trim().toUpperCase();
+    if(!/^[A-Z0-9]{2,24}$/.test(symbol))continue;
+    const lp=valid(item.long_max_pain_liq_price),sp=valid(item.short_max_pain_liq_price);
+    if(!lp||!sp||lp===sp)continue;
+    const upper=Math.max(lp,sp),lower=Math.min(lp,sp);
+    const longAmount=valid(item.long_max_pain_liq_level),shortAmount=valid(item.short_max_pain_liq_level);
+    data.push({symbol,maxLongLiquidationPrice:upper,maxShortLiquidationPrice:lower,
+      maxLongLiquidationLevel:lp===upper?longAmount:shortAmount,
+      maxShortLiquidationLevel:lp===lower?longAmount:shortAmount,price:valid(item.price)});
+  }
+  if(!data.length)return json({ok:false,code:'COINGLASS_EMPTY',error:'CoinGlass V4 returned no valid 7D upper/lower pairs'},502,origin);
+  const response=new Response(JSON.stringify({ok:true,source:'CoinGlass Official API V4',range:'7d',version:'official-v4',updatedAt:Date.now(),data}),
+    {status:200,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'public, max-age=60'}});
+  if(cache){try{await cache.put(cacheKey,response.clone());}catch(_){/* return fresh even if caching failed */}}
+  return cors(response,origin);
+}
+
 function cors(response,origin){ const h=new Headers(response.headers); applyCors(h,origin); return new Response(response.body,{status:response.status,headers:h}); }
 function applyCors(headers,origin){ headers.set("Access-Control-Allow-Origin",origin); headers.set("Access-Control-Allow-Methods","GET,POST,PUT,DELETE,OPTIONS"); headers.set("Access-Control-Allow-Headers","Content-Type,Authorization"); headers.set("Vary","Origin"); }

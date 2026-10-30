@@ -21,7 +21,7 @@
  const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],activeJobs:[],jobSet:new Set(),jobSeq:0,batchEnqueue:false,startupActive:false,cgInitialDone:false,priceInitialDone:false,networkLog:[],renderAt:0};
  const currentRows=()=>records;
  const cgFresh=()=>state.cgAt>0&&!state.cgError&&Date.now()-state.cgAt<180000;
- const sourceName=r=>r.source==='coinglass'?(cgFresh()?'CoinGlass 7D（1週）':'CoinGlass 7D（資料過期・RR暫停）'):'CoinGlass 7D（尚無界限）';
+ const sourceName=r=>r.source==='coinglass'?(cgFresh()?'CoinGlass 7D（1週）':'CoinGlass 7D（上次有效值・RR暫停）'):'CoinGlass 7D（尚無界限）';
  // RR reads the exact shared quote and liquidation bounds already used by charts.
  // Invalid/stale values MUST clear the LED instead of retaining yesterday's signal.
  function rrSnapshot(r,now=Date.now()){
@@ -80,10 +80,13 @@
    if($('diagPanel')?.open)renderDiag();
  }
  function priceStreamDiagnostic(){
-   const q=window.LIQ_PRICE_STREAM?.inspect?.();if(!q)return '即時行情：等待初始化';
-   const age=q.lastTradeAt?Math.round((Date.now()-q.lastTradeAt)/1000)+'s':'—';
+   const q=window.LIQ_PRICE_STREAM?.inspect?.();
+   const age=q?.lastTradeAt?Math.round((Date.now()-q.lastTradeAt)/1000)+'s':'—';
    const sources=records.reduce((acc,r)=>{const key=r.priceFeed||'等待';acc[key]=(acc[key]||0)+1;return acc;},{});
-   return `CoinGlass 7D ${cgFresh()?'正常':state.cgAt?'過期（保留舊界限、RR暫停）':'尚無有效資料'}｜最後成功 ${state.cgAt?tpe(state.cgAt):'—'}｜錯誤 ${state.cgError||'無'}\nPionex WebSocket ${q.state}｜訂閱 ${q.subscribed}/${q.desired}｜已收到 ${q.received}｜最後成交 ${q.lastTradeAt?tpe(q.lastTradeAt):'—'}｜接收年齡 ${age}｜重連 ${q.reconnectCount}｜失敗 ${JSON.stringify(q.failed)}\n價格來源 ${JSON.stringify(sources)}`;
+   const info=state.cgDiagnostics||{};
+   const matched=records.filter(r=>r.source==='coinglass').length;
+   const cgSummary=`CoinGlass 7D ${cgFresh()?'正常':state.cgAt?'過期（僅保留真實值，RR暫停）':'尚無有效資料'}｜來源 ${info.origin||'等待讀取'}｜解析 ${state.cgRecords.size} 筆｜清單對應 ${matched}/${records.length}｜最後成功 ${state.cgAt?tpe(state.cgAt):'—'}｜加密版本 ${state.cgVersion||'未知'}｜上次嘗試 ${info.at?tpe(info.at):'—'}｜錯誤 ${state.cgError||'無'}｜識別鍵樣本 ${(info.sample||[]).join(',')||'—'}`;
+   return cgSummary+'\n'+(q?`Pionex WebSocket ${q.state}｜訂閱 ${q.subscribed}/${q.desired}｜已收到 ${q.received}｜最後成交 ${q.lastTradeAt?tpe(q.lastTradeAt):'—'}｜接收年齡 ${age}｜重連 ${q.reconnectCount}｜失敗 ${JSON.stringify(q.failed)}`:'Pionex WebSocket：尚未初始化')+`\n價格來源 ${JSON.stringify(sources)}`;
  }
  function renderDiag(){
    if(!$('diagnostics')||!state.diagDirty)return;
@@ -149,16 +152,47 @@
     if(s.group==='crypto')try{return await binanceBars(s,interval,count);}catch(e){issues.push('Binance: '+(e?.message||e));}
     throw Error(interval+' 無法取得：'+issues.join(' / '));
   }
-  function extractCG(data){const records=new Map(),seen=new WeakSet();const keys=['symbol','coin','currency','baseCoin','baseAsset'];
-    function walk(obj,d){if(!obj||typeof obj!=='object'||d>9||seen.has(obj))return;seen.add(obj);
-      if(!Array.isArray(obj)){
-        const symbol=String(keys.map(k=>obj[k]).find(x=>typeof x==='string'&&x.trim())||'').toUpperCase().replace(/[\s/_-]/g,'');
-        const read=n=>{if(typeof n==='string')n=n.replaceAll(',','').replaceAll('$','');const v=Number(n);return Number.isFinite(v)&&v>0?v:null;};
-        const upper=read(obj.maxLongLiquidationPrice??obj.short_max_pain_liq_price??obj.shortMaxPainLiqPrice),lower=read(obj.maxShortLiquidationPrice??obj.long_max_pain_liq_price??obj.longMaxPainLiqPrice);
-        if(symbol&&upper&&lower&&upper>lower){records.set(symbol,{upper,lower,upAmount:read(obj.maxLongLiquidationLevel??obj.short_max_pain_liq_level??obj.shortMaxPainLiqLevel),downAmount:read(obj.maxShortLiquidationLevel??obj.long_max_pain_liq_level??obj.longMaxPainLiqLevel),ref:read(obj.price),coinGlassId:symbol});}
-      }
-      for(const v of Object.values(obj))if(v&&typeof v==='object')walk(v,d+1);
-    }walk(data,0);return records;}
+  // CoinGlass encryption-version compatibility remains in the ORIGINAL external
+ // CoinGlassReader (V0/V1/V2/V55/V66/V77). This parser handles the DECRYPTED
+ // payload only; it does not synthesize price levels or swap upper/lower sides.
+ function cgTicker(raw){
+   if(typeof raw!=='string')return '';
+   let s=raw.trim().toUpperCase().replace(/^([A-Z0-9]+):/,'').replace(/[\s/_\-.]/g,'');
+   // Recognize exchange contract suffixes, not arbitrary token suffixes.
+   s=s.replace(/(?:USDT|USDC|USD)(?:PERP|SWAP)?$/,'');
+   return /^[A-Z0-9]{2,24}$/.test(s)?s:'';
+ }
+ function extractCG(data){
+   const records=new Map(),seen=new WeakSet(),fields=['symbol','coin','currency','baseCoin','baseAsset','base_coin','base_asset','ticker'];
+   const read=n=>{if(typeof n==='string')n=n.replaceAll(',','').replaceAll('$','');const v=Number(n);return Number.isFinite(v)&&v>0?v:null;};
+   function walk(obj,depth,hint=''){
+     if(typeof obj==='string'&&depth<3&&obj.length<800000){
+       try{const parsed=JSON.parse(obj);if(parsed&&typeof parsed==='object')walk(parsed,depth+1,hint);}catch(_){}
+       return;
+     }
+     if(!obj||typeof obj!=='object'||depth>12||seen.has(obj))return;
+     seen.add(obj);
+     if(!Array.isArray(obj)){
+       const raw=fields.map(k=>obj[k]).find(x=>typeof x==='string'&&x.trim())||hint;
+       const symbol=cgTicker(raw);
+       const upper=read(obj.maxLongLiquidationPrice??obj.short_max_pain_liq_price??obj.shortMaxPainLiqPrice??obj.max_long_liquidation_price);
+       const lower=read(obj.maxShortLiquidationPrice??obj.long_max_pain_liq_price??obj.longMaxPainLiqPrice??obj.max_short_liquidation_price);
+       if(symbol&&upper&&lower&&upper>lower){
+         const row={upper,lower,upAmount:read(obj.maxLongLiquidationLevel??obj.short_max_pain_liq_level??obj.shortMaxPainLiqLevel),downAmount:read(obj.maxShortLiquidationLevel??obj.long_max_pain_liq_level??obj.longMaxPainLiqLevel),ref:read(obj.price),coinGlassId:String(raw).toUpperCase()};
+         // Explicit exact identifiers win. A BTCUSDT record may ALSO be
+         // addressed as BTC, but only when no BTC entry already exists.
+         const original=String(raw).toUpperCase().replace(/[\s/_\-.]/g,'').replace(/^([A-Z0-9]+):/,'');
+         if(original&&/^[A-Z0-9]{2,30}$/.test(original))records.set(original,row);
+         if(!records.has(symbol))records.set(symbol,row);
+       }
+     }
+     for(const [key,value] of Object.entries(obj)){
+       if(value&&typeof value==='object')walk(value,depth+1,key);
+       else if(typeof value==='string'&&(key==='data'||key==='result'||key==='list'))walk(value,depth+1,'');
+     }
+   }
+   walk(data,0);return records;
+ }
   function resolveCG(s,records){
     if(!s||!(records instanceof Map))return null;
     const aliases=[...new Set([...(s.cg||[]).map(x=>String(x).toUpperCase()),
@@ -175,6 +209,34 @@
         ref:row.ref?row.ref/factor:null,sourceId:id,unitFactor:factor};
     }
     return null;
+  }
+  // Cache only successful, VERIFIED CoinGlass 7D decoded records.
+  // NEVER persist (or restore) the legacy 15M proxy. Cached levels are
+  // display-only and RR remains disabled until a fresh CoinGlass fetch.
+  const CG_CACHE_KEY='SStateLiquidityRadar.coinglass7d.verified.v1';
+  function matchedCG(map){return records.filter(r=>!!resolveCG(r.s,map)).length;}
+  function restoreCG(){
+    try{
+      const text=localStorage.getItem(CG_CACHE_KEY);if(!text||text.length>350000)return;
+      const c=JSON.parse(text);
+      if(c?.schema!==1||c.range!=='7d'||c.origin!=='CoinGlassReader'||!Number.isFinite(c.at)||Date.now()-c.at>48*H||c.at>Date.now()+30000||!Array.isArray(c.rows))return;
+      const map=new Map();for(const pair of c.rows.slice(0,1200)){
+        const [key,row]=pair;
+        if(typeof key==='string'&&/^[A-Z0-9]{2,30}$/.test(key)&&priceEnough(row?.upper)&&priceEnough(row?.lower)&&row.upper>row.lower)map.set(key,row);
+      }
+      const matched=matchedCG(map);if(!matched)return;
+      state.cgRecords=map;state.cgAt=c.at;state.cgVersion=String(c.version||'?');
+      state.cgError='僅使用上次成功的 CoinGlass 7D 本機快取，等待取得最新資料；RR 暫停';
+      state.cgDiagnostics={at:Date.now(),origin:'上次有效快取（非即時）',sample:[...map.keys()].slice(0,8),matched};
+      log(`CoinGlass 7D 已恢復上次成功紀錄 ${matched}/${records.length}，資料暫視為過期、RR 暫停`);
+    }catch(e){log('CoinGlass 7D 快取讀取失敗：'+e.message);}
+  }
+  function rememberCG(map,version){
+    try{
+      const pairs=[...map.entries()].filter(([k,v])=>/^[A-Z0-9]{2,30}$/.test(k)&&priceEnough(v?.upper)&&priceEnough(v?.lower)&&v.upper>v.lower).slice(0,1200);
+      const jsonText=JSON.stringify({schema:1,range:'7d',origin:'CoinGlassReader',at:state.cgAt,version,rows:pairs});
+      if(jsonText.length<350000)localStorage.setItem(CG_CACHE_KEY,jsonText);
+    }catch(e){log('CoinGlass 7D 快取無法寫入：'+e.message);}
   }
   // Exactly the SState monitor's daily CCI(20) + SMA(14) color rule.
  // Clone fetched candles; never change the cached historical source while the quote refreshes.
@@ -699,12 +761,33 @@
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
  }
  function renderAll(){records.forEach(renderRow);reorder();renderOverview();window.LiqRadarCciCard?.refresh();}
- async function fetchCG(force=false){if(state.cgBusy)return state.cgBusy;if(!force&&state.cgAt&&Date.now()-state.cgAt<50000)return;const task=(async()=>{
-   try{if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('CoinGlass 解碼器尚未載入');const raw=await window.CoinGlassReader.fetchCoinGlass('7d');const decoded=extractCG(raw.data);if(!decoded.size)throw Error('已解密但沒有可辨識上下界');state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=String(raw.version||'?');state.cgError='';log(`CoinGlass 7D V${state.cgVersion} 成功 ${decoded.size} 個標的`);}
-   catch(e){state.cgError=String(e?.message||e);log('CoinGlass 7D 暫時失效，保留最後有效界限、暫停 RR：'+state.cgError);}
-   finally{records.forEach(updateDerived);renderAll();state.cgBusy=null;
-     state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();}
- })();state.cgBusy=task;return task;
+ async function fetchCG(force=false){
+   if(state.cgBusy)return state.cgBusy;
+   // A cache restored during startup must not suppress an immediate fresh fetch.
+   if(!force&&cgFresh()&&Date.now()-state.cgAt<50000)return;
+   const task=(async()=>{
+     const attemptedAt=Date.now();
+     state.cgDiagnostics={...state.cgDiagnostics,at:attemptedAt,origin:'CoinGlassReader 7d 嘗試中'};
+     try{
+       if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('CoinGlass 解碼器尚未載入（請檢查外部 script 請求）');
+       const raw=await window.CoinGlassReader.fetchCoinGlass('7d');
+       const decoded=extractCG(raw.data),matched=matchedCG(decoded),sample=[...decoded.keys()].slice(0,10);
+       state.cgDiagnostics={at:attemptedAt,origin:'CoinGlassReader 7d 已解密',version:String(raw.version??'?'),decoded:decoded.size,matched,sample};
+       if(!decoded.size)throw Error('解密成功但解析不到有效上下界；可能是回應欄位格式變動');
+       if(!matched)throw Error(`解析出 ${decoded.size} 個鍵，但 0/${records.length} 能對應清單，樣本 ${sample.join(',')}`);
+       state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=String(raw.version||'?');state.cgError='';
+       state.cgDiagnostics.origin='CoinGlassReader 7d 即時抓取';
+       rememberCG(decoded,state.cgVersion);
+       log(`CoinGlass 7D V${state.cgVersion} 成功：解析 ${decoded.size} 個鍵，清單對應 ${matched}/${records.length}`);
+     }catch(e){
+       state.cgError=String(e?.message||e);
+       state.cgDiagnostics={...state.cgDiagnostics,at:attemptedAt,origin:state.cgDiagnostics?.origin==='CoinGlassReader 7d 嘗試中'?'CoinGlassReader 抓取／解密失敗':state.cgDiagnostics?.origin||'CoinGlassReader 失敗'};
+       log('CoinGlass 7D 無法更新（絕不切換代理）：'+state.cgError);
+     }finally{
+       records.forEach(updateDerived);renderAll();state.cgBusy=null;
+       state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();
+     }
+   })();state.cgBusy=task;return task;
  }
  // Quote layer: WS writes immediately; UI/RR batch at 300ms; 1D indicators at 3s.
  const wsDirty=new Set(),wsDerived=new Set();let wsFlushTimer=null,wsDerivedTimer=null;
@@ -953,7 +1036,7 @@
    document.addEventListener('liq-radar-marks-updated',reorderSideNavByMarks);
 
    $('diagToggle').addEventListener('click',()=>{const d=$('diagHolder');d.hidden=!d.hidden;$('diagToggle').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)renderDiag();});
-   renderAll();updateClock();
+   restoreCG();records.forEach(updateDerived);renderAll();updateClock();
    if(records.length){
      window.LIQ_PRICE_STREAM?.start({symbols:records.map(r=>r.s),onQuote:applyWsQuote,
        onState:s=>{state.diagDirty=true;if($('diagPanel')?.open)renderDiag();}});
@@ -970,7 +1053,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.15',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.16',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

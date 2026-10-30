@@ -503,3 +503,12 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - `chart4h.js` 新增 `syncLivePrice()`，沿用現有價格座標與清算上下界標籤避讓規則，縮放與 HA 畫線維持不變。
 - 平均 K、CCI-SMA、布林帶、SState／中軌、Signal Spotlight 仍約每 3 秒更新，公式與 00:00／08:00 邏輯均未調整。
 - 保留 WebSocket/REST/Scanner 備援、CL→WTI 映射、RR 與通知規則，無需重新部署 Worker 或 R2。
+
+
+## v2.1.16 — CoinGlass 7D 解析與來源診斷修復（2026-10-30）
+
+- 僅接受 CoinGlass 7D 解密後的上下清算界限，**禁止**用 15M 代理估算替換。
+- 保留既有 CoinGlassReader 加密版本支援；擴充解密資料的商品代碼辨識（例如 BTCUSDT 與 BTC）。
+- 成功取得且能對應清單的 CoinGlass 7D 資料，才寫入本機最後有效快取；下一次抓取失敗時可保留上次的真實界限，但明確標示過期並停用 RR。
+- 診斷面板顯示抓取／解密／解析與對應成功數量、版本、錯誤與識別鍵樣本。
+- 此版本無法替代實際 CoinGlass API：如果 CoinGlassReader 遇到 HTTP、CORS、解密金鑰或尚未支援的新加密版本，會保留明確錯誤，**不會**生成假清算線。

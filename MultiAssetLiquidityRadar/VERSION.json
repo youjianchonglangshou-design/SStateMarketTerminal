@@ -1,13 +1,14 @@
 {
-  "version": "2.1.15",
+  "version": "2.1.16",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.14",
-  "title": "CoinGlass 7D exclusive liquidation bounds (no 15M price-linked proxy)",
+  "baseVersion": "2.1.15",
+  "title": "CoinGlass 7D data recovery, symbol recognition, and transparent diagnostics",
   "changes": [
-    "Use only actual CoinGlass 7D upper/lower liquidation levels, regardless of Pionex WebSocket price crossing either boundary.",
-    "Disable 15M proxy estimate and its automatic Kline fetching for liquidation/Reward-Risk calculations.",
-    "Preserve last-known CoinGlass 7D levels during API errors or aged snapshots; clearly mark stale and suspend RR until successful fresh 7D data.",
-    "Keep WebSocket ~300ms quote/chart label synchronization, 1D indicators, BTC/WTI mapping, 00:00 radar reset and all existing drawings unchanged."
+    "Preserve CoinGlass-only 7D bounds; no 15M proxy or price-crossing source switches.",
+    "Repair common decrypted symbol aliases such as BTCUSDT/BTC_USDT_PERP while retaining CoinGlass exact symbol names and existing decrypt reader support.",
+    "On verified successful CoinGlass 7D responses save a local read-only last-known snapshot; show previous genuine bounds (marked stale and RR disabled) during subsequent fetch failures or reloads.",
+    "Expose fetching/decryption/parsing/coverage status, symbol samples, last version and error in the existing diagnostic panel.",
+    "Preserve Pionex WebSocket, chart price sync, 1D indicator logic, RR rules, drawings, 00:00 and 08:00 clocks."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",

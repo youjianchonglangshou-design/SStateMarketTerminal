@@ -231,6 +231,55 @@
     return "signal-mid-flat";
   }
 
+  // Reuse Liquidity Radar v2.0.7 semantics: yesterday's HA color is a LEFT dot;
+  // its height is the comparison between unrounded HA CLOSE values.
+  // Snapshot chart dates are MM/DD, so resolve them against the snapshot's own
+  // Taiwan timestamp (never the viewer's current year) before comparing days.
+  function signalMatrixHaDay(date, snapshotStamp) {
+    const raw=String(date??'').trim();
+    const leapSafe=(year,month,day)=>{
+      const stamp=Date.UTC(year,month-1,day),d=new Date(stamp);
+      return d.getUTCFullYear()===year&&d.getUTCMonth()===month-1&&d.getUTCDate()===day?stamp:null;
+    };
+    const full=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(full)return leapSafe(+full[1],+full[2],+full[3]);
+    const short=raw.match(/^(\d{1,2})\/(\d{1,2})$/);
+    const anchor=String(snapshotStamp??'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(!short||!anchor)return null;
+    const asOf=leapSafe(+anchor[1],+anchor[2],+anchor[3]);
+    if(asOf===null)return null;
+    // Most recent valid occurrence of MM/DD within the actual snapshot's history.
+    const possibilities=[+anchor[1],+anchor[1]-1].map(y=>leapSafe(y,+short[1],+short[2]))
+      .filter(t=>t!==null&&t<=asOf+86400000&&t>=asOf-180*86400000);
+    return possibilities.length?Math.max(...possibilities):null;
+  }
+
+  function signalMatrixHaSemantic(chart, snapshotStamp) {
+    if(!Array.isArray(chart)||chart.length<2)return null;
+    const prev=chart[chart.length-2],cur=chart[chart.length-1];
+    const previous=String(prev?.ha_color||'').toLowerCase(),current=String(cur?.ha_color||'').toLowerCase();
+    if(!['yellow','purple'].includes(previous)||!['yellow','purple'].includes(current))return null;
+    // Do not coerce null, missing, zero, or nonnumeric values to a valid HA close.
+    const validClose=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>0;
+    if(!validClose(prev?.ha_close)||!validClose(cur?.ha_close))return null;
+    const prevDay=signalMatrixHaDay(prev?.date,snapshotStamp),curDay=signalMatrixHaDay(cur?.date,snapshotStamp);
+    if(prevDay===null||curDay===null||curDay-prevDay!==86400000)return null;
+    const yesterday=Number(prev.ha_close),today=Number(cur.ha_close);
+    const delta=today-yesterday;
+    const eps=16*Number.EPSILON*Math.max(Math.abs(today),Math.abs(yesterday));
+    const vertical=Math.abs(delta)<=eps?'middle':delta>0?'bottom':'top';
+    if((previous==='purple'&&current==='yellow'&&vertical!=='bottom')||
+       (previous==='yellow'&&current==='purple'&&vertical!=='top'))return null;
+    const meaning=vertical==='middle'?'HA 收盤價持平':
+      current==='purple'?(vertical==='bottom'?'連續紫抬高，留意可能止跌':previous==='yellow'?'黃轉紫，HA 收盤價降低':'連續紫降低，偏弱延續'):
+      vertical==='top'?'連續黃降低，留意漲勢衰退':previous==='purple'?'紫轉黃，HA 收盤價抬高':'連續黃抬高，偏強延續';
+    const colorName=c=>c==='yellow'?'黃':'紫';
+    const generatedDay=String(snapshotStamp||'').match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+    const forming=generatedDay&&curDay===signalMatrixHaDay(generatedDay,snapshotStamp);
+    const tip=`平均K：昨日 ${colorName(previous)} → 今日 ${colorName(current)}\n昨日 HA 收盤：${yesterday}\n今日 HA 收盤：${today}\n狀態：${meaning}\n資料日：${prev.date} → ${cur.date}${forming?'（今日可能尚未收線）':''}\n快照時間：${fmtTaiwanTimestamp(snapshotStamp)}`;
+    return {previous,position:'left-'+vertical,meaning,title:tip};
+  }
+
   function signalMatrixRows() {
     return (state.snapshot?.records || []).map((record,index)=>{
       const opportunity=record?.opportunity_long||{};
@@ -240,6 +289,7 @@
       const hp=record?.historical_probability||{};
       const h72=hp?.["72h"]||{};
       const haColor=String(latest?.ha_color||opportunity?.current?.ha_color||"unknown").toLowerCase();
+      const haSemantic=signalMatrixHaSemantic(chart,state.snapshot?.batch?.generated_at_taiwan);
       const cciColor=String(latest?.cci_smoothing_color||"gray").toLowerCase();
       return {
         _index:index,
@@ -252,6 +302,7 @@
         midState:String(mid?.state||"unknown"),
         midSlope:Number(mid?.recent_5d_slope_pct_per_day),
         haColor,
+        haSemantic,
         cciColor,
         success72:(hp?.available&&h72?.available)?Number(h72?.success_probability):NaN,
         fail72:(hp?.available&&h72?.available)?Number(h72?.true_fail_probability):NaN,
@@ -312,7 +363,12 @@
       return `<span class="${cls}">${row.bbPct>0?'+':''}${num(row.bbPct)}%</span>`;
     }
     if (key === "midSlope") return `<span class="signal-mid ${signalMatrixMidClass(row.midState)}" title="5日中軌斜率 ${Number.isFinite(row.midSlope)?`${row.midSlope.toFixed(3)}%/日`:'—'}">${escapeHtml(row.midText)}</span>`;
-    if (key === "haColor") return `<span class="signal-color ${signalMatrixColorClass(row.haColor)}">${signalMatrixColorLabel(row.haColor)}</span>`;
+    if (key === "haColor") {
+      const tone=signalMatrixColorClass(row.haColor),label=signalMatrixColorLabel(row.haColor);
+      const dot=row.haSemantic;
+      if(!dot)return `<span class="signal-color ${tone}">${label}</span>`;
+      return `<span class="signal-color ${tone} signal-ha-semantic" data-prior="${dot.previous}" data-ha-dot-position="${dot.position}" title="${escapeHtml(dot.title)}">${label}</span>`;
+    }
     if (key === "cciColor") return `<span class="signal-color ${signalMatrixColorClass(row.cciColor)}">${signalMatrixColorLabel(row.cciColor)}</span>`;
     if (key === "success72") return Number.isFinite(row.success72)?`<span class="signal-success">${(row.success72*100).toFixed(0)}%</span>`:'<span class="signal-muted">—</span>';
     if (key === "fail72") return Number.isFinite(row.fail72)?`<span class="signal-fail">${(row.fail72*100).toFixed(1)}%</span>`:'<span class="signal-muted">—</span>';

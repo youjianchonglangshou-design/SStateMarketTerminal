@@ -10,5 +10,5 @@ window.SSTATE_CONFIG = {
   monitorAlertCheckIntervalMs: 10000,
   performanceDataUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/performance",
   performanceLedgerUrl: "https://white-meadow-16bc.youjianchonglangshou.workers.dev/api/champion/ledger/recent",
-  appVersion: "v0.3.22"
+  appVersion: "v0.3.23"
 };

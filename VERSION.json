@@ -1,7 +1,8 @@
 {
-  "app_version": "v0.3.22",
-  "stage": "OTHER-EXTENSIONS-SHARED-WITH-MONITORS",
+  "app_version": "v0.3.23",
+  "stage": "SIGNAL-MATRIX-HA-SEMANTIC-DOT",
   "features": [
+    "Homepage SIGNAL MATRIX: previous-day HA semantic dot to the LEFT of existing yellow/purple average-K text. Dot color = previous day; height = raw HA close comparison. Same six-case and anomaly protection as MultiAssetLiquidityRadar v2.0.7; snapshot-only, no indicator/API/Worker changes.",
     "Real-time Monitor and Liquidity Radar use the existing shared SState OTHER-UP/OTHER-DN classification, showing OT-UP/OT-DN in compact S-state columns with matching colors, tooltips and sorting; Champion training, R2 stored formal states and probability models remain unchanged.",
     "Homepage ONLY: classify formal OTHER as OTHER-UP when last-day yellow HA is at BB position >=0.85, at least 2 of last 3 days stay >=0.85 and HA advances; mirrored OTHER-DN uses purple HA, <=0.15 and falling HA. Non-qualifying OTHER remains OTHER.",
     "Keep formal market_state_id, Champion 72H probabilities, stored snapshot, Cloudflare Worker and Telegram unchanged; homepage and SIGNAL MATRIX filters/badges use presentation-only extension.",
@@ -22,5 +23,5 @@
     "WTI_USDT_PERP alert TradingView ticker aliases to PIONEX:CLUSDT.P in the Cloudflare Worker (requires Worker redeployment for WTI alerts).",
     "Liquidity radar v1.1.5 moves the NOW price label to the right edge and shifts upper/lower labels left to prevent overlap when the three prices are close."
   ],
-  "version": "0.3.22"
+  "version": "0.3.23"
 }

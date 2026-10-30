@@ -20,16 +20,19 @@
  const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceEventAt:0,priceFeed:'',live4h:null,bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
  const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],activeJobs:[],jobSet:new Set(),jobSeq:0,batchEnqueue:false,startupActive:false,cgInitialDone:false,priceInitialDone:false,networkLog:[],renderAt:0};
  const currentRows=()=>records;
- const sourceName=r=>r.source==='coinglass'?'CoinGlass 7D（1週）':r.source==='proxy'?'15M 代理估算':'等待上下界';
+ const cgFresh=()=>state.cgAt>0&&!state.cgError&&Date.now()-state.cgAt<180000;
+ const sourceName=r=>r.source==='coinglass'?(cgFresh()?'CoinGlass 7D（1週）':'CoinGlass 7D（資料過期・RR暫停）'):'CoinGlass 7D（尚無界限）';
  // RR reads the exact shared quote and liquidation bounds already used by charts.
  // Invalid/stale values MUST clear the LED instead of retaining yesterday's signal.
  function rrSnapshot(r,now=Date.now()){
    const price=livePrice(r);
-   const sourceFresh=r.source==='coinglass'
-     ? state.cgAt>0&&now-state.cgAt<180000
-     :r.source==='proxy'&&r.barsAt>0&&now-r.barsAt<600000;
-   if(!sourceFresh)return null;
-   return {price,upper:r.up,lower:r.down,ha:r.ha,haDayKey:r.ha?.t??null,dayKey:Math.floor(now/DAY)*DAY,source:r.source,updatedAt:Math.max(r.priceAt,r.source==='coinglass'?state.cgAt:r.barsAt)};
+   // Only fresh, successfully fetched CoinGlass 7D bounds may drive RR.
+   // Price crossing either bound is NOT evidence that the bound is invalid;
+   // RR itself requires lower < price < upper, so suppress such signals.
+   if(r.source!=='coinglass'||!state.cgAt||state.cgError||now-state.cgAt>=180000||
+      !priceEnough(price)||!priceEnough(r.up)||!priceEnough(r.down)||
+      !(r.down<price&&price<r.up))return null;
+   return {price,upper:r.up,lower:r.down,ha:r.ha,haDayKey:r.ha?.t??null,dayKey:Math.floor(now/DAY)*DAY,source:'coinglass',updatedAt:Math.max(r.priceAt,state.cgAt)};
  }
  function refreshRRLed(r){
    const led=r.dom?.rrLed,scanner=window.LIQ_RR_SCANNER;
@@ -57,7 +60,7 @@
    const label=(long?'做多':'做空')+' 理論賺賠比 '+ratio.toFixed(2)+':1';
    led.classList.add(long?'rr-long':'rr-short');
    const shoulder=result.shoulder;const shoulderNote=shoulder?('\n歷史左肩膀 '+MONEY(shoulder.price)+'（'+tpe(shoulder.dayKey).slice(0,10)+'，'+shoulder.daysBack+' 日前）'):'\n此階段不需有效肩膀';
-   led.title='情境 '+result.stage+'｜'+label+'｜'+(result.group==='reversal'?'反向／轉勢':'原趨勢／延續')+'門檻 '+result.threshold.toFixed(2)+':1'+shoulderNote+'\n日線平均K '+result.haColor+'\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+(result.source==='coinglass'?'CoinGlass 7D':'代理估算')+'\n計算時間 '+tpe(Date.now());
+   led.title='情境 '+result.stage+'｜'+label+'｜'+(result.group==='reversal'?'反向／轉勢':'原趨勢／延續')+'門檻 '+result.threshold.toFixed(2)+':1'+shoulderNote+'\n日線平均K '+result.haColor+'\n現價 '+MONEY(result.price)+'\n上界 '+MONEY(result.upper)+'\n下界 '+MONEY(result.lower)+'\n來源 '+'CoinGlass 7D'+'\n計算時間 '+tpe(Date.now());
    led.setAttribute('aria-label',label);
    led.hidden=false;
  }
@@ -80,7 +83,7 @@
    const q=window.LIQ_PRICE_STREAM?.inspect?.();if(!q)return '即時行情：等待初始化';
    const age=q.lastTradeAt?Math.round((Date.now()-q.lastTradeAt)/1000)+'s':'—';
    const sources=records.reduce((acc,r)=>{const key=r.priceFeed||'等待';acc[key]=(acc[key]||0)+1;return acc;},{});
-   return `Pionex WebSocket ${q.state}｜訂閱 ${q.subscribed}/${q.desired}｜已收到 ${q.received}｜最後成交 ${q.lastTradeAt?tpe(q.lastTradeAt):'—'}｜接收年齡 ${age}｜重連 ${q.reconnectCount}｜失敗 ${JSON.stringify(q.failed)}\n價格來源 ${JSON.stringify(sources)}`;
+   return `CoinGlass 7D ${cgFresh()?'正常':state.cgAt?'過期（保留舊界限、RR暫停）':'尚無有效資料'}｜最後成功 ${state.cgAt?tpe(state.cgAt):'—'}｜錯誤 ${state.cgError||'無'}\nPionex WebSocket ${q.state}｜訂閱 ${q.subscribed}/${q.desired}｜已收到 ${q.received}｜最後成交 ${q.lastTradeAt?tpe(q.lastTradeAt):'—'}｜接收年齡 ${age}｜重連 ${q.reconnectCount}｜失敗 ${JSON.stringify(q.failed)}\n價格來源 ${JSON.stringify(sources)}`;
  }
  function renderDiag(){
    if(!$('diagnostics')||!state.diagDirty)return;
@@ -173,29 +176,7 @@
     }
     return null;
   }
-  function candidateZones(bars,price){const result={upper:[],lower:[]};if(!priceEnough(price)||!bars.length)return result;
-    const buckets={upper:new Map(),lower:new Map()},minStep=price*.0018;
-    const last=bars.at(-1).t,validV=bars.filter(b=>Number.isFinite(b.v)&&b.v>0).map(b=>b.v).sort((a,b)=>a-b),med=validV.length>bars.length*.55?validV[Math.floor(validV.length/2)]:0;
-    const levs=[[25,.28],[50,.34],[75,.24],[100,.14]];
-    for(const b of bars.slice(-288)){
-      const age=(last-b.t)/H,timeWeight=Math.exp(-age/48),volWeight=med?clamp((b.v||0)/med,.25,3):1,entry=(b.h+b.l+b.c)/3;
-      if(!(entry>0))continue;
-      for(const [lev,w] of levs){const base=timeWeight*volWeight*w;
-        for(const [dir,target] of [['upper',entry*(1+1/lev-.004)],['lower',entry*(1-1/lev+.004)]]){
-          const gap=Math.abs(target/price-1);if((dir==='upper'&&target<=price)||(dir==='lower'&&target>=price)||gap<.001||gap>.06)continue;
-          const k=Math.round(target/minStep),map=buckets[dir];map.set(k,(map.get(k)||0)+base);
-        }
-      }
-    }
-    for(const dir of ['upper','lower']){
-      const m=buckets[dir],arr=[];for(const [i,v] of m){const total=v+.20*(m.get(i-1)||0)+.20*(m.get(i+1)||0),p=i*minStep;const dist=Math.abs(p/price-1);if(dist>.001&&total>.001)arr.push({price:p,strength:total,distance:dist,score:total/(.5+Math.sqrt(dist*100)),width:minStep});}
-      arr.sort((a,b)=>b.score-a.score);const used=[];for(const item of arr){if(used.every(z=>Math.abs(z.price-item.price)>minStep*2.5)){used.push(item);if(used.length===3)break;}}
-      const max=Math.max(1e-9,...used.map(z=>z.strength));result[dir]=used.map((x,i)=>({...x,power:Math.round(100*x.strength/max),tier:i+1}));
-    }
-    return result;
-  }
-
- // Exactly the SState monitor's daily CCI(20) + SMA(14) color rule.
+  // Exactly the SState monitor's daily CCI(20) + SMA(14) color rule.
  // Clone fetched candles; never change the cached historical source while the quote refreshes.
  function dailyAsOf(r){
    // Share the same forming UTC daily candle across BB chart, daily HA, CCI,
@@ -277,16 +258,20 @@
      r.errors.sstate=s?'':(!window.SStateMonitorEngine?.analyze?'SState 原版引擎尚未載入':days.length<40?'日線歷史不足 40 根':'SState 分析暫無結果');
    }catch(e){r.sstate=null;r.midline=null;r.errors.sstate=String(e?.message||e);}
 
-   r.zones=candidateZones(r.bars15,livePrice(r)||r.bars15.at(-1)?.c);
-   const p=livePrice(r)||r.bars15.at(-1)?.c;
-   const fresh=state.cgAt>0&&Date.now()-state.cgAt<180000;
-   const cg=fresh?resolveCG(r.s,state.cgRecords):null;
-   r.cgId=cg?.sourceId||'';r.cgFactor=cg?.unitFactor||1;r.upAmount=cg?.upAmount||null;r.downAmount=cg?.downAmount||null;
-   if(cg&&(!priceEnough(p)||(cg.upper>p&&cg.lower<p))){r.up=cg.upper;r.down=cg.lower;r.source='coinglass';r.errors.cg='';}
-   else if(r.zones.upper.length&&r.zones.lower.length){r.up=r.zones.upper[0].price;r.down=r.zones.lower[0].price;r.source='proxy';r.errors.cg=!fresh?(state.cgError||'CoinGlass 更新失敗'):!cg?'CoinGlass 無此標的':'CoinGlass 價格不包住現價';}
-   else{r.up=null;r.down=null;r.source='none';r.errors.cg=!fresh?(state.cgError||'CoinGlass 尚未取得'):cg?'CoinGlass 上下界不適用當前價格':'CoinGlass 無此標的／代理資料不足';}
-   // 15M proxy requests are NOT scheduled here: startup must await the first
-   // CoinGlass and live-price responses before deciding per-symbol fallback.
+   // Strict 7D source isolation: market prices NEVER control whether
+   // CoinGlass upper/lower levels are kept. Only a NEW valid CoinGlass pull
+   // is allowed to change them. Retain last-known actual levels on failures,
+   // mark them stale and disable RR until a fresh successful pull.
+   const cg=resolveCG(r.s,state.cgRecords);
+   r.cgId=cg?.sourceId||'';r.cgFactor=cg?.unitFactor||1;
+   r.upAmount=cg?.upAmount??null;r.downAmount=cg?.downAmount??null;
+   if(cg){
+     r.up=cg.upper;r.down=cg.lower;r.source='coinglass';
+     r.errors.cg=cgFresh()?'':('CoinGlass 7D 資料過期，RR 暫停'+(state.cgError?'：'+state.cgError:''));
+   }else{
+     r.up=null;r.down=null;r.source='none';
+     r.errors.cg=state.cgError||'CoinGlass 7D 無此標的／尚未取得';
+   }
    // Reuse the same projected daily candles for Signal Spotlight; no duplicate API calls.
    window.SignalSpotlight?.queueRecord?.(r,days);
    // Probability model is not calculated in the redesigned chart view.
@@ -692,9 +677,7 @@
    if(finished)startupComplete=true;
    container.classList.toggle('is-ready',startupComplete);
    meter.parentElement.hidden=startupComplete;
-   const boundCount=records.filter(r=>{const p=livePrice(r);return priceEnough(p)&&r.down<p&&r.up>p&&
-     (r.source==='coinglass'&&state.cgAt>0&&Date.now()-state.cgAt<180000||
-       r.source==='proxy'&&r.barsAt>0&&Date.now()-r.barsAt<600000);}).length;
+   const boundCount=records.filter(r=>r.source==='coinglass'&&cgFresh()).length;
    const good=ready===total&&boundCount===total;
    const pct=total?Math.round(ready/total*100):0;
    if(startupComplete){
@@ -708,8 +691,8 @@
      detail.textContent=`有效日線 ${ready}/${total} · 已嘗試 ${attempted}/${total} · 圖表 ${activeLoaded}/${active}`;
    }
  }
- function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,proxy=records.filter(r=>r.source==='proxy').length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
-   $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass ${coverage}｜代理 ${proxy}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
+ function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,stale=records.filter(r=>r.source==='coinglass'&&!cgFresh()).length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
+   $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass 7D ${coverage}${stale?'（過期 '+stale+'）':''}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
    updateNavPrices();
    $('loadedCount').textContent=`監控 ${records.length}／${records.length}`;
    updateTerminalProgress();
@@ -718,7 +701,7 @@
  function renderAll(){records.forEach(renderRow);reorder();renderOverview();window.LiqRadarCciCard?.refresh();}
  async function fetchCG(force=false){if(state.cgBusy)return state.cgBusy;if(!force&&state.cgAt&&Date.now()-state.cgAt<50000)return;const task=(async()=>{
    try{if(!window.CoinGlassReader?.fetchCoinGlass)throw Error('CoinGlass 解碼器尚未載入');const raw=await window.CoinGlassReader.fetchCoinGlass('7d');const decoded=extractCG(raw.data);if(!decoded.size)throw Error('已解密但沒有可辨識上下界');state.cgRecords=decoded;state.cgAt=Date.now();state.cgVersion=String(raw.version||'?');state.cgError='';log(`CoinGlass 7D V${state.cgVersion} 成功 ${decoded.size} 個標的`);}
-   catch(e){state.cgError=String(e?.message||e);log('CoinGlass: '+state.cgError);if(Date.now()-state.cgAt>180000){state.cgAt=0;state.cgRecords=new Map();}}
+   catch(e){state.cgError=String(e?.message||e);log('CoinGlass 7D 暫時失效，保留最後有效界限、暫停 RR：'+state.cgError);}
    finally{records.forEach(updateDerived);renderAll();state.cgBusy=null;
      state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();}
  })();state.cgBusy=task;return task;
@@ -830,28 +813,10 @@
    // Legacy first boot creates the BTC/last-selected window.
    return state.selected?[state.selected]:[];
  }
- function validCG(r){
-   const price=livePrice(r);
-   if(!priceEnough(price)||!(state.cgAt>0&&Date.now()-state.cgAt<180000))return false;
-   const cg=resolveCG(r.s,state.cgRecords);
-   return !!cg&&cg.upper>price&&cg.lower<price;
- }
- function queueMissingProxies(){
-   if(!state.cgInitialDone||!state.priceInitialDone)return;
-   for(const r of records){
-     if(validCG(r)){
-       // A recovered CoinGlass symbol should not continue queued 15m jobs.
-       state.queue=state.queue.filter(j=>!(j.r===r&&j.kind==='bar'));
-       state.jobSet.delete(r.id+':bar');
-       continue;
-     }
-     if(!priceEnough(livePrice(r)))continue; // price is required for a meaningful proxy
-     if(r.bars15.length&&Date.now()-r.barsAt<TTLS.bar)continue;
-     enqueue(r,'bar',false,2);
-   }
- }
+ // Strict CoinGlass-only policy: never queue 15M proxy history.
+ function queueMissingProxies(){/* disabled by v2.1.15 */}
  function enqueue(r,kind,force=false,priority=8){
-   if(!r||!records.includes(r))return;
+   if(!r||!records.includes(r)||kind==='bar')return;
    const key=r.id+':'+kind,attempt=r.lastAttempt[kind]||0;
    const have=kind==='bar'?r.bars15.length:kind==='h4'?r.bars4h.length:r.daily.length;
    if(state.jobSet.has(key)){
@@ -860,8 +825,6 @@
      return;
    }
    if(!force&&attempt&&Date.now()-attempt<TTLS[kind])return;
-   // Existing 15m is only reloaded when a live CoinGlass fallback is necessary.
-   if(kind==='bar'&&validCG(r))return;
    state.jobSet.add(key);state.queue.push({r,kind,key,priority,seq:++state.jobSeq});
    state.queue.sort((a,b)=>a.priority-b.priority||a.seq-b.seq);
    if(!state.batchEnqueue)pump();
@@ -876,7 +839,6 @@
    while(state.loadingJobs<MAX_WORKERS&&state.queue.length){
      const job=state.queue.shift();
      if(!records.includes(job.r)){state.jobSet.delete(job.key);continue;}
-     if(job.kind==='bar'&&validCG(job.r)){state.jobSet.delete(job.key);continue;}
      state.loadingJobs++;state.activeJobs.push(job);
      const {r,kind}=job;r.lastAttempt[kind]=Date.now();
      void(async()=>{try{
@@ -1008,7 +970,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.14',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.15',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

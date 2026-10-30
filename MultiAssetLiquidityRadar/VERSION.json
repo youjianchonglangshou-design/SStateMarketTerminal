@@ -1,23 +1,21 @@
 {
-  "version": "2.1.14",
+  "version": "2.1.15",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.13",
-  "title": "Fast WebSocket NOW price line and badge sync",
+  "baseVersion": "2.1.14",
+  "title": "CoinGlass 7D exclusive liquidation bounds (no 15M price-linked proxy)",
   "changes": [
-    "Synchronize all visible chart NOW price badges, horizontal lines and breathing dots with their watchlist prices in the same ~300ms WebSocket UI batch.",
-    "Update only existing SVG price-level elements; retain full 4H chart and 1D HA / CCI-SMA / Bollinger / SState calculation cadence (~3 seconds).",
-    "Keep price-axis projection, pan/zoom, CoinGlass level labels and drawing interactions unchanged; safely fall back to a regular redraw when no SVG projection exists.",
-    "Preserve Pionex WebSocket/REST/TradingView fallback, CL-to-WTI mapping, Signal Spotlight midnight reset and notifications."
+    "Use only actual CoinGlass 7D upper/lower liquidation levels, regardless of Pionex WebSocket price crossing either boundary.",
+    "Disable 15M proxy estimate and its automatic Kline fetching for liquidation/Reward-Risk calculations.",
+    "Preserve last-known CoinGlass 7D levels during API errors or aged snapshots; clearly mark stale and suspend RR until successful fresh 7D data.",
+    "Keep WebSocket ~300ms quote/chart label synchronization, 1D indicators, BTC/WTI mapping, 00:00 radar reset and all existing drawings unchanged."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/chart4h.js",
-    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite six frontend files in MultiAssetLiquidityRadar; no change to Worker, R2 or Pionex_WebSocket."
+    "Overwrite four frontend files; no Cloudflare Worker, R2, or Pionex_WebSocket changes."
   ]
 }

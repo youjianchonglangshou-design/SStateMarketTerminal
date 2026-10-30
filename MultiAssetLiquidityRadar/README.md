@@ -1,3 +1,12 @@
+## v2.1.15 — CoinGlass 7D 界限唯一來源（2026-10-30）
+
+- **上界／下界只使用 CoinGlass 7D**，BTC 等標的即使觸碰、跌破下界或突破上界，仍顯示 CoinGlass 原始清算界限，不得切換 15M 價格代理估算。
+- 禁止自動排程 15M 代理 K 線來製造清算上下界；保留原本 4H、1D 歷史 K 線、平均 K、CCI-SMA、布林帶與 S 狀態的原有演算法。
+- CoinGlass 暫時無法更新時，保留**最後成功取得的真實 7D 界限**，明確顯示「資料過期」，暫停 RR 訊號／通知；取得新的有效 CoinGlass 7D 後恢復。
+- **RR 只使用新鮮的 CoinGlass 7D 界限**。即時價若不在 `(下界, 上界)` 內，RR 暫停判定，絕不改寫清算上下界。
+- 現價、圖表現價標籤／水平線／呼吸光點維持 v2.1.14 的 WebSocket 約 300ms 同步；CL 顯示、CoinGlass CL、派網 WTI_USDT_PERP 映射不變。
+- 僅需覆蓋 `app.js`、`index.html`、`VERSION.json`、`README.md`，不修改 Worker、R2、Pionex_WebSocket。
+
 ## v2.1.12 — Signal Spotlight 台灣午夜每日歸零（2026-10-28）
 
 - 每天台灣時間 **00:00** 清空 Signal Spotlight 昨日事件卡片、未讀與事件數，今日重新累積；使用瀏覽器 `Intl.DateTimeFormat(Asia/Taipei)`，不增加 API 或 Cloudflare／R2。

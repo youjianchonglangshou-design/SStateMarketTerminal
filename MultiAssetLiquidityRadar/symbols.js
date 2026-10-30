@@ -5,8 +5,8 @@ const crypto=['BTC','ETH','BCH','DOGE','XRP','LINK','SOL','BNB','AVAX','UNI','AT
 const tokenized=['XAU','TSLAX','INTCX','MSTRX','NVDAX','CRCLX','COINX','HOODX','MUX','MRVLX','METAX','CL'];
 const cgOverrides={CL:['CL'],MUX:['MU'],XAU:['XAU'],PEPE:['1000PEPE']};
 const all=[...crypto.map(id=>({id,group:'crypto'})),...tokenized.map(id=>({id,group:'stock'}))].map(s=>({
- ...s,pionex:s.id+'_USDT_PERP',tv:'PIONEX:'+s.id+'USDT.P',cg:cgOverrides[s.id]||[s.group==='stock'?s.id.replace(/X$/,''):s.id]
+ ...s,pionex:(s.id==='CL'?'WTI':s.id)+'_USDT_PERP',tv:'PIONEX:'+s.id+'USDT.P',cg:cgOverrides[s.id]||[s.group==='stock'?s.id.replace(/X$/,''):s.id]
 }));
 g.LIQ_SYMBOLS=Object.freeze(all);
-g.LIQ_VERSION='1.0.0';
+g.LIQ_VERSION='2.1.13';
 })(window);

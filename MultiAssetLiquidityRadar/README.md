@@ -475,3 +475,13 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - 圓點的透明可點擊範圍約 24px；滑鼠指向時會亮起，解決細虛線不容易點到的問題。
 - 點圓點會使用既有繪圖的選取機制；選取後仍按 Delete / Backspace 刪除。
 - 不改動原本斐波參數、價格、位置、儲存同步與其他繪圖工具。
+
+
+### v2.1.13 — Pionex WebSocket 即時價格整合（2026-10-30）
+
+- 原有 `MultiAssetLiquidityRadar` 使用一條 Worker 中繼 WS (`/api/monitor/ws`) 動態訂閱固定清單及自由清單。僅行情源更換：WS → 既有 `/api/monitor/tickers` 快取 REST → TradingView Scanner。
+- 派網 CL 原油合約訂閱 `WTI_USDT_PERP`；頁面及 CoinGlass 查詢仍維持 `CL`。
+- 即時現價、RR/LED 合批約 300ms；每筆變動只更新對應標的，1D 指標約 3 秒重算一次。WebSocket 本身沒有提供完整 OHLC；仍依既有 1D／4H 歷史資料合成當日日 K，不改公式與 08:00 換日。
+- Pionex WebSocket 連線成功不等於所有合約已收到真實成交，診斷卡提供訂閱、成交、最近成交時間與重連資訊；缺價時使用 REST／Scanner，備援價格不得冒充逐筆成交。
+- 保留 Browser Notifications、RR 六態、37 規則、Signal Spotlight 台灣 00:00 歸零、繪圖、R2 設定；網頁關閉／Chrome 凍結時不承諾背景持續監控。
+- Cloudflare Worker 已有 `/api/monitor/ws` 中繼，不需另外部署。

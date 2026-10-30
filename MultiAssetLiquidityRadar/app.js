@@ -17,7 +17,7 @@
  const providerOverrides=Object.freeze({WTI:{tv:'PIONEX:CLUSDT.P',pionex:'WTI_USDT_PERP',cg:['CL']},CL:{tv:'PIONEX:CLUSDT.P',pionex:'WTI_USDT_PERP',cg:['CL']}});
  function canonical(s){const over=providerOverrides[String(s.id).toUpperCase()];return over?{...s,...over,cg:[...new Set([...over.cg,...(s.cg||[])])]}:{...s};}
  const entries=Array.isArray(window.LIQ_SYMBOLS)?window.LIQ_SYMBOLS.map(canonical):[];
- const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceFeed:'',bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
+ const records=entries.map((s,index)=>({s,index,id:s.id,price:null,priceAt:0,priceEventAt:0,priceFeed:'',live4h:null,bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null}));
  const state={selected:'',sectorSort:{crypto:'marks',stock:'marks',custom:'watchlist'},cgRecords:new Map(),cgAt:0,cgVersion:'',cgError:'尚未取得',cgBusy:null,group:'all',search:'',sort:'watchlist',sortDir:1,diagDirty:false,priceAt:0,priceBusy:null,loadingJobs:0,queue:[],activeJobs:[],jobSet:new Set(),jobSeq:0,batchEnqueue:false,startupActive:false,cgInitialDone:false,priceInitialDone:false,networkLog:[],renderAt:0};
  const currentRows=()=>records;
  const sourceName=r=>r.source==='coinglass'?'CoinGlass 7D（1週）':r.source==='proxy'?'15M 代理估算':'等待上下界';
@@ -76,9 +76,15 @@
    const count=$('diagCount');if(count)count.textContent=state.networkLog.length;
    if($('diagPanel')?.open)renderDiag();
  }
+ function priceStreamDiagnostic(){
+   const q=window.LIQ_PRICE_STREAM?.inspect?.();if(!q)return '即時行情：等待初始化';
+   const age=q.lastTradeAt?Math.round((Date.now()-q.lastTradeAt)/1000)+'s':'—';
+   const sources=records.reduce((acc,r)=>{const key=r.priceFeed||'等待';acc[key]=(acc[key]||0)+1;return acc;},{});
+   return `Pionex WebSocket ${q.state}｜訂閱 ${q.subscribed}/${q.desired}｜已收到 ${q.received}｜最後成交 ${q.lastTradeAt?tpe(q.lastTradeAt):'—'}｜接收年齡 ${age}｜重連 ${q.reconnectCount}｜失敗 ${JSON.stringify(q.failed)}\n價格來源 ${JSON.stringify(sources)}`;
+ }
  function renderDiag(){
    if(!$('diagnostics')||!state.diagDirty)return;
-   $('diagnostics').textContent=state.networkLog.join('\n')||'無診斷訊息';
+   $('diagnostics').textContent=priceStreamDiagnostic()+'\n'+(state.networkLog.join('\n')||'無診斷訊息');
    state.diagDirty=false;
  }
   const FR='~m~';const textBytes=x=>new TextEncoder().encode(String(x)).length;
@@ -336,7 +342,7 @@
    ];
    return {capsules,symbol:r.id,priceText:priceEnough(livePrice(r))?MONEY(r.price):'--',source:sourceName(r),
      indicator:`${r.sstate||'--'}  ·  ${r.midline?.symbol||''}${r.midline?.label||'--'}  ·  HA ${r.ha?.color||'--'} (${r.ha?.priorColor||'--'}→${r.ha?.color||'--'})  ·  CCI ${r.cci?.color||'--'}`,
-     chart:{bars:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()}};
+     chart:{bars:r.live4h&&r.bars4h.length&&r.bars4h.at(-1)?.t===r.live4h.t?[...r.bars4h.slice(0,-1),{...r.bars4h.at(-1),h:Math.max(r.bars4h.at(-1).h,r.live4h.h),l:Math.min(r.bars4h.at(-1).l,r.live4h.l),c:r.live4h.c}]:r.bars4h,daily:dailyAsOf(r),price:livePrice(r),upper:r.up,lower:r.down,source:sourceName(r),updatedAt:Date.now()}};
  }
  function renderActiveChart(){window.LIQ_WORKSPACE?.refreshSymbol(state.selected);}
  function updateActiveSelection(id){
@@ -507,7 +513,7 @@
    if(!/^[A-Z0-9]{1,22}$/.test(id)||records.some(x=>x.id===id))return null;
    const symbol=id+'_USDT_PERP';
    const s={id,group:'custom',pionex:symbol,tv:'PIONEX:'+id+'USDT.P',cg:[id]};
-   const rec={s,index:records.length,id,price:null,priceAt:0,priceFeed:'',bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null};
+   const rec={s,index:records.length,id,price:null,priceAt:0,priceEventAt:0,priceFeed:'',live4h:null,bars15:[],bars4h:[],daily:[],barsAt:0,h4At:0,dailyAt:0,ha:null,cci:null,sstate:null,midline:null,liveOHLC:null,model:null,up:null,down:null,source:'none',cgId:'',cgFactor:1,upAmount:null,downAmount:null,zones:{upper:[],lower:[]},issue:'',errors:{},lastAttempt:{},dom:null};
    records.push(rec);makeRow(rec);return rec;
  }
  function updateCustomPanel(){
@@ -541,6 +547,7 @@
    setupSideNav(['custom']);renderRow(rec);updateCustomPanel();customSave();renderOverview();
    enqueue(rec,'day',false,0);
    enqueue(rec,'h4',false,5); // A newly added symbol is an intentional chart candidate.
+   window.LIQ_PRICE_STREAM?.sync(records.map(r=>r.s));
    fetchPrices();
    document.dispatchEvent(new CustomEvent('liq-radar-custom-updated'));
    window.LIQ_ALERT_TEST?.refreshBells?.();
@@ -554,6 +561,7 @@
    state.queue=state.queue.filter(job=>job.r.id!==id);
    if(state.selected===id)updateActiveSelection(records[0]?.id||'');
    setupSideNav(['custom']);updateCustomPanel();customSave();renderOverview();
+   window.LIQ_PRICE_STREAM?.sync(records.map(r=>r.s));
    document.dispatchEvent(new CustomEvent('liq-radar-custom-updated'));
    window.LIQ_ALERT_TEST?.refreshBells?.();
  }
@@ -708,19 +716,98 @@
      state.cgInitialDone=true;queueMissingProxies();updateTerminalProgress();}
  })();state.cgBusy=task;return task;
  }
- async function fetchPrices(){if(state.priceBusy)return state.priceBusy;const task=(async()=>{
-   const found=new Set();const chunks=[];for(let i=0;i<records.length;i+=70)chunks.push(records.slice(i,i+70));
-   for(const group of chunks){try{const tickers=[...new Set(group.map(r=>r.s.tv.toUpperCase()))];const payload={filter:[],options:{lang:'en'},symbols:{query:{types:[]},tickers},columns:['close','open','high','low'],range:[0,Math.max(80,tickers.length+10)]};const j=await json(SCANNER,{method:'POST',mode:'cors',headers:{Accept:'application/json','Content-Type':'text/plain'},body:JSON.stringify(payload)},11000);const byTv=new Map((j.data||[]).map(x=>[String(x.s).toUpperCase(),x.d]));for(const r of group){const d=byTv.get(r.s.tv.toUpperCase()),p=Number(d?.[0]);if(priceEnough(p)){
-        r.price=p;r.priceAt=Date.now();r.priceFeed='TradingView Scanner';found.add(r.id);
-        const o=Number(d?.[1]),h=Number(d?.[2]),l=Number(d?.[3]);
-        r.liveOHLC=[o,h,l].every(priceEnough)&&h>=Math.max(o,p)&&l<=Math.min(o,p)
-          ?{day:Math.floor(Date.now()/DAY)*DAY,o,h,l,c:p}:null;
-      }}}catch(e){log('TV Scanner: '+e.message);}}
-   if(found.size<records.length){try{const j=await json(WORKER+'/api/monitor/tickers?type=PERP',{},11000);const byP=new Map((j.tickers||[]).map(x=>[String(x.symbol).toUpperCase(),Number(x.price)]));for(const r of records){if(found.has(r.id))continue;const p=byP.get(r.s.pionex.toUpperCase());if(priceEnough(p)){r.price=p;r.priceAt=Date.now();r.priceFeed='Pionex Worker';r.liveOHLC=null;found.add(r.id);}}}catch(e){log('Pionex Worker ticker: '+e.message);}}
-   // Do not label old quotes as current; bar last-close is used only for proxies, not as live price.
-   records.forEach(updateDerived);state.priceAt=Date.now();renderAll();log('現價成功 '+found.size+'/'+records.length);
-   state.priceInitialDone=true;queueMissingProxies();updateTerminalProgress();
- })();state.priceBusy=task;try{return await task;}finally{state.priceBusy=null;}
+ // Quote layer: WS writes immediately; UI/RR batch at 300ms; 1D indicators at 3s.
+ const wsDirty=new Set(),wsDerived=new Set();let wsFlushTimer=null,wsDerivedTimer=null;
+ function updateLiveBar(r,price,receivedAt,tickHigh=price,tickLow=price){
+   const day=Math.floor(receivedAt/DAY)*DAY, h4Start=Math.floor(receivedAt/(4*H))*(4*H);
+   // Never manufacture a day's open from the first websocket tick.
+   const daily=(r.daily||[]).findLast(b=>b.t===day&&priceEnough(b.o));
+   const first4h=(r.bars4h||[]).find(b=>b.t===day&&priceEnough(b.o));
+   const todayOpen=daily?.o??first4h?.o;
+   const old=r.liveOHLC?.day===day?r.liveOHLC:null;
+   if(priceEnough(todayOpen)){
+     r.liveOHLC={day,o:todayOpen,h:Math.max(tickHigh,price,old?.h||price,todayOpen),
+       l:Math.min(tickLow,price,old?.l||price,todayOpen),c:price};
+   }else r.liveOHLC=null;
+   const original=(r.bars4h||[]).findLast(b=>b.t===h4Start);
+   if(original){const prior=r.live4h?.t===h4Start?r.live4h:null;
+     r.live4h={t:h4Start,o:original.o,h:Math.max(original.h,tickHigh,price,prior?.h||price),
+       l:Math.min(original.l,tickLow,price,prior?.l||price),c:price};
+   }else r.live4h=null;
+ }
+ function quoteUI(r){
+   if(r.dom){r.dom.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');refreshRRLed(r);}
+   const item=navButtons.get(r.id);if(item){
+     const price=livePrice(r),open=navDayOpen(r);
+     item.quote.textContent=priceEnough(price)?MONEY(price):'—';
+     item.btn.classList.remove('is-up','is-down','is-flat');
+     if(priceEnough(price)&&priceEnough(open)){
+       const diff=(price/open-1)*100,sign=diff>0?'+':diff<0?'-':'';
+       item.change.textContent=sign+Math.abs(diff).toFixed(Math.abs(diff)>0&&Math.abs(diff)<.01?4:2)+'%';
+       item.btn.classList.add(diff>0?'is-up':diff<0?'is-down':'is-flat');
+       item.btn.title=r.id+' ｜ 日線開盤 '+MONEY(open)+' ｜ 現價 '+MONEY(price)+' ｜ '+item.change.textContent;
+     }else{item.change.textContent='—';}
+   }
+ }
+ function scheduleWsUI(r){wsDirty.add(r);wsDerived.add(r);
+   if(!wsFlushTimer)wsFlushTimer=setTimeout(()=>{wsFlushTimer=null;
+     for(const row of wsDirty)quoteUI(row);wsDirty.clear();
+     state.priceAt=Date.now();
+   },300);
+   if(!wsDerivedTimer)wsDerivedTimer=setTimeout(()=>{wsDerivedTimer=null;
+     let did=false;for(const row of wsDerived){if(!records.includes(row))continue;
+       updateDerived(row);renderRow(row);did=true;
+     }wsDerived.clear();if(did){reorder();renderOverview();window.LiqRadarCciCard?.refresh();}
+   },3000);
+ }
+ function applyWsQuote(q){const rec=records.find(r=>r.s.pionex===q.symbol);
+   if(!rec||!priceEnough(q.price))return;
+   // Ignore out-of-order batches and prices older than a newer fallback observation.
+   if(q.tradeAt<Number(rec.priceEventAt||0))return;
+   rec.price=q.price;rec.priceAt=q.receivedAt;rec.priceEventAt=q.tradeAt;
+   rec.priceFeed='Pionex WebSocket';updateLiveBar(rec,q.price,q.receivedAt,q.high,q.low);
+   scheduleWsUI(rec);
+ }
+ const wsFresh=r=>r.priceFeed==='Pionex WebSocket'&&r.priceAt&&Date.now()-r.priceAt<45000;
+ // REST is the first fallback. Scanner is consulted only for PERPs still lacking data.
+ async function fetchPrices(){if(state.priceBusy)return state.priceBusy;
+   const task=(async()=>{
+     const candidates=records.filter(r=>!wsFresh(r));
+     if(!candidates.length){state.priceInitialDone=true;updateTerminalProgress();return;}
+     const found=new Set(),changed=new Set(),requestedAt=Date.now();
+     function fallback(r,price,eventAt,source,ohlc){
+       if(!priceEnough(price)||wsFresh(r))return false;
+       const stamped=Number.isFinite(eventAt)&&eventAt>0?eventAt:requestedAt;
+       if(r.priceAt&&r.priceEventAt&&stamped<r.priceEventAt)return false;
+       r.price=price;r.priceAt=Date.now();r.priceEventAt=stamped;r.priceFeed=source;
+       // A REST-only quote cannot replace valid current-day high/low with yesterday's values.
+       if(ohlc&&ohlc.day===Math.floor(Date.now()/DAY)*DAY)r.liveOHLC=ohlc;
+       changed.add(r);found.add(r.id);return true;
+     }
+     try{
+       const j=await json(WORKER+'/api/monitor/tickers?type=PERP',{},11000);
+       const byP=new Map((j.tickers||[]).map(x=>[String(x.symbol).toUpperCase(),x]));
+       for(const r of candidates){const t=byP.get(r.s.pionex.toUpperCase());if(!t)continue;
+         const stamp=Number(t.time);fallback(r,Number(t.price),stamp>0?(stamp<1e12?stamp*1000:stamp):Date.parse(j.fetched_at), 'Pionex Worker');
+       }
+     }catch(e){log('Pionex Worker ticker: '+e.message);}
+     const missing=candidates.filter(r=>!found.has(r.id)&&!wsFresh(r));
+     for(let i=0;i<missing.length;i+=70){const group=missing.slice(i,i+70);
+       try{const tickers=[...new Set(group.map(r=>r.s.tv.toUpperCase()))];
+         const payload={filter:[],options:{lang:'en'},symbols:{query:{types:[]},tickers},columns:['close','open','high','low'],range:[0,Math.max(80,tickers.length+10)]};
+         const j=await json(SCANNER,{method:'POST',mode:'cors',headers:{Accept:'application/json','Content-Type':'text/plain'},body:JSON.stringify(payload)},11000);
+         const byTv=new Map((j.data||[]).map(x=>[String(x.s).toUpperCase(),x.d]));
+         for(const r of group){const d=byTv.get(r.s.tv.toUpperCase()),price=Number(d?.[0]);
+           const o=Number(d?.[1]),h=Number(d?.[2]),l=Number(d?.[3]);
+           // Scanner open may be 4H; never invent a daily open from this field.
+           fallback(r,price,Date.now(),'TradingView Scanner');
+         }
+       }catch(e){log('TV Scanner fallback: '+e.message);}
+     }
+     for(const r of changed){updateDerived(r);renderRow(r);}if(changed.size){reorder();renderOverview();}
+     state.priceAt=Date.now();state.priceInitialDone=true;queueMissingProxies();updateTerminalProgress();
+     if(changed.size)log('備援報價 '+changed.size+'/'+candidates.length+'（優先 REST）');
+   })();state.priceBusy=task;try{return await task;}finally{state.priceBusy=null;}
  }
  const MAX_WORKERS=3,TTLS={bar:4*60_000,h4:4*60_000,day:12*60_000};
  // Chart preferences are restored without constructing or painting every chart.
@@ -896,19 +983,23 @@
 
    $('diagToggle').addEventListener('click',()=>{const d=$('diagHolder');d.hidden=!d.hidden;$('diagToggle').setAttribute('aria-expanded',String(!d.hidden));if(!d.hidden)renderDiag();});
    renderAll();updateClock();
-   if(records.length){fetchCG();fetchPrices();queueStartup();}
+   if(records.length){
+     window.LIQ_PRICE_STREAM?.start({symbols:records.map(r=>r.s),onQuote:applyWsQuote,
+       onState:s=>{state.diagDirty=true;if($('diagPanel')?.open)renderDiag();}});
+     fetchCG();fetchPrices();queueStartup();
+   }
    else log('自選清單為空，請編輯 symbols.js');
    setInterval(updateClock,1000);
    setInterval(()=>{if(!document.hidden||window.LIQ_BROWSER_NOTIFICATIONS?.isMonitoring?.())fetchPrices();},10000);
    setInterval(()=>{if(!document.hidden||window.LIQ_BROWSER_NOTIFICATIONS?.isMonitoring?.())fetchCG();},60000);
    setInterval(()=>{if(!document.hidden||window.LIQ_BROWSER_NOTIFICATIONS?.isMonitoring?.())queueAll();},60000);
-   document.addEventListener('visibilitychange',()=>{if(!document.hidden){fetchPrices();fetchCG();queueAll();}});
+   document.addEventListener('visibilitychange',()=>{if(!document.hidden){window.LIQ_PRICE_STREAM?.check(true);fetchPrices();fetchCG();queueAll();}});
    window.LIQ_RADAR_ALERT_CONTEXT={records,getCurrentPrice(symbol){const r=records.find(row=>String(row.s.pionex).toUpperCase()===String(symbol).toUpperCase());return r?livePrice(r):null;}};
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.5',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.13',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

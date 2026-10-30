@@ -1,20 +1,23 @@
 {
-  "version": "2.1.12",
-  "releaseDate": "2026-10-28",
-  "baseVersion": "2.1.11",
-  "title": "Signal Spotlight Taiwan Midnight Daily Reset",
+  "version": "2.1.13",
+  "releaseDate": "2026-10-30",
+  "baseVersion": "2.1.12",
+  "title": "Pionex WebSocket live prices via existing SState Worker relay",
   "changes": [
-    "At 00:00 Asia/Taipei, clear Signal Spotlight daily events and unread counters, and begin a fresh calendar-day queue without any Cloudflare scheduling or new data API calls.",
-    "Retain compact event-ID deduplication to prevent yesterday signals from reappearing; resume/reload/multi-tab checks and 08:00 daily-candle rollover are independent.",
-    "Preserve radar threshold, 37-rule evaluation, RR and browser notification seven-day audit, charts, drawings, market data and R2 settings."
+    "One WebSocket for selected PERPs including custom watchlist; CL displays CL but subscribes WTI_USDT_PERP and CoinGlass remains CL.",
+    "Pionex WebSocket primary, cached Pionex REST first fallback, TradingView Scanner final fallback.",
+    "Batch RR quote refresh ~300ms and 1D indicator/visible-chart updates ~3s while preserving existing calculations, OHLC history and daily 08:00 boundary.",
+    "Reconnect and stale-feed recovery with on-page diagnostics; preserve midnight Signal Spotlight and browser-notification logic."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/signal-spotlight-ui.js",
+    "MultiAssetLiquidityRadar/price-stream.js",
+    "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/symbols.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite the four frontend files listed in modifiedFiles; no Worker or R2 changes."
+    "Overwrite these six frontend files only. Existing Worker /api/monitor/ws required; no R2 or Worker code modification."
   ]
 }

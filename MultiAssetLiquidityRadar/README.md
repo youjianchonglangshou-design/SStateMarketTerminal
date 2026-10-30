@@ -485,3 +485,12 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - Pionex WebSocket 連線成功不等於所有合約已收到真實成交，診斷卡提供訂閱、成交、最近成交時間與重連資訊；缺價時使用 REST／Scanner，備援價格不得冒充逐筆成交。
 - 保留 Browser Notifications、RR 六態、37 規則、Signal Spotlight 台灣 00:00 歸零、繪圖、R2 設定；網頁關閉／Chrome 凍結時不承諾背景持續監控。
 - Cloudflare Worker 已有 `/api/monitor/ws` 中繼，不需另外部署。
+
+
+### v2.1.14 — 即時現價線／標籤與清單同步（2026-10-30）
+
+- 修正 v2.1.13 的清單現價約 300ms 更新，但圖表右側 NOW 藍色標籤／水平現價線需等待約 3 秒整圖重繪的視覺落差。
+- `workspace.js` 新增 `refreshPrice(symbol)`：同一批次只更新對應圖表標題現價、SVG NOW 標籤、水平現價線與呼吸光點；不重建圖表或繪圖物件。
+- `chart4h.js` 新增 `syncLivePrice()`，沿用現有價格座標與清算上下界標籤避讓規則，縮放與 HA 畫線維持不變。
+- 平均 K、CCI-SMA、布林帶、SState／中軌、Signal Spotlight 仍約每 3 秒更新，公式與 00:00／08:00 邏輯均未調整。
+- 保留 WebSocket/REST/Scanner 備援、CL→WTI 映射、RR 與通知規則，無需重新部署 Worker 或 R2。

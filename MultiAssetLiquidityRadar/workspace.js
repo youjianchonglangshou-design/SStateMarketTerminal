@@ -378,6 +378,19 @@
    // Deep 4H history remains fully on demand: never fetch 300 bars on a plain list click.
    activate(w);return true;
  }
+ // Fast path for live price labels: called by the same ~300ms batch as
+ // the left/right quote list. Indicator/K-line SVG rendering stays on its
+ // original (slower) schedule, preserving drawing and mouse interactions.
+ function refreshPrice(symbol){for(const w of windows){
+   if(w.symbol!==symbol)continue;
+   const d=api.getPrice?.(symbol);if(!d)continue;
+   w.price.textContent=d.priceText;
+   if(w.minimized||document.hidden)continue;
+   if(!window.LiqRadar4H?.syncLivePrice?.(w.plot,d.price,d.upper,d.lower)){
+     // Projection/price badge is not ready: fall back to the usual render.
+     w.dirty=true;schedule(w,90);
+   }
+ }}
  function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;w.source.textContent=d.source;}
    // Rendering for minimized or totally covered charts is deferred until user restores/focuses.
    schedule(w,90);
@@ -468,7 +481,7 @@
    clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{for(const w of windows){paint(w);w.dirty=true;schedule(w,90);}save();},80);
  },{passive:true});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)for(const w of windows){w.dirty=true;schedule(w,100);}});
- window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
+ window.LIQ_WORKSPACE={selectSymbol,refreshSymbol,refreshPrice,focusList,focusChart(){const w=byId(activeId);if(w)activate(w);},sendBack(){sendBack(byId(activeId));},
    reset,getBounds(){return byId(activeId)?{...byId(activeId).geom}:null;},
    getDefaultRisk:()=>({...riskDefaults}),setDefaultRisk:async values=>{for(const k of ['riskAmount1','riskAmount2']){const n=Number(values[k]);if(!Number.isFinite(n)||n<=0)return {valid:false,synced:false};}riskDefaults={riskAmount1:Number(values.riskAmount1),riskAmount2:Number(values.riskAmount2)};return window.LIQ_PERSISTENT_SETTINGS.update('risk',riskDefaults);},
    getRRThresholds:()=>({...rrThresholds}),

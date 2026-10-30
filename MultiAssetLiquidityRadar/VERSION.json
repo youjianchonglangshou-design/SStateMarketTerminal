@@ -1,23 +1,23 @@
 {
-  "version": "2.1.13",
+  "version": "2.1.14",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.12",
-  "title": "Pionex WebSocket live prices via existing SState Worker relay",
+  "baseVersion": "2.1.13",
+  "title": "Fast WebSocket NOW price line and badge sync",
   "changes": [
-    "One WebSocket for selected PERPs including custom watchlist; CL displays CL but subscribes WTI_USDT_PERP and CoinGlass remains CL.",
-    "Pionex WebSocket primary, cached Pionex REST first fallback, TradingView Scanner final fallback.",
-    "Batch RR quote refresh ~300ms and 1D indicator/visible-chart updates ~3s while preserving existing calculations, OHLC history and daily 08:00 boundary.",
-    "Reconnect and stale-feed recovery with on-page diagnostics; preserve midnight Signal Spotlight and browser-notification logic."
+    "Synchronize all visible chart NOW price badges, horizontal lines and breathing dots with their watchlist prices in the same ~300ms WebSocket UI batch.",
+    "Update only existing SVG price-level elements; retain full 4H chart and 1D HA / CCI-SMA / Bollinger / SState calculation cadence (~3 seconds).",
+    "Keep price-axis projection, pan/zoom, CoinGlass level labels and drawing interactions unchanged; safely fall back to a regular redraw when no SVG projection exists.",
+    "Preserve Pionex WebSocket/REST/TradingView fallback, CL-to-WTI mapping, Signal Spotlight midnight reset and notifications."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/price-stream.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/symbols.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite these six frontend files only. Existing Worker /api/monitor/ws required; no R2 or Worker code modification."
+    "Overwrite six frontend files in MultiAssetLiquidityRadar; no change to Worker, R2 or Pionex_WebSocket."
   ]
 }

@@ -329,6 +329,13 @@
    };
    return r.dom;
  }
+ // Lightweight shared quote for the fast SVG NOW layer. Never project daily
+ // candles or recalculate HA/CCI/BB merely to read the current price.
+ function chartPricePayload(id){
+   const r=records.find(x=>x.id===id);if(!r)return null;
+   const price=livePrice(r);
+   return {price,priceText:priceEnough(price)?MONEY(price):'--',upper:r.up,lower:r.down};
+ }
  function chartPayload(id){
    const r=records.find(x=>x.id===id);
    if(!r)return null;
@@ -737,6 +744,8 @@
  }
  function quoteUI(r){
    if(r.dom){r.dom.px.textContent=priceEnough(livePrice(r))?MONEY(r.price):(r.priceAt?'現價過期 --':'現價 --');refreshRRLed(r);}
+   // Keep the chart NOW badge/line in lockstep with the side list, without a full SVG redraw.
+   window.LIQ_WORKSPACE?.refreshPrice?.(r.id);
    const item=navButtons.get(r.id);if(item){
      const price=livePrice(r),open=navDayOpen(r);
      item.quote.textContent=priceEnough(price)?MONEY(price):'—';
@@ -998,8 +1007,8 @@
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
-   window.LIQ_CHART_API={getData:chartPayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.13',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
+   window.LIQ_TEST={version:'2.1.14',records,state,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,candidateZones,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

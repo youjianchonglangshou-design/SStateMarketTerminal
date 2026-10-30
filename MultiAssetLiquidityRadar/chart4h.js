@@ -416,6 +416,61 @@
    paintSelected();
  }
  function clearSelection(target){const state=interactions.get(target);if(state){state.selectedTimestamp=null;state.selectionChange?.(null);}target?.querySelector('.rc-ha-selection')?.setAttribute('visibility','hidden');}
- root.LiqRadar4H={render,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection,
+  // Fast-price path (v2.1.14): reposition ONLY the current-price line,
+  // numeric badge, leader and breathing light. Do not rebuild the SVG, HA,
+  // Bollinger bands, drawings or the shared price projection on every TRADE.
+  function syncLivePrice(target,latest,upper,lower){
+    const projection=target?.__liqProjection;
+    const svg=target?.querySelector('svg.radar-chart-svg');
+    if(!projection||!svg)return false; // chart is still loading; use normal repaint
+    const nowNodes={line:svg.querySelector('.rc-level-now'),
+      label:svg.querySelector('text.rc-label-now'),
+      box:svg.querySelector('rect.rc-label-now'),
+      leader:svg.querySelector('path.rc-label-now'),
+      halo:svg.querySelector('.rc-now-breathe-halo'),
+      core:svg.querySelector('.rc-now-breathe-core')};
+    // An initial plot may have been drawn without a valid NOW quote, or with
+    // the quote outside the current viewport. Let the next normal repaint
+    // create any missing elements rather than destroying user interactions.
+    if(Object.values(nowNodes).some(node=>!node))return false;
+    const {T,plotB,y,plotR}=projection;
+    const active=valid(latest)&&Number.isFinite(y(latest))&&y(latest)>=T&&y(latest)<=plotB;
+    const nowPriceY=active?y(latest):NaN;
+    for(const node of Object.values(nowNodes))node.style.display=active?'':'none';
+    if(!active)return true; // deliberately hide an out-of-scale / stale quote
+    const fy=v=>Number(v).toFixed(2);
+    nowNodes.line.setAttribute('y1',fy(nowPriceY));
+    nowNodes.line.setAttribute('y2',fy(nowPriceY));
+    nowNodes.halo.setAttribute('cy',fy(nowPriceY));
+    nowNodes.core.setAttribute('cy',fy(nowPriceY));
+    nowNodes.label.textContent=money(latest);
+    // Reflow the small level badges using the ORIGINAL label-spacing rule,
+    // so the fast NOW label cannot obscure a CoinGlass up/down price badge.
+    const labels=[];
+    for(const [kind,value] of [['up',upper],['down',lower],['now',latest]]){
+      const box=kind==='now'?nowNodes.box:svg.querySelector('rect.rc-label-'+kind);
+      const text=kind==='now'?nowNodes.label:svg.querySelector('text.rc-label-'+kind);
+      const leader=kind==='now'?nowNodes.leader:svg.querySelector('path.rc-label-'+kind);
+      if(!box||!text||!leader)continue;
+      if(!valid(value)||!Number.isFinite(y(value))||y(value)<T||y(value)>plotB){
+        if(kind!=='now')for(const node of [box,text,leader])node.style.display='none';
+        continue;
+      }
+      if(kind!=='now')for(const node of [box,text,leader])node.style.display='';
+      labels.push({kind,real:y(value),yy:y(value),box,text,leader});
+    }
+    labels.sort((a,b)=>a.yy-b.yy);
+    for(let i=1;i<labels.length;i++)labels[i].yy=Math.max(labels[i].yy,labels[i-1].yy+22);
+    const overshoot=Math.max(0,(labels.at(-1)?.yy??0)-(plotB-10));
+    if(overshoot>0)for(const p of labels)p.yy-=overshoot;
+    for(const p of labels){
+      p.leader.setAttribute('d',`M${plotR},${fy(p.real)} L${plotR+4},${fy(p.yy)}`);
+      p.box.setAttribute('y',fy(p.yy-9));
+      p.text.setAttribute('y',fy(p.yy+4));
+    }
+    return true;
+  }
+
+ root.LiqRadar4H={render,syncLivePrice,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection,
   selectHaAt(target,ev){return Boolean(interactions.get(target)?.selectAt?.(ev));}};
 })(window);

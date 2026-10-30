@@ -148,7 +148,7 @@
    $('chartWindowCount').textContent=windows.length+'/'+LIMIT;
    add.classList.toggle('at-limit',windows.length>=LIMIT);add.title=windows.length>=LIMIT?'已達上限：最多只能開啟 4 張圖表（點擊顯示提醒）':'新增圖表視窗（最多四張）';
  }
- function updateTabs(){windows.forEach(updateTab);$('chartWindowCount').textContent=windows.length+'/'+LIMIT;add.classList.toggle('at-limit',windows.length>=LIMIT);add.title=windows.length>=LIMIT?'已達上限：最多只能開啟 4 張圖表（點擊顯示提醒）':'新增圖表視窗（最多四張）';}
+ function updateTabs(){windows.forEach(updateTab);$('chartWindowCount').textContent=windows.length+'/'+LIMIT;add.classList.toggle('at-limit',windows.length>=LIMIT);add.title=windows.length>=LIMIT?'已達上限：最多只能開啟 4 張圖表（點擊顯示提醒）':'新增圖表視窗（最多四張）';document.dispatchEvent(new Event('liq-radar-window-stack-changed'));}
  function activate(w,{reveal=true,notify=true}={}){
    if(!w)return;
    if(reveal&&w.minimized){w.minimized=false;w.el.hidden=false;w.dirty=true;}
@@ -490,6 +490,9 @@
      rrThresholds=window.LIQ_RR_CONFIG.getThresholds();window.LIQ_RR_REFRESH?.();
      return window.LIQ_PERSISTENT_SETTINGS.update('rr',rrThresholds);
    },
+    // Actual frontmost visible chart: last active may be sent behind another chart.
+    getTopWindow(){return windows.filter(w=>!w.minimized&&!w.el.hidden)
+      .reduce((top,w)=>!top||(Number(w.el.style.zIndex)||0)>(Number(top.el.style.zIndex)||0)?w:top,null);},
    getActiveWindow(){return byId(activeId)||null;},
    getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
@@ -502,6 +505,7 @@
  });
  window.DrawingWorkspace?.subscribe(symbol=>{for(const w of windows)if(window.DrawingWorkspace.symbolKey(w.symbol)===symbol){w.dirty=true;schedule(w,0);w.onDrawingChangedPrice?.();}});
  bootstrap();
+ document.dispatchEvent(new Event('liq-radar-window-stack-changed'));
  }
  boot().catch(e=>console.error('[Radar workspace]',e));
 })();

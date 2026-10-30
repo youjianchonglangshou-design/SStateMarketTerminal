@@ -1,3 +1,12 @@
+## v2.1.20 — Chrome 分頁標題即時行情系統（2026-10-30）
+
+- 分頁標題只顯示最上層可見圖表：`幣種｜現價｜今日漲跌%`，例如 `HOODX｜87.5｜-0.02%`。
+- 使用 `workspace.js` 已有視窗 `z-index`，依實際前後層選擇；切換幣種、置頂／置後、新增、最小化、關閉、恢復圖表後立即更新。全部最小化或關閉時顯示 `Multi-Asset Liquidity Radar`。
+- 現價沿用現有 Pionex 即時行情／有效備援快取與 `MONEY()` 顯示精度（移除無意義的尾端 0）；漲跌幅沿用與監控清單相同 `navDayOpen()`，以台灣時間 08:00 為今日開盤基準；固定兩位小數並顯示正負號，不顯示上下箭頭。
+- WebSocket 原有 300ms 更新批次一次處理標題；資料缺失顯示 `--`，不額外建立任何行情或歷史請求，也不重繪 K 線。
+- 避免 `index.html` 的版本標籤更新覆蓋動態頁籤標題；畫面上的 v2.1.20 版本標籤仍正常運作。
+- 僅需覆蓋 `app.js`、`workspace.js`、`index.html`、`VERSION.json`、`README.md`；CoinGlass 7D、RR、WebSocket、繪圖與 Worker 不改。
+
 ## v2.1.19 — 自由清單新增即查 CoinGlass 7D（2026-10-30）
 
 - **固定清單不再是 CoinGlass 唯一更新對象**：右下「自由清單」新增派網 USDT PERP 後，立即以已解密的 CoinGlass 7D 全市場資料比對並顯示上下界；同時強制啟動一次原有的 `fetchCG(true)` 更新（內部仍以 `fetchCoinGlass('7d')` 取數），不需重開頁面或等下一次 60 秒排程。

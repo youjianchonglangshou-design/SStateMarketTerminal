@@ -1,23 +1,25 @@
 {
-  "version": "2.1.19",
+  "version": "2.1.20",
   "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.17",
-  "title": "Instant CoinGlass 7D coverage for dynamically added Pionex PERP custom symbols",
+  "baseVersion": "2.1.19",
+  "title": "Chrome live browser tab title follows frontmost floating chart",
   "changes": [
-    "On each new custom PERP symbol, immediately resolve any already decoded real CoinGlass 7D levels and show them without waiting for candle-history loading.",
-    "Trigger an immediate coalesced full-market CoinGlass 7D refresh after custom additions, reusing the existing six-version local decoder and existing transport.",
-    "Support exact custom CoinGlass symbols and tokenized-stock trailing-X aliases (e.g. GOOGLX to GOOGL); support 1000-lot scale for custom symbols with the existing rule.",
-    "Preserve the fixed crypto/stock lists, separate dynamic custom list, CoinGlass-only policy, RR rules, prices, daily indicators, four chart windows and alerts.",
-    "Do not add browser extensions, bookmark workflows, new APIs, Worker changes or proxy liquidation zones."
+    "Follow the actual topmost non-minimized chart by window z-index, including front/back, create, close, minimize, lock and symbol switching.",
+    "Reuse existing Pionex cached quote and existing Asia/Taipei 08:00 daily-open function; no extra API or indicator calculations.",
+    "Display symbol｜current price｜daily percent (exactly 2 decimals, signed +/-; no arrow glyphs).",
+    "Set fallback document title when all chart windows are closed/minimized, suppress NaN and stale quotes.",
+    "Keep original CoinGlass 7D, price stream, RR, radar, drawings and workspace persistence unchanged."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite four frontend files in the same GitHub Pages directory. No Cloudflare Worker or other project changes."
+    "Overwrite five frontend files in MultiAssetLiquidityRadar. No Cloudflare Worker or API change."
   ],
-  "limitation": "A custom ticker absent from the genuine CoinGlass 7D market response cannot be given a fabricated liquidation boundary."
+  "limitation": "A custom ticker absent from the genuine CoinGlass 7D market response cannot be given a fabricated liquidation boundary.",
+  "status": "front-end integration tested; live upstream network not required"
 }

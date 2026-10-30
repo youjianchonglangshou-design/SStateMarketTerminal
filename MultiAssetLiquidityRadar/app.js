@@ -703,6 +703,27 @@
    const first4h=(r.bars4h||[]).find(b=>b&&b.t===start&&priceEnough(b.o));
    return first4h?first4h.o:null;
  }
+ // Tab headline reuses the same cached price and 08:00 daily opening price as the
+ // watchlist. No extra quotes, chart render, indicator calculation, or API calls.
+ const TAB_TITLE_FALLBACK='Multi-Asset Liquidity Radar';
+ function updateTabTitle(){
+   const symbol=window.LIQ_WORKSPACE?.getTopWindow?.()?.symbol;
+   const r=symbol&&records.find(item=>item.id===symbol);
+   let title=TAB_TITLE_FALLBACK;
+   if(r){
+     const price=livePrice(r),open=navDayOpen(r);
+     const displayPrice=priceEnough(price)?MONEY(price).replace(/(\.\d*?[1-9])0+$|\.0+$/,'$1'):'--';
+     let change='--';
+     if(priceEnough(price)&&priceEnough(open)){
+       const pct=(price/open-1)*100;
+       if(Number.isFinite(pct))change=(pct>0?'+':pct<0?'-':'')+Math.abs(pct).toFixed(2)+'%';
+     }
+     title=`${r.id}｜${displayPrice}｜${change}`;
+   }
+   if(document.title!==title)document.title=title;
+   return title;
+ }
+ document.addEventListener('liq-radar-window-stack-changed',updateTabTitle);
  function updateNavPrices(){
    const now=Date.now();
    for(const r of records){
@@ -772,6 +793,7 @@
  function renderOverview(){const coverage=records.filter(r=>r.source==='coinglass').length,stale=records.filter(r=>r.source==='coinglass'&&!cgFresh()).length,model=records.filter(r=>r.model).length,ha=records.filter(r=>r.ha).length,sstate=records.filter(r=>r.sstate).length,midline=records.filter(r=>r.midline).length,cci=records.filter(r=>r.cci?.color==='黃'||r.cci?.color==='紫').length,price=records.filter(r=>priceEnough(livePrice(r))).length;
    $('coverage').textContent=`${records.length} 標的｜現價 ${price}｜CoinGlass 7D ${coverage}${stale?'（過期 '+stale+'）':''}｜S狀態 ${sstate}｜中軌 ${midline}｜平均K ${ha}｜CCI-SMA ${cci}`;
    updateNavPrices();
+   updateTabTitle();
    $('loadedCount').textContent=`監控 ${records.length}／${records.length}`;
    updateTerminalProgress();
    const s=$('liveStatus');s.className='status-pill '+(price===0?'waiting':'');s.textContent=price?'即時監控 · '+price+'/'+records.length:'等待行情';
@@ -860,6 +882,7 @@
  function scheduleWsUI(r){wsDirty.add(r);wsDerived.add(r);
    if(!wsFlushTimer)wsFlushTimer=setTimeout(()=>{wsFlushTimer=null;
      for(const row of wsDirty)quoteUI(row);wsDirty.clear();
+     updateTabTitle();
      state.priceAt=Date.now();
    },300);
    if(!wsDerivedTimer)wsDerivedTimer=setTimeout(()=>{wsDerivedTimer=null;
@@ -1051,7 +1074,7 @@
    }catch(e){log(id+' 延伸 4H 歷史失敗：'+e.message);return false;}
    finally{extra4h.delete(id);}})();extra4h.set(id,job);return job;
  }
- function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());}
+ function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());updateTabTitle();}
  function setup(){
    const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};
    $('cryptoCount').textContent=counts.crypto;$('stockCount').textContent=counts.stock;$('allCount').textContent=records.length;
@@ -1086,7 +1109,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.19',records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.20',updateTabTitle,navDayOpen,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

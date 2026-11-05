@@ -1,6 +1,6 @@
 /* Multi-Asset Liquidity Radar v1.0.0 — watchlist from user's chosen symbols. */
 (function(g){ 'use strict';
-const crypto=['BTC','ETH','BCH','DOGE','XRP','LINK','SOL','BNB','AVAX','UNI','ATOM','AAVE','ARB','OP','SUI','PEPE','WLD','ORDI','XLM','BOME','TAO'];
+const crypto=['BTC','ETH','DOGE','XRP','LINK','SOL','BNB','UNI','ATOM','AAVE','ARB','OP','SUI','PEPE','WLD','XLM','NEAR','ENA','TAO','HYPE','ZEC'];
 // CRMX deliberately excluded. SOXLX explicitly called out in user's CoinGlass example.
 const tokenized=['XAU','TSLAX','INTCX','MSTRX','NVDAX','CRCLX','COINX','HOODX','MUX','MRVLX','METAX','CL'];
 const cgOverrides={CL:['CL'],MUX:['MU'],XAU:['XAU'],PEPE:['1000PEPE']};

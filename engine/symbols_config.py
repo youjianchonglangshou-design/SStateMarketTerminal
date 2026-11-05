@@ -39,7 +39,7 @@ EXAM_SYMBOLS = ['BTC',
  'ATOM',
  'WLD',
  'ETC',
- 'OP'
+ 'OP','NEAR','ENA','HYPE','ZEC'
 ]
 
 # 只作為 Worker / R2 暫時不可用時的 last-known-safe fallback。

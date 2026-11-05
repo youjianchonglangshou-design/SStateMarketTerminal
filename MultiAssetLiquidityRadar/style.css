@@ -1155,3 +1155,9 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace .dw-layer .dw-fib-zero-hit:hover + .dw-fib-zero-dot{
   fill:#80eaff;stroke:#d1fbff;filter:drop-shadow(0 0 4px #28d9ee);
 }
+
+/* v2.1.22 — continuous pixel-precise drag of existing SVG layers. */
+.radar-workspace [data-chart-plot].dw-is-panning{touch-action:none!important;user-select:none!important;cursor:grabbing!important}
+.radar-workspace [data-chart-plot].dw-is-panning .rc-price-plot,
+.radar-workspace [data-chart-plot].dw-is-panning .dw-layer,
+.radar-workspace [data-chart-plot].dw-is-panning .rc-time-movable{will-change:transform}

@@ -268,7 +268,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
   c.selected=null;syncSnapUI();callbacks.refreshHeader();
   if(ev.target.closest?.('.rc-hit')){
     c.drag={kind:'pan',id:ev.pointerId,startClientX:ev.clientX,startClientY:ev.clientY,startOffset:callbacks.getOffset(),
-      startPricePan:callbacks.getPricePan(),stride:proj.stride,ph:proj.ph,logSpan:proj.logSpan,moved:false};
+      stride:proj.stride,ph:proj.ph,logSpan:proj.logSpan,moved:false,lastDx:0,lastDy:0,proj};
     target.classList.add('dw-pan-ready');
     try{target.setPointerCapture(ev.pointerId);}catch(_){}
   }
@@ -281,14 +281,15 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
    if(!drag||drag.id!==ev.pointerId){if(c.ctrl&&magnetAllowed())render(w);return;}
    if(drag.kind==='pan'){
      const dx=ev.clientX-drag.startClientX,dy=ev.clientY-drag.startClientY;
-     if(Math.hypot(dx,dy)>4){drag.moved=true;target.classList.add('dw-is-panning');}
+     if(!drag.moved&&Math.hypot(dx,dy)>3){
+       drag.moved=true;target.classList.add('dw-is-panning');
+       callbacks.beginPan?.(drag.proj);
+     }
      if(!drag.moved)return;
-     // Fixed slot width means no wheel-style density change during panning.
-     const delta=Math.round(dx/Math.max(2,drag.stride));
-     const next=clamp(drag.startOffset+delta,-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
-     callbacks.setOffset(next);
-     callbacks.setPricePan(drag.startPricePan+dy/Math.max(20,drag.ph)*drag.logSpan);
-     if(callbacks.getTimeframe()==='4H'&&next>proj.total-proj.viewCount-15)callbacks.moreHistory();
+     drag.lastDx=dx;drag.lastDy=dy;
+     // Preserve SUB-BAR precision; drawing and price model remain anchored.
+     // One RAF transform of the existing layers, no per-event SVG replacement.
+     callbacks.previewPan?.(drag,dx,dy);
    }else if(drag.kind==='edit'&&drag.object){
      const at=snap(proj,proj.fromEvent(ev),Boolean(ev.ctrlKey||c.ctrl));if(!at)return;drag.moved=true;
      const original=drag.object,d={...original,anchors:original.anchors.map(a=>({...a}))};
@@ -315,7 +316,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
     const drag=c.drag;c.drag=null;target.classList.remove('dw-pan-ready','dw-is-panning');
     if(drag.kind==='pan'){
       if(!drag.moved)window.LiqRadar4H?.selectHaAt?.(target,ev);
-      else callbacks.commitView?.();
+      else callbacks.endPan?.(drag,ev.clientX-drag.startClientX,ev.clientY-drag.startClientY);
     }
     try{target.releasePointerCapture(ev.pointerId);}catch(_){};
     updateGhost(ev);syncSnapUI();render(w);
@@ -328,7 +329,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
    if(next===cur)return;
    const x=proj.fromEvent(ev).x,relative=clamp((x-proj.L)/proj.pw,0,1);
    // Keep the candle below the cursor anchored while enlarging/compressing the view.
-   const off=callbacks.getOffset()+Math.round((next-cur)*(1-relative));
+   const off=callbacks.getOffset()-(next-cur)*(1-relative);
    callbacks.setView(next,clamp(off,-Math.floor(next*.5),Math.max(0,proj.total-21)));if(callbacks.getTimeframe()==='4H'&&next>proj.total-callbacks.getOffset()-10)callbacks.moreHistory();
  },{passive:false});
  c.setTool=tool=>{c.tool=tool;c.draft=null;updateGhost();syncSnapUI();render(w);};

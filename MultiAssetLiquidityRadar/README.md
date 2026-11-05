@@ -1,3 +1,15 @@
+## v2.1.22 — TradingView 類型連續圖表拖曳引擎（2026-11-05）
+
+- **連續座標**：時間軸 `viewOffset` 改為浮點數，取消 `Math.round(dx/stride)` 整根 K 棒跳格；滑鼠位移 1px 即可平移 1px，滾輪以滑鼠下的時間為錨點。
+- **繪製／Viewport 分離**：已載入的完整 4H／1D 歷史 K 線保留在同一套時間座標，使用 SVG clip 裁切；拖曳時只有 `requestAnimationFrame` 更新既存 OHLC／HA／BB／繪圖群組的 `transform`，不反覆設定 `innerHTML`。放開後僅精確重繪一次。
+- **固定價格跨度**：手動拖曳開始時鎖定當前 log-price 上下界，改變的是 viewport 的位置；避免圖表因可見 K 線範圍變化而重新自動縮放。價格軸雙擊仍可恢復自動比例。
+- **十字線**：拖曳時鎖住當前檢視的十字線價格與時間；放開後恢復正常定位，HA 選取仍留在原始 UTC 日期／真實價格。
+- **歷史邊界**：不再因可視範圍不足 21 根 K 棒清空畫面；已載入 K 棒超出視窗只是被 clip，拖回即可顯示。尚未提供的歷史資料不偽造；若資料來源缺更舊 K 棒，仍受真實資料限制。
+- **四視窗**：每個視窗獨立儲存浮點時間偏移與手動價格可視區間。4H／1D 切換、工具繪圖與四視窗浮動操作維持原規則。
+- **不動其他系統**：`app.js`、CoinGlass 六版本解密器、Pionex WebSocket、RR、S 狀態、日線指標、通知、Cloudflare Worker、R2 均未修改。
+- **驗收界線**：程式與隔離 Chromium（合成 4H／1D K 線）已通過像素精度、視窗範圍、十字線鎖定、滾輪錨點與四視窗驗證。正式部署後的真實行情、長時間 60fps、及 TradingView Advanced Charts 逐幀 1:1 對照未經驗證，不宣稱完全一致。
+- 僅需覆蓋 `chart4h.js`、`drawing-workspace.js`、`workspace.js`、`style.css`、`index.html`、`VERSION.json`、`README.md`；不更新 Worker。
+
 ## v2.1.21 — 背景分頁標題 WebSocket 即時更新（2026-10-30）
 
 - **原本分頁標題規格完全不變**：`HOODX｜87.5｜-0.02%`，依最上層可見圖表、現價、台灣 08:00 開盤漲跌幅顯示。

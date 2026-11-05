@@ -1,22 +1,27 @@
 {
-  "version": "2.1.21",
-  "releaseDate": "2026-10-30",
-  "baseVersion": "2.1.20",
-  "title": "Event-driven background tab title from existing Pionex WebSocket trades",
+  "version": "2.1.22",
+  "releaseDate": "2026-11-05",
+  "baseVersion": "2.1.21",
+  "title": "Pixel-precise continuous viewport pan with stable log-price scale and live SVG layer transforms",
   "changes": [
-    "Update document.title directly when the foreground chart symbol receives an existing WebSocket TRADE event; no wait for background-throttled 250ms/300ms timers.",
-    "Retain the original 250ms/300ms batching for watchlist and chart; no additional WebSocket/API/Worker or UI refresh.",
-    "Preserve six-version CoinGlass 7D decoding, RR, indicator calculation, four-chart z-order, original 08:00 daily-open baseline and missing-value policy.",
-    "Browser freezing/discard/network interruption can still suspend JavaScript: resumes on focus via original stream health logic."
+    "Replace integer-bar snapping with floating logical time offsets; wheel zoom preserves cursor time.",
+    "Pan existing cached SVG OHLC, 1D HA, Bollinger and drawings using requestAnimationFrame without replacing the SVG during pointermove.",
+    "Freeze inspected crosshair price/time during drag; commit precise log-price viewport after release and restore cursor inspection.",
+    "Retain already-loaded history outside the clipped viewport and remove the legacy fewer-than-21-visible-candles blank state.",
+    "Add independently persisted manual log-price viewport per chart; price-axis double-click restores auto scale.",
+    "Preserve existing Pionex WebSocket, CoinGlass 7D six-version decoding, RR, S-state, 4-window drawing/notifications and Worker/R2."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/price-stream.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite five files in MultiAssetLiquidityRadar; no Cloudflare Worker/R2 changes."
-  ]
+    "Overwrite seven files in MultiAssetLiquidityRadar; no Cloudflare Worker/R2/API changes."
+  ],
+  "validationNote": "Chromium tests with synthetic K-lines and local script injection passed. No assertion of identical TradingView Advanced Charts internals or real-market long-duration framerate."
 }

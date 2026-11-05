@@ -34,7 +34,7 @@
  }
  function storageGet(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(_){return null;}}
  function save(){
-   try{localStorage.setItem(KEY,JSON.stringify({activeId,riskDefaults,rrThresholds,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,toolbarPos:w.toolbarPos,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
+   try{localStorage.setItem(KEY,JSON.stringify({activeId,riskDefaults,rrThresholds,windows:windows.map(w=>({id:w.id,symbol:w.symbol,geom:w.geom,toolbarPos:w.toolbarPos,locked:w.locked,minimized:w.minimized,priceScale:w.priceScale,pricePan:w.pricePan,priceView:w.priceView,maximized:w.maximized,haSelected:w.haSelected,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset}))}));window.LIQ_SHARED_STATE?.changed?.();}catch(_){/* private mode */}
  }
  function announce(msg){
    $('chartWindowMessage').textContent=msg;
@@ -80,7 +80,7 @@
    return inside===0||visible===0;
  }
  function render(w,force=false){
-   if(!w||!w.dirty&&!force)return;
+   if(!w||w.isPanning||!w.dirty&&!force)return;
    if(isOccluded(w))return;
    const d=api.getData(w.symbol);if(!d)return;
    w.title.textContent=d.symbol;
@@ -111,10 +111,18 @@
    }
    w.source.textContent=d.source;
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
-     ...d.chart,priceScale:w.priceScale,pricePan:w.pricePan,
+     ...d.chart,priceScale:w.priceScale,pricePan:w.pricePan,priceView:w.priceView,
      timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,
      showBB:prefs.showBollinger!==false,showHA:prefs.showHaSteps!==false,
-     onPriceScaleChange:scale=>{w.priceScale=scale;w.dirty=true;schedule(w,0);},
+     onPriceScaleChange:(scale,reset=false)=>{
+       if(reset){w.priceView=null;w.pricePan=0;}
+       else if(w.priceView&&Number.isFinite(w.priceView.hi)){
+         const mid=(w.priceView.hi+w.priceView.lo)/2;
+         const span=(w.priceView.hi-w.priceView.lo)*w.priceScale/scale;
+         w.priceView={hi:mid+span/2,lo:mid-span/2};
+       }
+       w.priceScale=scale;w.dirty=true;schedule(w,0);
+     },
      onPriceScaleCommit:()=>save(),
      selectedTimestamp:doc?.haSelection?.dailyTime??null,
      onSelectionChange:t=>{drawing?.setHa(w.symbol,t);w.haSelected=t;save();}
@@ -126,6 +134,7 @@
  }
  function schedule(w,delay=0){
    if(!w||w.minimized||document.hidden)return;
+   if(w.isPanning){w.dirty=true;return;}
    if(w.timer)return;
    // Geometry changes repaint at most ~12fps during mouse dragging; price updates are batched.
    w.timer=setTimeout(()=>{w.timer=0;requestAnimationFrame(()=>render(w));},delay);
@@ -192,7 +201,7 @@
      window.DrawingWorkspace.change(w.symbol,obj.id,local);modal.hidden=true;w.onDrawingChanged?.();};
    $('dwPositionCancel').onclick=()=>{modal.hidden=true;};update();
  }
- function create(symbol,{geom=null,toolbarPos=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,pricePan=0,maximized=false,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
+ function create(symbol,{geom=null,toolbarPos=null,locked=false,minimized=false,id=null,quiet=false,priceScale=1,pricePan=0,priceView=null,maximized=false,haSelected=null,behindCrypto=false,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0}={}){
    if(windows.length>=LIMIT){announce('最多只能開啟 4 張圖表');return null;}
    if(!api.hasSymbol(symbol))return null;
    const uid=id||'chart-'+(++serial);
@@ -206,7 +215,7 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframeSpan,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,toolbarPos:toolbarPos&&Number.isFinite(toolbarPos.x)&&Number.isFinite(toolbarPos.y)?{x:toolbarPos.x,y:toolbarPos.y}:{x:9,y:68},geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,priceView:priceView&&Number.isFinite(priceView.hi)&&Number.isFinite(priceView.lo)&&priceView.hi>priceView.lo?{hi:priceView.hi,lo:priceView.lo}:null,isPanning:false,panRaf:0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,toolbarPos:toolbarPos&&Number.isFinite(toolbarPos.x)&&Number.isFinite(toolbarPos.y)?{x:toolbarPos.x,y:toolbarPos.y}:{x:9,y:68},geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.timeframeLabel=timeframeSpan;
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    w.backButton=makeButton('chart-send-back','⇤','置於左側加密清單後方',()=>sendBack(w));
@@ -259,7 +268,7 @@
    grip.addEventListener('pointerup',finishGrip);grip.addEventListener('pointercancel',finishGrip);
    const period=document.createElement('select');period.title='圖表 K 線週期';period.setAttribute('aria-label','圖表週期');
    for(const [value,txt] of [['4H','4H'],['1D','1D']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
-   period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1D'?45:84;w.viewOffset=0;w.dirty=true;schedule(w,0);updateTabs();save();});
+   period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1D'?45:84;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.dirty=true;schedule(w,0);updateTabs();save();});
    const mode=document.createElement('select');mode.title='K 線或收盤價折線';mode.setAttribute('aria-label','圖表型態');
    for(const [value,txt] of [['candles','K線'],['line','折線']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;mode.append(opt);}mode.value=w.displayMode;
    mode.addEventListener('change',()=>{activate(w);w.displayMode=mode.value;w.dirty=true;schedule(w,0);save();});
@@ -309,6 +318,38 @@
      setPricePan:n=>{if(Number.isFinite(n)&&n!==w.pricePan){w.pricePan=n;w.dirty=true;schedule(w,0);}},
      commitView:()=>save(),
      setOffset:n=>{if(n!==w.viewOffset){w.viewOffset=n;w.dirty=true;schedule(w,0);}},
+     beginPan:proj=>{
+       if(w.timer){clearTimeout(w.timer);w.timer=0;}
+       w.isPanning=true;
+       w.priceView={hi:proj.hi,lo:proj.lo};
+       window.LiqRadar4H?.beginPan(w.plot);
+     },
+     previewPan:(drag,dx,dy)=>{
+       const proj=drag.proj;
+       const next=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
+       w.viewOffset=next;
+       const span=proj.hi-proj.lo,move=dy/Math.max(20,proj.ph)*span;
+       w.priceView={hi:proj.hi+move,lo:proj.lo+move};
+       w.previewDx=(next-drag.startOffset)*proj.stride;
+       w.previewDy=dy;
+       if(!w.panRaf)w.panRaf=requestAnimationFrame(()=>{
+         w.panRaf=0;
+         const scale=w.plot.getBoundingClientRect().width/(proj.W||1);
+         const scaleY=w.plot.getBoundingClientRect().height/(proj.H||1);
+         window.LiqRadar4H?.previewPan(w.plot,w.previewDx*scale,w.previewDy*scaleY);
+       });
+     },
+     endPan:(drag,dx,dy)=>{
+       const proj=drag.proj;
+       w.viewOffset=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
+       const move=dy/Math.max(20,proj.ph)*(proj.hi-proj.lo);
+       w.priceView={hi:proj.hi+move,lo:proj.lo+move};
+       if(w.panRaf){cancelAnimationFrame(w.panRaf);w.panRaf=0;}
+       window.LiqRadar4H?.endPan(w.plot);
+       w.isPanning=false;w.dirty=true;
+       render(w,true);save();
+       if(w.timeframe==='4H'&&w.viewOffset>proj.total-proj.viewCount-15)window.LIQ_CHART_API?.loadExtra4H?.(w.symbol);
+     },
      setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);save();},
      moreHistory:()=>window.LIQ_CHART_API?.loadExtra4H?.(w.symbol)
    });
@@ -344,7 +385,7 @@
  }
  function close(w){
    if(!w)return;
-   clearTimeout(w.timer);w.observer?.disconnect();w.dwController?.dispose?.();
+   clearTimeout(w.timer);if(w.panRaf)cancelAnimationFrame(w.panRaf);w.observer?.disconnect();w.dwController?.dispose?.();
    const idx=windows.indexOf(w);if(idx>=0)windows.splice(idx,1);
    w.el.remove();w.tab.remove();
    if(activeId===w.id){activeId=null;const next=[...windows].reverse().find(x=>!x.minimized);if(next)activate(next);}
@@ -373,7 +414,7 @@
    if(!w){w=[...windows].reverse().find(x=>!x.locked)||create(symbol);}
    if(!w){announce('請先解鎖或關閉其中一張圖表');return false;}
    if(w.symbol!==symbol){w.dwController?.reset();w.dwToolButtons?.forEach((b,k)=>b.classList.toggle('active',k==='select'));
-     w.haSelected=null;w.symbol=symbol;w.viewOffset=0;w.viewCount=w.timeframe==='1D'?45:84;
+     w.haSelected=null;w.symbol=symbol;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.viewCount=w.timeframe==='1D'?45:84;
      w.onDrawingChanged?.();w.el.setAttribute('aria-label',symbol+' 浮動 '+w.timeframe+' 圖表');w.dirty=true;}
    // Deep 4H history remains fully on demand: never fetch 300 bars on a plain list click.
    activate(w);return true;
@@ -464,7 +505,7 @@
      const symbol=api.hasSymbol(candidate)?candidate:(api.hasSymbol('BTC')?'BTC':null);
      if(symbol)initial=[{symbol,id:'chart-1',geom:legacy,locked:false,minimized:false}];
    }
-   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,toolbarPos:s.toolbarPos,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,pricePan:s.pricePan,maximized:s.maximized,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
+   for(const s of initial)create(s.symbol,{id:s.id,geom:s.geom,toolbarPos:s.toolbarPos,locked:s.locked,minimized:s.minimized,priceScale:s.priceScale,pricePan:s.pricePan,priceView:s.priceView,maximized:s.maximized,haSelected:s.haSelected,behindCrypto:s.behindCrypto,timeframe:s.timeframe,displayMode:s.displayMode,viewCount:s.viewCount,viewOffset:s.viewOffset,quiet:true});
    const chosen=byId(stored?.activeId)||[...windows].reverse().find(w=>!w.minimized)||null;
    if(chosen&&!chosen.minimized)activate(chosen);else{activeId=null;sortStack();updateTabs();save();}
    // Deliberately allow zero windows after user closes all; taskbar remains to add one.
@@ -494,7 +535,7 @@
     getTopWindow(){return windows.filter(w=>!w.minimized&&!w.el.hidden)
       .reduce((top,w)=>!top||(Number(w.el.style.zIndex)||0)>(Number(top.el.style.zIndex)||0)?w:top,null);},
    getActiveWindow(){return byId(activeId)||null;},
-   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,maximized:w.maximized}));},
+   getWindows(){return windows.map(w=>({id:w.id,symbol:w.symbol,locked:w.locked,minimized:w.minimized,behindCrypto:w.behindCrypto,timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,haSelected:w.haSelected,bounds:{...w.geom},renderCount:w.renderCount,dirty:w.dirty,priceScale:w.priceScale,pricePan:w.pricePan,priceView:w.priceView,maximized:w.maximized}));},
    addWindow(symbol){return create(api.hasSymbol(symbol)?symbol:(byId(activeId)?.symbol||'BTC'))?.id||null;},
    focusWindow:uid=>activate(byId(uid)),sendBackWindow:uid=>sendBack(byId(uid)),tileWindows,closeWindow:uid=>close(byId(uid)),minimizeWindow:uid=>minimize(byId(uid))};
  window.LIQ_PERSISTENT_SETTINGS?.subscribe(({riskDefaults:nextRisk,rrThresholds:nextRR})=>{

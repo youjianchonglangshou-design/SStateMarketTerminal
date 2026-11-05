@@ -76,7 +76,7 @@
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
- function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,showBB=true,showHA=true}={}){
+ function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,priceView=null,showBB=true,showHA=true}={}){
    if(!target)return;
    const tf=timeframe==='1D'?'1D':'4H';
    const source=tf==='1D'?normalized(projectDaily(daily,bars,price,updatedAt)):normalized(bars);
@@ -89,16 +89,20 @@
    const n=clamp(Math.round(Number(viewCount)||84),21,tf==='1D'?90:270);
    // Negative offset represents empty FUTURE space to the right of the latest candle.
    // Keep the slot width fixed at viewCount even at a history/future boundary.
-   const offset=clamp(Math.round(Number(viewOffset)||0),-Math.floor(n*.5),Math.max(0,complete.length-21));
-   const future=Math.max(0,-offset);
-   const end=Math.min(complete.length,Math.max(21,complete.length-offset)),begin=Math.max(0,end-n);
-   const rows=complete.slice(begin,end);
-   if(rows.length<21){target.innerHTML='<div class="radar-chart-wait">4H K 線歷史不足</div>';return;}
+   // TradingView-style logical viewport: the scroll offset remains a FLOAT.
+   // Render the already-loaded history in one continuous coordinate system;
+   // clip it at the viewport instead of discarding bars that pan outside.
+   const offset=clamp(Number(viewOffset)||0,-Math.floor(n*.5),Math.max(0,complete.length-21));
+   const future=Math.max(0,-offset),begin=0,end=complete.length;
+   const rows=complete;
    const W=Math.max(320,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));
    const L=16,R=Math.min(146,Math.max(112,Math.round(W*.31))),T=20,B=35,plotR=W-R,plotB=H-B,pw=plotR-L,ph=plotB-T;
-   const stride=pw/(n+BLANK_CANDLES),x=i=>L+(i+.5-future)*stride;
+   const stride=pw/(n+BLANK_CANDLES);
+   // At offset=0 the latest bar remains near the right edge, even with <n bars.
+   const x=i=>L+(i+n-complete.length+.5+offset)*stride;
+   const scaleRows=rows.filter((r,i)=>x(i)>=L-stride&&x(i)<=plotR+stride);
    const vals=[];
-   for(const r of rows){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);}
+   for(const r of (scaleRows.length?scaleRows:rows.slice(-21))){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);}
    for(const v of [price,upper,lower])if(valid(v))vals.push(v);
    // A single logarithmic projection drives the axis, OHLC, Fib, drawings and snap coordinates.
    const clean=vals.filter(valid),rawMin=Math.min(...clean),rawMax=Math.max(...clean);
@@ -109,20 +113,23 @@
    const frac=clamp((autoHi-anchorLog)/(autoHi-autoLo||1),0,1);
    // pricePan is the persistent additive log-price translation of the viewport.
    const pan=Number.isFinite(Number(pricePan))?Number(pricePan):0;
-   const hi=anchorLog+frac*spanVisible+pan,lo=hi-spanVisible;
+   const autoTop=anchorLog+frac*spanVisible+pan,autoBottom=autoTop-spanVisible;
+   const manual=priceView&&Number.isFinite(priceView.hi)&&Number.isFinite(priceView.lo)&&priceView.hi>priceView.lo&&priceView.hi-priceView.lo<35;
+   const hi=manual?priceView.hi:autoTop,lo=manual?priceView.lo:autoBottom;
    const y=value=>valid(value)?T+(hi-Math.log(value))/(hi-lo)*ph:NaN;
    const priceAtY=yy=>Math.exp(hi-(yy-T)/ph*(hi-lo));
    const clipId='rc-plot-clip-'+(target.dataset.chartPlot||target.id||'single').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(target.dataset.clipNonce|| (target.dataset.clipNonce=String(++clipIndex)));
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
    svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及現價價格">`);
-   svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath></defs>`);
+   svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><clipPath id="${clipId}-time"><rect x="${L}" y="${T}" width="${pw}" height="${H-T}"/></clipPath></defs>`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
      const v=Math.exp(lo+(hi-lo)*i/5),yy=y(v);
      svg.push(`<line class="rc-grid-h" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/><text class="rc-axis-text" x="${plotR+7}" y="${fmt(yy+4)}">${esc(money(v))}</text>`);
    }
    // Taiwan trading day begins 08:00, only show dates to prevent axis clutter.
+   svg.push(`<g clip-path="url(#${clipId}-time)"><g class="rc-time-movable">`);
    rows.forEach((r,i)=>{
      if(i!==0&&dayOf(r.t)!==dayOf(rows[i-1].t) && (W>=700||i%12<6)){
        const at=x(i)-stride/2;
@@ -130,6 +137,7 @@
        svg.push(`<text class="rc-time-text" x="${fmt(x(i))}" y="${H-10}" text-anchor="middle">${esc(dayText(r.t))}</text>`);
      }
    });
+   svg.push('</g></g>'); // independent clipped time-axis grid/labels for pixel panning
    // DAILY bands, *never* Bollinger on 4H closes. Values repeat across same day's 4H bars.
    // Draw one daily sample near the center of its six candle slots, as on the SState home chart.
    const daysShown=[];
@@ -140,7 +148,7 @@
    });
    // Clip off-scale candles and historical bands instead of letting them run over
    // the right price axis or title. Grid/axis and price badges stay unclipped.
-   svg.push(`<g class="rc-price-plot" clip-path="url(#${clipId})">`);
+   svg.push(`<g class="rc-price-clip" clip-path="url(#${clipId})"><g class="rc-price-plot">`);
    svg.push('<g class="rc-boll"'+(showBB?'':' style="display:none"')+'>');
    for(const [key,cls] of [['upper','rc-bb'],['mid','rc-middle'],['lower','rc-bb']]){
      let d='',active=false,prevDate=null;
@@ -192,7 +200,7 @@
      if(kind==='now')svg.push(`<line class="rc-level rc-level-${kind}" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/>`);
      labels.push({kind,real:yy,yy,text:money(value)});
    }
-   svg.push('</g>'); // rc-price-plot clip ends before price label badges.
+   svg.push('</g></g>'); // stable clip, independently translated OHLC/indicator layer.
    // Beacon is OUTSIDE clipping group and 17 SVG pixels inward from the price axis.
    // Glow must remain a complete circle rather than being cut in half at the axis.
    if(valid(price) && y(price)>=T && y(price)<=plotB){
@@ -200,6 +208,7 @@
      svg.push(`<circle class="rc-now-breathe rc-now-breathe-core" cx="${plotR-17}" cy="${fmt(y(price))}" r="3" pointer-events="none"/>`);
    }
    // Offset only the badge, never shift the true-price horizontal line.
+   svg.push('<g class="rc-level-badges">');
    const sorted=labels.slice().sort((a,b)=>a.yy-b.yy);
    for(let i=1;i<sorted.length;i++)sorted[i].yy=Math.max(sorted[i].yy,sorted[i-1].yy+22);
    const overshoot=Math.max(0,(sorted.at(-1)?.yy??0)-(plotB-10));
@@ -209,6 +218,7 @@
      svg.push(`<rect class="rc-label-box rc-label-${lab.kind}" x="${plotR+3}" y="${fmt(lab.yy-9)}" width="${R-7}" height="19" rx="4"/>`);
      svg.push(`<text class="rc-label-text rc-label-${lab.kind}" x="${plotR+9}" y="${fmt(lab.yy+4)}">${esc(lab.text)}</text>`);
    }
+   svg.push('</g>'); // movable price badges (vertical translation only)
    // Keep transparent hit surface beneath both overlays. HA inspection overlays are appended
    // LAST in the SVG, so their opaque semantic price badge always covers NOW/axis/cursor badges.
    svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`);
@@ -227,20 +237,21 @@
    target.innerHTML=svg.join('')+ohlcStrip;
    target.dataset.candles=tf;target.dataset.indicators='1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
    // Projection is replaced on every repaint. Drawing objects hold UTC timestamps and real prices.
+   const intervalMs=tf==='1D'?DAY:H4;
    const xAtTime=t=>{
      if(!Number.isFinite(t)||!rows.length)return NaN;
-     let idx=rows.findIndex(r=>r.t>=t);
-     if(idx<0)return x(rows.length-1)+(t-rows.at(-1).t)/(tf==='1D'?DAY:H4)*stride;
-     if(idx===0)return x(0)+(t-rows[0].t)/(tf==='1D'?DAY:H4)*stride;
-     const a=rows[idx-1],b=rows[idx];return x(idx-1)+(t-a.t)/(b.t-a.t||1)*stride;
+     const idx=rows.findIndex(r=>r.t>=t);
+     if(idx<0)return x(rows.length-1)+(t-rows.at(-1).t)/intervalMs*stride;
+     if(idx===0)return x(0)+(t-rows[0].t)/intervalMs*stride;
+     const a=rows[idx-1],b=rows[idx];return x(idx-1)+(t-a.t)/(b.t-a.t||intervalMs)*stride;
    };
    const timeAtX=xx=>{
-     const index=(xx-L)/stride-.5+future,low=Math.floor(index),fraction=index-low;
-     if(low<0)return rows[0].t+index*(tf==='1D'?DAY:H4);
-     if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*(tf==='1D'?DAY:H4);
+     const index=(xx-L)/stride-(n-rows.length)-.5-offset,low=Math.floor(index),fraction=index-low;
+     if(low<0)return rows[0].t+index*intervalMs;
+     if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*intervalMs;
      return rows[low].t+fraction*(rows[low+1].t-rows[low].t);
    };
-   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:begin,stride,logSpan:hi-lo,pricePan:pan,future,
+   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:0,stride,logSpan:hi-lo,hi,lo,pricePan:pan,future,
      x:xAtTime,time:timeAtX,y,price:priceAtY,money,
      fromEvent(ev){const rect=target.getBoundingClientRect();return {x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H};}
    };
@@ -288,7 +299,7 @@
        const now=Date.now(),prior=state.lastAxisPress;
        if(prior&&now-prior.time<420&&Math.abs(prior.x-ev.clientX)<8&&Math.abs(prior.y-ev.clientY)<8){
          state.lastAxisPress=null;
-         state.scale=1;state.scaleChange?.(1);state.scaleCommit?.(1);
+         state.scale=1;state.scaleChange?.(1,true);state.scaleCommit?.(1);
          return;
        }
        state.lastAxisPress={time:now,x:ev.clientX,y:ev.clientY};
@@ -327,7 +338,7 @@
        if(!ev.target.closest?.('.rc-price-axis-hit')&&!inAxis)return;
        ev.preventDefault();ev.stopPropagation();
        state.lastAxisPress=null;
-       state.scale=1;state.scaleChange?.(1);state.scaleCommit?.(1);
+       state.scale=1;state.scaleChange?.(1,true);state.scaleCommit?.(1);
      });
    }
    // A selection belongs to its WINDOW, not the ephemeral SVG nodes.
@@ -370,13 +381,14 @@
    function locate(ev){
      const rect=element.getBoundingClientRect();if(!rect.width||!rect.height)return null;
      const xx=(ev.clientX-rect.left)/rect.width*W,yy=(ev.clientY-rect.top)/rect.height*H;
-     const i=Math.floor((xx-L)/stride+future);
-     if(i<0||i>=rows.length+future+BLANK_CANDLES||yy<T||yy>plotB)return null;
-     // Empty future slots have a crosshair price, but no historical OHLC candle.
+     if(xx<L||xx>plotR||yy<T||yy>plotB)return null;
+     const i=Math.floor((xx-L)/stride-(n-rows.length)-offset);
+     // Empty past/future slots remain traversable without inventing candles.
      const r=rows[i]||null;
-     return {i,xx,yy,r,time:r?.t??latestBar.t+(i-rows.length+1)*(tf==='1D'?DAY:H4)};
+     return {i,xx,yy,r,time:r?.t??(i<0?rows[0].t+i*intervalMs:latestBar.t+(i-rows.length+1)*intervalMs)};
    }
    function movePointer(ev){
+     if(state.panFrozen)return;
      state.inside=true;
      state.pointer={clientX:ev.clientX,clientY:ev.clientY};
      const pos=locate(ev);
@@ -420,6 +432,7 @@
   // numeric badge, leader and breathing light. Do not rebuild the SVG, HA,
   // Bollinger bands, drawings or the shared price projection on every TRADE.
   function syncLivePrice(target,latest,upper,lower){
+    if(target?.classList.contains('dw-is-panning'))return false;
     const projection=target?.__liqProjection;
     const svg=target?.querySelector('svg.radar-chart-svg');
     if(!projection||!svg)return false; // chart is still loading; use normal repaint
@@ -471,6 +484,30 @@
     return true;
   }
 
- root.LiqRadar4H={render,syncLivePrice,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection,
+ // Fast gesture path: NEVER recreates an SVG during pointermove.
+ // The complete cached history is already drawn beyond the clip. Commit redraw
+ // restores exact data-space anchors for drawings, cursor and price labels.
+ function beginPan(target){
+   const state=interactions.get(target);if(state)state.panFrozen=true;
+ }
+ function previewPan(target,clientDx,clientDy){
+   const proj=target?.__liqProjection,svg=target?.querySelector('svg');if(!proj||!svg)return;
+   const rect=target.getBoundingClientRect();
+   const dx=clientDx*proj.W/(rect.width||proj.W),dy=clientDy*proj.H/(rect.height||proj.H);
+   for(const [selector,tx,ty] of [['.rc-price-plot',dx,dy],['.dw-layer',dx,dy],['.rc-time-movable',dx,0],
+     ['.rc-level-badges',0,dy],['.rc-ha-selection',dx,dy]]){
+     const el=svg.querySelector(selector);if(el)el.setAttribute('transform',`translate(${tx} ${ty})`);
+   }
+   svg.querySelectorAll('.rc-now-breathe').forEach(el=>el.setAttribute('transform',`translate(0 ${dy})`));
+   // Price tick positions stay fixed; their values reflect the new log viewport.
+   svg.querySelectorAll('.rc-axis-text').forEach(el=>{
+     const yy=Number(el.getAttribute('y'))-4;
+     if(Number.isFinite(yy))el.textContent=money(Math.exp(proj.hi+dy/proj.ph*proj.logSpan-(yy-proj.T)/proj.ph*proj.logSpan));
+   });
+ }
+ function endPan(target){
+   const state=interactions.get(target);if(state)state.panFrozen=false;
+ }
+ root.LiqRadar4H={render,beginPan,previewPan,endPan,syncLivePrice,series,projectDaily,dailyHA,bollinger,dayOf,money,clearSelection,
   selectHaAt(target,ev){return Boolean(interactions.get(target)?.selectAt?.(ev));}};
 })(window);

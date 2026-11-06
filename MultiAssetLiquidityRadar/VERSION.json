@@ -1,27 +1,26 @@
 {
-  "version": "2.1.22",
-  "releaseDate": "2026-11-05",
-  "baseVersion": "2.1.21",
-  "title": "Pixel-precise continuous viewport pan with stable log-price scale and live SVG layer transforms",
+  "version": "2.1.23",
+  "releaseDate": "2026-11-06",
+  "baseVersion": "2.1.22",
+  "title": "Prevent Fibonacci and HA extension-line ghost growth during continuous viewport panning",
   "changes": [
-    "Replace integer-bar snapping with floating logical time offsets; wheel zoom preserves cursor time.",
-    "Pan existing cached SVG OHLC, 1D HA, Bollinger and drawings using requestAnimationFrame without replacing the SVG during pointermove.",
-    "Freeze inspected crosshair price/time during drag; commit precise log-price viewport after release and restore cursor inspection.",
-    "Retain already-loaded history outside the clipped viewport and remove the legacy fewer-than-21-visible-candles blank state.",
-    "Add independently persisted manual log-price viewport per chart; price-axis double-click restores auto scale.",
-    "Preserve existing Pionex WebSocket, CoinGlass 7D six-version decoding, RR, S-state, 4-window drawing/notifications and Worker/R2."
+    "Put drawing geometry inside a stationary plot clip with an independently translated inner layer; no growing strokes or shapes beyond the plot during drag.",
+    "Keep Fibonacci level captions aligned with the plot right edge and drawn rays buffered under a fixed plot clip, avoiding redraw-induced extension jumps.",
+    "Keep the selected daily HA extension line/dot clipped inside the plot, while its price badge moves vertically on a separate fixed-X price-axis layer.",
+    "Separate drawing price tags for rectangles and long/short positions into a fixed-X, clipped price-axis layer; preserve true price/time anchors and click interactions.",
+    "Anchor Fibonacci 0 dot to its original timestamp rather than clamping to the viewport edge; no edge respawn.",
+    "Preserve v2.1.22 floating pan, Pionex WebSocket, CoinGlass 7D, BB/HA/CCI/S-State/RR, drawing JSON and four-window state."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite seven files in MultiAssetLiquidityRadar; no Cloudflare Worker/R2/API changes."
+    "Overwrite six files in MultiAssetLiquidityRadar. Do not update Cloudflare Worker/R2."
   ],
-  "validationNote": "Chromium tests with synthetic K-lines and local script injection passed. No assertion of identical TradingView Advanced Charts internals or real-market long-duration framerate."
+  "validationNote": "Chromium synthetic-gesture regression tests passed for clip geometry, axis-anchored labels, stable HA price, 1D and 4H. Production TradingView recording replay and real live-session QA remain untested."
 }

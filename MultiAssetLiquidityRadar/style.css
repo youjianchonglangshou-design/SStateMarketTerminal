@@ -1161,3 +1161,10 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace [data-chart-plot].dw-is-panning .rc-price-plot,
 .radar-workspace [data-chart-plot].dw-is-panning .dw-layer,
 .radar-workspace [data-chart-plot].dw-is-panning .rc-time-movable{will-change:transform}
+
+/* v2.1.23: drawing geometry is clipped to plot; price tags have their own fixed-X axis layer. */
+.radar-workspace .dw-axis-layer .dw-edge-price{pointer-events:all}
+.radar-workspace [data-chart-plot].dw-is-panning .dw-axis-layer,
+.radar-workspace [data-chart-plot].dw-is-panning .dw-fixed-label-layer,
+.radar-workspace [data-chart-plot].dw-is-panning .rc-ha-plot,
+.radar-workspace [data-chart-plot].dw-is-panning .rc-ha-axis{will-change:transform}

@@ -82,7 +82,7 @@ function label(g,text,x,y,paint){const t=node(g,'text',{x,y,fill:paint||'#dbeafa
 function edgePriceTag(g,proj,price,tone,caption,id){
  if(!good(price))return;
  const yy=proj.y(price);if(yy<proj.T+9||yy>proj.plotB-9)return;
- const bg=node(g,'g',{'data-dw-id':id,class:'dw-price-tag dw-edge-price'});
+ const bg=node(g._dwAxis||g,'g',{'data-dw-id':id,class:'dw-price-tag dw-edge-price'});
  node(bg,'rect',{x:proj.plotR+2,y:yy-10,width:Math.max(40,proj.W-proj.plotR-5),height:20,rx:3,fill:'#102535',stroke:tone,'stroke-opacity':'.95'});
  const tx=label(bg,caption+money(price),proj.plotR+7,yy+4,tone);
  tx.setAttribute('font-size','10.5');
@@ -95,16 +95,25 @@ function place(g,obj,proj,selected,live){
  const hit={'data-dw-id':id,class:'dw-hit',cursor:'pointer'};
  if(obj.type==='fibonacci'&&a.length>1){const [p0,p1]=a.map(t=>Number(t.price));if(!good(p1))return;
   const left=Math.min(x(a[0].time),x(a[1].time)),right=proj.plotR;
+  // Fibonacci rays are time-continuous, not sized to the old viewport's right edge.
+  // Extend the geometry into the clipped buffer so releasing a pan never 'grows' lines.
   for(const r of CFG.fib){const price=p1*Math.pow(p0/p1,r),yy=y(price),tone=[.618,.786,2].includes(r)?'#23cdeb':[1.236,1.5,1.572,1.618].includes(r)?'#f2d34f':'#b6bcca';
-   node(g,'line',{...hit,x1:left,x2:right,y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
-   label(g,`${r} (${money(price)})`,Math.max(proj.L,Math.min(right-108,right+5)),yy-3,tone);
+   node(g,'line',{...hit,x1:left,x2:right+Math.max(proj.pw*4,1800),y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
+   // Fib level captions are right-edge annotations like TradingView's levels:
+   // keep their X pinned to the plot edge while the price level moves in Y.
+   // Translating the caption with the entire drawing caused it to vanish and
+   // then reappear ('grow') when the viewport redraw committed on pointerup.
+   label(g._dwLabels||g,`${r} (${money(price)})`,Math.max(proj.L,Math.min(right-108,right+5)),yy-3,tone);
   }
   // Fib 0: a solid, easy-to-select dot just ahead of the thin 0-level dash.
   // The transparent 24px hit target uses the existing drawing ID, so selection,
   // dragging, Delete/Backspace and saved drawing coordinates stay unchanged.
   const y0=y(p1);
-  if(Number.isFinite(y0)&&y0>=proj.T&&y0<=proj.plotB&&left<=right-12){
-   const dotX=clamp(left-7,proj.L+12,right-12);
+  if(Number.isFinite(y0)&&y0>=proj.T&&y0<=proj.plotB){
+   // Keep the 0-level marker tied to its REAL time anchor. Clamping it to the
+   // screen edge made it 'respawn' as the viewport was scrolled and released.
+   // The shared plot clip hides it naturally when its anchor is off-screen.
+   const dotX=left-7;
    const target=node(g,'circle',{...hit,class:'dw-hit dw-fib-zero-hit',
     cx:dotX,cy:y0,r:12,fill:'transparent',stroke:'none','pointer-events':'all'});
    node(target,'title').textContent='選取斐波那契（按 Delete 刪除）';
@@ -153,7 +162,7 @@ function place(g,obj,proj,selected,live){
       // All three price badges are inspection details shown only on selection.
       if(!selected)continue;
       const yy=y(value);if(yy<proj.T+9||yy>proj.plotB-9)continue;
-      const tag=node(g,'g',{'data-dw-id':id,'data-dw-price':field,class:'dw-price-tag',cursor:'pointer'});
+      const tag=node(g._dwAxis||g,'g',{'data-dw-id':id,'data-dw-price':field,class:'dw-price-tag',cursor:'pointer'});
       node(tag,'rect',{x:proj.plotR+2,y:yy-9,width:Math.max(40,proj.W-proj.plotR-5),height:18,rx:3,fill:'#0b2434',stroke:tone,'stroke-opacity':'.85'});
       const pct=good(entry)?(field==='target'?(long?target-entry:entry-target)/entry*100:(field==='stop'?-(long?entry-stop:stop-entry)/entry*100:0)):0;
       const txt=(field==='entry'?'進場 ':field==='target'?'目標 ':'止損 ')+money(value)+(field==='entry'?'':' ('+signedPct(pct,entry)+')');
@@ -180,8 +189,19 @@ function place(g,obj,proj,selected,live){
    }else for(let i=0;i<a.length;i++)h(x(a[i].time),y(a[i].price),{'data-dw-anchor':i});
  }
 }
-function render(w){const proj=w.plot?.__liqProjection;if(!proj)return;const svg=w.plot.querySelector('svg');if(!svg)return;
- svg.querySelector('.dw-layer')?.remove();const g=node(svg,'g',{class:'dw-layer'});
+function render(w){
+ // During viewport panning the existing SVG must remain immutable. Recreating
+ // this overlay mid-gesture would leave transformed drawings and tags out of sync.
+ if(w.isPanning)return;
+ const proj=w.plot?.__liqProjection;if(!proj)return;const svg=w.plot.querySelector('svg');if(!svg)return;
+ svg.querySelector('.dw-plot-clip')?.remove();svg.querySelector('.dw-label-clip')?.remove();svg.querySelector('.dw-axis-clip')?.remove();
+ // Clip groups MUST remain static while only their INNER children transform.
+ // Applying clip-path and translate() to the same <g> would drag the clipping
+ // rectangle along with the drawing, allowing strokes to leak beyond the plot.
+ const g=node(node(svg,'g',{class:'dw-plot-clip','clip-path':`url(#${proj.clipId})`}), 'g',{class:'dw-layer'});
+ const fixedLabels=node(node(svg,'g',{class:'dw-label-clip','clip-path':`url(#${proj.clipId})`}), 'g',{class:'dw-fixed-label-layer','pointer-events':'none'});
+ const axis=node(node(svg,'g',{class:'dw-axis-clip','clip-path':`url(#${proj.clipId}-axis)`}), 'g',{class:'dw-axis-layer'});
+ g._dwAxis=axis;g._dwLabels=fixedLabels;
  const ctl=controllers.get(w),doc=snapshot(w.symbol);if(!ctl)return;
  const local=[...doc.drawings];if(ctl.draft?.anchors?.length){local.push({...ctl.draft,id:'draft',modifiedAt:Date.now()});}
  for(const item of local){try{place(g,item,proj,ctl.selected===item.id,ctl.livePrice());}catch(e){console.warn('[Drawings] unable to draw item',e);}}

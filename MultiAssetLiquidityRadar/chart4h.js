@@ -122,7 +122,7 @@
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
    svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及現價價格">`);
-   svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><clipPath id="${clipId}-time"><rect x="${L}" y="${T}" width="${pw}" height="${H-T}"/></clipPath></defs>`);
+   svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><clipPath id="${clipId}-time"><rect x="${L}" y="${T}" width="${pw}" height="${H-T}"/></clipPath><clipPath id="${clipId}-axis"><rect x="${plotR}" y="${T}" width="${R}" height="${ph}"/></clipPath></defs>`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
      const v=Math.exp(lo+(hi-lo)*i/5),yy=y(v);
@@ -208,7 +208,7 @@
      svg.push(`<circle class="rc-now-breathe rc-now-breathe-core" cx="${plotR-17}" cy="${fmt(y(price))}" r="3" pointer-events="none"/>`);
    }
    // Offset only the badge, never shift the true-price horizontal line.
-   svg.push('<g class="rc-level-badges">');
+   svg.push(`<g clip-path="url(#${clipId}-axis)"><g class="rc-level-badges">`);
    const sorted=labels.slice().sort((a,b)=>a.yy-b.yy);
    for(let i=1;i<sorted.length;i++)sorted[i].yy=Math.max(sorted[i].yy,sorted[i-1].yy+22);
    const overshoot=Math.max(0,(sorted.at(-1)?.yy??0)-(plotB-10));
@@ -218,7 +218,7 @@
      svg.push(`<rect class="rc-label-box rc-label-${lab.kind}" x="${plotR+3}" y="${fmt(lab.yy-9)}" width="${R-7}" height="19" rx="4"/>`);
      svg.push(`<text class="rc-label-text rc-label-${lab.kind}" x="${plotR+9}" y="${fmt(lab.yy+4)}">${esc(lab.text)}</text>`);
    }
-   svg.push('</g>'); // movable price badges (vertical translation only)
+   svg.push('</g></g>'); // axis clip stays fixed; badges only translate vertically
    // Keep transparent hit surface beneath both overlays. HA inspection overlays are appended
    // LAST in the SVG, so their opaque semantic price badge always covers NOW/axis/cursor badges.
    svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`);
@@ -227,7 +227,9 @@
    // Entire right axis is a drag handle. Transparent hit area keeps badges on
    // top visually and is inside the stable plot host's delegated pointer events.
    svg.push(`<rect class="rc-price-axis-hit" x="${plotR}" y="${T}" width="${R}" height="${ph}" fill="transparent"><title>按住左鍵往上拉放大價格間距、往下拉縮小；雙擊恢復自動刻度</title></rect>`);
-   svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><line class="rc-selected-guide" x1="0" x2="${plotR}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3" pointer-events="all" style="cursor:pointer"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g>`);
+   // The HA extension is ONE immutable price/time object. Pan its line inside the plot clip,
+   // while the price badge stays on the right axis. Never translate the whole selection.
+   svg.push(`<g class="rc-ha-selection" visibility="hidden" pointer-events="none"><g clip-path="url(#${clipId})"><g class="rc-ha-plot"><line class="rc-selected-guide" x1="0" x2="${plotR+pw*4}" y1="0" y2="0"/><circle class="rc-selected-dot" cx="0" cy="0" r="4"/></g></g><g clip-path="url(#${clipId}-axis)"><g class="rc-ha-axis"><rect class="rc-selected-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3" pointer-events="all" style="cursor:pointer"/><text class="rc-selected-price" x="${plotR+9}" y="0">—</text></g></g></g>`);
    svg.push('</svg>');
    // Small TradingView-like 4H OHLC strip: show the current candle by default,
    // and temporarily inspect a historical candle only while the pointer is over it.
@@ -251,7 +253,7 @@
      if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*intervalMs;
      return rows[low].t+fraction*(rows[low+1].t-rows[low].t);
    };
-   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:0,stride,logSpan:hi-lo,hi,lo,pricePan:pan,future,
+   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,clipId,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:0,stride,logSpan:hi-lo,hi,lo,pricePan:pan,future,
      x:xAtTime,time:timeAtX,y,price:priceAtY,money,
      fromEvent(ev){const rect=target.getBoundingClientRect();return {x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H};}
    };
@@ -361,7 +363,7 @@
      selected.classList.toggle('is-ha-yellow',r.ha.color==='yellow');
      selected.classList.toggle('is-ha-purple',r.ha.color==='purple');
      const guide=selected.querySelector('.rc-selected-guide');
-     guide.setAttribute('x1',xx);guide.setAttribute('x2',plotR);guide.setAttribute('y1',py);guide.setAttribute('y2',py);
+     guide.setAttribute('x1',xx);guide.setAttribute('x2',plotR+pw*4);guide.setAttribute('y1',py);guide.setAttribute('y2',py);
      const dot=selected.querySelector('.rc-selected-dot');dot.setAttribute('cx',xx);dot.setAttribute('cy',py);
      // True HA price is never moved. Only the badge may be kept in the visible chart range.
      const ytag=clamp(py-9,T,plotB-19);
@@ -494,11 +496,17 @@
    const proj=target?.__liqProjection,svg=target?.querySelector('svg');if(!proj||!svg)return;
    const rect=target.getBoundingClientRect();
    const dx=clientDx*proj.W/(rect.width||proj.W),dy=clientDy*proj.H/(rect.height||proj.H);
-   for(const [selector,tx,ty] of [['.rc-price-plot',dx,dy],['.dw-layer',dx,dy],['.rc-time-movable',dx,0],
-     ['.rc-level-badges',0,dy],['.rc-ha-selection',dx,dy]]){
+   // Pan *content* only. The plot and price axis have independent clipping,
+   // so extension lines cannot grow into the right axis and price badges never drift in X.
+   for(const [selector,tx,ty] of [['.rc-price-plot',dx,dy],['.dw-layer',dx,dy],['.dw-fixed-label-layer',0,dy],['.dw-axis-layer',0,dy],['.rc-time-movable',dx,0],
+     ['.rc-level-badges',0,dy],['.rc-ha-plot',dx,dy],['.rc-ha-axis',0,dy]]){
      const el=svg.querySelector(selector);if(el)el.setAttribute('transform',`translate(${tx} ${ty})`);
    }
-   svg.querySelectorAll('.rc-now-breathe').forEach(el=>el.setAttribute('transform',`translate(0 ${dy})`));
+   svg.querySelectorAll('.rc-now-breathe').forEach(el=>{
+     el.setAttribute('transform',`translate(0 ${dy})`);
+     const inPlot=(Number(el.getAttribute('cy'))+dy)>=proj.T&&(Number(el.getAttribute('cy'))+dy)<=proj.plotB;
+     el.setAttribute('visibility',inPlot?'visible':'hidden');
+   });
    // Price tick positions stay fixed; their values reflect the new log viewport.
    svg.querySelectorAll('.rc-axis-text').forEach(el=>{
      const yy=Number(el.getAttribute('y'))-4;

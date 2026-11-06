@@ -1,91 +1,62 @@
-# SStateMarketTerminal MCP v0.3.2
+# SStateMarketTerminal MCP v0.3.3 — Pionex-only market data
 
-An isolated, read-only Cloudflare Worker exposing the existing SStateMarketTerminal daily indicator engine through eleven remote MCP tools.
+## What changed
+
+The original **monitor-engine.js** is imported unchanged. The MCP returns technical indicators **only** when their underlying daily OHLC comes from Pionex (official API, the existing monitor Worker, or the same Pionex-sourced R2 historical cache). It must not calculate Pionex PERP signals using Gate, Binance, OKX, Bybit, other-exchange spot, or synthetic K-lines. When data is unavailable or stale, the response says so.
+
+- `get_market_states` / `get_symbol_detail` / `scan_market_states` use Pionex 1D candles. A Pionex TRADE WebSocket quote is applied to **today's existing Pionex daily candle**, not used to create 180 missing historical candles. Signals include `signal_usable`, `stale_kline`, `kline_source`, `quote_source`, `is_live_quote`, `quote_trade_at`, `cross_exchange_proxy:false`.
+- `get_pionex_quotes` (new): temporary same-source WebSocket subscription through the existing `white-meadow-16bc ... /api/monitor/ws` relay. MCP requests are stateless and **cannot borrow another browser's connection**. A one-shot WS may not see a trade for an illiquid token inside the sampling window. The only fallback is Pionex's own ticker REST feed (main Worker `/api/monitor/tickers` first, then Pionex official ticker REST), clearly marked as **non-WebSocket**.
+- `find_symbols(market="us-stock")` uses `pionex/symbols/us_stock_symbols.json` from **the existing R2 bucket**, not an unrelated scheduled snapshot. This fixes a prior 404 for searches like NVDA / INTC / MU.
+- The exact Pionex directory maps `NVDA -> NVDAX_USDT_PERP`, `INTC -> INTCX_USDT_PERP`, `MU -> MUX_USDT_PERP`, and `CL -> WTI_USDT_PERP`. No guessed proxy instrument is substituted; an unknown base remains unknown.
+- `get_pionex_contracts` still prefers official Pionex symbol API. On official rate limits, it uses the Pionex R2 complete universe; if that is also absent, it returns **only** the Pionex R2 stock directory and marks `partial:true`. No TradingView third-party contract scan fallback.
+- `get_snapshot(market="us-stock")` when the scheduled snapshot endpoint fails returns the **stock symbol directory only**, clearly NOT market analysis.
+- `get_liquidation_bounds`: CoinGlass 7D only by default; requesting `allow_proxy:true` now returns an explicit error. No 15M estimated liquidation bounds.
+
+**Not modified:** MultiAssetLiquidityRadar, Pionex browser WebSocket stream, original SState indicator engine, main Cloudflare Worker, CoinGlass reader, R2 data, or trading rules.
 
 ## Architecture
 
-- The source file `mcp/worker.mjs` directly imports `../monitor-engine.js`. It does not duplicate or alter the original S-state/HA/CCI-SMA/midline formulas.
-- The Worker reads market data from the existing SState Cloudflare Worker and optionally refreshes today's daily OHLC via TradingView Scanner.
-- The existing website, Worker `white-meadow-16bc`, R2, Telegram and cron schedules are not modified.
-- Private watchlist is **disabled** by default. Read-only public market data does not require an API key.
-- `get_market_states` handles up to 20 tickers and `scan_market_states` handles up to 30. Return values include source, timestamps and stale/error flags. **No fabricated technical values.**
+```
+ChatGPT -> sstate-mcp Worker
+    |-> (same SState relay) /api/monitor/ws -> Pionex TRADE, one-shot
+    |-> (same exchange fallback) /api/monitor/tickers -> Pionex tickers
+    |-> R2 existing Pionex OHLC: pionex/cache/monitor_klines/1D/<symbol>.json
+    |-> (refresh when needed) /api/monitor/klines -> Pionex Klines
+    |-> (refresh when needed) official Pionex daily Klines
+    |-> Original root monitor-engine.js -> S, midline, HA, CCI-SMA
+    |-> R2 stock symbol_map: pionex/symbols/us_stock_symbols.json
+```
+
+The quote stream supplies last traded prices, **not historical OHLC**. If no Pionex candles exist, indicators remain unavailable. Cached Pionex candles can be displayed historically, but `scan_market_states` excludes stale signals via `signal_usable=false`. This is deliberate: making up technical indicators from a different market is not allowed.
+
+The existing Radar may also obtain verified `PIONEX:` chart candles through its TradingView chart transport. This MCP edition does not claim that every returned daily candle/indicator is tick-for-tick identical to the browser when the two clients have different update freshness. Check their `last_kline_time`, `kline_fetched_at`, and `quote_trade_at` before comparing.
 
 ## Deployment
 
-One-time GitHub repository secrets, under **Settings → Secrets and variables → Actions**:
+Requires deploying the **MCP Worker**, not just uploading the main website. Do not deploy the main `cloudflare/worker.js` for this patch.
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`, requiring Cloudflare **Workers Scripts: Edit** and relevant account read permissions.
+From the repository root, overwrite `mcp/` files from the ZIP. Keep `monitor-engine.js` unchanged. Existing push-based `Deploy SState MCP` workflow (if configured and enabled) can deploy the new server after pushing; no new scheduled GitHub Actions task is needed. Or use the existing manual `npx wrangler deploy --config mcp/wrangler.toml` with valid Cloudflare access.
 
-## Automatic synchronization (enabled)
+Cloudflare binding must stay the same: `JSON_BUCKET = sstate-market-data`. It contains the official Pionex universe and Pionex-generated stock/klines entries. No additional API key or extension.
 
-- **Every push to `main`**, including edits to root `monitor-engine.js`, `mcp/worker.mjs`, or any webpage file, starts `Deploy SState MCP` automatically. No schedule and no manual button required.
-- The workflow uses the **exact commit that triggered the run**, executes local MCP checks, independently deploys Cloudflare Worker `sstate-mcp`, then checks the remote `/health` response for matching `deploy_commit` and all eleven MCP tools.
-- The MCP URL stays unchanged: `https://sstate-mcp.youjianchonglangshou.workers.dev/mcp`.
-- S state, BB midline, HA, and CCI-SMA logic is **bundled from the root `monitor-engine.js`**. Updates to that shared engine are reflected in the MCP after a successful deploy.
-- The *existing production website Worker*, R2, Telegram, and cron are untouched.
-- The MCP only exposes functionality implemented through its own tools. **Adding a new website feature does NOT magically create a new MCP tool**: expose the feature through `mcp/worker.mjs`, push it, and it will be deployed automatically.
-- After **adding/removing tools or changing tool input schemas**, manually **refresh the plugin/tool definitions in ChatGPT** (or reconnect the plugin, if necessary). For calculations and data returned by existing tools, the live endpoint updates without recreating the plugin.
-- A market data API may occasionally fail even with a successfully deployed MCP. Remote BTC market checks are informational and should not hide a successful deployment. Actual data responses always expose sources and error conditions.
+After deployment check `https://sstate-mcp.youjianchonglangshou.workers.dev/health` for `version:0.3.3`. Refresh/reconnect the ChatGPT SStateMarketTerminal plugin tool definitions to make new `get_pionex_quotes` visible. Existing tools keep their prior arguments and update with the server.
 
-To verify a deployment: open the latest `Deploy SState MCP` workflow run in GitHub Actions, or open the `/health` URL and check `deploy_commit`.
+### Suggested real-production validation
 
-For emergency redeploy: **Actions → Deploy SState MCP → Run workflow**.
+1. Call `get_pionex_contracts(type="PERP",query="NVDAX")`: expect actual NVDAX pair with Pionex/R2 provenance.
+2. Call `find_symbols(market="us-stock",query="NVDA")`: expect NVDAX_USDT_PERP even when snapshot routes return 404.
+3. Call `get_pionex_quotes(symbols=["NVDAX","HOODX"])` while markets are trading: quote sources must be `PIONEX_WEBSOCKET_TRADE` or explicitly `PIONEX_WORKER_TICKERS` / `PIONEX_OFFICIAL_TICKERS`; not an alternative exchange.
+4. Call `get_market_states(symbols=["NVDA","HOODX","INTC"],type="PERP",use_live=true)`: check `cross_exchange_proxy=false`, `indicator_market_basis=PIONEX_PERP`, and `signal_usable` before relying on signals.
+5. If daily history is unavailable, verify `success:0` / unavailable records instead of fabricated color states.
+6. Compare 1D Pionex OHLC and active 4H chart when trading, accounting for Kline update timestamp.
 
-Worker URL:
+**Testing status:** Node simulation tests are included. Successful production Worker deployment, R2 content freshness, live WebSocket subscriptions and end-to-end indicator parity require real remote checks after deployment; do not mark them passed from mocks.
 
-- Health: https://sstate-mcp.youjianchonglangshou.workers.dev/health
-- MCP: https://sstate-mcp.youjianchonglangshou.workers.dev/mcp
+## Local validation
 
-Use the **/mcp** URL in a ChatGPT workspace that permits adding custom remote MCP servers, selecting no authentication only for the public read-only tools.
-
-## Local tests
-
-```bash
+```
+node --check mcp/worker.mjs
+node --check mcp/pionex-live.mjs
+node --check mcp/pionex-contracts.mjs
 node mcp/test.mjs
 ```
-
-Deployment source: `mcp/wrangler.toml`. To deploy manually: `npx wrangler deploy --config mcp/wrangler.toml`.
-
-## Pionex complete contract universe (new in MCP v0.3.1)
-
-`get_pionex_contracts` retrieves active USDT pairs directly from the official public endpoint:
-
-- PERP (default): `GET https://api.pionex.com/api/v1/common/symbols?type=PERP&status=TRADING`
-- SPOT: `GET https://api.pionex.com/api/v1/common/symbols?type=SPOT`
-- `type=ALL`: query both endpoints, merge and deduplicate without hiding any USDT rows.
-- Optional `query` matches symbol or base, e.g. `AMDX`, `BTC`, `ETH`. `offset`/`limit` permit paging; omitting `limit` returns the entire matching universe in one MCP call.
-- Returns official `source`, `api_timestamp`, request `fetched_at`, `total`, `matched_total`, `has_more`, and `symbols`.
-- When Pionex blocks the Cloudflare IP or returns 429, the MCP now reads the **existing R2 object directly** from the same account (`JSON_BUCKET`: `sstate-market-data`, key `pionex/cache/monitor_universe.json`) instead of relying on the previously broken `white-meadow-16bc` intermediary. R2 results have `source: SSTATE_R2_DIRECT`, `fetched_at`, `stale`, and `partial` indicators. If the direct R2 object is missing, it tries the legacy monitor HTTP endpoint, then for PERP only discovers TradingView `PIONEX:` USDT `.P` tickers; TradingView is always marked `partial: true`, never claimed as a verified complete Pionex universe. No fabricated symbols, no API credentials, no new scheduled job. Data source failure is disclosed rather than hidden.
-- Read-only; this MCP feature neither modifies the monitor web page nor adds a GitHub Actions schedule. The existing `scan_market_states` is still limited to 30 explicit symbols per call; this new discovery tool alone does not automatically scan the entire exchange.
-
-Example request:
-
-```json
-{"name":"get_pionex_contracts","arguments":{"type":"PERP","query":"AMDX"}}
-```
-
-## MCP tools
-
-- `get_pionex_contracts`: full active Pionex USDT PERP/spot symbol directory with direct official API and existing monitor-R2 fallback.
-
-- `get_liquidation_bounds`: query **any valid ticker** for CoinGlass 7D maximum-pain liquidation upper/lower bounds, falling back to the radar's 15-minute OHLC synthetic leverage proxy zones when requested. Return source, quote time, freshness, error and `is_estimate`. PEPE/1000PEPE scaling supported.
-- `get_fear_greed_today`: today's **CMC** cryptocurrency Fear and Greed value (0–100), classification, date, 6-color transition semantics and freshness using the existing `cmc-fear-greed` Cloudflare Worker with an official keyless CoinMarketCap API fallback if the existing Worker returns 404. Does not substitute Alternative.me.
-- `get_market_states`: current technical signals for supplied symbols.
-- `scan_market_states`: filter and sort supplied symbols.
-- `get_symbol_detail`: one instrument and last 30 days of indicator data.
-- `get_watchlist`: private watchlist, **disabled** unless bearer secret is configured.
-- `get_snapshot`: scheduled analysis snapshot (not live).
-- `find_symbols`: lookup symbols within snapshot.
-- `get_performance`: Champion statistics.
-- `get_model`: active probability model metadata.
-
-**Scope**: CoinGlass 7D bounds use the same *undocumented* CoinGlass reader as the original radar and can stop working when CoinGlass changes its encryption versions or rate limits requests. In that case the radar's 15m synthetic leverage **proxy** is explicitly marked and does not represent real liquidation/open interest orders. BTC first-sweep probabilities are **not included** and no probability is extrapolated to other coins. CMC official daily data is read from the existing Worker when healthy, or the documented keyless public CoinMarketCap `/public-api/v3/fear-and-greed/*` endpoints when the Worker is unavailable. It can update later than Taiwan midnight; the tool reports source date/time and staleness.
-
-## Validation
-
-The GitHub Actions deploy pipeline is the definitive remote deployment/check result. Do not assume the endpoint is live merely because the source has been committed. Its required smoke tests compare `/health.deploy_commit` with the triggering Git commit and verify MCP `tools/list`. The live market-data probe is best-effort.
-
-## ChatGPT plugin refresh after adding tools
-
-After this deployment, open **ChatGPT → Plugins → SStateMarketTerminal → Refresh / Reconnect tools** as supported by the UI. Because a NEW tool was added (`get_pionex_contracts`), ChatGPT may retain its prior tool schema until refreshed. The MCP server URL and secrets remain unchanged.

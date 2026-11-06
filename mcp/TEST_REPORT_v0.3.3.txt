@@ -1,0 +1,33 @@
+SStateMarketTerminal MCP v0.3.3 — Pionex-only integration test
+Test scope: local Node 22 with mocked Pionex WebSocket relay, Pionex ticker endpoints and Pionex R2 historical data.
+
+Result: 22/22 Node functional assertions PASS, syntax checks PASS.
+
+Checked:
+- /health version, tools/list includes new get_pionex_quotes
+- official Pionex symbols fails -> direct Pionex R2 universe
+- complete universe missing -> PARTIAL stock-only R2, never other-exchange scan
+- us-stock find_symbols from real mapped directory, NVDA -> NVDAX
+- missing snapshot -> Pionex stock directory only, no fabricated analysis
+- same SState /api/monitor/ws Pionex TRADE topic and readout
+- existing original monitor-engine.js S/HA/CCI-SMA/midline calculations
+- Pionex R2 OHLC despite main Worker /api/monitor/klines 404
+- trade quote applied to existing same-day Pionex Kline, not synthesized 180-day OHLC
+- WebSocket absence -> same-exchange Pionex ticker REST labelled non-live
+- both unavailable -> no invented quotes
+- outdated daily OHLC -> stale flagged and excluded from scan
+- no Pionex OHLC -> no cross-exchange indicator fallbacks
+- CL -> WTI_USDT_PERP; unknown stays unknown
+- CoinGlass 7D: estimated 15M proxy OFF by default
+- NO calls to Gate, Binance, OKX, Bybit or TradingView Scanner from indicator collection
+
+UNVERIFIED:
+- Live Pionex WebSocket relay upgrade from Cloudflare MCP Worker (only mock-tested)
+- Production R2 OHLC contents and current bar freshness for every US-stock token
+- Production Workers deployment and ChatGPT connector tool-schema refresh
+- True live indicator parity with current MultiAssetLiquidityRadar on every symbol
+
+RELEASE INSTRUCTIONS:
+Overwrite mcp/worker.mjs, mcp/pionex-contracts.mjs, mcp/pionex-live.mjs,
+mcp/test.mjs, mcp/README.md, mcp/TEST_REPORT_v0.3.3.txt.
+Deploy MCP worker (not website Worker), check /health version 0.3.3.

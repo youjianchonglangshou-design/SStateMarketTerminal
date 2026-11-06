@@ -33,39 +33,24 @@ function cleanRows(rows, type) {
 
 
 const R2_UNIVERSE_KEY = 'pionex/cache/monitor_universe.json';
-const TV_SCAN_URL = 'https://scanner.tradingview.com/crypto/scan';
-
-async function loadR2Universe(bucket) {
-  if (!bucket || typeof bucket.get !== 'function') throw Error('R2 JSON_BUCKET binding unavailable');
-  const object = await bucket.get(R2_UNIVERSE_KEY);
-  if (!object) throw Error('R2 universe object is missing: ' + R2_UNIVERSE_KEY);
-  const payload = JSON.parse(await object.text());
-  if (!Array.isArray(payload?.symbols) || payload.symbols.length === 0) throw Error('R2 universe is empty or invalid');
-  return payload;
+async function loadR2Universe(bucket){
+ if(!bucket||typeof bucket.get!=='function')throw Error('R2 JSON_BUCKET binding unavailable');
+ const object=await bucket.get(R2_UNIVERSE_KEY);
+ if(!object)throw Error('R2 universe missing: '+R2_UNIVERSE_KEY);
+ const data=JSON.parse(await object.text());
+ if(!Array.isArray(data?.symbols)||!data.symbols.length)throw Error('R2 universe invalid or empty');
+ return data;
 }
-
-async function loadTradingViewPionexPerps(getJSON) {
-  const body = {
-    filter: [{ left: 'exchange', operation: 'equal', right: 'PIONEX' }],
-    options: { lang: 'en' },
-    symbols: { query: { types: [] }, tickers: [] },
-    columns: ['name', 'close'],
-    range: [0, 5000]
-  };
-  const payload = await getJSON(TV_SCAN_URL, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!Array.isArray(payload?.data)) throw Error('TradingView screener returned no rows array');
-  const rows = [];
-  for (const item of payload.data) {
-    const ticker = String(item?.s || '').toUpperCase();
-    const match = /^PIONEX:([A-Z0-9._-]+)USDT\.P$/.exec(ticker);
-    if (!match) continue;
-    rows.push({symbol: match[1] + '_USDT_PERP', base: match[1], quote: 'USDT', status: 'TRADING'});
-  }
-  if (!rows.length) throw Error('TradingView PIONEX USDT perpetual scan is empty');
-  return {rows, truncated: Number(payload.totalCount) > payload.data.length};
+// A second Pionex-sourced R2 directory covers tokenized US stocks independently
+// of the all-contract universe mirror. Do not consult TradingView or other exchanges.
+async function loadR2StockUniverse(bucket){
+ if(!bucket || typeof bucket.get!=='function')throw Error('R2 JSON_BUCKET binding unavailable');
+ const object=await bucket.get('pionex/symbols/us_stock_symbols.json');
+ if(!object)throw Error('Pionex US-stock R2 directory missing');
+ const payload=JSON.parse(await object.text());
+ if(!Array.isArray(payload?.symbols)||!payload?.symbol_map)throw Error('Invalid Pionex US-stock R2 directory');
+ const symbols=payload.symbols.map(base=>({symbol:payload.symbol_map[base],base,quote:'USDT',type:'PERP',status:'TRADING'}));
+ return {symbols,fetched_at:payload.generated_at,partial:true,schema_version:payload.schema_version};
 }
 
 export async function getPionexContracts(args = {}, { getJSON, monitorOrigin, bucket } = {}) {
@@ -124,18 +109,12 @@ export async function getPionexContracts(args = {}, { getJSON, monitorOrigin, bu
         problems.push(candidate.name + ': ' + String(e.message || e));
       }
     }
-    if (!rows.length && type === 'PERP') {
-      try {
-        const tv = await loadTradingViewPionexPerps(getJSON);
-        rows = cleanRows(tv.rows, 'PERP');
-        source = 'TRADINGVIEW_PIONEX_SCAN';
-        fetchedAt = new Date().toISOString();
-        partial = true;
-        warnings.push('TradingView discovery is a third-party fallback; it does not prove the complete official Pionex listing'
-          + (tv.truncated ? ' (scan page was truncated)' : ''));
-      } catch (e) {
-        problems.push('TRADINGVIEW_PIONEX_SCAN: ' + String(e.message || e));
-      }
+    if(!rows.length && type==='PERP'){
+      try{
+        const payload=await loadR2StockUniverse(bucket);
+        rows=cleanRows(payload.symbols,'PERP');source='PIONEX_US_STOCK_R2_ONLY';fetchedAt=payload.fetched_at||null;partial=true;
+        warnings.push('Only Pionex US-stock directory was available; full PERP universe unavailable (partial).');
+      }catch(e){problems.push('PIONEX_US_STOCK_R2: '+String(e.message||e));}
     }
     if (!rows.length) throw Error('All Pionex symbol sources unavailable: ' + [...warnings, ...problems].join('; '));
     if (problems.length) warnings.push(...problems);
@@ -151,8 +130,8 @@ export async function getPionexContracts(args = {}, { getJSON, monitorOrigin, bu
     symbols: results, warnings,
     source_note: source === 'PIONEX_OFFICIAL_API'
       ? 'Official Pionex publicly listed active USDT symbols at request time.'
-      : source === 'TRADINGVIEW_PIONEX_SCAN'
-        ? 'TradingView PIONEX perpetual ticker discovery; partial third-party coverage, not an official complete listing.'
+      : source === 'PIONEX_US_STOCK_R2_ONLY'
+        ? 'Pionex-sourced stock directory from R2; partial PERP coverage (stocks only), no other exchange.'
         : 'Shared monitor universe from R2; complete only as of its fetched_at timestamp, not a live official API confirmation.'
   };
 }

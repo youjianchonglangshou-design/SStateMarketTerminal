@@ -1,4 +1,4 @@
-/* v1.6.0 - explicit click to open; hover inside chart works, leave chart closes. */
+/* v1.6.2 - explicit click to open; hover inside chart works, leave chart closes. */
 (()=>{'use strict';
  const root=document.getElementById('fgPopover'),trigger=document.getElementById('fgTrigger'),panel=document.getElementById('fgPanel'),frame=document.getElementById('fgChartFrame');
  if(!root||!trigger||!panel||!frame)return;
@@ -11,9 +11,13 @@
    const top=Math.max(12,innerHeight-height-56);
    Object.assign(panel.style,{width:width+'px',height:height+'px',left:left+'px',top:top+'px'});
  }
+ function notifyFrame(){
+   if(frame.contentWindow)frame.contentWindow.postMessage({type:'SSTATE_FG_VISIBILITY',open},location.origin);
+ }
  function show(){clearTimeout(closeTimer);if(!frame.getAttribute('src'))frame.src=frame.dataset.src;
-   open=true;position();panel.classList.add('fg-click-open');trigger.setAttribute('aria-expanded','true');}
- function hide(){clearTimeout(closeTimer);open=false;panel.classList.remove('fg-click-open');trigger.setAttribute('aria-expanded','false');}
+   open=true;position();panel.classList.add('fg-click-open');trigger.setAttribute('aria-expanded','true');notifyFrame();}
+ function hide(){clearTimeout(closeTimer);open=false;panel.classList.remove('fg-click-open');trigger.setAttribute('aria-expanded','false');notifyFrame();}
+ frame.addEventListener('load',notifyFrame);
  trigger.addEventListener('click',event=>{event.stopPropagation();open?hide():show();});
  // Trigger -> panel has a short pointer travel corridor. The panel itself closes when left.
  trigger.addEventListener('pointerleave',()=>{if(open)closeTimer=setTimeout(()=>{if(!panel.matches(':hover'))hide();},600);});

@@ -1,26 +1,23 @@
 {
-  "version": "2.1.23",
+  "version": "2.1.24",
   "releaseDate": "2026-11-06",
-  "baseVersion": "2.1.22",
-  "title": "Prevent Fibonacci and HA extension-line ghost growth during continuous viewport panning",
+  "baseVersion": "2.1.23",
+  "title": "CMC fear-and-greed dated latest value merged into daily chart with reopen refresh",
   "changes": [
-    "Put drawing geometry inside a stationary plot clip with an independently translated inner layer; no growing strokes or shapes beyond the plot during drag.",
-    "Keep Fibonacci level captions aligned with the plot right edge and drawn rays buffered under a fixed plot clip, avoiding redraw-induced extension jumps.",
-    "Keep the selected daily HA extension line/dot clipped inside the plot, while its price badge moves vertically on a separate fixed-X price-axis layer.",
-    "Separate drawing price tags for rectangles and long/short positions into a fixed-X, clipped price-axis layer; preserve true price/time anchors and click interactions.",
-    "Anchor Fibonacci 0 dot to its original timestamp rather than clamping to the viewport edge; no edge respawn.",
-    "Preserve v2.1.22 floating pan, Pionex WebSocket, CoinGlass 7D, BB/HA/CCI/S-State/RR, drawing JSON and four-window state."
+    "Merge CoinMarketCap /api/latest into the existing 1-year daily history only when its own date is verifiable; no synthetic missing days.",
+    "Reopening the existing fear-and-greed popup refreshes official CMC data after 60s; a visible popup checks every 15 minutes.",
+    "Explicit chart latest UTC day, missing-day and stale-data status. Keep verified graph on transient errors.",
+    "Restore the requested ?limit=370 to the existing CMC Worker historical request; no Worker, new price API, indicators or drawing modifications."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/chart4h.js",
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/fear-greed.html",
+    "MultiAssetLiquidityRadar/fear-greed-popover.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite six files in MultiAssetLiquidityRadar. Do not update Cloudflare Worker/R2."
+    "Overwrite the five files under MultiAssetLiquidityRadar. Cloudflare Worker unchanged."
   ],
-  "validationNote": "Chromium synthetic-gesture regression tests passed for clip geometry, axis-anchored labels, stable HA price, 1D and 4H. Production TradingView recording replay and real live-session QA remain untested."
+  "validationNote": "Browser integration tests use mocked CMC dated historical/latest data. Actual Worker/live response has not been accessible from this environment."
 }

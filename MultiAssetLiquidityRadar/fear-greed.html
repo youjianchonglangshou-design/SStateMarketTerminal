@@ -82,7 +82,37 @@ function classifyColors(points){
 }
 function parseTime(v){if(typeof v==='number'||/^\d+$/.test(String(v))){const n=Number(v);return n<1e12?n*1000:n}return Date.parse(v)}
 function parseFG(raw){return raw.map(p=>({t:parseTime(p.timestamp),value:Number(p.value)})).filter(p=>Number.isFinite(p.t)&&Number.isFinite(p.value)&&p.value>=0&&p.value<=100).sort((a,b)=>a.t-b.t)}
-let fg=[],colorIds=[],hover=-1;
+// CMC historical may lag the independently fresh /latest endpoint by several days.
+// Use a dated, VERIFIED latest reading as a real last chart point, never infer a date from fetch time.
+function datedLatest(response){
+  const data=response?.data;
+  if(!data||data.value==null)return null;
+  const value=Number(data.value);
+  if(!Number.isFinite(value)||value<0||value>100)return null;
+  const dates=[data.update_time,data.timestamp,data.updated_at];
+  for(const stamp of dates){
+    if(stamp==null||stamp==='')continue;
+    const t=parseTime(stamp);
+    if(Number.isFinite(t)&&t>0&&t<=Date.now()+3*60*60*1000)return {t,value};
+  }
+  return {t:null,value};
+}
+function combineCMC(history,latestResponse){
+  // One genuine measurement per UTC date. Do not invent intervening missing dates.
+  const byDate=new Map();
+  for(const point of parseFG(history)){
+    const key=day(point.t),previous=byDate.get(key);
+    if(!previous||point.t>=previous.t)byDate.set(key,point);
+  }
+  const latest=datedLatest(latestResponse);
+  let merged=false;
+  if(latest&&Number.isFinite(latest.t)){
+    const key=day(latest.t),previous=byDate.get(key);
+    if(!previous||latest.t>=previous.t){byDate.set(key,latest);merged=true;}
+  }
+  return {points:[...byDate.values()].sort((a,b)=>a.t-b.t).slice(-366),latest,merged};
+}
+let fg=[],colorIds=[],hover=-1,panelOpen=false,lastFetchAt=0;
 const cvs=$('chart'),tip=$('tip');let rect={};
 function setStatus(message,error=false){$('status').textContent=message;$('status').className='status'+(error?' error':'')}
 function labelTextColor(mode){return mode==='orange'||mode==='yellow'||mode==='lime'?'#1f2e42':'#ffffff'}
@@ -106,7 +136,8 @@ async function requestJSON(url,timeoutMs=16000){
 }
 async function requestCMC(path){
   const p=path.startsWith('historical')?'historical':'latest';
-  const data=await requestJSON(WORKER_BASE+'/api/'+p);
+  const query=path.includes('?')?path.slice(path.indexOf('?')):'';
+  const data=await requestJSON(WORKER_BASE+'/api/'+p+query);
   if(p==='historical'&&!Array.isArray(data?.data))throw Error('CMC 歷史資料缺失');
   if(p==='latest'&&!data?.data)throw Error('CMC 最新資料缺失');
   return data;
@@ -173,30 +204,51 @@ cvs.addEventListener('mouseleave',()=>{hover=-1;tip.removeAttribute('data-mode')
 window.addEventListener('resize',draw);
 if('ResizeObserver' in window){new ResizeObserver(draw).observe($('chartWrap'))}
 async function load(){
+  if($('refresh').disabled)return;
+  lastFetchAt=Date.now();
   $('refresh').disabled=true;setStatus('正在讀取 CMC 官方最新值與一年歷史…');
   try{
-    // BTC volume and BTC price are intentionally removed; no /api/btc request.
+    // Both sources are CMC. A /latest reading with its own real timestamp fills
+    // a historical endpoint lag without fabricating missing intermediate days.
     const [history,now]=await Promise.all([requestCMC('historical?limit=370'),requestCMC('latest').catch(()=>null)]);
-    fg=parseFG(history.data).slice(-366);colorIds=classifyColors(fg);
-    if(fg.length<2)throw Error('CMC 官方歷史數據不足');
+    if(!Array.isArray(history.data))throw Error('CMC 歷史資料格式錯誤');
+    const result=combineCMC(history.data,now);
+    const candidate=result.points;
+    if(candidate.length<2)throw Error('CMC 官方歷史數據不足');
+    fg=candidate;colorIds=classifyColors(fg);
     const mostRecent=fg[fg.length-1];
-    const live=Number(now?.data?.value);
-    const current=Number.isFinite(live)&&now?.data?.value!=null?live:mostRecent.value;
+    // Never display an undated /latest value as though it belonged to today's candle.
+    const current=mostRecent.value;
     $('latest').replaceChildren();
     $('latest').append(document.createTextNode('最新 '));
-    const value=document.createElement('b');value.textContent=String(current);value.style.color=colorOf(classifyColors([...fg,{t:Date.now(),value:current}]).at(-1));
+    const value=document.createElement('b');value.textContent=String(current);value.style.color=colorOf(colorIds.at(-1));
     $('latest').append(value,document.createTextNode(' · '+textClass(current)));
     $('dateRange').textContent=day(fg[0].t)+' ～ '+day(mostRecent.t);
     showDetail(fg.length-1);
     hover=-1;draw();
-    setStatus('CMC 官方資料 · '+fg.length+' 筆｜Cloudflare Worker｜讀取：'+new Date().toLocaleString('zh-TW'));
+    const ageDays=Math.floor((Date.now()-mostRecent.t)/(24*60*60*1000));
+    const stale=ageDays>1;
+    const gap=fg.length>1&&day(fg.at(-1).t)!==day(fg.at(-2).t)
+      ?Math.max(0,Math.round((Date.parse(day(fg.at(-1).t)+'T00:00:00Z')-Date.parse(day(fg.at(-2).t)+'T00:00:00Z'))/86400000)-1):0;
+    const detail=gap?'｜中間缺 '+gap+' 日原始資料（未補造）':'';
+    setStatus(`CMC 官方資料 · ${fg.length} 筆｜最新日期：${day(mostRecent.t)}${detail}｜讀取：${new Date().toLocaleString('zh-TW')}${stale?'｜資料可能過期':''}`,stale);
   }catch(error){
-    fg=[];colorIds=[];hover=-1;draw();tip.removeAttribute('data-mode');
-    tip.textContent='CMC 官方資料暫時無法讀取（不使用替代指數）';
-    setStatus(String(error.message||error)+'。請檢查 CMC Worker，或稍後按重新讀取。',true);
+    // A transient request failure should never erase a previously verified graph.
+    if(!fg.length){hover=-1;draw();tip.removeAttribute('data-mode');tip.textContent='CMC 官方資料暫時無法讀取（不使用替代指數）';}
+    setStatus(String(error.message||error)+'。'+(fg.length?'保留最後成功的 CMC 歷史圖表，資料可能過期。':'請檢查 CMC Worker，或稍後按重新讀取。'),true);
   }finally{$('refresh').disabled=false}
 }
 $('refresh').addEventListener('click',load);
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin||!event.data||event.data.type!=='SSTATE_FG_VISIBILITY')return;
+  panelOpen=Boolean(event.data.open);
+  if(panelOpen&&!document.hidden&&Date.now()-lastFetchAt>60_000)load();
+});
+window.addEventListener('visibilitychange',()=>{
+  if(panelOpen&&!document.hidden&&Date.now()-lastFetchAt>60_000)load();
+});
+// CMC /latest is updated periodically. Do not make requests when the popover is closed.
+setInterval(()=>{if(panelOpen&&!document.hidden&&Date.now()-lastFetchAt>=15*60_000)load();},60_000);
 load();
 </script>
 </body>

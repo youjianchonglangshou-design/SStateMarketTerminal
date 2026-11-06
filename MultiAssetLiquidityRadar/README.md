@@ -1,3 +1,10 @@
+## v2.1.24 — 恐懼與貪婪最新日期自動同步（2026-11-06）
+
+- 修復 CMC 最新值與歷史圖表分離的缺陷：若 Worker `latest` 帶真實 `update_time`／`timestamp`，自動合併成最新 UTC 日線；不會用今天日期憑空補造資料。
+- 繼續使用既有 CMC Fear & Greed Cloudflare Worker；歷史請求保留 `?limit=370`。若中間缺歷史紀錄，明確註記缺幾日，不生成假點位。
+- 重新開啟彈窗後逾 60 秒會重新抓取；彈窗開啟時每 15 分鐘檢查；來源暫時失效保留最後已驗證圖表並警告。
+- 僅更新恐懼貪婪 `fear-greed.html`、`fear-greed-popover.js`、`index.html` 的快取版本、`VERSION.json`、`README.md`；不改 v2.1.23 的浮動拖曳、CoinGlass、Pionex、RR 或 Worker。
+
 ## v2.1.23 — 修正連續拖曳時斐波與 HA 延伸線「增生／重影」（2026-11-06）
 
 - **原因**：v2.1.22 將未裁切的整個 `dw-layer` 平移，導致斐波射線與矩形越過價格區；固定 HA 延伸線與價格標籤共用同一移動群組，標籤在 X 軸漂走，放開後才復位。

@@ -1,3 +1,12 @@
+## v2.1.25 — CMC 官方即時日期來源修復（2026-11-06）
+
+- 修復 v2.1.24 仍停在 11/04 的根因：獨立 `cmc-fear-greed` Worker 的來源數據過期，前端合併最新數值無法令舊數據變新。
+- 恐懼與貪婪改用現有 `white-meadow-16bc` SState Worker 對接 CMC 官方免金鑰的 `/public-api/v3/fear-and-greed/latest` 及 `/historical`。
+- 以官方 `update_time` 作為最新數據時間；僅合併有明確來源時間的讀數，不把讀取時間冒充資料日期、不捏造中間缺日。
+- 需要覆蓋 **`cloudflare/worker.js` 並重新部署既有 Worker**；只替換 GitHub Pages 前端不會生效。無需 CMC API key、新 Worker 或 Chrome 擴充。
+- 先在 Worker 執行 `/api/monitor/cmc-fear-greed/latest`，確認 `source=CMC_PUBLIC_KEYLESS` 及 `data.update_time`；前端日期應跟上官方資料（官方上游若本身延遲，則如實標示）。
+- 不更改 CoinGlass 7D、指標、繪圖工具、WebSocket、RR、視窗、舊版已保存的情緒配色。
+
 ## v2.1.24 — 恐懼與貪婪最新日期自動同步（2026-11-06）
 
 - 修復 CMC 最新值與歷史圖表分離的缺陷：若 Worker `latest` 帶真實 `update_time`／`timestamp`，自動合併成最新 UTC 日線；不會用今天日期憑空補造資料。

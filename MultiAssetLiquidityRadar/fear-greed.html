@@ -52,7 +52,9 @@ canvas{width:100%;height:100%;display:block;cursor:crosshair}
 <script>
 'use strict';
 // Derived from the user's CMC_Fear_Greed_GitHub_v1.6.0; same API and six-color semantic algorithm.
-const WORKER_BASE='https://cmc-fear-greed.youjianchonglangshou.workers.dev';
+// Use the existing SStateMarketTerminal Worker; the old separate CMC worker
+// was returning 2026-11-04 records even after the dashboard refreshed.
+const WORKER_BASE='https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const $=id=>document.getElementById(id);
 const classes=['極度恐懼','恐懼','中性','貪婪','極度貪婪'];
 const paletteDefs=[
@@ -137,9 +139,16 @@ async function requestJSON(url,timeoutMs=16000){
 async function requestCMC(path){
   const p=path.startsWith('historical')?'historical':'latest';
   const query=path.includes('?')?path.slice(path.indexOf('?')):'';
-  const data=await requestJSON(WORKER_BASE+'/api/'+p+query);
-  if(p==='historical'&&!Array.isArray(data?.data))throw Error('CMC 歷史資料缺失');
-  if(p==='latest'&&!data?.data)throw Error('CMC 最新資料缺失');
+  let data;
+  try{data=await requestJSON(WORKER_BASE+'/api/monitor/cmc-fear-greed/'+p+query)}
+  catch(error){
+    // A missing route must never silently fall back to the stale separate worker.
+    if(/HTTP 404/.test(String(error?.message)))throw Error('主站 Worker 尚未部署 CMC 官方最新資料接口：請同步更新 cloudflare/worker.js');
+    throw error;
+  }
+  if(data?.source!=='CMC_PUBLIC_KEYLESS')throw Error('CMC 資料不是官方即時來源');
+  if(p==='historical'&&!Array.isArray(data?.data))throw Error('CMC 官方歷史資料缺失');
+  if(p==='latest'&&!data?.data?.update_time)throw Error('CMC 官方最新值缺少有效時間');
   return data;
 }
 function draw(){
@@ -206,7 +215,7 @@ if('ResizeObserver' in window){new ResizeObserver(draw).observe($('chartWrap'))}
 async function load(){
   if($('refresh').disabled)return;
   lastFetchAt=Date.now();
-  $('refresh').disabled=true;setStatus('正在讀取 CMC 官方最新值與一年歷史…');
+  $('refresh').disabled=true;setStatus('正在直接讀取 CMC 官方 Public API 最新值與一年歷史…');
   try{
     // Both sources are CMC. A /latest reading with its own real timestamp fills
     // a historical endpoint lag without fabricating missing intermediate days.
@@ -231,7 +240,7 @@ async function load(){
     const gap=fg.length>1&&day(fg.at(-1).t)!==day(fg.at(-2).t)
       ?Math.max(0,Math.round((Date.parse(day(fg.at(-1).t)+'T00:00:00Z')-Date.parse(day(fg.at(-2).t)+'T00:00:00Z'))/86400000)-1):0;
     const detail=gap?'｜中間缺 '+gap+' 日原始資料（未補造）':'';
-    setStatus(`CMC 官方資料 · ${fg.length} 筆｜最新日期：${day(mostRecent.t)}${detail}｜讀取：${new Date().toLocaleString('zh-TW')}${stale?'｜資料可能過期':''}`,stale);
+    setStatus(`CMC 官方公開 API · ${fg.length} 筆｜最新日期：${day(mostRecent.t)}${detail}｜讀取：${new Date().toLocaleString('zh-TW')}${stale?'｜資料可能過期':''}`,stale);
   }catch(error){
     // A transient request failure should never erase a previously verified graph.
     if(!fg.length){hover=-1;draw();tip.removeAttribute('data-mode');tip.textContent='CMC 官方資料暫時無法讀取（不使用替代指數）';}

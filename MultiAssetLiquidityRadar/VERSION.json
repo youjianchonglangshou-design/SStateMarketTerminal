@@ -1,23 +1,23 @@
 {
-  "version": "2.1.24",
+  "version": "2.1.25",
   "releaseDate": "2026-11-06",
-  "baseVersion": "2.1.23",
-  "title": "CMC fear-and-greed dated latest value merged into daily chart with reopen refresh",
+  "baseVersion": "2.1.24",
+  "title": "CMC official keyless latest/history via existing SState Worker; remove stale independent fear-greed dependency",
   "changes": [
-    "Merge CoinMarketCap /api/latest into the existing 1-year daily history only when its own date is verifiable; no synthetic missing days.",
-    "Reopening the existing fear-and-greed popup refreshes official CMC data after 60s; a visible popup checks every 15 minutes.",
-    "Explicit chart latest UTC day, missing-day and stale-data status. Keep verified graph on transient errors.",
-    "Restore the requested ?limit=370 to the existing CMC Worker historical request; no Worker, new price API, indicators or drawing modifications."
+    "Switch Fear & Greed latest/history from the stale dedicated CMC Worker to the already-used SStateMarketTerminal Worker proxy for the official CMC public keyless API.",
+    "Validate official update_time; do not generate today's date from fetch time and never interpolate missing daily records.",
+    "Clearly explain missing new Worker endpoint instead of silently displaying the stale 11/04 feed.",
+    "Keep six-color chart semantics, hover, 15-minute refresh, CoinGlass, price stream, RR, and drag engines unchanged."
   ],
   "modifiedFiles": [
+    "cloudflare/worker.js",
     "MultiAssetLiquidityRadar/fear-greed.html",
-    "MultiAssetLiquidityRadar/fear-greed-popover.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite the five files under MultiAssetLiquidityRadar. Cloudflare Worker unchanged."
+    "Overwrite all five files (including cloudflare/worker.js) and redeploy the EXISTING SState Cloudflare Worker; no API key needed."
   ],
-  "validationNote": "Browser integration tests use mocked CMC dated historical/latest data. Actual Worker/live response has not been accessible from this environment."
+  "validationNote": "Local Worker/Chromium tests use mocked official API responses; live CMC upstream unavailable from this environment. 2026-11-06 online verification pending deployment."
 }

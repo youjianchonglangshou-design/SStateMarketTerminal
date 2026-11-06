@@ -136,12 +136,12 @@ function place(g,obj,proj,selected,live){
     rect(entry,target,'#28d59d');rect(entry,stop,'#e36b7a');
     node(g,'line',{...hit,x1:left,x2:left+width,y1:y(entry),y2:y(entry),stroke:'#e4e9ef','stroke-width':1.8});
     // TradingView-like price alignment: while a position is selected (including
-    // during target/stop handle drag), project BOTH levels across the whole plot.
+    // during target/stop/entry handle drag), project ALL THREE levels across the plot.
     // These guides share exactly the same y(price) as the axis badges and are
     // rebuilt from the current drag values, so a 10-second redraw cannot freeze
-    // a stale line.  Neither guide intercepts pointer/handle events.
+    // a stale line.  These guides never intercept pointer/handle events.
     if(selected){
-      for(const [field,value,tone] of [['target',target,'#28d59d'],['stop',stop,'#f17b89']]){
+      for(const [field,value,tone] of [['target',target,'#28d59d'],['entry',entry,'#d7e6ef'],['stop',stop,'#f17b89']]){
         const yy=y(value);
         if(!Number.isFinite(yy)||yy<proj.T||yy>proj.plotB)continue;
         node(g,'line',{class:'dw-position-price-guide',

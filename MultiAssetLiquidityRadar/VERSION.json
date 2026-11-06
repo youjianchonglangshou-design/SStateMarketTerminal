@@ -1,23 +1,22 @@
 {
-  "version": "2.1.25",
+  "version": "2.1.26",
   "releaseDate": "2026-11-06",
-  "baseVersion": "2.1.24",
-  "title": "CMC official keyless latest/history via existing SState Worker; remove stale independent fear-greed dependency",
+  "baseVersion": "2.1.25",
+  "title": "Position entry-price dashed guide parity with target and stop in long/short drawing tools",
   "changes": [
-    "Switch Fear & Greed latest/history from the stale dedicated CMC Worker to the already-used SStateMarketTerminal Worker proxy for the official CMC public keyless API.",
-    "Validate official update_time; do not generate today's date from fetch time and never interpolate missing daily records.",
-    "Clearly explain missing new Worker endpoint instead of silently displaying the stale 11/04 feed.",
-    "Keep six-color chart semantics, hover, 15-minute refresh, CoinGlass, price stream, RR, and drag engines unchanged."
+    "Draw the missing entry-price horizontal dashed guide when a long/short position is selected, matching target and stop guide visibility and geometry.",
+    "Entry guide tracks the actual active entry price: manually defined price for limit orders, existing live quote for non-limit mode.",
+    "Maintain the existing drawing coordinate projection, clipped drawing layer, guide identity, pointer-event pass-through, and price-axis labels.",
+    "Preserve stop/target guides, position drag handles, RR calculation, viewport pan, Pionex WebSocket, CoinGlass, CMC and all unrelated indicators."
   ],
   "modifiedFiles": [
-    "cloudflare/worker.js",
-    "MultiAssetLiquidityRadar/fear-greed.html",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite all five files (including cloudflare/worker.js) and redeploy the EXISTING SState Cloudflare Worker; no API key needed."
+    "Overwrite the four files in MultiAssetLiquidityRadar. No Cloudflare Worker or R2 deployment."
   ],
-  "validationNote": "Local Worker/Chromium tests use mocked official API responses; live CMC upstream unavailable from this environment. 2026-11-06 online verification pending deployment."
+  "validationNote": "Browser tests against isolated synthetic projection/position snapshots; live GitHub Pages remains to be tested after deployment."
 }

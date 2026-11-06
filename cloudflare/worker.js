@@ -112,6 +112,11 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/health") {
         return json({ ok: true, service: "SStateMarketTerminal", r2: true, tavily_secret: Boolean(env.TAVILY_API_KEY), news_pipeline: RESEARCH_PIPELINE_VERSION }, 200, origin);
       }
+      // Radar CMC Fear & Greed: official keyless API, direct server-side request.
+      // The independent legacy CMC Worker can be stale even after frontend refresh.
+      if (request.method === "GET" && url.pathname.startsWith("/api/monitor/cmc-fear-greed/")) {
+        return await serveOfficialCmcFearGreed(url, origin);
+      }
       if (request.method === "GET" && url.pathname === "/api/symbols/us-stock") {
         return await objectResponse(env, PIONEX_US_STOCK_SYMBOLS_KEY, origin, false, "us_stock_symbols.json");
       }
@@ -4501,6 +4506,47 @@ function safeModelId(v){ const x=String(v||""); if(!/^[A-Za-z0-9_-]{8,100}$/.tes
 function requireInternal(request, env){ const auth=request.headers.get("Authorization")||""; if(!env.CALLBACK_TOKEN || auth!==`Bearer ${env.CALLBACK_TOKEN}`) throw httpError(401,"unauthorized"); }
 function httpError(status,message){ const e=new Error(message); e.status=status; return e; }
 function json(value,status,origin){ const headers=new Headers({"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}); applyCors(headers,origin); return new Response(JSON.stringify(value,null,2),{status,headers}); }
+
+// Official CMC Fear & Greed (keyless) on the EXISTING SState Worker.
+// No secret, no fabricated current day, no independent stale R2 records.
+async function serveOfficialCmcFearGreed(url, origin){
+  const kind = url.pathname.slice('/api/monitor/cmc-fear-greed/'.length);
+  if(kind !== 'latest' && kind !== 'historical')
+    return json({ok:false,code:'CMC_BAD_KIND',error:'CMC kind must be latest or historical'},404,origin);
+  const limit = Math.max(2,Math.min(370,Math.floor(Number(url.searchParams.get('limit'))||370)));
+  const target = 'https://pro-api.coinmarketcap.com/public-api/v3/fear-and-greed/' + kind
+    + (kind === 'historical' ? '?limit=' + limit : '');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 14000);
+  let response;
+  try{
+    response = await fetch(target, {method:'GET',headers:{Accept:'application/json'},signal:controller.signal,redirect:'follow'});
+    if(!response.ok) return json({ok:false,code:'CMC_UPSTREAM_HTTP',error:'CMC public API HTTP '+response.status,source:'CMC_PUBLIC_KEYLESS'},502,origin);
+    const payload = await response.json();
+    const errorCode = payload?.status?.error_code;
+    if(errorCode !== null && errorCode !== undefined && String(errorCode) !== '0')
+      return json({ok:false,code:'CMC_UPSTREAM_STATUS',error:String(payload.status.error_message||errorCode),source:'CMC_PUBLIC_KEYLESS'},502,origin);
+    if(kind === 'latest'){
+      const row = payload?.data;
+      const value = Number(row?.value);
+      const stamp = row?.update_time ?? row?.timestamp;
+      const epoch = typeof stamp === 'number' || /^\d+$/.test(String(stamp||''))
+        ? Number(stamp) * (Number(stamp)<1e12?1000:1) : Date.parse(stamp);
+      if(row?.value==null || !Number.isFinite(value) || value<0 || value>100 || !Number.isFinite(epoch) || epoch<=0 || epoch>Date.now()+180000)
+        return json({ok:false,code:'CMC_BAD_LATEST',error:'CMC latest must include a real value and update_time',source:'CMC_PUBLIC_KEYLESS'},502,origin);
+      return json({ok:true,source:'CMC_PUBLIC_KEYLESS',fetched_at:new Date().toISOString(),data:{
+        value,update_time:new Date(epoch).toISOString(),value_classification:String(row.value_classification||'')
+      }},200,origin);
+    }
+    if(!Array.isArray(payload?.data))
+      return json({ok:false,code:'CMC_BAD_HISTORY',error:'CMC historical records are missing',source:'CMC_PUBLIC_KEYLESS'},502,origin);
+    return json({ok:true,source:'CMC_PUBLIC_KEYLESS',fetched_at:new Date().toISOString(),data:payload.data.map(item=>({
+      timestamp:item?.timestamp,value:item?.value,value_classification:item?.value_classification
+    }))},200,origin);
+  }catch(err){
+    return json({ok:false,code:'CMC_NETWORK',error:'CMC public API unavailable: '+String(err?.message||err),source:'CMC_PUBLIC_KEYLESS'},502,origin);
+  }finally{clearTimeout(timeout);}
+}
 
 // CoinGlass V4 maximum-pain. This is an authenticated CoinGlass response,
 // not a transformed live Pionex price. Cloudflare cache bounds API usage.

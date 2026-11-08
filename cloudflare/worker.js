@@ -236,7 +236,7 @@ export default {
           if(!/^\d{13}$/.test(rawEnd)||!Number.isSafeInteger(endTime)||endTime<1262304000000||endTime>Date.now()+86400000)
             throw httpError(400,"invalid historical endTime");
           const klines=await fetchMonitorKlines(symbol,interval,limit,endTime);
-          return json({ok:true,symbol,interval,endTime,klines,source:"PIONEX_HISTORY",fetched_at:new Date().toISOString()},200,origin);
+          return json({ok:true,symbol,interval,endTime,klines,source:"PIONEX_HISTORY",history_api_version:"2.1.28",fetched_at:new Date().toISOString()},200,origin);
         }
         const payload = await loadMonitorKlines(env, symbol, interval, limit, force);
         return json({ ok: true, ...payload }, 200, origin);

@@ -1079,24 +1079,38 @@
  let deepQueue=Promise.resolve(),lastDeepFetch=0;
  // The Pionex PERP kline endpoint carries weight 5. Do not bypass a 429
  // through a second direct request, or extend the exchange-wide cooldown.
- let deepCooldownUntil=0,deepLimitHits=0,deepRetryTimer=0;
+ let deepCooldownUntil=0,deepLimitHits=0,deepRetryTimer=0,deepRetryDue=Infinity;
  const deepRetryIntents=new Set();
  const DEEP_PAGE_SIZE=300;
+ // Never discard a pending historical request until it is actually eligible.
+ // The shared cooldown can be extended by another tab or 4H/1D request while
+ // this timer is waiting, so always re-evaluate it after wake-up.
  function nextDeepRetry(){
-   if(deepRetryTimer||!deepRetryIntents.size||document.hidden)return;
-   const now=Date.now();
-   const earliest=()=>[...deepRetryIntents].sort((a,b)=>
+   if(!deepRetryIntents.size||document.hidden)return;
+   const nextKey=()=>[...deepRetryIntents].sort((a,b)=>
      (deepState.get(a)?.backoff||0)-(deepState.get(b)?.backoff||0))[0];
-   const due=Math.max(deepCooldownUntil,deepState.get(earliest())?.backoff||0);
+   const k=nextKey();
+   const due=Math.max(deepCooldownUntil,deepState.get(k)?.backoff||0,Date.now()+100);
+   if(deepRetryTimer){
+     if(deepRetryDue<=due)return;
+     clearTimeout(deepRetryTimer);deepRetryTimer=0;
+   }
+   deepRetryDue=due;
    deepRetryTimer=setTimeout(()=>{
-     deepRetryTimer=0;
-     if(document.hidden)return;
-     // Service the earliest-eligible symbol; the existing FIFO serializes fetches.
-     const k=earliest();if(!k)return;
-     deepRetryIntents.delete(k);
-     const at=k.lastIndexOf(':');
-     void loadExtraHistory(k.slice(0,at),k.slice(at+1)).finally(()=>nextDeepRetry());
-   },Math.max(200,due-now+100));
+     deepRetryTimer=0;deepRetryDue=Infinity;
+     if(document.hidden||!deepRetryIntents.size)return;
+     const key=nextKey(),ready=Math.max(deepCooldownUntil,deepState.get(key)?.backoff||0);
+     if(Date.now()<ready){nextDeepRetry();return;}
+     if(deepJobs.has(key)){
+       // An older attempt is still finishing. Keep the retry intent alive.
+       deepRetryDue=Date.now()+750;
+       deepRetryTimer=setTimeout(()=>{deepRetryTimer=0;deepRetryDue=Infinity;nextDeepRetry();},750);
+       return;
+     }
+     deepRetryIntents.delete(key);
+     const at=key.lastIndexOf(':');
+     void loadExtraHistory(key.slice(0,at),key.slice(at+1)).finally(()=>nextDeepRetry());
+   },Math.max(100,due-Date.now()));
  }
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)nextDeepRetry();});
  function scheduleLimitedRetry(id,interval,meta,seconds){
@@ -1152,7 +1166,9 @@
    // request MUST NOT immediately be repeated via direct Pionex REST.
    const result=await historyJSON(url.toString());
    if(result.source!=='PIONEX_HISTORY')throw Error('Worker 歷史分頁尚未啟用');
-   return parseRest(result);
+   const page=parseRest(result);
+   if(page.some(b=>b.t>endTime))throw Error('派網歷史分頁未遵守 endTime，不能判定已到最早 K 線');
+   return page;
  }
  async function loadExtraHistory(id,interval='4H'){
    if(!['4H','1D'].includes(interval))return false;
@@ -1162,7 +1178,7 @@
    if(meta.exhausted)return false;
    if(deepJobs.has(k))return deepJobs.get(k);
    if(Date.now()<Math.max(meta.backoff,deepCooldownUntil)){
-     if(Date.now()<deepCooldownUntil){deepRetryIntents.add(k);nextDeepRetry();}
+     deepRetryIntents.add(k);nextDeepRetry();
      return false;
    }
    const job=(async()=>{
@@ -1172,7 +1188,9 @@
      if(!meta.cacheChecked){meta.cacheChecked=true;
        try{const saved=await window.LiqHistoryCache?.readDeep?.(r.s.pionex,interval);
          if(saved?.bars?.length){const result=mergeOlder(r,interval,saved.bars);
-           if(result.added>0){meta.exhausted=!!saved.exhausted;return true;}}
+           if(result.added>0){meta.exhausted=!!saved.exhausted;
+             reportHistory(id,interval,'loaded','從本機快取恢復 '+result.added+' 根');
+             return true;}}
          if(saved?.exhausted)meta.exhausted=true;
        }catch(_){/* unsupported/private storage */}
      }
@@ -1191,7 +1209,7 @@
      deepQueue=queued.then(()=>{},()=>{});
      try{
        const fetched=await queued;
-       deepLimitHits=0;
+       deepLimitHits=0;meta.backoff=0;
        deepRetryIntents.delete(k);
        const seam=fetched.find(b=>b.t===oldest),live=rows[0];
        const differs=(a,b)=>['o','h','l','c'].some(f=>
@@ -1284,7 +1302,7 @@
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
    window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory,getHistoryState:historyState};
-   window.LIQ_TEST={version:'2.1.28',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_TEST={version:'2.1.30',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

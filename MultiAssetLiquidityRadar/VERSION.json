@@ -1,26 +1,27 @@
 {
-  "version": "2.1.29",
+  "version": "2.1.30",
   "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.28",
-  "title": "Pionex 1D/4H historical backfill 429-safe shared cooldown, immutable page cache, automatic retry",
+  "baseVersion": "2.1.29",
+  "title": "1D/4H demand-paged history: real viewport boundary and reliable 429 retries",
   "changes": [
-    "Fix Pionex 429 storm: both latest and historical Worker K-line requests consult a shared R2 rate-limit cooldown before contacting the upstream API.",
-    "Cache verified native-Pionex historical pages by symbol/interval/endTime/limit; cached historical pages remain usable during an upstream cooldown.",
-    "Propagate upstream Retry-After from the Worker and automatically retry pending user-requested 1D/4H history after bounded exponential cooldown, never in a busy loop or while hidden.",
-    "Remove immediate direct-Pionex fallback upon Worker failure to avoid extra calls and prolonged IP bans.",
-    "Maintain normal initial 1D 95 / 4H 130, viewport drag/zoom, deep cache, indicators, 7D bounds and RR unchanged.",
-    "Show waiting-for-rate-limit state and preserve all already fetched K lines during a temporary ban."
+    "Use the actual visible candle count when bounding 1D/4H leftward viewport panning, removing the arbitrary 21-candle overscroll and blank-left region.",
+    "Preserve sub-bar floating panning and existing initial 1D 95 / 4H 130 data requests.",
+    "When new older OHLC pages arrive, reproject using the existing latest-anchored float offset: older bars join seamlessly and remain available for further user-driven navigation.",
+    "Keep pending demand-page retries across changing 429 cooldowns, tab visibility and concurrent 1D/4H requests; no repeated requests while cooling.",
+    "Do not mistake a Pionex endpoint that ignored endTime for a genuine history boundary.",
+    "Show restored offline deep-history cache as a loaded event; retain existing Pionex-only Worker/R2 and unchanged indicators."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md",
-    "cloudflare/worker.js"
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite radar files in GitHub and deploy cloudflare/worker.js to existing white-meadow-16bc Cloudflare Worker."
+    "Overwrite the 7 radar files on GitHub Pages. This frontend repair keeps the v2.1.29 cloudflare/worker.js unchanged; the existing Worker must already have v2.1.29 history pagination and shared 429 cooldown deployed."
   ],
-  "validationNote": "Offline Worker and Chromium tests use mocked Pionex/R2 responses; true Pionex 429 expiry and available historical depth require post-deployment verification."
+  "validationNote": "Static and mocked browser tests; cannot confirm actual Cloudflare/Pionex historical availability without real authenticated deployment/runtime."
 }

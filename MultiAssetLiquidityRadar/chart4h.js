@@ -92,7 +92,7 @@
    // TradingView-style logical viewport: the scroll offset remains a FLOAT.
    // Render the already-loaded history in one continuous coordinate system;
    // clip it at the viewport instead of discarding bars that pan outside.
-   const offset=clamp(Number(viewOffset)||0,-Math.floor(n*.5),Math.max(0,complete.length-21));
+   const offset=clamp(Number(viewOffset)||0,-Math.floor(n*.5),Math.max(0,complete.length-n));
    const future=Math.max(0,-offset),begin=0,end=complete.length;
    const rows=complete;
    const W=Math.max(320,Math.round(target.clientWidth||1200)),H=Math.max(220,Math.round(target.clientHeight||370));

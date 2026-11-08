@@ -620,3 +620,12 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - A failed Worker request no longer triggers an immediate second direct request to Pionex. The existing K lines, OHLC, drawing anchors, CoinGlass 7D and RR are preserved.
 - Real upstream 429 or a permanently blocked source cannot be bypassed by increasing request frequency; if unavailable after retries, the page retains the downloaded historical region and reports the cooldown.
 - **Deploy both** the radar files on GitHub Pages and `cloudflare/worker.js` to the existing Cloudflare Worker. No new worker, token, or extension is required.
+
+
+## v2.1.30 — 1D/4H 真實歷史邊界與 429 重試保護
+- 修正「拖到只剩 21 根 K 線」造成左側大片空白的舊邊界；改為以實際可視根數定位最左端。
+- 1D/4H 初次載入仍維持 95/130 根，手動拖曳或滾輪接近邊界才要求更早派網歷史。
+- 已載入資料時間座標不改變，後續可繼續往左回溯。
+- 多圖表或兩種週期觸發 429 延長冷卻時，已登記的重試意圖不會被錯誤刪掉。
+- 官方歷史 API 若回傳超過 endTime 的 K 線，報錯而不是誤判「派網最早歷史」。
+- 本次沒有修改既有 Worker；須先確保 v2.1.29 的 Worker 已部署。

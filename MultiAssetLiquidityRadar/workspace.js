@@ -338,7 +338,7 @@
      },
      previewPan:(drag,dx,dy)=>{
        const proj=drag.proj;
-       const next=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
+       const next=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-proj.viewCount));
        w.viewOffset=next;
        // A single drag can start prefetch before pointerup. In-flight requests
        // are deduplicated by loadExtraHistory; no additional initial fetch.
@@ -356,7 +356,7 @@
      },
      endPan:(drag,dx,dy)=>{
        const proj=drag.proj;
-       w.viewOffset=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
+       w.viewOffset=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-proj.viewCount));
        const move=dy/Math.max(20,proj.ph)*(proj.hi-proj.lo);
        w.priceView={hi:proj.hi+move,lo:proj.lo+move};
        if(w.panRaf){cancelAnimationFrame(w.panRaf);w.panRaf=0;}

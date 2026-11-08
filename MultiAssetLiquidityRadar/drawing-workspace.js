@@ -350,7 +350,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
    const x=proj.fromEvent(ev).x,relative=clamp((x-proj.L)/proj.pw,0,1);
    // Keep the candle below the cursor anchored while enlarging/compressing the view.
    const off=callbacks.getOffset()-(next-cur)*(1-relative);
-   callbacks.setView(next,clamp(off,-Math.floor(next*.5),Math.max(0,proj.total-21)));if(callbacks.getTimeframe()==='4H'&&next>proj.total-callbacks.getOffset()-10)callbacks.moreHistory();
+   callbacks.setView(next,clamp(off,-Math.floor(next*.5),Math.max(0,proj.total-21)));
  },{passive:false});
  c.setTool=tool=>{c.tool=tool;c.draft=null;updateGhost();syncSnapUI();render(w);};
  c.getSelected=()=>snapshot(w.symbol).drawings.find(x=>x.id===c.selected)||null;

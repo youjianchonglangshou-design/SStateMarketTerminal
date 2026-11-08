@@ -139,6 +139,15 @@
    // Geometry changes repaint at most ~12fps during mouse dragging; price updates are batched.
    w.timer=setTimeout(()=>{w.timer=0;requestAnimationFrame(()=>render(w));},delay);
  }
+ function maybeHistory(w){
+   if(!w||w.minimized||document.hidden||w.isPanning)return;
+   const proj=w.plot?.__liqProjection;
+   if(!proj||proj.interval!==w.timeframe)return;
+   // The left-most visible candle is around total - viewCount - viewOffset.
+   // Start prefetch 20 bars early, never download anything merely on startup.
+   if(w.viewOffset>=Math.max(0,proj.total-w.viewCount-20))
+     void window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe);
+ }
  function updateTab(w){
    w.tab.textContent='▧ '+w.symbol+' '+w.timeframe+(w.minimized?' ↥':'');
    w.tab.classList.toggle('minimized',w.minimized);
@@ -348,10 +357,10 @@
        window.LiqRadar4H?.endPan(w.plot);
        w.isPanning=false;w.dirty=true;
        render(w,true);save();
-       if(w.timeframe==='4H'&&w.viewOffset>proj.total-proj.viewCount-15)window.LIQ_CHART_API?.loadExtra4H?.(w.symbol);
+       maybeHistory(w);
      },
-     setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);save();},
-     moreHistory:()=>window.LIQ_CHART_API?.loadExtra4H?.(w.symbol)
+     setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);save();maybeHistory(w);},
+     moreHistory:()=>window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe)
    });
    w.onDrawingChangedPrice=updatePosition;
    w.dwController=controller;w.dwPeriod=period;w.dwMode=mode;w.dwToolButtons=toolButtons;

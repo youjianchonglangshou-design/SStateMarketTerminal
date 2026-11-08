@@ -100,7 +100,14 @@
    const stride=pw/(n+BLANK_CANDLES);
    // At offset=0 the latest bar remains near the right edge, even with <n bars.
    const x=i=>L+(i+n-complete.length+.5+offset)*stride;
-   const scaleRows=rows.filter((r,i)=>x(i)>=L-stride&&x(i)<=plotR+stride);
+   // Virtualize ONLY the SVG shapes. Keep all real OHLC in rows so timestamp
+   // projection, drawing anchors and historical hit tests do not jump.
+   const windowLeft=rows.length-n-offset;
+   const buffer=Math.max(35,Math.ceil(n*.8));
+   const drawStart=clamp(Math.floor(windowLeft)-buffer,0,rows.length);
+   const drawEnd=clamp(Math.ceil(windowLeft+n+BLANK_CANDLES)+buffer,drawStart,rows.length);
+   const visible=rows.slice(drawStart,drawEnd).map((r,j)=>({r,i:drawStart+j}));
+   const scaleRows=visible.filter(({i})=>x(i)>=L-stride&&x(i)<=plotR+stride).map(({r})=>r);
    const vals=[];
    for(const r of (scaleRows.length?scaleRows:rows.slice(-21))){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);}
    for(const v of [price,upper,lower])if(valid(v))vals.push(v);
@@ -130,7 +137,7 @@
    }
    // Taiwan trading day begins 08:00, only show dates to prevent axis clutter.
    svg.push(`<g clip-path="url(#${clipId}-time)"><g class="rc-time-movable">`);
-   rows.forEach((r,i)=>{
+   visible.forEach(({r,i})=>{
      if(i!==0&&dayOf(r.t)!==dayOf(rows[i-1].t) && (W>=700||i%12<6)){
        const at=x(i)-stride/2;
        svg.push(`<line class="rc-grid-v" x1="${fmt(at)}" x2="${fmt(at)}" y1="${T}" y2="${plotB}"/>`);
@@ -141,7 +148,7 @@
    // DAILY bands, *never* Bollinger on 4H closes. Values repeat across same day's 4H bars.
    // Draw one daily sample near the center of its six candle slots, as on the SState home chart.
    const daysShown=[];
-   rows.forEach((r,i)=>{
+   visible.forEach(({r,i})=>{
      const date=dayOf(r.t),entry=daysShown.at(-1);
      if(entry?.date===date){entry.last=i;return;}
      daysShown.push({date,first:i,last:i,bb:r.bb});
@@ -169,9 +176,9 @@
    // neither wick crosses its hollow (transparent) candle body.
    const w=clamp(stride*.60,3.2,10);
    if(displayMode==='line'){
-     const pts=rows.map((r,i)=>`${fmt(x(i))},${fmt(y(r.c))}`).join(' ');
+     const pts=visible.map(({r,i})=>`${fmt(x(i))},${fmt(y(r.c))}`).join(' ');
      svg.push(`<polyline class="rc-close-line" points="${pts}" fill="none" stroke="#36cde5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
-   }else rows.forEach((r,i)=>{
+   }else visible.forEach(({r,i})=>{
      const xx=x(i),c=r.c>=r.o?'rc-up':'rc-down';
      const top=y(Math.max(r.o,r.c)),bottom=y(Math.min(r.o,r.c));
      const bodyHeight=Math.max(1.4,bottom-top), bodyTop=(top+bottom-bodyHeight)/2;
@@ -182,7 +189,7 @@
    });
    // The 1D HA close is held throughout that UTC day, usually six real 4H candles.
    let prev=null;
-   if(showHA)rows.forEach((r,i)=>{
+   if(showHA)visible.forEach(({r,i})=>{
      const h=r.ha;if(!h||h.color==='gray'){prev=null;return;}
      const start=x(i)-stride/2,end=x(i)+stride/2,cls=h.color==='yellow'?'rc-ha-yellow':'rc-ha-purple';
      svg.push(`<line class="rc-ha-step ${cls}" x1="${fmt(start)}" x2="${fmt(end)}" y1="${fmt(y(h.price))}" y2="${fmt(y(h.price))}"/>`);
@@ -253,7 +260,7 @@
      if(low>=rows.length-1)return rows.at(-1).t+(index-rows.length+1)*intervalMs;
      return rows[low].t+fraction*(rows[low+1].t-rows[low].t);
    };
-   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,clipId,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:0,stride,logSpan:hi-lo,hi,lo,pricePan:pan,future,
+   target.__liqProjection={W,H,L,T,plotR,plotB,pw,ph,clipId,rows,displayMode,total:complete.length,viewOffset:offset,viewCount:n,interval:tf,firstIndex:0,drawStart,drawEnd,stride,logSpan:hi-lo,hi,lo,pricePan:pan,future,
      x:xAtTime,time:timeAtX,y,price:priceAtY,money,
      fromEvent(ev){const rect=target.getBoundingClientRect();return {x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H};}
    };

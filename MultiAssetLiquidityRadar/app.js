@@ -983,8 +983,9 @@
  function mergeHistory(cached,latest,kind){
    const by=new Map((cached||[]).map(b=>[b.t,b]));
    for(const b of latest)by.set(b.t,b);
-   const max=kind==='day'?95:kind==='h4'?300:530;
-   return [...by.values()].sort((a,b)=>a.t-b.t).slice(-max);
+   // Deep user-loaded 1D/4H candles are never discarded by a minute refresh.
+   const all=[...by.values()].sort((a,b)=>a.t-b.t);
+   return kind==='bar'?all.slice(-530):all;
  }
  async function pump(){
    while(state.loadingJobs<MAX_WORKERS&&state.queue.length){
@@ -1004,6 +1005,8 @@
        const fetchCount=recent?kind==='day'?16:kind==='bar'?120:36:count;
        let received=await loadHistory(r.s,interval,fetchCount);
        let merged=recent?mergeHistory(cached.bars,received.bars,kind):received.bars;
+       // Refresh only the recent tail; retain older pages fetched by navigation.
+       if(kind==='day'||kind==='h4')merged=mergeHistory(kind==='day'?r.daily:r.bars4h,merged,kind);
        // A provider may revise completed historical OHLC; never silently mix
        // materially conflicting source data with our cached history.
        if(recent){
@@ -1013,11 +1016,12 @@
            const old=matches.get(b.t);
            return ['o','h','l','c'].some(k=>Math.abs(b[k]-old[k])>Math.max(1e-9,Math.abs(old[k])*.00001));
          });
-         if(incompatible){received=await loadHistory(r.s,interval,count);merged=received.bars;}
+         if(incompatible){received=await loadHistory(r.s,interval,count);
+           merged=mergeHistory(kind==='day'?r.daily:r.bars4h,received.bars,kind);}
        }
        if(kind==='bar'){r.bars15=merged;r.barsAt=Date.now();r.errors.bar='';}
        else if(kind==='h4'){
-         if(r.bars4h.length>merged.length){const m=new Map([...r.bars4h,...merged].map(b=>[b.t,b]));merged=[...m.values()].sort((a,b)=>a.t-b.t).slice(-300);}
+         // No 300-bar truncation: historical backfill and newest candles coexist. 
          r.bars4h=merged;r.h4At=Date.now();r.h4Feed=received.feed;r.errors.h4='';} 
        else{r.daily=merged;r.dailyAt=Date.now();r.errors.day='';}
        if(received.warning)log(`${r.id} ${interval}: ${received.warning}`);
@@ -1058,34 +1062,91 @@
    state.batchEnqueue=false;
    queueMissingProxies();pump();updateTerminalProgress();
  }
- const extra4h=new Map();
- let deepHistoryQueue=Promise.resolve(),lastDeepFetch=0;
- async function loadExtra4H(id){
-   const r=records.find(x=>x.id===id);if(!r)return false;
-   if(r.bars4h.length>=295)return true;
-   if(extra4h.has(id))return extra4h.get(id);
-   if(r.extra4hAttempt&&Date.now()-r.extra4hAttempt<30000)return false;
-   r.extra4hAttempt=Date.now();
-   const job=(async()=>{try{
-     // Extended 300-bar history is requested ONLY after actual user exploration.
-     // One deep-history request at a time across four windows, with conservative
-     // pacing. The interactive drawing layer never floods Pionex on wheel input.
-     const process=async()=>{
-       const pause=Math.max(0,2000-(Date.now()-lastDeepFetch));
-       if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
-       lastDeepFetch=Date.now();return loadHistory(r.s,'4H',300);
-     };
-     const queued=deepHistoryQueue.then(process,process);
-     deepHistoryQueue=queued.then(()=>{},()=>{});
-     const response=await queued;
-     const combined=new Map([...r.bars4h,...response.bars].map(b=>[b.t,b]));
-     r.bars4h=[...combined.values()].sort((a,b)=>a.t-b.t).slice(-300);
-     r.h4At=Date.now();r.h4Feed=response.feed;
-     if(window.LiqHistoryCache)void window.LiqHistoryCache.write(r.s.pionex,'4H',r.bars4h,response.provider||response.feed);
-     updateDerived(r);renderRow(r);renderOverview();return true;
-   }catch(e){log(id+' 延伸 4H 歷史失敗：'+e.message);return false;}
-   finally{extra4h.delete(id);}})();extra4h.set(id,job);return job;
+ // Demand-paged Pionex OHLC: no extra network request until chart navigation.
+ // One bounded request per user gesture, queued across all four floating windows.
+ const deepJobs=new Map(),deepState=new Map();
+ let deepQueue=Promise.resolve(),lastDeepFetch=0;
+ const DEEP_PAGE_SIZE=300;
+ function deepKey(id,interval){return id+':'+interval;}
+ function mergeOlder(r,interval,older){
+   const key=interval==='1D'?'daily':'bars4h';
+   const previous=r[key],first=previous[0]?.t;
+   const merged=mergeHistory(previous,older,interval==='1D'?'day':'h4');
+   const added=merged.length-previous.length;
+   if(added>0){r[key]=merged;
+     if(interval==='1D'){r.dailyAt=Date.now();}else{r.h4At=Date.now();r.h4Feed='Pionex history / 4H';}
+     updateDerived(r);renderRow(r);
+     window.LIQ_WORKSPACE?.refreshSymbol(idForRecord(r));
+   }
+   return {added,first,oldest:merged[0]?.t};
  }
+ function idForRecord(r){return r.id;}
+ async function pionexHistoryPage(r,interval,endTime){
+   const url=new URL('/api/monitor/klines',WORKER);
+   url.searchParams.set('symbol',r.s.pionex);
+   url.searchParams.set('interval',interval);
+   url.searchParams.set('limit',String(DEEP_PAGE_SIZE));
+   url.searchParams.set('endTime',String(endTime));
+   const result=await json(url.toString(),{},16000);
+   if(result.source!=='PIONEX_HISTORY')throw Error('歷史分頁來源不是派網');
+   return parseRest(result);
+ }
+ async function loadExtraHistory(id,interval='4H'){
+   if(!['4H','1D'].includes(interval))return false;
+   const r=records.find(x=>x.id===id);if(!r)return false;
+   const k=deepKey(id,interval),meta=deepState.get(k)||{cacheChecked:false,exhausted:false,backoff:0};
+   deepState.set(k,meta);
+   if(meta.exhausted||Date.now()<meta.backoff)return false;
+   if(deepJobs.has(k))return deepJobs.get(k);
+   const job=(async()=>{
+     let rows=interval==='1D'?r.daily:r.bars4h;
+     if(rows.length<21){enqueue(r,interval==='1D'?'day':'h4',true,-10);return false;}
+     // IndexedDB is read only after the user starts historical exploration.
+     if(!meta.cacheChecked){meta.cacheChecked=true;
+       try{const saved=await window.LiqHistoryCache?.readDeep?.(r.s.pionex,interval);
+         if(saved?.bars?.length){const result=mergeOlder(r,interval,saved.bars);
+           if(result.added>0){meta.exhausted=!!saved.exhausted;return true;}}
+         if(saved?.exhausted)meta.exhausted=true;
+       }catch(_){/* unsupported/private storage */}
+     }
+     if(meta.exhausted)return false;
+     rows=interval==='1D'?r.daily:r.bars4h;
+     const oldest=rows[0]?.t;if(!Number.isFinite(oldest))return false;
+     // Pionex endTime is inclusive. Include the first old candle as a seam
+     // to verify we did not silently switch exchange or price units.
+     const process=async()=>{
+       const delay=Math.max(0,1600-(Date.now()-lastDeepFetch));
+       if(delay)await new Promise(ok=>setTimeout(ok,delay));
+       lastDeepFetch=Date.now();return pionexHistoryPage(r,interval,oldest);
+     };
+     const queued=deepQueue.then(process,process);
+     deepQueue=queued.then(()=>{},()=>{});
+     try{
+       const fetched=await queued;
+       const seam=fetched.find(b=>b.t===oldest),live=rows[0];
+       if(seam&&['o','h','l','c'].some(f=>Math.abs(seam[f]-live[f])>Math.max(1e-8,live[f]*0.001)))
+         throw Error('派網歷史分頁與目前 K 線交界不一致；已停止合併');
+       const older=fetched.filter(b=>b.t<oldest);
+       if(!older.length){meta.exhausted=true;log(id+' '+interval+' 已抵達派網最早 K 線');return false;}
+       const result=mergeOlder(r,interval,older);
+       if(result.added<=0){meta.exhausted=true;return false;}
+       // A short page is not proof of exhaustion: gaps, new listings and API
+       // responses can be shorter than limit. Next gesture probes further.
+       void window.LiqHistoryCache?.writeDeep?.(r.s.pionex,interval,interval==='1D'?r.daily:r.bars4h,meta.exhausted);
+       log(id+' '+interval+' 補載 '+result.added+' 根｜歷史總數 '+(interval==='1D'?r.daily:r.bars4h).length);
+       // A 4H backfill also needs matching daily HA / Bollinger history.
+       // This is still user-triggered, not part of initial page loading.
+       if(interval==='4H'&&r.daily.length&&r.bars4h[0].t<r.daily[0].t){
+         setTimeout(()=>loadExtraHistory(id,'1D'),50);
+       }
+       return true;
+     }catch(err){meta.backoff=Date.now()+60000;
+       log(id+' '+interval+' 歷史分頁失敗：'+String(err?.message||err));return false;}
+   })().finally(()=>deepJobs.delete(k));
+   deepJobs.set(k,job);return job;
+ }
+ // Compatibility for old callers; new 1D and 4H both use the same pager.
+ const loadExtra4H=id=>loadExtraHistory(id,'4H');
  function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());updateTabTitle();}
  function setup(){
    const counts={crypto:records.filter(r=>r.s.group==='crypto').length,stock:records.filter(r=>r.s.group==='stock').length};
@@ -1120,8 +1181,8 @@
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
-   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H};
-   window.LIQ_TEST={version:'2.1.21',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory};
+   window.LIQ_TEST={version:'2.1.27',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

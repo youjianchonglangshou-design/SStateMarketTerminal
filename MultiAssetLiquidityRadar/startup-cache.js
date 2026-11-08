@@ -45,9 +45,35 @@
      tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false);
    }catch(_){resolve(false);}});
  }
+ // Deep pages never inflate the initial 95/130-bar fetch or startup read.
+ // They are stored under a separate key, and read only on user navigation.
+ async function readDeep(symbol,interval){
+   if(!['1D','4H'].includes(interval))return null;
+   const db=await open();if(!db)return null;
+   return new Promise(resolve=>{try{
+     const tx=db.transaction(STORE,'readonly'),q=tx.objectStore(STORE).get('deep:'+symbol+':'+interval);
+     q.onsuccess=()=>{const data=q.result;
+       if(!Array.isArray(data?.bars))return resolve(null);
+       const bars=data.bars.filter(valid).sort((a,b)=>a.t-b.t);
+       resolve(bars.length?{bars,exhausted:!!data.exhausted,provider:data.provider||'PIONEX_HISTORY'}:null);
+     };q.onerror=()=>resolve(null);
+   }catch(_){resolve(null);}});
+ }
+ async function writeDeep(symbol,interval,bars,exhausted=false){
+   if(!['1D','4H'].includes(interval)||!Array.isArray(bars))return false;
+   const db=await open();if(!db)return false;
+   const span=duration[interval],now=Date.now();
+   const rows=[...new Map(bars.filter(valid).filter(b=>b.t+span<=now).map(b=>[b.t,b])).values()].sort((a,b)=>a.t-b.t);
+   if(!rows.length)return false;
+   return new Promise(resolve=>{try{
+     const tx=db.transaction(STORE,'readwrite');
+     tx.objectStore(STORE).put({bars:rows,provider:'PIONEX_HISTORY',exhausted:!!exhausted,savedAt:now},'deep:'+symbol+':'+interval);
+     tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false);tx.onabort=()=>resolve(false);
+   }catch(_){resolve(false);}});
+ }
  const SOURCE_KEY='SStateLiquidityRadar.histProvider.v1';
  function preferred(symbol,interval){try{return JSON.parse(localStorage.getItem(SOURCE_KEY)||'{}')[symbol+':'+interval]||'';}catch(_){return '';}}
  function remember(symbol,interval,provider){try{const old=JSON.parse(localStorage.getItem(SOURCE_KEY)||'{}');old[symbol+':'+interval]=provider;
    localStorage.setItem(SOURCE_KEY,JSON.stringify(old));}catch(_){/* storage disabled */}}
- root.LiqHistoryCache=Object.freeze({read,write,preferred,remember});
+ root.LiqHistoryCache=Object.freeze({read,write,readDeep,writeDeep,preferred,remember});
 })(typeof window!=='undefined'?window:globalThis);

@@ -13,8 +13,15 @@
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const clamp=(n,l,h)=>Math.max(l,Math.min(h,n));
  const money=n=>{if(!valid(n))return '—';const a=Math.abs(n),dp=a>=100?2:a>=1?4:a>=.01?6:a>=.0001?8:Math.min(13,Math.ceil(-Math.log10(a))+4);return n.toLocaleString('en-US',{maximumFractionDigits:dp,minimumFractionDigits:a>=100?2:0});};
- const clock=t=>new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+ const clock=t=>new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
  const dayText=t=>new Date(t).toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'});
+ // Historical K lines cross multiple calendar years. All axis dates are
+ // rendered in Asia/Taipei, including 4H bars that straddle midnight here.
+ const axisFormatter=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'});
+ const axisDate=t=>{
+   const parts=Object.fromEntries(axisFormatter.formatToParts(new Date(t)).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
+   return {year:parts.year,month:parts.month,day:parts.day,key:parts.year*10000+parts.month*100+parts.day};
+ };
  const dayOf=t=>Math.floor(t/DAY)*DAY;
  const normalized=rows=>[...new Map((Array.isArray(rows)?rows:[]).filter(b=>Number.isFinite(b?.t)&&[b.o,b.h,b.l,b.c].every(valid)&&b.h>=Math.max(b.o,b.c)&&b.l<=Math.min(b.o,b.c)).map(b=>[b.t,{...b}])).values()].sort((a,b)=>a.t-b.t);
  function dailyHA(days){
@@ -135,16 +142,46 @@
      const v=Math.exp(lo+(hi-lo)*i/5),yy=y(v);
      svg.push(`<line class="rc-grid-h" x1="${L}" x2="${plotR}" y1="${fmt(yy)}" y2="${fmt(yy)}"/><text class="rc-axis-text" x="${plotR+7}" y="${fmt(yy+4)}">${esc(money(v))}</text>`);
    }
-   // Taiwan trading day begins 08:00, only show dates to prevent axis clutter.
-   svg.push(`<g clip-path="url(#${clipId}-time)"><g class="rc-time-movable">`);
-   visible.forEach(({r,i})=>{
-     if(i!==0&&dayOf(r.t)!==dayOf(rows[i-1].t) && (W>=700||i%12<6)){
-       const at=x(i)-stride/2;
-       svg.push(`<line class="rc-grid-v" x1="${fmt(at)}" x2="${fmt(at)}" y1="${T}" y2="${plotB}"/>`);
-       svg.push(`<text class="rc-time-text" x="${fmt(x(i))}" y="${H-10}" text-anchor="middle">${esc(dayText(r.t))}</text>`);
-     }
+   // TradingView-like timeline: year is ALWAYS visible in the bottom-left
+   // context label. Show an explicit YYYY tick at every year transition,
+   // month ticks at month transitions and sparse MM/DD ticks in between.
+   // This fixes the previous overlapping labels that omitted the year entirely.
+   const axisInView=visible.filter(({i})=>x(i)>=L&&x(i)<=plotR);
+   const firstAxis=axisInView[0],lastAxis=axisInView.at(-1);
+   const firstYear=firstAxis?axisDate(firstAxis.r.t).year:null;
+   const lastYear=lastAxis?axisDate(lastAxis.r.t).year:null;
+   const yearContext=firstYear===null?'—':firstYear===lastYear?String(firstYear):firstYear+'–'+String(lastYear);
+   const contextWidth=firstYear!==lastYear?100:61;
+   const reservedRight=L+contextWidth+9;
+   const candidates=[];
+   axisInView.forEach(({r,i})=>{
+     const date=axisDate(r.t),previous=i?axisDate(rows[i-1].t):null;
+     if(previous&&date.key===previous.key)return; // first 4H bar of local day
+     const yearBreak=Boolean(previous&&date.year!==previous.year);
+     const monthBreak=Boolean(previous&&(date.year!==previous.year||date.month!==previous.month));
+     const kind=yearBreak?'year':monthBreak?'month':'day';
+     const text=kind==='year'?String(date.year):kind==='month'?`${date.month}月`:dayText(r.t);
+     candidates.push({i,x:x(i),kind,text,width:kind==='year'?51:kind==='month'?42:49,priority:kind==='year'?3:kind==='month'?2:1});
    });
-   svg.push('</g></g>'); // independent clipped time-axis grid/labels for pixel panning
+   // High-priority year markers win space, then month, then day. Declutter by
+   // actual pixel distance, not candle count, for both narrow and wide charts.
+   const accepted=[];
+   for(const item of candidates.sort((a,b)=>b.priority-a.priority||a.x-b.x)){
+     if(item.x<reservedRight+item.width/2||item.x>plotR-item.width/2)continue;
+     if(accepted.some(q=>Math.abs(q.x-item.x)<(q.width+item.width)/2+11))continue;
+     accepted.push(item);
+   }
+   accepted.sort((a,b)=>a.x-b.x);
+   svg.push(`<g clip-path="url(#${clipId}-time)"><g class="rc-time-movable">`);
+   for(const tick of accepted){
+     const at=x(tick.i)-stride/2;
+     svg.push(`<line class="${tick.kind==='year'?'rc-grid-year':'rc-grid-v'}" x1="${fmt(at)}" x2="${fmt(at)}" y1="${T}" y2="${plotB}"/>`);
+     svg.push(`<text class="${tick.kind==='year'?'rc-time-year':tick.kind==='month'?'rc-time-month':'rc-time-text'}" x="${fmt(tick.x)}" y="${H-10}" text-anchor="middle">${esc(tick.text)}</text>`);
+   }
+   svg.push('</g></g>'); // tick labels move with the chart during smooth dragging
+   // Context stays pinned in the actual time axis; even when the chart is
+   // viewing only October of a prior year, the correct year is unmistakable.
+   svg.push(`<g class="rc-time-year-context-group" pointer-events="none"><rect class="rc-time-year-context-bg" x="${L+2}" y="${H-29}" width="${contextWidth}" height="20" rx="4"/><text class="rc-time-year-context" x="${L+2+contextWidth/2}" y="${H-14}" text-anchor="middle">${esc(yearContext)}</text></g>`);
    // DAILY bands, *never* Bollinger on 4H closes. Values repeat across same day's 4H bars.
    // Draw one daily sample near the center of its six candle slots, as on the SState home chart.
    const daysShown=[];
@@ -230,7 +267,7 @@
    // LAST in the SVG, so their opaque semantic price badge always covers NOW/axis/cursor badges.
    svg.push(`<rect class="rc-hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`);
    // Moving only shows the time crosshair. HA extension is an explicit click action.
-   svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="122" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text><rect class="rc-hover-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-hover-price" x="${plotR+9}" y="0">—</text></g>`);
+   svg.push(`<g class="rc-cursor" visibility="hidden" pointer-events="none"><line class="rc-hover-v" x1="0" x2="0" y1="${T}" y2="${plotB}"/><line class="rc-hover-h" x1="${L}" x2="${plotR}" y1="0" y2="0"/><rect class="rc-hover-time-box" x="0" y="${plotB+2}" width="170" height="19" rx="3"/><text class="rc-hover-time" x="0" y="${plotB+16}" text-anchor="middle">—</text><rect class="rc-hover-price-box" x="${plotR+3}" y="0" width="${R-7}" height="19" rx="3"/><text class="rc-hover-price" x="${plotR+9}" y="0">—</text></g>`);
    // Entire right axis is a drag handle. Transparent hit area keeps badges on
    // top visually and is inside the stable plot host's delegated pointer events.
    svg.push(`<rect class="rc-price-axis-hit" x="${plotR}" y="${T}" width="${R}" height="${ph}" fill="transparent"><title>按住左鍵往上拉放大價格間距、往下拉縮小；雙擊恢復自動刻度</title></rect>`);
@@ -402,7 +439,7 @@
      state.pointer={clientX:ev.clientX,clientY:ev.clientY};
      const pos=locate(ev);
      if(!pos){cursor.setAttribute('visibility','hidden');showOHLC(latestBar);return;}
-     const {i,yy,r,time}=pos,xx=x(i),cx=clamp(xx,L+61,plotR-61);
+     const {i,yy,r,time}=pos,xx=x(i),cx=clamp(xx,L+85,plotR-85);
      showOHLC(r||latestBar);
      // Once clicked, keep the HA guide visible while the pointer is anywhere
      // inside this chart. Clicking elsewhere replaces/dismisses the selection.
@@ -415,7 +452,7 @@
      cursor.querySelector('.rc-hover-price-box').setAttribute('y',hoverPriceY);
      const hoverPrice=cursor.querySelector('.rc-hover-price');
      hoverPrice.setAttribute('y',hoverPriceY+13);hoverPrice.textContent=money(priceAtCursor);
-     cursor.querySelector('.rc-hover-time-box').setAttribute('x',cx-61);
+     cursor.querySelector('.rc-hover-time-box').setAttribute('x',cx-85);
      const timeText=cursor.querySelector('.rc-hover-time');timeText.setAttribute('x',cx);timeText.textContent=clock(time);
    }
    hit.addEventListener('pointermove',movePointer);

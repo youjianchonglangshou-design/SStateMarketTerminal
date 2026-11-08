@@ -1,26 +1,25 @@
 {
-  "version": "2.1.32",
+  "version": "2.1.33",
   "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.31",
-  "title": "Preload 500 PIONEX candles through the working chart data source; then page deeper history",
+  "baseVersion": "2.1.32",
+  "title": "TradingView-like 1D/4H timeline year markers and full-year crosshair",
   "changes": [
-    "Core app.js now contains a real selected-chart 500-candle preload, not merely a delayed history Worker request.",
-    "1D and 4H selected charts fetch 500 PIONEX candles using the verified existing chart data transport (PIONEX TradingView for crypto, existing Pionex REST/Worker for tokenized assets), retaining regular 95/130 background requests.",
-    "4H can continue through PIONEX TradingView candle-history growth (1000, 1500, ...) before falling back to Pionex REST endTime and shared 429 cooldown.",
-    "Workspaces show retained history count when the source updates; unchanged CoinGlass/RR/indicators/WebSocket.",
-    "Same-exchange time-sorted data is merged by timestamp without altering existing drawing anchors.",
-    "The timeframe heading now displays actual loaded 1D/4H candle counts and the earliest date is available in its tooltip."
+    "Always show calendar year on the bottom timeline, even while browsing a single month of older 1D or 4H data.",
+    "Draw explicit YYYY at year transitions, readable month changes and decluttered dates based on pixel spacing, not a label per candle.",
+    "Use Asia/Taipei date parts for 4H midnight and New Year transitions.",
+    "Crosshair shows complete YYYY/MM/DD HH:mm timestamp with a wider badge.",
+    "Year markers pan with K lines; current visible date-year context remains pinned on the axis.",
+    "Do not modify any historical pagination, Pionex/Worker, CoinGlass, 1D/4H indicator or RR calculation."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/history-warmup.js",
-    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite six files in MultiAssetLiquidityRadar. Existing Worker must still support PIONEX TradingView chart WS for 500-bar preload and endTime for additional pages."
+    "Overwrite five files under MultiAssetLiquidityRadar on GitHub. No Cloudflare Worker deployment needed."
   ],
-  "validationNote": "Local Chromium/Node tests only; cannot verify live Pionex/Cloudflare endpoint in sandbox."
+  "validationNote": "Chromium synthetic 1D/4H and cross-year timeline verification; live deployment not tested."
 }

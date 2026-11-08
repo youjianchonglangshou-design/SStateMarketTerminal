@@ -1,23 +1,26 @@
 {
-  "version": "2.1.31",
+  "version": "2.1.32",
   "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.30",
-  "title": "Automatically preload deeper 1D/4H history for the visible chart",
+  "baseVersion": "2.1.31",
+  "title": "Preload 500 PIONEX candles through the working chart data source; then page deeper history",
   "changes": [
-    "Keep the original safe first requests for all symbols (1D 95 and 4H 130) to avoid increasing the startup 33-symbol API load.",
-    "Immediately after the active chart becomes ready, automatically extend 1D history to at least 390 bars or the earliest Pionex candle.",
-    "Immediately after a 4H chart becomes ready, automatically extend to at least 1000 bars or the earliest Pionex candle.",
-    "Preload ONLY the frontmost visible chart and serialize extra requests with a minimum 3.2 second gap.",
-    "Reuses existing v2.1.30 Pionex history paging, deep IndexedDB/R2 caching and shared HTTP 429 cooldown; no duplicate exchange request transport.",
-    "Stop preloading when real oldest Pionex history is reached; retain prior bars and support continued user-driven panning beyond the warmup target."
+    "Core app.js now contains a real selected-chart 500-candle preload, not merely a delayed history Worker request.",
+    "1D and 4H selected charts fetch 500 PIONEX candles using the verified existing chart data transport (PIONEX TradingView for crypto, existing Pionex REST/Worker for tokenized assets), retaining regular 95/130 background requests.",
+    "4H can continue through PIONEX TradingView candle-history growth (1000, 1500, ...) before falling back to Pionex REST endTime and shared 429 cooldown.",
+    "Workspaces show retained history count when the source updates; unchanged CoinGlass/RR/indicators/WebSocket.",
+    "Same-exchange time-sorted data is merged by timestamp without altering existing drawing anchors.",
+    "The timeframe heading now displays actual loaded 1D/4H candle counts and the earliest date is available in its tooltip."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/history-warmup.js",
-    "MultiAssetLiquidityRadar/VERSION.json"
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/VERSION.json",
+    "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite the three files on GitHub Pages. Existing Cloudflare Worker must support /api/monitor/klines endTime as supplied with v2.1.29."
+    "Overwrite six files in MultiAssetLiquidityRadar. Existing Worker must still support PIONEX TradingView chart WS for 500-bar preload and endTime for additional pages."
   ],
-  "validationNote": "Browser test can verify JS warmup behavior with simulated data; real Pionex data availability and 429 recovery need live production verification."
+  "validationNote": "Local Chromium/Node tests only; cannot verify live Pionex/Cloudflare endpoint in sandbox."
 }

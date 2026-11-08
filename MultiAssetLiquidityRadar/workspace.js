@@ -86,7 +86,10 @@
    w.title.textContent=d.symbol;
    w.price.textContent=d.priceText;
    w.onDrawingChangedPrice?.();
-   w.timeframeLabel.textContent=w.timeframe+' · '+(w.displayMode==='line'?'折線':'K線');
+   const count=w.timeframe==='1D'?(d.chart?.daily?.length||0):(d.chart?.bars?.length||0);
+   const start=(w.timeframe==='1D'?d.chart?.daily:d.chart?.bars)?.[0]?.t;
+   w.timeframeLabel.textContent=w.timeframe+' · '+(w.displayMode==='line'?'折線':'K線')+' · '+count+'根';
+   w.timeframeLabel.title='已載入 '+count+' 根'+(Number.isFinite(start)?'｜最早 K 線 '+new Date(start).toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei'}):'');
    const drawing=window.DrawingWorkspace,doc=drawing?.snapshot(w.symbol),prefs=doc?.preferences||{};
    // One-time migration of v1.9 per-window HA guide into per-symbol persistent drawing JSON.
    if(drawing&&doc?.loaded&&Number.isFinite(w.haSelected)&&w.haSelected>0&&!w.migratedHa){
@@ -109,7 +112,6 @@
      }
      w.indicator.append(cap);
    }
-   const count=w.timeframe==='1D'?(d.chart?.daily?.length||0):(d.chart?.bars?.length||0);
    const hist=window.LIQ_CHART_API?.getHistoryState?.(w.symbol,w.timeframe);
    w.source.textContent=d.source+' · '+w.timeframe+' '+count+'根'+(hist?.phase==='loading'?' · 補載中':hist?.phase==='error'?' · 補載失敗':hist?.phase==='exhausted'?' · 歷史盡頭':'');
    w.source.title=hist?.message||'拖曳或滾輪瀏覽歷史，接近最早 K 線時自動補載';
@@ -447,7 +449,9 @@
      w.dirty=true;schedule(w,90);
    }
  }}
- function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;w.source.textContent=d.source;}
+ function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;const bars=w.timeframe==='1D'?d.chart?.daily:d.chart?.bars;
+     const hist=api.getHistoryState?.(w.symbol,w.timeframe);
+     w.source.textContent=d.source+' · '+w.timeframe+' '+(bars?.length||0)+'根'+(hist?.phase==='loading'?' · 預載中':hist?.phase==='waiting'?' · 限流等待':'');}
    // Rendering for minimized or totally covered charts is deferred until user restores/focuses.
    schedule(w,90);
  }}

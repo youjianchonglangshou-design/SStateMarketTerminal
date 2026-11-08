@@ -1198,6 +1198,37 @@
      rows=interval==='1D'?r.daily:r.bars4h;
      const oldest=rows[0]?.t;if(!Number.isFinite(oldest))return false;
      reportHistory(id,interval,'loading','正在補載派網舊 K 線');
+     // The live chart already receives actual PIONEX exchange candles through
+     // the TradingView PIONEX ticker. Prefer growing the SAME series to 1000,
+     // 1500, ... candles before touching the 429-prone REST endTime endpoint.
+     // TV keeps its original exchange prices and chart timestamps. If it has
+     // no more older candles or fails, the official Pionex REST pager remains
+     // the fallback and retains the shared 429 cooldown.
+     if(String(r.s.tv||'').startsWith('PIONEX:')&&rows.length<4500){
+       try{
+         const wanted=Math.min(4500,Math.max(500,rows.length+500));
+         const tv=await tvBars(r.s.tv,interval==='4H'?'240':'1D',wanted,24000);
+         const older=tv.bars.filter(b=>b.t<oldest);
+         const seam=tv.bars.find(b=>b.t===oldest);
+         const same=!seam||['o','h','l','c'].every(f=>
+           Math.abs(seam[f]-rows[0][f])<=Math.max(1e-8,Math.abs(rows[0][f])*.001));
+         if(older.length&&same){
+           const result=mergeOlder(r,interval,older);
+           if(result.added>0){
+             deepRetryIntents.delete(k);meta.backoff=0;deepLimitHits=0;
+             void window.LiqHistoryCache?.writeDeep?.(r.s.pionex,interval,
+               interval==='1D'?r.daily:r.bars4h,false);
+             reportHistory(id,interval,'loaded','PIONEX 圖表歷史接入 '+result.added+' 根');
+             log(id+' '+interval+' TV PIONEX 歷史 +'+result.added+'，總計 '+(interval==='1D'?r.daily:r.bars4h).length);
+             if(interval==='4H'&&r.daily.length&&r.bars4h[0].t<r.daily[0].t){
+               setTimeout(()=>loadExtraHistory(id,'1D'),50);
+             }
+             return true;
+           }
+         }
+         if(!same)log(id+' '+interval+' PIONEX TV 歷史接縫不一致，改查 Pionex REST');
+       }catch(e){log(id+' '+interval+' PIONEX TV 補載不可用，改查 Pionex REST：'+String(e?.message||e));}
+     }
      // Pionex endTime is inclusive. Include the first old candle as a seam
      // to verify we did not silently switch exchange or price units.
      const process=async()=>{
@@ -1265,6 +1296,72 @@
    })().finally(()=>deepJobs.delete(k));
    deepJobs.set(k,job);return job;
  }
+ // v2.1.32: Deep initial history for the single VISIBLE chart, independent
+ // of the endTime pager. The old 2.1.31 warmup only called the pager, so a
+ // Worker 429/unsupported endTime left EVERY chart stuck at 95 / 130 candles.
+ // This asks the already-working PIONEX TradingView chart transport for
+ // 500 candles. Only the focused symbol/timeframe gets this extra request.
+ const focusHistoryJobs=new Map(),focusHistoryCooldown=new Map();
+ const FOCUS_HISTORY_COUNT=500;
+ async function primeVisibleHistory(id,interval='4H'){
+   if(!['1D','4H'].includes(interval)||document.hidden)return false;
+   const r=records.find(x=>x.id===id);if(!r)return false;
+   const key=deepKey(id,interval),field=interval==='1D'?'daily':'bars4h';
+   if(r[field].length>=FOCUS_HISTORY_COUNT-4)return true;
+   if(focusHistoryJobs.has(key))return focusHistoryJobs.get(key);
+   if(Date.now()<(focusHistoryCooldown.get(key)||0))return false;
+   const task=(async()=>{
+     const s=r.s,errors=[],before=r[field].length;
+     reportHistory(id,interval,'loading','正在讀取選中圖表較長的派網歷史');
+     // TradingView PIONEX ticker is the SAME exchange as the existing chart.
+     // It does not require the REST endTime endpoint that suffered 429.
+     const fromTV=()=>tvBars(s.tv,interval==='4H'?'240':'1D',FOCUS_HISTORY_COUNT,23000);
+     const fromPionex=()=>pionexDirectBars(s,interval,FOCUS_HISTORY_COUNT);
+     const fromWorker=()=>restBars(s,interval,300);
+     const origins=s.group==='stock'
+       ? [['Pionex REST',fromPionex],['Pionex Worker',fromWorker],['PIONEX:TradingView',fromTV]]
+       : [['PIONEX:TradingView',fromTV],['Pionex REST',fromPionex],['Pionex Worker',fromWorker]];
+     let best=null;
+     for(const [name,fetcher] of origins){
+       try{
+         const response=await fetcher();
+         if(response.bars.length>=21){
+           if(!best||response.bars.length>best.bars.length)best={...response,name};
+           if(response.bars.length>=FOCUS_HISTORY_COUNT-4)break;
+         }
+       }catch(e){errors.push(name+': '+String(e?.message||e));}
+     }
+     if(!best){
+       focusHistoryCooldown.set(key,Date.now()+90000);
+       const message='圖表預載暫時無法取得：'+errors.join(' / ').slice(0,160);
+       reportHistory(id,interval,'error',message);log(id+' '+interval+' '+message);
+       return false;
+     }
+     // The existing chart remains available throughout the request. Merge by
+     // timestamp and only publish data actually older than the current oldest.
+     const beforeOldest=r[field][0]?.t??Infinity;
+     const extra=best.bars.filter(b=>b.t<beforeOldest);
+     if(extra.length){
+       mergeOlder(r,interval,extra);
+       const state=deepState.get(key);
+       if(state){state.exhausted=false;state.cacheChecked=false;}
+       focusHistoryCooldown.delete(key);
+       void window.LiqHistoryCache?.writeDeep?.(s.pionex,interval,r[field],false);
+       reportHistory(id,interval,'loaded','已預載 '+r[field].length+' 根（'+best.name+'）');
+       return true;
+     }
+     // Even if a market has fewer than 500 source bars, the newest 130/95
+     // should remain intact. Do not declare an exhausted exchange history.
+     focusHistoryCooldown.set(key,Date.now()+90000);
+     reportHistory(id,interval,'idle','已取得 '+before+' 根；較長的來源暫無額外資料');
+     return false;
+   })().catch(e=>{
+     focusHistoryCooldown.set(key,Date.now()+90000);
+     reportHistory(id,interval,'error',String(e?.message||e));return false;
+   }).finally(()=>focusHistoryJobs.delete(key));
+   focusHistoryJobs.set(key,task);
+   return task;
+ }
  // Compatibility for old callers; new 1D and 4H both use the same pager.
  const loadExtra4H=id=>loadExtraHistory(id,'4H');
  function updateClock(){$('clock').textContent='台灣時間 '+tpe(Date.now());updateTabTitle();}
@@ -1301,8 +1398,8 @@
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
-   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory,getHistoryState:historyState};
-   window.LIQ_TEST={version:'2.1.30',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory,primeVisibleHistory,getHistoryState:historyState};
+   window.LIQ_TEST={version:'2.1.32',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

@@ -109,7 +109,10 @@
      }
      w.indicator.append(cap);
    }
-   w.source.textContent=d.source;
+   const count=w.timeframe==='1D'?(d.chart?.daily?.length||0):(d.chart?.bars?.length||0);
+   const hist=window.LIQ_CHART_API?.getHistoryState?.(w.symbol,w.timeframe);
+   w.source.textContent=d.source+' · '+w.timeframe+' '+count+'根'+(hist?.phase==='loading'?' · 補載中':hist?.phase==='error'?' · 補載失敗':hist?.phase==='exhausted'?' · 歷史盡頭':'');
+   w.source.title=hist?.message||'拖曳或滾輪瀏覽歷史，接近最早 K 線時自動補載';
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
      ...d.chart,priceScale:w.priceScale,pricePan:w.pricePan,priceView:w.priceView,
      timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,
@@ -139,12 +142,12 @@
    // Geometry changes repaint at most ~12fps during mouse dragging; price updates are batched.
    w.timer=setTimeout(()=>{w.timer=0;requestAnimationFrame(()=>render(w));},delay);
  }
- function maybeHistory(w){
-   if(!w||w.minimized||document.hidden||w.isPanning)return;
+ function maybeHistory(w,allowDuringPan=false){
+   if(!w||w.minimized||document.hidden||(w.isPanning&&!allowDuringPan))return;
    const proj=w.plot?.__liqProjection;
    if(!proj||proj.interval!==w.timeframe)return;
-   // The left-most visible candle is around total - viewCount - viewOffset.
-   // Start prefetch 20 bars early, never download anything merely on startup.
+   // No fetch on chart initialization. Only called after a user drag/zoom.
+   // Trigger before reaching the existing left edge, including mid-drag.
    if(w.viewOffset>=Math.max(0,proj.total-w.viewCount-20))
      void window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe);
  }
@@ -337,6 +340,9 @@
        const proj=drag.proj;
        const next=clamp(drag.startOffset+dx/Math.max(1,proj.stride),-Math.floor(proj.viewCount*.5),Math.max(0,proj.total-21));
        w.viewOffset=next;
+       // A single drag can start prefetch before pointerup. In-flight requests
+       // are deduplicated by loadExtraHistory; no additional initial fetch.
+       if(next>=Math.max(0,proj.total-proj.viewCount-20))maybeHistory(w,true);
        const span=proj.hi-proj.lo,move=dy/Math.max(20,proj.ph)*span;
        w.priceView={hi:proj.hi+move,lo:proj.lo+move};
        w.previewDx=(next-drag.startOffset)*proj.stride;
@@ -551,6 +557,19 @@
    if(nextRisk)riskDefaults={...nextRisk};
    if(window.LIQ_RR_CONFIG?.setThresholds?.(nextRR)){
      rrThresholds=window.LIQ_RR_CONFIG.getThresholds();window.LIQ_RR_REFRESH?.();
+   }
+ });
+ document.addEventListener('liq-radar-history-status',event=>{
+   const h=event.detail;if(!h)return;
+   for(const w of windows){if(w.symbol!==h.id||w.timeframe!==h.interval)continue;
+     const d=api.getData(w.symbol);if(!d)continue;
+     w.source.textContent=d.source+' · '+h.interval+' '+h.count+'根'+
+       (h.phase==='loading'?' · 補載中':h.phase==='error'?' · 補載失敗':h.phase==='exhausted'?' · 已達歷史盡頭':'');
+     w.source.title=h.message;
+     if(h.phase==='loaded'||h.phase==='error'){
+       announce(h.phase==='loaded'?h.id+' '+h.interval+' '+h.message+'（累計 '+h.count+' 根）':
+         h.id+' '+h.interval+' 歷史補載失敗：'+h.message.slice(0,110));
+     }
    }
  });
  window.DrawingWorkspace?.subscribe(symbol=>{for(const w of windows)if(window.DrawingWorkspace.symbolKey(w.symbol)===symbol){w.dirty=true;schedule(w,0);w.onDrawingChangedPrice?.();}});

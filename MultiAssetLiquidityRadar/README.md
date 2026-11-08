@@ -602,3 +602,11 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - 首頁短快取與可選深歷史快取分開存放；已讀深資料優先復用，無須再次下載。
 - 每次請求單頁且有節流；抵達官方最早 K 線才停止，不合成不存在的 K 線。
 - **部署必要條件：** `cloudflare/worker.js` 的 `/api/monitor/klines` 必須新增 `endTime` 支援；舊 Worker 不支援此分頁時不會取得更早資料。
+
+
+### v2.1.28 — 使用者操作觸發 1D / 4H 派網歷史回溯
+- 滾輪達 1D 90／4H 270 可視上限後，再向外滾動會移動歷史視角（不增加畫面 K 數量）。
+- 向最舊 K 線拖曳時，未放開滑鼠就可開始補載；每週期同一時間最多一個請求。
+- 每個圖表來源行顯示目前 K 線根數、補載中、補載失敗或已到歷史盡頭；失敗不再悄悄消失。
+- 仍維持首次 1D 95／4H 130 根，不改 CoinGlass、RR、四視窗和 TradingView 類型的平滑拖曳。
+- 此版本的前端改良無法取代正式 Worker 的 endTime 歷史分頁部署；直連派網僅在瀏覽器允許時使用。

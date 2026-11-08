@@ -346,7 +346,18 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
  target.addEventListener('wheel',ev=>{const proj=target.__liqProjection;if(!proj)return;ev.preventDefault();
    const cur=callbacks.getCount(),limit=callbacks.getTimeframe()==='4H'?270:90;
    const next=clamp(Math.round(cur*Math.exp(ev.deltaY*.0015)),21,limit);
-   if(next===cur)return;
+   if(next===cur){
+     // At the zoom-out cap, another wheel-down is an explicit request to
+     // travel farther into history, not a silent no-op. Keep visible bar count
+     // constant while advancing the logical viewport; fetch at the edge.
+     if(ev.deltaY>0&&cur>=limit){
+       const off=callbacks.getOffset(),step=Math.max(5,Math.round(cur*.25));
+       const future=clamp(off+step,-Math.floor(cur*.5),Math.max(0,proj.total-21));
+       if(future!==off)callbacks.setView(cur,future);
+       else callbacks.moreHistory?.();
+     }
+     return;
+   }
    const x=proj.fromEvent(ev).x,relative=clamp((x-proj.L)/proj.pw,0,1);
    // Keep the candle below the cursor anchored while enlarging/compressing the view.
    const off=callbacks.getOffset()-(next-cur)*(1-relative);

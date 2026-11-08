@@ -1064,7 +1064,18 @@
  }
  // Demand-paged Pionex OHLC: no extra network request until chart navigation.
  // One bounded request per user gesture, queued across all four floating windows.
- const deepJobs=new Map(),deepState=new Map();
+ const deepJobs=new Map(),deepState=new Map(),historyProgress=new Map();
+ function historyState(id,interval){return historyProgress.get(id+':'+interval)||null;}
+ function reportHistory(id,interval,phase,message){
+   const r=records.find(x=>x.id===id);
+   const bars=r?(interval==='1D'?r.daily:r.bars4h):[];
+   const data={id,interval,phase,message:String(message||''),count:bars.length,
+     oldest:bars[0]?.t??null,at:Date.now()};
+   historyProgress.set(id+':'+interval,data);
+   document.dispatchEvent(new CustomEvent('liq-radar-history-status',{detail:data}));
+   return data;
+ }
+
  let deepQueue=Promise.resolve(),lastDeepFetch=0;
  const DEEP_PAGE_SIZE=300;
  function deepKey(id,interval){return id+':'+interval;}
@@ -1087,9 +1098,26 @@
    url.searchParams.set('interval',interval);
    url.searchParams.set('limit',String(DEEP_PAGE_SIZE));
    url.searchParams.set('endTime',String(endTime));
-   const result=await json(url.toString(),{},16000);
-   if(result.source!=='PIONEX_HISTORY')throw Error('歷史分頁來源不是派網');
-   return parseRest(result);
+   try{
+     const result=await json(url.toString(),{},16000);
+     if(result.source!=='PIONEX_HISTORY')throw Error('Worker 歷史分頁尚未啟用');
+     return parseRest(result);
+   }catch(workerError){
+     // On older Worker deployments, try the *same* Pionex public market API
+     // directly. Browsers that reject Pionex CORS still use the Worker path;
+     // never fall back to unrelated exchange candles or synthetic history.
+     const direct=new URL('https://api.pionex.com/api/v1/market/klines');
+     for(const [key,val] of url.searchParams)direct.searchParams.set(key,val);
+     try{
+       const result=await json(direct.toString(),{headers:{Accept:'application/json'}},12000);
+       if(result?.result===false||!Array.isArray(result?.data?.klines))
+         throw Error('派網歷史資料結構無效');
+       return parseRest(result);
+     }catch(directError){
+       throw Error('派網歷史資料無法取得（Worker：'+String(workerError.message||workerError)+
+         '；直連：'+String(directError.message||directError)+'）');
+     }
+   }
  }
  async function loadExtraHistory(id,interval='4H'){
    if(!['4H','1D'].includes(interval))return false;
@@ -1112,6 +1140,7 @@
      if(meta.exhausted)return false;
      rows=interval==='1D'?r.daily:r.bars4h;
      const oldest=rows[0]?.t;if(!Number.isFinite(oldest))return false;
+     reportHistory(id,interval,'loading','正在補載派網舊 K 線');
      // Pionex endTime is inclusive. Include the first old candle as a seam
      // to verify we did not silently switch exchange or price units.
      const process=async()=>{
@@ -1124,24 +1153,49 @@
      try{
        const fetched=await queued;
        const seam=fetched.find(b=>b.t===oldest),live=rows[0];
-       if(seam&&['o','h','l','c'].some(f=>Math.abs(seam[f]-live[f])>Math.max(1e-8,live[f]*0.001)))
-         throw Error('派網歷史分頁與目前 K 線交界不一致；已停止合併');
+       const differs=(a,b)=>['o','h','l','c'].some(f=>
+         Math.abs(a[f]-b[f])>Math.max(1e-8,Math.abs(b[f])*0.001));
+       if(seam&&differs(seam,live)){
+         // Initial chart may have used a TradingView feed. Replace the
+         // initial *overlapping* tail from native Pionex rather than refusing
+         // all history or silently mixing different exchange candle prices.
+         if(rows.length>DEEP_PAGE_SIZE)throw Error('派網歷史交界不一致；已載入多頁，停止混合');
+         const freshUrl=new URL('/api/monitor/klines',WORKER);
+         for(const [key,val] of [['symbol',r.s.pionex],['interval',interval],['limit',String(DEEP_PAGE_SIZE)],['refresh','1']])freshUrl.searchParams.set(key,val);
+         let fresh;
+         try{const response=await json(freshUrl.toString(),{},16000);
+           if(response.source==='R2_STALE'||response.refresh_error)throw Error('來源不是新鮮派網資料');
+           fresh=parseRest(response);
+         }catch(e){throw Error('派網交界不同，需要官方最新 K 線才能銜接：'+String(e.message||e));}
+         const matched=fresh.find(b=>b.t===oldest);
+         if(!matched||differs(matched,seam))throw Error('派網最新及歷史 K 線交界不一致，未合併');
+         const seriesKey=interval==='1D'?'daily':'bars4h';
+         // Existing initial 95/130 candles fit inside the 300 native tail.
+         // Switching only when overlap is independently checked avoids
+         // injecting a TradingView/other-exchange seam into HA or Bollinger.
+         r[seriesKey]=fresh;
+         rows=fresh;
+         log(id+' '+interval+' 已切換到派網原生 K 線並驗證交界');
+       }
        const older=fetched.filter(b=>b.t<oldest);
-       if(!older.length){meta.exhausted=true;log(id+' '+interval+' 已抵達派網最早 K 線');return false;}
+       if(!older.length){meta.exhausted=true;reportHistory(id,interval,'exhausted','已到派網最早資料');log(id+' '+interval+' 已抵達派網最早 K 線');return false;}
        const result=mergeOlder(r,interval,older);
-       if(result.added<=0){meta.exhausted=true;return false;}
+       if(result.added<=0){meta.exhausted=true;reportHistory(id,interval,'exhausted','沒有更早資料');return false;}
        // A short page is not proof of exhaustion: gaps, new listings and API
        // responses can be shorter than limit. Next gesture probes further.
        void window.LiqHistoryCache?.writeDeep?.(r.s.pionex,interval,interval==='1D'?r.daily:r.bars4h,meta.exhausted);
        log(id+' '+interval+' 補載 '+result.added+' 根｜歷史總數 '+(interval==='1D'?r.daily:r.bars4h).length);
+       reportHistory(id,interval,'loaded','成功補載 '+result.added+' 根');
        // A 4H backfill also needs matching daily HA / Bollinger history.
        // This is still user-triggered, not part of initial page loading.
        if(interval==='4H'&&r.daily.length&&r.bars4h[0].t<r.daily[0].t){
          setTimeout(()=>loadExtraHistory(id,'1D'),50);
        }
        return true;
-     }catch(err){meta.backoff=Date.now()+60000;
-       log(id+' '+interval+' 歷史分頁失敗：'+String(err?.message||err));return false;}
+     }catch(err){meta.backoff=Date.now()+30000;
+       const message=String(err?.message||err);
+       reportHistory(id,interval,'error',message);
+       log(id+' '+interval+' 歷史分頁失敗：'+message);return false;}
    })().finally(()=>deepJobs.delete(k));
    deepJobs.set(k,job);return job;
  }
@@ -1181,8 +1235,8 @@
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
-   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory};
-   window.LIQ_TEST={version:'2.1.27',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory,getHistoryState:historyState};
+   window.LIQ_TEST={version:'2.1.28',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

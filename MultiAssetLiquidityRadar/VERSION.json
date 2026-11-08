@@ -1,28 +1,24 @@
 {
-  "version": "2.1.27",
+  "version": "2.1.28",
   "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.26",
-  "title": "User-driven Pionex 1D / 4H historical pagination, unlimited locally retained backfill",
+  "baseVersion": "2.1.27",
+  "title": "Actual 1D/4H historical backfill gestures, pending state, native-Pionex source continuity",
   "changes": [
-    "Pionex endTime pagination for 1D and 4H triggered only by leftward chart navigation or wheel zoom near loaded oldest candles; no additional initial fetch.",
-    "Retain all fetched user history across normal 60-second 1D/4H refresh and preserve global floating viewport coordinates when prepending older candles.",
-    "Keep initial IndexedDB startup cache bounded; load and persist separate deep-history cache only after user navigation.",
-    "Render only the visible candle range plus a panning buffer, so years of available OHLC do not create thousands of offscreen SVG nodes.",
-    "Use the existing main Cloudflare Worker to forward endTime to Pionex; never invent candles or substitute exchange proxy for historical pages."
+    "Mouse wheel at the current 90/270 display cap continues browsing backwards instead of silently doing nothing.",
+    "User drags near the oldest loaded candle start an idempotent Pionex history prefetch before releasing the pointer.",
+    "History state is shown directly in each chart (loaded bars, loading, exhausted or error) and success/failure is announced.",
+    "Use same Pionex REST direct source if Worker endpoint is not yet available (only if browser CORS permits).",
+    "If the initial chart provider differs from native Pionex at the seam, verify official recent Pionex candles before changing the OHLC baseline; never silently mix unrelated exchange bars.",
+    "Keep initial history 95 1D / 130 4H, no startup backfill and no fake K lines."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/chart4h.js",
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/startup-cache.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
     "cloudflare/worker.js"
   ],
-  "requiredDeploy": [
-    "Overwrite eight files in MultiAssetLiquidityRadar and deploy cloudflare/worker.js to the existing SState Worker. Older pages cannot work without updating that Worker."
-  ],
-  "validationNote": "Source-level and mocked-browser tests; actual Pionex historical depth depends on symbol and endpoint data retention."
+  "validationNote": "Local browser integration uses synthetic Pionex API responses; production Worker deployment cannot be established from static files."
 }

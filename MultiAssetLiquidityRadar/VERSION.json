@@ -1,27 +1,23 @@
 {
-  "version": "2.1.30",
+  "version": "2.1.31",
   "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.29",
-  "title": "1D/4H demand-paged history: real viewport boundary and reliable 429 retries",
+  "baseVersion": "2.1.30",
+  "title": "Automatically preload deeper 1D/4H history for the visible chart",
   "changes": [
-    "Use the actual visible candle count when bounding 1D/4H leftward viewport panning, removing the arbitrary 21-candle overscroll and blank-left region.",
-    "Preserve sub-bar floating panning and existing initial 1D 95 / 4H 130 data requests.",
-    "When new older OHLC pages arrive, reproject using the existing latest-anchored float offset: older bars join seamlessly and remain available for further user-driven navigation.",
-    "Keep pending demand-page retries across changing 429 cooldowns, tab visibility and concurrent 1D/4H requests; no repeated requests while cooling.",
-    "Do not mistake a Pionex endpoint that ignored endTime for a genuine history boundary.",
-    "Show restored offline deep-history cache as a loaded event; retain existing Pionex-only Worker/R2 and unchanged indicators."
+    "Keep the original safe first requests for all symbols (1D 95 and 4H 130) to avoid increasing the startup 33-symbol API load.",
+    "Immediately after the active chart becomes ready, automatically extend 1D history to at least 390 bars or the earliest Pionex candle.",
+    "Immediately after a 4H chart becomes ready, automatically extend to at least 1000 bars or the earliest Pionex candle.",
+    "Preload ONLY the frontmost visible chart and serialize extra requests with a minimum 3.2 second gap.",
+    "Reuses existing v2.1.30 Pionex history paging, deep IndexedDB/R2 caching and shared HTTP 429 cooldown; no duplicate exchange request transport.",
+    "Stop preloading when real oldest Pionex history is reached; retain prior bars and support continued user-driven panning beyond the warmup target."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/app.js",
-    "MultiAssetLiquidityRadar/chart4h.js",
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
-    "MultiAssetLiquidityRadar/workspace.js",
     "MultiAssetLiquidityRadar/index.html",
-    "MultiAssetLiquidityRadar/VERSION.json",
-    "MultiAssetLiquidityRadar/README.md"
+    "MultiAssetLiquidityRadar/history-warmup.js",
+    "MultiAssetLiquidityRadar/VERSION.json"
   ],
   "requiredDeploy": [
-    "Overwrite the 7 radar files on GitHub Pages. This frontend repair keeps the v2.1.29 cloudflare/worker.js unchanged; the existing Worker must already have v2.1.29 history pagination and shared 429 cooldown deployed."
+    "Overwrite the three files on GitHub Pages. Existing Cloudflare Worker must support /api/monitor/klines endTime as supplied with v2.1.29."
   ],
-  "validationNote": "Static and mocked browser tests; cannot confirm actual Cloudflare/Pionex historical availability without real authenticated deployment/runtime."
+  "validationNote": "Browser test can verify JS warmup behavior with simulated data; real Pionex data availability and 429 recovery need live production verification."
 }

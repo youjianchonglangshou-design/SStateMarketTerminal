@@ -235,8 +235,12 @@ export default {
           const endTime=Number(rawEnd);
           if(!/^\d{13}$/.test(rawEnd)||!Number.isSafeInteger(endTime)||endTime<1262304000000||endTime>Date.now()+86400000)
             throw httpError(400,"invalid historical endTime");
-          const klines=await fetchMonitorKlines(symbol,interval,limit,endTime);
-          return json({ok:true,symbol,interval,endTime,klines,source:"PIONEX_HISTORY",history_api_version:"2.1.28",fetched_at:new Date().toISOString()},200,origin);
+          // Fetch historical pages through the SAME shared Pionex throttle and
+          // immutable R2 page cache. Historical and normal klines share cooldown.
+          const history=await loadMonitorHistoryPage(env,symbol,interval,limit,endTime);
+          return json({ok:true,symbol,interval,endTime,klines:history.klines,
+            source:"PIONEX_HISTORY",history_cache:history.cached,
+            history_api_version:"2.1.29",fetched_at:history.fetched_at},200,origin);
         }
         const payload = await loadMonitorKlines(env, symbol, interval, limit, force);
         return json({ ok: true, ...payload }, 200, origin);
@@ -754,7 +758,11 @@ export default {
       return json({ error: "not_found" }, 404, origin);
     } catch (error) {
       const status = error?.status || 500;
-      return json({ error: error?.message || String(error) }, status, origin);
+      const wait = status===429 ? Math.max(1,Math.ceil(Number(error?.retryAfter)||65)) : null;
+      const response=json({error:error?.message||String(error),
+        ...(wait?{retry_after_seconds:wait}:{} )},status,origin);
+      if(wait){response.headers.set('Retry-After',String(wait));response.headers.set('Access-Control-Expose-Headers','Retry-After');}
+      return response;
     }
   },
 
@@ -4299,6 +4307,48 @@ async function loadMonitorUniverse(env){
   };
 }
 const MONITOR_RATE_LIMIT_KEY = "pionex/cache/monitor_rate_limit.json";
+// A 429 from Pionex is an IP-wide temporary ban, NOT a request-level error.
+// A shared R2 marker prevents another browser/symbol/background refresh from
+// immediately extending the upstream ban. Local marker reduces R2 reads in an
+// active isolate, while R2 propagates the cooldown to other isolates.
+let monitorLocalCooldownUntil=0;
+async function monitorCooldownSeconds(env){
+  let until=monitorLocalCooldownUntil;
+  try{
+    const obj=await env?.JSON_BUCKET?.get(MONITOR_RATE_LIMIT_KEY);
+    if(obj){const record=JSON.parse(await obj.text());until=Math.max(until,Number(record.until)||0);}
+  }catch(_){/* If R2 is unavailable, the local protection still applies. */}
+  return Math.max(0,Math.ceil((until-Date.now())/1000));
+}
+async function monitorSetCooldown(env,retrySeconds){
+  const seconds=Math.max(65,Math.min(900,Math.ceil(Number(retrySeconds)||65)));
+  const until=Date.now()+seconds*1000;
+  monitorLocalCooldownUntil=Math.max(monitorLocalCooldownUntil,until);
+  try{await env?.JSON_BUCKET?.put(MONITOR_RATE_LIMIT_KEY,JSON.stringify({until:monitorLocalCooldownUntil,
+    updated_at:new Date().toISOString()}),{httpMetadata:{contentType:"application/json; charset=utf-8"}});}catch(_){}
+  return seconds;
+}
+function monitorHistoryKey(symbol,interval,limit,endTime){
+  return `pionex/cache/monitor_history/${interval}/${encodeURIComponent(symbol)}/${endTime}_${limit}.json`;
+}
+async function loadMonitorHistoryPage(env,symbol,interval,limit,endTime){
+  const key=monitorHistoryKey(symbol,interval,limit,endTime);
+  try{
+    const obj=await env?.JSON_BUCKET?.get(key);
+    if(obj){
+      const saved=JSON.parse(await obj.text());
+      if(saved.symbol===symbol&&saved.interval===interval&&saved.endTime===endTime&&
+        Array.isArray(saved.klines))return {...saved,cached:true};
+    }
+  }catch(_){}
+  // The rate gate must be checked AFTER the cache: old immutable pages remain
+  // available even when new Pionex requests are temporarily rate-limited.
+  const klines=await fetchMonitorKlines(symbol,interval,limit,endTime,env);
+  const payload={symbol,interval,endTime,klines,fetched_at:new Date().toISOString()};
+  try{await env?.JSON_BUCKET?.put(key,JSON.stringify(payload),
+    {httpMetadata:{contentType:"application/json; charset=utf-8"}});}catch(_){}
+  return {...payload,cached:false};
+}
 function monitorKlineCacheKey(symbol,interval){return `pionex/cache/monitor_klines/${interval}/${encodeURIComponent(symbol)}.json`;}
 function monitorKlineTtlMs(interval){
   if(interval==="1M") return 8_000;
@@ -4309,13 +4359,17 @@ function monitorKlineTtlMs(interval){
 function normalizeMonitorKlines(rows){
   return (Array.isArray(rows)?rows:[]).map(r=>({time:Number(r?.time),open:Number(r?.open),high:Number(r?.high),low:Number(r?.low),close:Number(r?.close),volume:Number(r?.volume||0)})).filter(r=>Number.isFinite(r.time)&&[r.open,r.high,r.low,r.close].every(Number.isFinite)).sort((a,b)=>a.time-b.time);
 }
-async function fetchMonitorKlines(symbol,interval,limit,endTime=null){
+async function fetchMonitorKlines(symbol,interval,limit,endTime=null,env=null){
+  const cooling=await monitorCooldownSeconds(env);
+  if(cooling>0){const e=httpError(429,"Pionex history is cooling down after rate limit");e.retryAfter=cooling;throw e;}
   const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
   if(endTime!==null)u.searchParams.set("endTime",String(endTime));
   const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.04"}});
   if(r.status===429){
     const e=httpError(429,"Pionex klines temporarily rate-limited; retry later");
-    const retry=Number(r.headers.get("Retry-After")||65); e.retryAfter=Number.isFinite(retry)?Math.max(65,retry):65; throw e;
+    const raw=Number(r.headers.get("Retry-After"));
+    e.retryAfter=await monitorSetCooldown(env,Number.isFinite(raw)&&raw>0?raw:65);
+    throw e;
   }
   if(!r.ok) throw httpError(502,`Pionex klines failed: ${r.status}`);
   const p=await r.json();
@@ -4333,14 +4387,10 @@ async function loadMonitorKlines(env,symbol,interval,limit,force=false){
     if(Number.isFinite(age)&&age>=0&&age<monitorKlineTtlMs(interval)) return {...cached,klines:cached.klines.slice(-limit),source:"R2_FRESH"};
   }
   try{
-    const klines=await fetchMonitorKlines(symbol,interval,limit); const payload={symbol,interval,fetched_at:new Date().toISOString(),klines};
+    const klines=await fetchMonitorKlines(symbol,interval,limit,null,env); const payload={symbol,interval,fetched_at:new Date().toISOString(),klines};
     await env.JSON_BUCKET.put(key,JSON.stringify(payload),{httpMetadata:{contentType:"application/json; charset=utf-8"}});
     return {...payload,source:"PIONEX_LIVE"};
   }catch(e){
-    if(e?.status===429){
-      const retryAfter=Number(e?.retryAfter||65);
-      try{await env.JSON_BUCKET.put(MONITOR_RATE_LIMIT_KEY,JSON.stringify({until:Date.now()+retryAfter*1000,updated_at:new Date().toISOString()}),{httpMetadata:{contentType:"application/json; charset=utf-8"}});}catch(_){}
-    }
     if(cached?.klines?.length) return {...cached,klines:cached.klines.slice(-limit),source:"R2_STALE",refresh_error:e?.message||String(e)};
     throw e;
   }

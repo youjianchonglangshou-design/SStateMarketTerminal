@@ -228,6 +228,16 @@ export default {
         const interval = safeMonitorInterval(url.searchParams.get("interval") || "1D");
         const limit = safeMonitorLimit(url.searchParams.get("limit") || 180);
         const force = url.searchParams.get("refresh") === "1";
+        // Historical pages are explicit user-driven requests. Never return the
+        // latest-only R2 cache for an endTime page, or advance an invented cursor.
+        const rawEnd = url.searchParams.get("endTime");
+        if (rawEnd !== null) {
+          const endTime=Number(rawEnd);
+          if(!/^\d{13}$/.test(rawEnd)||!Number.isSafeInteger(endTime)||endTime<1262304000000||endTime>Date.now()+86400000)
+            throw httpError(400,"invalid historical endTime");
+          const klines=await fetchMonitorKlines(symbol,interval,limit,endTime);
+          return json({ok:true,symbol,interval,endTime,klines,source:"PIONEX_HISTORY",fetched_at:new Date().toISOString()},200,origin);
+        }
         const payload = await loadMonitorKlines(env, symbol, interval, limit, force);
         return json({ ok: true, ...payload }, 200, origin);
       }
@@ -4299,16 +4309,20 @@ function monitorKlineTtlMs(interval){
 function normalizeMonitorKlines(rows){
   return (Array.isArray(rows)?rows:[]).map(r=>({time:Number(r?.time),open:Number(r?.open),high:Number(r?.high),low:Number(r?.low),close:Number(r?.close),volume:Number(r?.volume||0)})).filter(r=>Number.isFinite(r.time)&&[r.open,r.high,r.low,r.close].every(Number.isFinite)).sort((a,b)=>a.time-b.time);
 }
-async function fetchMonitorKlines(symbol,interval,limit){
+async function fetchMonitorKlines(symbol,interval,limit,endTime=null){
   const u=new URL("https://api.pionex.com/api/v1/market/klines"); u.searchParams.set("symbol",symbol);u.searchParams.set("interval",interval);u.searchParams.set("limit",String(limit));
+  if(endTime!==null)u.searchParams.set("endTime",String(endTime));
   const r=await fetch(u.toString(),{headers:{"Accept":"application/json","User-Agent":"Mozilla/5.0 SStateMarketTerminal/0.3.04"}});
   if(r.status===429){
     const e=httpError(429,"Pionex klines temporarily rate-limited; retry later");
     const retry=Number(r.headers.get("Retry-After")||65); e.retryAfter=Number.isFinite(retry)?Math.max(65,retry):65; throw e;
   }
   if(!r.ok) throw httpError(502,`Pionex klines failed: ${r.status}`);
-  const p=await r.json(); const rows=p?.data?.klines ?? p?.data; const klines=normalizeMonitorKlines(rows);
-  if(!klines.length) throw httpError(502,"Pionex klines returned no data");
+  const p=await r.json();
+  if(p?.result===false||p?.ok===false||!Array.isArray(p?.data?.klines))
+    throw httpError(502,"Pionex klines returned an invalid response");
+  const klines=normalizeMonitorKlines(p.data.klines);
+  if(!klines.length && endTime===null) throw httpError(502,"Pionex klines returned no data");
   return klines;
 }
 async function loadMonitorKlines(env,symbol,interval,limit,force=false){

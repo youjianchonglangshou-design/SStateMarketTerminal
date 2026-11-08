@@ -610,3 +610,13 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - 每個圖表來源行顯示目前 K 線根數、補載中、補載失敗或已到歷史盡頭；失敗不再悄悄消失。
 - 仍維持首次 1D 95／4H 130 根，不改 CoinGlass、RR、四視窗和 TradingView 類型的平滑拖曳。
 - 此版本的前端改良無法取代正式 Worker 的 endTime 歷史分頁部署；直連派網僅在瀏覽器允許時使用。
+
+
+## v2.1.29 — 1D/4H Pionex history resilient to upstream HTTP 429
+
+- User-driven only: initially load 1D 95 / 4H 130 bars; older 300-bar pages are fetched when the user pans/zooms near the loaded history edge.
+- Existing `white-meadow-16bc` Worker caches native Pionex history pages by symbol, interval, `endTime` and limit. Previously fetched pages require no additional Pionex request.
+- A Pionex 429 sets an R2-shared cooldown across both regular/older K line requests. Responses include `Retry-After`; the browser waits and cautiously retries the pending history request automatically when the page is visible.
+- A failed Worker request no longer triggers an immediate second direct request to Pionex. The existing K lines, OHLC, drawing anchors, CoinGlass 7D and RR are preserved.
+- Real upstream 429 or a permanently blocked source cannot be bypassed by increasing request frequency; if unavailable after retries, the page retains the downloaded historical region and reports the cooldown.
+- **Deploy both** the radar files on GitHub Pages and `cloudflare/worker.js` to the existing Cloudflare Worker. No new worker, token, or extension is required.

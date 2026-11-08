@@ -564,7 +564,7 @@
    for(const w of windows){if(w.symbol!==h.id||w.timeframe!==h.interval)continue;
      const d=api.getData(w.symbol);if(!d)continue;
      w.source.textContent=d.source+' · '+h.interval+' '+h.count+'根'+
-       (h.phase==='loading'?' · 補載中':h.phase==='error'?' · 補載失敗':h.phase==='exhausted'?' · 已達歷史盡頭':'');
+       (h.phase==='loading'?' · 補載中':h.phase==='waiting'?' · 限流冷卻後自動重試':h.phase==='error'?' · 補載失敗':h.phase==='exhausted'?' · 已達歷史盡頭':'');
      w.source.title=h.message;
      if(h.phase==='loaded'||h.phase==='error'){
        announce(h.phase==='loaded'?h.id+' '+h.interval+' '+h.message+'（累計 '+h.count+' 根）':

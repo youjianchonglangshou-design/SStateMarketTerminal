@@ -1077,7 +1077,57 @@
  }
 
  let deepQueue=Promise.resolve(),lastDeepFetch=0;
+ // The Pionex PERP kline endpoint carries weight 5. Do not bypass a 429
+ // through a second direct request, or extend the exchange-wide cooldown.
+ let deepCooldownUntil=0,deepLimitHits=0,deepRetryTimer=0;
+ const deepRetryIntents=new Set();
  const DEEP_PAGE_SIZE=300;
+ function nextDeepRetry(){
+   if(deepRetryTimer||!deepRetryIntents.size||document.hidden)return;
+   const now=Date.now();
+   const earliest=()=>[...deepRetryIntents].sort((a,b)=>
+     (deepState.get(a)?.backoff||0)-(deepState.get(b)?.backoff||0))[0];
+   const due=Math.max(deepCooldownUntil,deepState.get(earliest())?.backoff||0);
+   deepRetryTimer=setTimeout(()=>{
+     deepRetryTimer=0;
+     if(document.hidden)return;
+     // Service the earliest-eligible symbol; the existing FIFO serializes fetches.
+     const k=earliest();if(!k)return;
+     deepRetryIntents.delete(k);
+     const at=k.lastIndexOf(':');
+     void loadExtraHistory(k.slice(0,at),k.slice(at+1)).finally(()=>nextDeepRetry());
+   },Math.max(200,due-now+100));
+ }
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)nextDeepRetry();});
+ function scheduleLimitedRetry(id,interval,meta,seconds){
+   const wait=Math.max(65,Math.min(900,Math.ceil(Number(seconds)||65)));
+   const duration=Math.min(900,Math.round(wait*Math.pow(1.6,Math.min(++deepLimitHits-1,5))));
+   deepCooldownUntil=Math.max(deepCooldownUntil,Date.now()+duration*1000);
+   meta.backoff=deepCooldownUntil;
+   deepRetryIntents.add(deepKey(id,interval));
+   reportHistory(id,interval,'waiting',`派網限流，約 ${duration} 秒後自動重試（已載入 K 線保留）`);
+   nextDeepRetry();
+ }
+ // Preserve upstream Retry-After rather than discarding it in the generic fetch helper.
+ async function historyJSON(url,timeout=16000){
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
+   try{
+     const response=await fetch(url,{cache:'no-store',signal:controller.signal});
+     const body=await response.json().catch(()=>({}));
+     if(!response.ok||body?.ok===false){
+       const error=new Error(String(body?.error||'HTTP '+response.status));
+       error.status=response.status;
+       if(response.status===429){
+         const header=Number(response.headers.get('Retry-After'));
+         const payload=Number(body.retry_after_seconds);
+         error.retryAfter=Math.max(65,Number.isFinite(header)&&header>0?header:0,
+           Number.isFinite(payload)&&payload>0?payload:0);
+       }
+       throw error;
+     }
+     return body;
+   }finally{clearTimeout(timer);}
+ }
  function deepKey(id,interval){return id+':'+interval;}
  function mergeOlder(r,interval,older){
    const key=interval==='1D'?'daily':'bars4h';
@@ -1098,34 +1148,23 @@
    url.searchParams.set('interval',interval);
    url.searchParams.set('limit',String(DEEP_PAGE_SIZE));
    url.searchParams.set('endTime',String(endTime));
-   try{
-     const result=await json(url.toString(),{},16000);
-     if(result.source!=='PIONEX_HISTORY')throw Error('Worker 歷史分頁尚未啟用');
-     return parseRest(result);
-   }catch(workerError){
-     // On older Worker deployments, try the *same* Pionex public market API
-     // directly. Browsers that reject Pionex CORS still use the Worker path;
-     // never fall back to unrelated exchange candles or synthetic history.
-     const direct=new URL('https://api.pionex.com/api/v1/market/klines');
-     for(const [key,val] of url.searchParams)direct.searchParams.set(key,val);
-     try{
-       const result=await json(direct.toString(),{headers:{Accept:'application/json'}},12000);
-       if(result?.result===false||!Array.isArray(result?.data?.klines))
-         throw Error('派網歷史資料結構無效');
-       return parseRest(result);
-     }catch(directError){
-       throw Error('派網歷史資料無法取得（Worker：'+String(workerError.message||workerError)+
-         '；直連：'+String(directError.message||directError)+'）');
-     }
-   }
+   // The existing SState Worker is the only history transport. A failed
+   // request MUST NOT immediately be repeated via direct Pionex REST.
+   const result=await historyJSON(url.toString());
+   if(result.source!=='PIONEX_HISTORY')throw Error('Worker 歷史分頁尚未啟用');
+   return parseRest(result);
  }
  async function loadExtraHistory(id,interval='4H'){
    if(!['4H','1D'].includes(interval))return false;
    const r=records.find(x=>x.id===id);if(!r)return false;
    const k=deepKey(id,interval),meta=deepState.get(k)||{cacheChecked:false,exhausted:false,backoff:0};
    deepState.set(k,meta);
-   if(meta.exhausted||Date.now()<meta.backoff)return false;
+   if(meta.exhausted)return false;
    if(deepJobs.has(k))return deepJobs.get(k);
+   if(Date.now()<Math.max(meta.backoff,deepCooldownUntil)){
+     if(Date.now()<deepCooldownUntil){deepRetryIntents.add(k);nextDeepRetry();}
+     return false;
+   }
    const job=(async()=>{
      let rows=interval==='1D'?r.daily:r.bars4h;
      if(rows.length<21){enqueue(r,interval==='1D'?'day':'h4',true,-10);return false;}
@@ -1152,6 +1191,8 @@
      deepQueue=queued.then(()=>{},()=>{});
      try{
        const fetched=await queued;
+       deepLimitHits=0;
+       deepRetryIntents.delete(k);
        const seam=fetched.find(b=>b.t===oldest),live=rows[0];
        const differs=(a,b)=>['o','h','l','c'].some(f=>
          Math.abs(a[f]-b[f])>Math.max(1e-8,Math.abs(b[f])*0.001));
@@ -1192,7 +1233,14 @@
          setTimeout(()=>loadExtraHistory(id,'1D'),50);
        }
        return true;
-     }catch(err){meta.backoff=Date.now()+30000;
+     }catch(err){
+       if(err?.status===429){
+         scheduleLimitedRetry(id,interval,meta,err.retryAfter);
+         log(id+' '+interval+' 派網 429：已進入共用冷卻，不再重複直連');
+         return false;
+       }
+       meta.backoff=Date.now()+30000;
+       deepRetryIntents.delete(k);
        const message=String(err?.message||err);
        reportHistory(id,interval,'error',message);
        log(id+' '+interval+' 歷史分頁失敗：'+message);return false;}

@@ -1,24 +1,26 @@
 {
-  "version": "2.1.28",
+  "version": "2.1.29",
   "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.27",
-  "title": "Actual 1D/4H historical backfill gestures, pending state, native-Pionex source continuity",
+  "baseVersion": "2.1.28",
+  "title": "Pionex 1D/4H historical backfill 429-safe shared cooldown, immutable page cache, automatic retry",
   "changes": [
-    "Mouse wheel at the current 90/270 display cap continues browsing backwards instead of silently doing nothing.",
-    "User drags near the oldest loaded candle start an idempotent Pionex history prefetch before releasing the pointer.",
-    "History state is shown directly in each chart (loaded bars, loading, exhausted or error) and success/failure is announced.",
-    "Use same Pionex REST direct source if Worker endpoint is not yet available (only if browser CORS permits).",
-    "If the initial chart provider differs from native Pionex at the seam, verify official recent Pionex candles before changing the OHLC baseline; never silently mix unrelated exchange bars.",
-    "Keep initial history 95 1D / 130 4H, no startup backfill and no fake K lines."
+    "Fix Pionex 429 storm: both latest and historical Worker K-line requests consult a shared R2 rate-limit cooldown before contacting the upstream API.",
+    "Cache verified native-Pionex historical pages by symbol/interval/endTime/limit; cached historical pages remain usable during an upstream cooldown.",
+    "Propagate upstream Retry-After from the Worker and automatically retry pending user-requested 1D/4H history after bounded exponential cooldown, never in a busy loop or while hidden.",
+    "Remove immediate direct-Pionex fallback upon Worker failure to avoid extra calls and prolonged IP bans.",
+    "Maintain normal initial 1D 95 / 4H 130, viewport drag/zoom, deep cache, indicators, 7D bounds and RR unchanged.",
+    "Show waiting-for-rate-limit state and preserve all already fetched K lines during a temporary ban."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md",
     "cloudflare/worker.js"
   ],
-  "validationNote": "Local browser integration uses synthetic Pionex API responses; production Worker deployment cannot be established from static files."
+  "requiredDeploy": [
+    "Overwrite radar files in GitHub and deploy cloudflare/worker.js to existing white-meadow-16bc Cloudflare Worker."
+  ],
+  "validationNote": "Offline Worker and Chromium tests use mocked Pionex/R2 responses; true Pionex 429 expiry and available historical depth require post-deployment verification."
 }

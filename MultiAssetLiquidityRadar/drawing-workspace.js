@@ -344,7 +344,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
  target.addEventListener('pointerup',end);target.addEventListener('pointercancel',end);
  target.addEventListener('click',ev=>{if(c.tool!=='select'||ev.target.closest?.('.dw-hit,.dw-handle')){ev.stopImmediatePropagation();}},true);
  target.addEventListener('wheel',ev=>{const proj=target.__liqProjection;if(!proj)return;ev.preventDefault();
-   const cur=callbacks.getCount(),limit=callbacks.getTimeframe()==='4H'?270:90;
+   const cur=callbacks.getCount(),limit=270; // Same maximum zoom-out density on 1D and 4H.
    const next=clamp(Math.round(cur*Math.exp(ev.deltaY*.0015)),21,limit);
    if(next===cur){
      // At the zoom-out cap, another wheel-down is an explicit request to

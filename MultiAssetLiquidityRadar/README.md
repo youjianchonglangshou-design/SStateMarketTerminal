@@ -649,3 +649,10 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - 每個日期標籤依實際畫面像素保留間距，不再擠成一排看不清楚的 MM/DD。
 - 十字線顯示完整年月日與時間（台灣時間）；時間標籤拓寬避免文字被截斷。
 - 完全不改動 Pionex K 線歷史預載、拖曳、指標、CoinGlass 7D、RR 與 Cloudflare Worker。
+
+
+## v2.1.34 — 1D 日線滾輪最大可視 270 根（與 4H 相同）
+- 移除原本 1D `90` 根畫面上限：`drawing-workspace.js` 滾輪限制與 `chart4h.js` 繪圖裁切一致提高到 270 根。
+- 1D 首次畫面仍預設約 45 根，4H 預設約 84 根；使用者自行向外滾動，可把約九個月日線放進單一畫面。
+- 畫面縮放密度與載入多少歷史 K 線是不同設定；本版不修改 Pionex 預載／按需回溯機制。
+- 既有 TradingView 類型拖曳、時間軸年份、均線/HA、CoinGlass、RR、Worker 全不變。

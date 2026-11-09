@@ -1,25 +1,22 @@
 {
-  "version": "2.1.33",
-  "releaseDate": "2026-11-08",
-  "baseVersion": "2.1.32",
-  "title": "TradingView-like 1D/4H timeline year markers and full-year crosshair",
+  "version": "2.1.34",
+  "releaseDate": "2026-11-09",
+  "baseVersion": "2.1.33",
+  "title": "Match 1D daily chart maximum visible candle density with 4H (270 bars)",
   "changes": [
-    "Always show calendar year on the bottom timeline, even while browsing a single month of older 1D or 4H data.",
-    "Draw explicit YYYY at year transitions, readable month changes and decluttered dates based on pixel spacing, not a label per candle.",
-    "Use Asia/Taipei date parts for 4H midnight and New Year transitions.",
-    "Crosshair shows complete YYYY/MM/DD HH:mm timestamp with a wider badge.",
-    "Year markers pan with K lines; current visible date-year context remains pinned on the axis.",
-    "Do not modify any historical pagination, Pionex/Worker, CoinGlass, 1D/4H indicator or RR calculation."
+    "1D wheel zoom-out cap increased from 90 to 270 visible daily candles; 4H cap stays 270.",
+    "Chart renderer now accepts 1D viewCount up to 270 rather than clamping back to 90.",
+    "Keep default 1D 45-bar viewport, 4H 84-bar viewport, and existing history loading/cache/panning, timeline years, drawings and indicators unchanged."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/chart4h.js",
-    "MultiAssetLiquidityRadar/style.css",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite five files under MultiAssetLiquidityRadar on GitHub. No Cloudflare Worker deployment needed."
+    "Overwrite 5 files in MultiAssetLiquidityRadar under GitHub Pages. No Worker deployment needed."
   ],
-  "validationNote": "Chromium synthetic 1D/4H and cross-year timeline verification; live deployment not tested."
+  "validationNote": "Local Chromium chart and wheel interaction verified with synthetic OHLC; production GitHub Pages not deployed."
 }

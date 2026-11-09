@@ -93,7 +93,7 @@
      const ha=dailyHA(source),bb=bollinger(source);
      complete=source.map((r,i)=>({...r,ha:ha.get(dayOf(r.t)),bb:bb[i]}));
    }else complete=series(bars,daily,price,updatedAt);
-   const n=clamp(Math.round(Number(viewCount)||84),21,tf==='1D'?90:270);
+   const n=clamp(Math.round(Number(viewCount)||84),21,270); // Both 1D and 4H can show up to 270 bars.
    // Negative offset represents empty FUTURE space to the right of the latest candle.
    // Keep the slot width fixed at viewCount even at a history/future boundary.
    // TradingView-style logical viewport: the scroll offset remains a FLOAT.

@@ -105,9 +105,25 @@ function place(g,obj,proj,selected,live){
   const legacyEnd=maxTime+Math.max(30*86400000,2*Math.abs(t1-t0));
   const endTime=validTime(obj.fibEndTime)?Math.max(maxTime,obj.fibEndTime):legacyEnd;
   const left=x(minTime),right=x(endTime);
-  // An offscreen Fib (including its texts and zero dot) should disappear
-  // completely, rather than pinning level labels to the viewport right edge.
-  if(!Number.isFinite(left)||!Number.isFinite(right)||left>proj.plotR||right<proj.L)return;
+  // IMPORTANT: visibility belongs to the two ORIGINAL time anchors, exactly
+  // like a rectangle or risk/reward position.  The horizontal price levels
+  // are only an annotation extending from that drawing; an extension must
+  // NEVER keep the entire Fib alive after BOTH anchors leave the viewport.
+  // The previous test only checked `right=x(fibEndTime)`, so a saved 30-day
+  // (or longer) extension kept text/levels visible even when the chart was
+  // panned entirely away from the source anchors (seen in the user's video).
+  const visibleStart=Math.min(proj.time(proj.L),proj.time(proj.plotR));
+  const visibleEnd=Math.max(proj.time(proj.L),proj.time(proj.plotR));
+  const anchorSpanVisible=maxTime>=visibleStart&&minTime<=visibleEnd;
+  if(!Number.isFinite(left)||!Number.isFinite(right))return;
+  const anchorLeft=Math.min(x(t0),x(t1)),anchorRight=Math.max(x(t0),x(t1));
+  // Pre-create Fib geometry within one pan-width of the viewport so dragging
+  // it INTO view can reveal the SAME lines/labels without waiting for pointerup.
+  // Far-away drawings remain virtualized (no unnecessary SVG nodes).
+  if(anchorRight<proj.L-proj.pw*1.25||anchorLeft>proj.plotR+proj.pw*1.25)return;
+  g=node(g,'g',{class:'dw-fib-group',
+    'data-dw-fib-minx':anchorLeft,'data-dw-fib-maxx':anchorRight,
+    visibility:anchorSpanVisible?'visible':'hidden'});
   for(const r of CFG.fib){const price=p1*Math.pow(p0/p1,r),yy=y(price),tone=[.618,.786,2].includes(r)?'#23cdeb':[1.236,1.5,1.572,1.618].includes(r)?'#f2d34f':'#b6bcca';
    node(g,'line',{...hit,x1:left,x2:right,y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
    // Level labels belong to the Fib's TIME endpoint and move with it during

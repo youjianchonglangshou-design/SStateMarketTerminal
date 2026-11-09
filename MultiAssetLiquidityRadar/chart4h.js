@@ -546,6 +546,14 @@
      ['.rc-level-badges',0,dy],['.rc-ha-plot',dx,dy],['.rc-ha-axis',0,dy]]){
      const el=svg.querySelector(selector);if(el)el.setAttribute('transform',`translate(${tx} ${ty})`);
    }
+   // Keep Fib annotation visibility tied to its anchor TIME span even during
+   // a mouse-held CSS/SVG fast-pan.  Otherwise the old extension keeps floating
+   // after both anchors leave the screen, until the pointer is released.
+   svg.querySelectorAll('.dw-fib-group').forEach(group=>{
+     const x0=Number(group.getAttribute('data-dw-fib-minx'))+dx;
+     const x1=Number(group.getAttribute('data-dw-fib-maxx'))+dx;
+     group.setAttribute('visibility',x1>=proj.L&&x0<=proj.plotR?'visible':'hidden');
+   });
    svg.querySelectorAll('.rc-now-breathe').forEach(el=>{
      el.setAttribute('transform',`translate(0 ${dy})`);
      const inPlot=(Number(el.getAttribute('cy'))+dy)>=proj.T&&(Number(el.getAttribute('cy'))+dy)<=proj.plotB;

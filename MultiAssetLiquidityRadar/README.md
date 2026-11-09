@@ -656,3 +656,10 @@ RR LED transitions and new Signal Spotlight events can generate **page-lifetime-
 - 1D 首次畫面仍預設約 45 根，4H 預設約 84 根；使用者自行向外滾動，可把約九個月日線放進單一畫面。
 - 畫面縮放密度與載入多少歷史 K 線是不同設定；本版不修改 Pionex 預載／按需回溯機制。
 - 既有 TradingView 類型拖曳、時間軸年份、均線/HA、CoinGlass、RR、Worker 全不變。
+
+
+### v2.1.35 — 修正斐波那契無限延長、拖曳後重新增生
+- 新畫的 Fib 以建立時的畫面右側時間作為固定末端，往前／往後拖曳只移動，不重新延伸。
+- Fib 層級文字與線條放在同一組可平移、裁切的繪圖圖層；矩形和 RR 繪圖行為不變。
+- 舊 Fib 無法還原未曾存下的原始右端時間，使用固定的有限延伸（至少 30 天或兩倍錨點時間跨度），避免跨年份不斷存在；需要精確恢復舊 Fib 原長度時須重新畫一次。
+- 不修改 K 線加載、年月時間軸、CoinGlass 7D、平均 K、CCI-SMA 或派網 WebSocket。

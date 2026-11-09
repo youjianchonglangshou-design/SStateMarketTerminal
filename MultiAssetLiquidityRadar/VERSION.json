@@ -1,22 +1,23 @@
 {
-  "version": "2.1.34",
+  "version": "2.1.35",
   "releaseDate": "2026-11-09",
-  "baseVersion": "2.1.33",
-  "title": "Match 1D daily chart maximum visible candle density with 4H (270 bars)",
+  "baseVersion": "2.1.34",
+  "title": "Finite time-anchored Fibonacci drawings during horizontal chart panning",
   "changes": [
-    "1D wheel zoom-out cap increased from 90 to 270 visible daily candles; 4H cap stays 270.",
-    "Chart renderer now accepts 1D viewCount up to 270 rather than clamping back to 90.",
-    "Keep default 1D 45-bar viewport, 4H 84-bar viewport, and existing history loading/cache/panning, timeline years, drawings and indicators unchanged."
+    "Fib horizontal levels have a finite, saved UTC endTime captured at the moment of placement; no current-viewport right-edge or 1800px infinite extension.",
+    "Fib level captions use the same transformed drawing layer and finite X endpoint, not fixed right-edge text that respawns during chart panning.",
+    "Existing saved Fibonacci drawings without fibEndTime use a deterministic finite legacy span from their original anchor timestamps.",
+    "Whole-Fib drag translates saved endTime together with anchors, preserving drawing length.",
+    "Retain original Fibonacci prices, level colors, 0 dot hit target, delete/undo, rectangles, risk/reward positions, indicators, 1D/4H history and price WebSocket unchanged."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite 5 files in MultiAssetLiquidityRadar under GitHub Pages. No Worker deployment needed."
+    "Overwrite four MultiAssetLiquidityRadar files on GitHub Pages; no Cloudflare Worker change required."
   ],
-  "validationNote": "Local Chromium chart and wheel interaction verified with synthetic OHLC; production GitHub Pages not deployed."
+  "validationNote": "Isolated browser geometry/pan tests; existing historical Fib endpoint can only be approximated because prior releases did not store it."
 }

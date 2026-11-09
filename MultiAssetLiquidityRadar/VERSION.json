@@ -1,23 +1,25 @@
 {
-  "version": "2.1.35",
+  "version": "2.1.36",
   "releaseDate": "2026-11-09",
-  "baseVersion": "2.1.34",
-  "title": "Finite time-anchored Fibonacci drawings during horizontal chart panning",
+  "baseVersion": "2.1.35",
+  "title": "Fix Fibonacci overlays persisting after both timeline anchors have left view",
   "changes": [
-    "Fib horizontal levels have a finite, saved UTC endTime captured at the moment of placement; no current-viewport right-edge or 1800px infinite extension.",
-    "Fib level captions use the same transformed drawing layer and finite X endpoint, not fixed right-edge text that respawns during chart panning.",
-    "Existing saved Fibonacci drawings without fibEndTime use a deterministic finite legacy span from their original anchor timestamps.",
-    "Whole-Fib drag translates saved endTime together with anchors, preserving drawing length.",
-    "Retain original Fibonacci prices, level colors, 0 dot hit target, delete/undo, rectangles, risk/reward positions, indicators, 1D/4H history and price WebSocket unchanged."
+    "Use actual visible time interval to cull Fibonacci drawings based on the original pair of anchor timestamps, not on the extension endpoint.",
+    "Once the anchor time span is outside the viewport, all Fibonacci horizontal lines, right-side price captions, zero dot and handles disappear together, just like rectangle and position overlays.",
+    "During held-pointer fast-pan, Fib groups are shown/hidden according to translated anchor coordinates; the 10 level lines cannot float separately after their anchors leave view.",
+    "Fib geometry up to one viewport away is buffered so previously offscreen Fib drawings can float INTO view during drag without creating new labels at pointerup.",
+    "Dragging back across original anchor times reuses the same saved object, without duplication or redrawing from the current screen edge.",
+    "Preserve the v2.1.35 finite fibEndTime for ordinary on-screen appearance; do not change the 1D/4H chart, CoinGlass, RR, risk positions, rectangle or Pionex historical candles."
   ],
   "modifiedFiles": [
     "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
   "requiredDeploy": [
-    "Overwrite four MultiAssetLiquidityRadar files on GitHub Pages; no Cloudflare Worker change required."
+    "Overwrite 4 GitHub Pages files, Ctrl+F5. No Cloudflare Worker deployment required."
   ],
-  "validationNote": "Isolated browser geometry/pan tests; existing historical Fib endpoint can only be approximated because prior releases did not store it."
+  "validationNote": "Browser tests simulate 1D/4H viewport movement with both anchors disappearing to the LEFT or RIGHT, including legacy Fib saved without fibEndTime. Production browser not modified in session."
 }

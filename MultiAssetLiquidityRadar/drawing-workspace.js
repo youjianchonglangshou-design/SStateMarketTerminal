@@ -94,16 +94,42 @@ function place(g,obj,proj,selected,live){
  if(!a[0]||!good(a[0].price)||!validTime(a[0].time))return;
  const hit={'data-dw-id':id,class:'dw-hit',cursor:'pointer'};
  if(obj.type==='fibonacci'&&a.length>1){const [p0,p1]=a.map(t=>Number(t.price));if(!good(p1))return;
-  const left=Math.min(x(a[0].time),x(a[1].time)),right=proj.plotR;
-  // Fibonacci rays are time-continuous, not sized to the old viewport's right edge.
-  // Extend the geometry into the clipped buffer so releasing a pan never 'grows' lines.
+  // The Fib is a FINITE drawing in UTC time, just like a rectangle/position.
+  // New Fibs remember the viewport-right timestamp at creation, NOT the right
+  // edge of whichever chart happens to be visible during a later repaint.
+  // Old saved Fibs have no endpoint field. Give them a deterministic 30-day
+  // legacy extension (or twice their anchor span) so older drawings never
+  // revive indefinitely when panning into earlier/future chart history.
+  const t0=a[0].time,t1=a[1].time;
+  const minTime=Math.min(t0,t1),maxTime=Math.max(t0,t1);
+  const legacyEnd=maxTime+Math.max(30*86400000,2*Math.abs(t1-t0));
+  const endTime=validTime(obj.fibEndTime)?Math.max(maxTime,obj.fibEndTime):legacyEnd;
+  const left=x(minTime),right=x(endTime);
+  // IMPORTANT: visibility belongs to the two ORIGINAL time anchors, exactly
+  // like a rectangle or risk/reward position.  The horizontal price levels
+  // are only an annotation extending from that drawing; an extension must
+  // NEVER keep the entire Fib alive after BOTH anchors leave the viewport.
+  // The previous test only checked `right=x(fibEndTime)`, so a saved 30-day
+  // (or longer) extension kept text/levels visible even when the chart was
+  // panned entirely away from the source anchors (seen in the user's video).
+  const visibleStart=Math.min(proj.time(proj.L),proj.time(proj.plotR));
+  const visibleEnd=Math.max(proj.time(proj.L),proj.time(proj.plotR));
+  const anchorSpanVisible=maxTime>=visibleStart&&minTime<=visibleEnd;
+  if(!Number.isFinite(left)||!Number.isFinite(right))return;
+  const anchorLeft=Math.min(x(t0),x(t1)),anchorRight=Math.max(x(t0),x(t1));
+  // Pre-create Fib geometry within one pan-width of the viewport so dragging
+  // it INTO view can reveal the SAME lines/labels without waiting for pointerup.
+  // Far-away drawings remain virtualized (no unnecessary SVG nodes).
+  if(anchorRight<proj.L-proj.pw*1.25||anchorLeft>proj.plotR+proj.pw*1.25)return;
+  g=node(g,'g',{class:'dw-fib-group',
+    'data-dw-fib-minx':anchorLeft,'data-dw-fib-maxx':anchorRight,
+    visibility:anchorSpanVisible?'visible':'hidden'});
   for(const r of CFG.fib){const price=p1*Math.pow(p0/p1,r),yy=y(price),tone=[.618,.786,2].includes(r)?'#23cdeb':[1.236,1.5,1.572,1.618].includes(r)?'#f2d34f':'#b6bcca';
-   node(g,'line',{...hit,x1:left,x2:right+Math.max(proj.pw*4,1800),y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
-   // Fib level captions are right-edge annotations like TradingView's levels:
-   // keep their X pinned to the plot edge while the price level moves in Y.
-   // Translating the caption with the entire drawing caused it to vanish and
-   // then reappear ('grow') when the viewport redraw committed on pointerup.
-   label(g._dwLabels||g,`${r} (${money(price)})`,Math.max(proj.L,Math.min(right-108,right+5)),yy-3,tone);
+   node(g,'line',{...hit,x1:left,x2:right,y1:yy,y2:yy,stroke:tone,'stroke-width':selected?2:1.25,'stroke-dasharray':'5 5'});
+   // Level labels belong to the Fib's TIME endpoint and move with it during
+   // both fast-pan preview and the redraw after pointerup. They never stick
+   // to the newly visible chart edge or regenerate at every new viewport.
+   label(g,`${r} (${money(price)})`,right-106,yy-3,tone);
   }
   // Fib 0: a solid, easy-to-select dot just ahead of the thin 0-level dash.
   // The transparent 24px hit target uses the existing drawing ID, so selection,
@@ -281,6 +307,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
       }else c.draft=base;
     }else{
       const d=c.draft;d.anchors=[d.anchors[0],point];
+      if(d.type==='fibonacci')d.fibEndTime=Math.max(d.anchors[0].time,point.time,Math.round(proj.time(proj.plotR)));
       const obj=add(w.symbol,d);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();syncSnapUI();
     }
     ev.preventDefault();ev.stopPropagation();render(w);return;
@@ -296,7 +323,9 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
  },true);
  target.addEventListener('pointermove',ev=>{const proj=target.__liqProjection;if(!proj)return;
    c.ctrl=Boolean(ev.ctrlKey||c.ctrl);updateGhost(ev);syncSnapUI();
-   if(c.draft){const at=snap(proj,proj.fromEvent(ev),Boolean(ev.ctrlKey||c.ctrl));if(at){c.draft.anchors[1]=at;render(w);}return;}
+   if(c.draft){const at=snap(proj,proj.fromEvent(ev),Boolean(ev.ctrlKey||c.ctrl));if(at){c.draft.anchors[1]=at;
+     if(c.draft.type==='fibonacci')c.draft.fibEndTime=Math.max(c.draft.anchors[0].time,at.time,Math.round(proj.time(proj.plotR)));
+     render(w);}return;}
    const drag=c.drag;
    if(!drag||drag.id!==ev.pointerId){if(c.ctrl&&magnetAllowed())render(w);return;}
    if(drag.kind==='pan'){
@@ -326,6 +355,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
        else if(d.type.endsWith('-position')&&drag.idx===1){d.stop=at.price;}
      }else{const deltaT=at.time-drag.start.time,priceFactor=at.price/drag.start.price;
        d.anchors=d.anchors.map(a=>({time:Math.round(a.time+deltaT),price:a.price*priceFactor}));
+       if(d.type==='fibonacci'&&validTime(d.fibEndTime))d.fibEndTime=Math.round(d.fibEndTime+deltaT);
        if(d.type.endsWith('-position')){d.entry*=priceFactor;d.stop*=priceFactor;d.target*=priceFactor;}}
      change(w.symbol,d.id,d,!drag.undoRecorded);drag.undoRecorded=true;callbacks.refreshHeader();render(w);
    }

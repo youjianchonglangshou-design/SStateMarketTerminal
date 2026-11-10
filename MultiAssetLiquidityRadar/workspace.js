@@ -289,7 +289,7 @@
    const finishGrip=ev=>{if(!grab||grab.id!==ev.pointerId)return;grab=null;try{grip.releasePointerCapture(ev.pointerId);}catch(_){}save();};
    grip.addEventListener('pointerup',finishGrip);grip.addEventListener('pointercancel',finishGrip);
    const period=document.createElement('select');period.title='圖表 K 線週期';period.setAttribute('aria-label','圖表週期');
-   for(const [value,txt] of [['4H','4H'],['1D','1D'],['1W','1W 週線']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
+   for(const [value,txt] of [['4H','4H'],['1D','1D'],['1W','1W']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
    period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1W'?48:w.timeframe==='1D'?45:84;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.dirty=true;schedule(w,0);updateTabs();
      window.LIQ_WEEKLY_HISTORY?.focus(w.timeframe==='1W'?w.symbol:null);save();});
    const mode=document.createElement('select');mode.title='K 線或收盤價折線';mode.setAttribute('aria-label','圖表型態');

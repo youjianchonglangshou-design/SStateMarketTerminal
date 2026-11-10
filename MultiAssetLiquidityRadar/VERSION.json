@@ -1,25 +1,26 @@
 {
-  "version": "2.1.36",
-  "releaseDate": "2026-11-09",
-  "baseVersion": "2.1.35",
-  "title": "Fix Fibonacci overlays persisting after both timeline anchors have left view",
+  "version": "2.1.37",
+  "releaseDate": "2026-11-10",
+  "baseVersion": "2.1.36",
+  "title": "1W weekly candlestick chart composed from PIONEX 1D TradingView WebSocket",
   "changes": [
-    "Use actual visible time interval to cull Fibonacci drawings based on the original pair of anchor timestamps, not on the extension endpoint.",
-    "Once the anchor time span is outside the viewport, all Fibonacci horizontal lines, right-side price captions, zero dot and handles disappear together, just like rectangle and position overlays.",
-    "During held-pointer fast-pan, Fib groups are shown/hidden according to translated anchor coordinates; the 10 level lines cannot float separately after their anchors leave view.",
-    "Fib geometry up to one viewport away is buffered so previously offscreen Fib drawings can float INTO view during drag without creating new labels at pointerup.",
-    "Dragging back across original anchor times reuses the same saved object, without duplication or redrawing from the current screen edge.",
-    "Preserve the v2.1.35 finite fibEndTime for ordinary on-screen appearance; do not change the 1D/4H chart, CoinGlass, RR, risk positions, rectangle or Pionex historical candles."
+    "Add 1W to every floating chart timeframe selector with persistent workspace state.",
+    "Use the same existing SState Worker TV chart WebSocket PIONEX:<symbol> 1D and request_more_data with unlimited cumulative history.",
+    "Aggregate verified 1D OHLCV into UTC Monday 00:00 weekly OHLCV (Taiwan Monday 08:00).",
+    "Keep Pionex Worker 1D as first-failure fallback; no native 1W or other-exchange weekly sources.",
+    "Implement 1W logarithmic chart, weekly HA/BB, weekly timeframe coordinates, year/month scale, scrolling and drawings.",
+    "Keep 4H/1D data and 1D-powered watchlist S/HA/CCI/RR calculations unchanged."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/weekly-history.js",
+    "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/chart4h.js",
+    "MultiAssetLiquidityRadar/workspace.js",
+    "MultiAssetLiquidityRadar/drawing-workspace.js",
     "MultiAssetLiquidityRadar/index.html",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
-  "requiredDeploy": [
-    "Overwrite 4 GitHub Pages files, Ctrl+F5. No Cloudflare Worker deployment required."
-  ],
-  "validationNote": "Browser tests simulate 1D/4H viewport movement with both anchors disappearing to the LEFT or RIGHT, including legacy Fib saved without fibEndTime. Production browser not modified in session."
+  "deploy": "Only GitHub Pages MultiAssetLiquidityRadar files; no Cloudflare Worker changes.",
+  "validationNote": "Browser tests use simulated TV/Worker responses; actual per-symbol availability needs post-deployment verification."
 }

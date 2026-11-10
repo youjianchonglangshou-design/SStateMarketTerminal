@@ -4,7 +4,7 @@
  * BB algorithm is shared with the original SState monitor-engine.js.
  */
 (function(root){'use strict';
- const H4=14400000,DAY=86400000,BLANK_CANDLES=3;
+ const H4=14400000,DAY=86400000,WEEK=7*DAY,BLANK_CANDLES=3;
  // Click an HA stair to pin a semantic guide; only another stair or its price badge changes the pin.
  const interactions=new WeakMap();
  const SCALE_MIN=0.25,SCALE_MAX=16;
@@ -83,13 +83,15 @@
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
    return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
  }
- function render(target,{bars=[],daily=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,priceView=null,showBB=true,showHA=true}={}){
+ function render(target,{bars=[],daily=[],weekly=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,priceView=null,showBB=true,showHA=true}={}){
    if(!target)return;
-   const tf=timeframe==='1D'?'1D':'4H';
-   const source=tf==='1D'?normalized(projectDaily(daily,bars,price,updatedAt)):normalized(bars);
+   const tf=timeframe==='1W'?'1W':timeframe==='1D'?'1D':'4H';
+   const source=tf==='1W'?normalized(weekly):tf==='1D'?normalized(projectDaily(daily,bars,price,updatedAt)):normalized(bars);
    if(source.length<21){target.innerHTML='<div class="radar-chart-wait">等待 '+tf+' K 線資料…</div>';target.__liqProjection=null;return;}
    let complete;
-   if(tf==='1D'){
+   if(tf==='1D'||tf==='1W'){
+     // Weekly BB(20,2) and Heikin-Ashi are computed from actual aggregated
+     // weekly OHLC, never by repeating daily bands on a 1W candle.
      const ha=dailyHA(source),bb=bollinger(source);
      complete=source.map((r,i)=>({...r,ha:ha.get(dayOf(r.t)),bb:bb[i]}));
    }else complete=series(bars,daily,price,updatedAt);
@@ -135,7 +137,7 @@
    const clipId='rc-plot-clip-'+(target.dataset.chartPlot||target.id||'single').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(target.dataset.clipNonce|| (target.dataset.clipNonce=String(++clipIndex)));
    const fmt=n=>Number.isFinite(n)?n.toFixed(2):'0';
    const svg=[];
-   svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="4H 真實 K 線，日線布林帶(20,2)、日線平均 K 階梯，清算上下界及現價價格">`);
+   svg.push(`<svg class="radar-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="1W/1D/4H K 線、相應週期平均 K 與布林帶、清算上下界及現價">`);
    svg.push(`<defs><clipPath id="${clipId}"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath><clipPath id="${clipId}-time"><rect x="${L}" y="${T}" width="${pw}" height="${H-T}"/></clipPath><clipPath id="${clipId}-axis"><rect x="${plotR}" y="${T}" width="${R}" height="${ph}"/></clipPath></defs>`);
    // Price labels are exclusively on the right side; no currency symbol.
    for(let i=0;i<=5;i++){
@@ -202,7 +204,7 @@
        // rather than stopping at the middle of today's six-candle group.
        const xx=day.last===rows.length-1?x(day.last):(x(day.first)+x(day.last))/2;
        // Do not bridge missing dates or a missing 1D BB calculation.
-       const contiguous=prevDate===null||day.date-prevDate===DAY;
+       const contiguous=prevDate===null||day.date-prevDate===(tf==='1W'?WEEK:DAY);
        d+=`${active&&contiguous?' L':' M'}${fmt(xx)},${fmt(y(day.bb[key]))}`;
        active=true;prevDate=day.date;
      }
@@ -277,13 +279,13 @@
    svg.push('</svg>');
    // Small TradingView-like 4H OHLC strip: show the current candle by default,
    // and temporarily inspect a historical candle only while the pointer is over it.
-   const ohlcStrip='<div class="rc-ohlc-overlay" aria-label="4H K線開高低收" aria-live="off">'+
+   const ohlcStrip='<div class="rc-ohlc-overlay" aria-label="'+tf+' K線開高低收" aria-live="off">'+
      [['open','開'],['high','高'],['low','低'],['close','收']].map(([key,title])=>
        `<span class="rc-ohlc-field" data-field="${key}"><span class="rc-ohlc-caption">${title}=</span><span class="rc-ohlc-value">—</span></span>`).join('')+'</div>';
    target.innerHTML=svg.join('')+ohlcStrip;
-   target.dataset.candles=tf;target.dataset.indicators='1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
+   target.dataset.candles=tf;target.dataset.indicators=tf==='1W'?'1W':'1D';target.dataset.trailingSlots=String(BLANK_CANDLES);
    // Projection is replaced on every repaint. Drawing objects hold UTC timestamps and real prices.
-   const intervalMs=tf==='1D'?DAY:H4;
+   const intervalMs=tf==='1W'?WEEK:tf==='1D'?DAY:H4;
    const xAtTime=t=>{
      if(!Number.isFinite(t)||!rows.length)return NaN;
      const idx=rows.findIndex(r=>r.t>=t);

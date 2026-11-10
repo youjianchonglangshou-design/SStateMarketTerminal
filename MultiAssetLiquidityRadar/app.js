@@ -1398,8 +1398,8 @@
    // The alerts module may have executed while remote workspace state was loading.
    // Signal readiness after publishing the complete live records context.
    window.dispatchEvent(new Event('liq-radar-alert-context-ready'));
-   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),updateActiveSelection,loadExtra4H,loadExtraHistory,primeVisibleHistory,getHistoryState:historyState};
-   window.LIQ_TEST={version:'2.1.32',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
+   window.LIQ_CHART_API={getData:chartPayload,getPrice:chartPricePayload,hasSymbol:id=>records.some(r=>r.id===id),getWeeklySpec:id=>{const r=records.find(x=>x.id===id);return r?{tv:r.s.tv,pionex:r.s.pionex}:null;},updateActiveSelection,loadExtra4H,loadExtraHistory,primeVisibleHistory,getHistoryState:historyState};
+   window.LIQ_TEST={version:'2.1.37',updateTabTitle,navDayOpen,applyFastTabQuote,applyWsQuote,records,state,customCoinGlassAliases,addCustomSymbol,removeCustomSymbol,queueStartup,queueMissingProxies,dailyReady,activeChartIds,extractCG,resolveCG,fetchCG,rrSnapshot,restoreCG,matchedCG,dailyAsOf,dailyHA,classifyHaSemanticDot,dailyCciSma,dailySState,renderRow,renderAll,renderActiveChart,jumpToSymbol,updateDerived,calcModel,enqueue,log,renderDiag,reorder,chooseSort,sortValue};
  }
  (window.LIQ_SHARED_STATE?.ready||Promise.resolve()).then(setup).catch(e=>console.error('[Radar setup]',e));
 })();

@@ -300,7 +300,7 @@ function attach(w,callbacks){const c={tool:'select',selected:null,draft:null,liv
         // First click immediately creates an executable long/short layout with valid risk and target.
         const long=type==='long-position',limitEnabled=Boolean(callbacks.getDefaultLimit?.(long?'long':'short'));
         const entry=limitEnabled?point.price:(good(Number(c.livePrice()))?Number(c.livePrice()):point.price);
-        const step=proj.interval==='1D'?86400000:14400000;
+        const step=proj.interval==='1W'?604800000:proj.interval==='1D'?86400000:14400000;
         Object.assign(base,{entry,stop:entry*(long?.98:1.02),target:entry*(long?1.04:.96),riskAmount1:callbacks.getDefaultRisk?.()?.riskAmount1||1000,riskAmount2:callbacks.getDefaultRisk?.()?.riskAmount2||100,limitEnabled,
           anchors:[{time:point.time,price:entry},{time:Math.round(point.time+step*12),price:entry*(long?.98:1.02)}]});
         const obj=add(w.symbol,base);c.selected=obj.id;c.draft=null;c.tool='select';callbacks.setTool('select');callbacks.refreshHeader();syncSnapUI();

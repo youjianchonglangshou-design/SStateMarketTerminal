@@ -86,8 +86,10 @@
    w.title.textContent=d.symbol;
    w.price.textContent=d.priceText;
    w.onDrawingChangedPrice?.();
-   const count=w.timeframe==='1D'?(d.chart?.daily?.length||0):(d.chart?.bars?.length||0);
-   const start=(w.timeframe==='1D'?d.chart?.daily:d.chart?.bars)?.[0]?.t;
+   const week=w.timeframe==='1W'?window.LIQ_WEEKLY_HISTORY?.getWeeks(w.symbol)||[]:null;
+   const currentBars=week||(w.timeframe==='1D'?d.chart?.daily:d.chart?.bars)||[];
+   const count=currentBars.length;
+   const start=currentBars[0]?.t;
    w.timeframeLabel.textContent=w.timeframe+' · '+(w.displayMode==='line'?'折線':'K線')+' · '+count+'根';
    w.timeframeLabel.title='已載入 '+count+' 根'+(Number.isFinite(start)?'｜最早 K 線 '+new Date(start).toLocaleDateString('zh-TW',{timeZone:'Asia/Taipei'}):'');
    const drawing=window.DrawingWorkspace,doc=drawing?.snapshot(w.symbol),prefs=doc?.preferences||{};
@@ -112,11 +114,14 @@
      }
      w.indicator.append(cap);
    }
-   const hist=window.LIQ_CHART_API?.getHistoryState?.(w.symbol,w.timeframe);
+   const hist=w.timeframe==='1W'?window.LIQ_WEEKLY_HISTORY?.info(w.symbol):window.LIQ_CHART_API?.getHistoryState?.(w.symbol,w.timeframe);
+   if(w.timeframe==='1W'&&hist){
+     w.timeframeLabel.title+='｜來源 '+(hist.source||'等待中')+'｜日K '+hist.days+' 根｜'+(hist.message||'');
+   }
    w.source.textContent=d.source+' · '+w.timeframe+' '+count+'根'+(hist?.phase==='loading'?' · 補載中':hist?.phase==='error'?' · 補載失敗':hist?.phase==='exhausted'?' · 歷史盡頭':'');
    w.source.title=hist?.message||'拖曳或滾輪瀏覽歷史，接近最早 K 線時自動補載';
    if(window.LiqRadar4H)window.LiqRadar4H.render(w.plot,{
-     ...d.chart,priceScale:w.priceScale,pricePan:w.pricePan,priceView:w.priceView,
+     ...d.chart,weekly:week||[],priceScale:w.priceScale,pricePan:w.pricePan,priceView:w.priceView,
      timeframe:w.timeframe,displayMode:w.displayMode,viewCount:w.viewCount,viewOffset:w.viewOffset,
      showBB:prefs.showBollinger!==false,showHA:prefs.showHaSteps!==false,
      onPriceScaleChange:(scale,reset=false)=>{
@@ -150,8 +155,10 @@
    if(!proj||proj.interval!==w.timeframe)return;
    // No fetch on chart initialization. Only called after a user drag/zoom.
    // Trigger before reaching the existing left edge, including mid-drag.
-   if(w.viewOffset>=Math.max(0,proj.total-w.viewCount-20))
-     void window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe);
+   if(w.viewOffset>=Math.max(0,proj.total-w.viewCount-20)){
+     if(w.timeframe==='1W')void window.LIQ_WEEKLY_HISTORY?.loadOlder(w.symbol);
+     else void window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe);
+   }
  }
  function updateTab(w){
    w.tab.textContent='▧ '+w.symbol+' '+w.timeframe+(w.minimized?' ↥':'');
@@ -184,6 +191,7 @@
    // In particular, pointerdown inside the canvas must not replace the hit target
    // before the matching click event can inspect a yellow/purple HA stair.
    if(w.minimized||w.dirty||!w.plot.querySelector('svg')){w.dirty=true;schedule(w);}
+   window.LIQ_WEEKLY_HISTORY?.focus(w.timeframe==='1W'&&!w.minimized?w.symbol:null);
    save();
  }
  function focusList(group){ /* Focus never changes the permanent market z-layer rules. */ sortStack(); }
@@ -229,7 +237,7 @@
    const price=document.createElement('span');price.className='chart-head-price';price.textContent='--';
    label.append(title,timeframeSpan,price);
    const buttons=document.createElement('div');buttons.className='chart-head-buttons';
-   const w={id:uid,symbol,timeframe:timeframe==='1D'?'1D':'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,priceView:priceView&&Number.isFinite(priceView.hi)&&Number.isFinite(priceView.lo)&&priceView.hi>priceView.lo?{hi:priceView.hi,lo:priceView.lo}:null,isPanning:false,panRaf:0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,toolbarPos:toolbarPos&&Number.isFinite(toolbarPos.x)&&Number.isFinite(toolbarPos.y)?{x:toolbarPos.x,y:toolbarPos.y}:{x:9,y:68},geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
+   const w={id:uid,symbol,timeframe:['4H','1D','1W'].includes(timeframe)?timeframe:'4H',displayMode:displayMode==='line'?'line':'candles',viewCount:clamp(Number(viewCount)||84,21,270),viewOffset:Number(viewOffset)||0,pricePan:Number(pricePan)||0,priceView:priceView&&Number.isFinite(priceView.hi)&&Number.isFinite(priceView.lo)&&priceView.hi>priceView.lo?{hi:priceView.hi,lo:priceView.lo}:null,isPanning:false,panRaf:0,maximized:!!maximized,timeframeLabel:timeframe,locked:!!locked,minimized:!!minimized,priceScale:clamp(Number(priceScale)||1,.25,16),haSelected:Number.isFinite(Number(haSelected))&&haSelected!==null?Number(haSelected):null,behindCrypto:!!behindCrypto,toolbarPos:toolbarPos&&Number.isFinite(toolbarPos.x)&&Number.isFinite(toolbarPos.y)?{x:toolbarPos.x,y:toolbarPos.y}:{x:9,y:68},geom:constrain(geom||defaults(windows.length)),el,head,title,price,tab:null,lockButton:null,backButton:null,plot:null,indicator:null,source:null,dirty:true,timer:0,renderCount:0};
    w.timeframeLabel=timeframeSpan;
    w.lockButton=makeButton('chart-lock',w.locked?'🔒':'🔓','鎖定／解除鎖定圖表',()=>{w.locked=!w.locked;updateTabs();save();});
    w.backButton=makeButton('chart-send-back','⇤','置於左側加密清單後方',()=>sendBack(w));
@@ -281,8 +289,9 @@
    const finishGrip=ev=>{if(!grab||grab.id!==ev.pointerId)return;grab=null;try{grip.releasePointerCapture(ev.pointerId);}catch(_){}save();};
    grip.addEventListener('pointerup',finishGrip);grip.addEventListener('pointercancel',finishGrip);
    const period=document.createElement('select');period.title='圖表 K 線週期';period.setAttribute('aria-label','圖表週期');
-   for(const [value,txt] of [['4H','4H'],['1D','1D']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
-   period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1D'?45:84;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.dirty=true;schedule(w,0);updateTabs();save();});
+   for(const [value,txt] of [['4H','4H'],['1D','1D'],['1W','1W 週線']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;period.append(opt);}period.value=w.timeframe;
+   period.addEventListener('change',()=>{activate(w);w.timeframe=period.value;w.viewCount=w.timeframe==='1W'?48:w.timeframe==='1D'?45:84;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.dirty=true;schedule(w,0);updateTabs();
+     window.LIQ_WEEKLY_HISTORY?.focus(w.timeframe==='1W'?w.symbol:null);save();});
    const mode=document.createElement('select');mode.title='K 線或收盤價折線';mode.setAttribute('aria-label','圖表型態');
    for(const [value,txt] of [['candles','K線'],['line','折線']]){const opt=document.createElement('option');opt.value=value;opt.textContent=txt;mode.append(opt);}mode.value=w.displayMode;
    mode.addEventListener('change',()=>{activate(w);w.displayMode=mode.value;w.dirty=true;schedule(w,0);save();});
@@ -368,7 +377,7 @@
        maybeHistory(w);
      },
      setView:(count,offset)=>{w.viewCount=count;w.viewOffset=offset;w.dirty=true;schedule(w,0);save();maybeHistory(w);},
-     moreHistory:()=>window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe)
+     moreHistory:()=>w.timeframe==='1W'?window.LIQ_WEEKLY_HISTORY?.loadOlder(w.symbol):window.LIQ_CHART_API?.loadExtraHistory?.(w.symbol,w.timeframe)
    });
    w.onDrawingChangedPrice=updatePosition;
    w.dwController=controller;w.dwPeriod=period;w.dwMode=mode;w.dwToolButtons=toolButtons;
@@ -431,7 +440,7 @@
    if(!w){w=[...windows].reverse().find(x=>!x.locked)||create(symbol);}
    if(!w){announce('請先解鎖或關閉其中一張圖表');return false;}
    if(w.symbol!==symbol){w.dwController?.reset();w.dwToolButtons?.forEach((b,k)=>b.classList.toggle('active',k==='select'));
-     w.haSelected=null;w.symbol=symbol;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.viewCount=w.timeframe==='1D'?45:84;
+     w.haSelected=null;w.symbol=symbol;w.viewOffset=0;w.priceView=null;w.pricePan=0;w.priceScale=1;w.viewCount=w.timeframe==='1W'?48:w.timeframe==='1D'?45:84;
      w.onDrawingChanged?.();w.el.setAttribute('aria-label',symbol+' 浮動 '+w.timeframe+' 圖表');w.dirty=true;}
    // Deep 4H history remains fully on demand: never fetch 300 bars on a plain list click.
    activate(w);return true;
@@ -449,8 +458,8 @@
      w.dirty=true;schedule(w,90);
    }
  }}
- function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;const bars=w.timeframe==='1D'?d.chart?.daily:d.chart?.bars;
-     const hist=api.getHistoryState?.(w.symbol,w.timeframe);
+ function refreshSymbol(symbol){for(const w of windows){if(w.symbol!==symbol)continue;w.dirty=true;const d=api.getData(symbol);if(d){w.price.textContent=d.priceText;const bars=w.timeframe==='1W'?window.LIQ_WEEKLY_HISTORY?.getWeeks(w.symbol):w.timeframe==='1D'?d.chart?.daily:d.chart?.bars;
+     const hist=w.timeframe==='1W'?window.LIQ_WEEKLY_HISTORY?.info(w.symbol):api.getHistoryState?.(w.symbol,w.timeframe);
      w.source.textContent=d.source+' · '+w.timeframe+' '+(bars?.length||0)+'根'+(hist?.phase==='loading'?' · 預載中':hist?.phase==='waiting'?' · 限流等待':'');}
    // Rendering for minimized or totally covered charts is deferred until user restores/focuses.
    schedule(w,90);
@@ -577,6 +586,12 @@
    }
  });
  window.DrawingWorkspace?.subscribe(symbol=>{for(const w of windows)if(window.DrawingWorkspace.symbolKey(w.symbol)===symbol){w.dirty=true;schedule(w,0);w.onDrawingChangedPrice?.();}});
+ document.addEventListener('liq-radar-weekly-updated',event=>{
+   const info=event.detail;if(!info)return;
+   for(const w of windows){if(w.symbol!==info.id||w.timeframe!=='1W')continue;
+     w.dirty=true;schedule(w,60);
+   }
+ });
  bootstrap();
  document.dispatchEvent(new Event('liq-radar-window-stack-changed'));
  }

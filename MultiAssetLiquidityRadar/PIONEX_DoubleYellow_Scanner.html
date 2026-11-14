@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PIONEX 全市場雙黃掃描｜SState v1.1.0</title>
+<title>PIONEX 全市場雙黃掃描｜SState v1.1.1</title>
 <style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;color:#dce7f5;background:#081626}
 *{box-sizing:border-box}body{margin:0;padding:20px}.shell{max-width:1350px;margin:auto}
@@ -24,11 +24,19 @@ a{color:#a3e2f3;text-decoration:none;font-weight:750}a:hover{text-decoration:und
 .warning{font-size:11px;color:#f2be69}.sm{font-size:11px;color:#8b9fbb}details{margin-top:14px;font-size:13px}pre{white-space:pre-wrap;overflow:auto;max-height:190px;padding:10px;border:1px solid #344d64;background:#0a1524;color:#adc6df}
 footer{margin:11px 0;color:#8197ae;font-size:12px}
 @media(max-width:640px){body{padding:9px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:19px}.note{font-size:12px}}
+
+/* 表格標題排序：沿用原版配色，不更動掃描邏輯 */
+th[data-sort]{padding:0}
+th[data-sort] .th-sort{display:flex;justify-content:center;align-items:center;gap:5px;width:100%;min-height:33px;padding:9px 10px;white-space:nowrap;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:700;cursor:pointer}
+th[data-sort] .th-sort:hover{background:#284462;color:#f6fcff}
+th[data-sort] .th-sort:focus-visible{outline:2px solid #6cdaf5;outline-offset:-3px}
+th[data-sort] .sort-arrow{font-size:11px;color:#728ea8}
+th[data-sort][aria-sort="ascending"] .sort-arrow,th[data-sort][aria-sort="descending"] .sort-arrow{color:#ffdb4a}
 </style>
 <script src="../monitor-engine.js?v=0.3.22"></script>
 </head>
 <body><main class="shell">
-<h1>SState Market Terminal｜PIONEX 全市場雙黃掃描 <small class="sm">v1.1.0</small></h1>
+<h1>SState Market Terminal｜PIONEX 全市場雙黃掃描 <small class="sm">v1.1.1</small></h1>
 <p class="subtitle">使用原版 monitor.js 的資料流程：TradingView PIONEX 清單及盤中行情＋SState 歷史日 K 暖機＋原版 monitor-engine.js 計算</p>
 <div class="controls"><button id="run" class="primary">立即掃描全部</button><button id="stop" disabled>停止</button><button id="csv" disabled>匯出雙黃 CSV</button><span id="stamp" class="sm"></span></div>
 <div class="note"><b>篩選條件：</b><span class="yellow">平均K＝黃</span> ＋ <span class="yellow">CCI-SMA＝黃</span>。中軌斜率只顯示、不過濾：<span class="up">↑ 上斜</span> ／ → 平緩 ／ <span class="turn">↘ 下降走平中</span> ／ <span class="down">↓ 下斜</span>。日線 1D（台灣 08:00 換日）</div>
@@ -40,7 +48,7 @@ footer{margin:11px 0;color:#8197ae;font-size:12px}
 <div class="stat"><small>資料不足／失敗</small><b id="failed">0</b></div>
 </div>
 <progress id="bar" max="100" value="0"></progress><div class="progress" id="status">尚未開始掃描</div>
-<div class="gridbox"><table><thead><tr><th>標的</th><th>S狀態</th><th>現價</th><th>日漲跌</th><th>中軌差%</th><th>中軌斜率</th><th>平均K</th><th>CCI-SMA</th><th>歷史K來源</th></tr></thead><tbody id="rows"><tr><td colspan="9">點擊「立即掃描全部」</td></tr></tbody></table></div>
+<div class="gridbox"><table><thead><tr><th data-sort="symbol" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：標的">標的 <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="s" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：S狀態">S狀態 <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="price" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：現價">現價 <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="pct" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：日漲跌">日漲跌 <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="bb" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：中軌差%">中軌差% <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="mid" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：中軌斜率">中軌斜率 <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="ha" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：平均K">平均K <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="cci" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：CCI-SMA">CCI-SMA <span class="sort-arrow" aria-hidden="true">↕</span></button></th><th data-sort="source" aria-sort="none"><button type="button" class="th-sort" title="點擊排序：歷史K來源">歷史K來源 <span class="sort-arrow" aria-hidden="true">↕</span></button></th></tr></thead><tbody id="rows"><tr><td colspan="9">點擊「立即掃描全部」</td></tr></tbody></table></div>
 <details><summary>連線紀錄／未取得資料</summary><pre id="diag">尚無紀錄</pre></details>
 <footer>標的清單取自 TradingView Scanner exchange=PIONEX；技術指標完全使用根目錄的 SStateMonitorEngine。未取得足夠歷史日 K 的標的會列為資料不足，不冒充不符合。歷史有缺口的結果會特別標記。</footer>
 </main>
@@ -50,7 +58,7 @@ const TV_URL='https://scanner.tradingview.com/crypto/scan';
 const WORKER='https://white-meadow-16bc.youjianchonglangshou.workers.dev';
 const PUBLIC_R2='https://pub-8840e93658904e0aabc7fbe666af2444.r2.dev';
 const DAY=86400000, Engine=window.SStateMonitorEngine, $=id=>document.getElementById(id);
-const state={cancel:false,running:false,universe:[],done:0,failed:0,live:0,matched:[],messages:[],scanTime:0,found:new Set()};
+const state={cancel:false,running:false,universe:[],done:0,failed:0,live:0,matched:[],messages:[],scanTime:0,found:new Set(),sort:{key:'s',dir:'asc'}};
 const tpe=ms=>new Date(ms).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
 const today=()=>Math.floor(Date.now()/DAY)*DAY;
 function log(s){state.messages.push(`${tpe(Date.now())} ${s}`);if(state.messages.length>160)state.messages.shift();$('diag').textContent=state.messages.join('\n');}
@@ -115,7 +123,40 @@ function fmtPct(x){return Number.isFinite(x)?(x>0?'+':'')+x.toFixed(2)+'%':'—'
 const stateRank={'S3':0,'S2':1,'S1':2,'S0.5':3,'S0':4,'OTHER-UP':5,'OTHER-DN':6,'OTHER':7};
 const midText={'rising':'↑ 上斜','flat':'→ 平緩','flattening':'↘ 下降走平中','falling':'↓ 下斜'};
 const midClass={'rising':'up','flat':'flat','flattening':'turn','falling':'down'};
-function render(){const arr=[...state.matched].sort((a,b)=>(stateRank[a.s]??8)-(stateRank[b.s]??8)||a.base.localeCompare(b.base));
+const numericKeys=new Set(['price','pct','bb','mid']);
+function sortValue(row,key){
+ if(key==='symbol')return row.base;
+ if(key==='s')return stateRank[row.s]??99;
+ if(key==='price'||key==='pct'||key==='bb')return Number(row[key]);
+ if(key==='mid'){const slope=row.mid?.recent_5d_slope_pct_per_day;return slope!=null&&Number.isFinite(Number(slope))?Number(slope):NaN;}
+ if(key==='ha'||key==='cci')return '黃';
+ if(key==='source')return row.source+(row.gap?' · 歷史缺口':'')+(row.updated?' · Scanner':' · 未套價');
+ return '';
+}
+function sortedMatches(){
+ const {key,dir}=state.sort,sign=dir==='desc'?-1:1;
+ return [...state.matched].sort((a,b)=>{
+  const av=sortValue(a,key),bv=sortValue(b,key);
+  const aMissing=av===null||av===undefined||(typeof av==='number'&&!Number.isFinite(av));
+  const bMissing=bv===null||bv===undefined||(typeof bv==='number'&&!Number.isFinite(bv));
+  if(aMissing!==bMissing)return aMissing?1:-1;
+  const cmp=typeof av==='number'&&typeof bv==='number'?av-bv:String(av).localeCompare(String(bv),'zh-Hant',{numeric:true,sensitivity:'base'});
+  return cmp?cmp*sign:a.base.localeCompare(b.base,'zh-Hant',{numeric:true,sensitivity:'base'});
+ });
+}
+function updateSortHeaders(){
+ document.querySelectorAll('th[data-sort]').forEach(th=>{
+  const active=th.dataset.sort===state.sort.key;
+  th.setAttribute('aria-sort',active?(state.sort.dir==='asc'?'ascending':'descending'):'none');
+  th.querySelector('.sort-arrow').textContent=active?(state.sort.dir==='asc'?'▲':'▼'):'↕';
+  th.querySelector('button').title=active?`目前${state.sort.dir==='asc'?'升冪':'降冪'}，點擊反向排序`:'點擊依此欄位排序';
+ });
+}
+function setSort(key){
+ const dir=state.sort.key===key?(state.sort.dir==='asc'?'desc':'asc'):(numericKeys.has(key)?'desc':'asc');
+ state.sort={key,dir};updateSortHeaders();render();
+}
+function render(){const arr=sortedMatches();
  const root=$('rows');root.replaceChildren();if(!arr.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=9;td.textContent='目前已成功分析的標的中沒有雙黃（尚未取得資料不計入）';tr.append(td);root.append(tr);$('csv').disabled=true;return;}
  for(const a of arr){const tr=document.createElement('tr');
   const node=(v,cls='')=>{const td=document.createElement('td');if(cls)td.className=cls;td.textContent=v;tr.append(td);return td;};
@@ -140,8 +181,10 @@ async function run(){if(state.running)return;state.running=true;state.cancel=fal
  }catch(e){status('掃描未完成：'+e.message);log(e.stack||e.message);}
  finally{state.running=false;$('run').disabled=false;$('stop').disabled=true;progress();}
 }
+document.querySelectorAll('th[data-sort]').forEach(th=>th.querySelector('button').addEventListener('click',()=>setSort(th.dataset.sort)));
+updateSortHeaders();
 $('run').addEventListener('click',run);$('stop').addEventListener('click',()=>{state.cancel=true;status('正在停止…');});
-$('csv').addEventListener('click',()=>{if(!state.matched.length)return;const fields=[['幣種','S狀態','現價','日漲跌','中軌差%','中軌斜率','平均K','CCI-SMA','K線來源'],...state.matched.map(x=>[x.base,x.s,x.price,x.pct,x.bb,midText[x.mid.state]||x.mid.label||'', '黃','黃',x.source+(x.gap?' (歷史缺口)':'')])];const csv='\ufeff'+fields.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='PIONEX_DoubleYellow_'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);});
+$('csv').addEventListener('click',()=>{if(!state.matched.length)return;const fields=[['幣種','S狀態','現價','日漲跌','中軌差%','中軌斜率','平均K','CCI-SMA','K線來源'],...sortedMatches().map(x=>[x.base,x.s,x.price,x.pct,x.bb,midText[x.mid.state]||x.mid.label||'', '黃','黃',x.source+(x.gap?' (歷史缺口)':'')])];const csv='\ufeff'+fields.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='PIONEX_DoubleYellow_'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);});
 })();
 </script>
 </body></html>

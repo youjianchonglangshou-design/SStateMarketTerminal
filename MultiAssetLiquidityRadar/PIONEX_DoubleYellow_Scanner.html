@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PIONEX 全市場雙黃掃描｜SState</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;background:#0b1020;color:#e7edf9}*{box-sizing:border-box}
+body{margin:0;padding:20px}.wrap{max-width:1160px;margin:auto}
+h1{font-size:23px;margin:0 0 7px}.hint{color:#9baacc;font-size:13px;margin:0 0 18px}.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+button{border:1px solid #475b85;background:#233d70;color:#f2f6ff;border-radius:9px;padding:10px 16px;cursor:pointer;font-weight:700;font-size:14px}button:hover{filter:brightness(1.2)}button:disabled{opacity:.4;cursor:not-allowed}button.secondary{background:#141e38}
+.criteria{border:1px solid #334360;border-radius:10px;background:#141e36;padding:12px;margin:15px 0;color:#dbe5fb}.yellow{color:#ffcc3e}.orange{color:#ffa64f}.green{color:#65dc99}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:16px 0}.stat{background:#111c35;border:1px solid #273b60;border-radius:11px;padding:12px 14px}.stat strong{font-size:24px;display:block;margin-top:4px}.stat small{color:#9baacc}
+progress{width:100%;height:12px;accent-color:#71cc8c}.progress{color:#aabbdb;font-size:13px;margin:8px 0 16px}
+.tablewrap{overflow-x:auto;border:1px solid #2b3c5c;border-radius:10px}table{border-collapse:collapse;width:100%;min-width:660px}th,td{padding:11px 14px;text-align:left;border-bottom:1px solid #263653}th{background:#182845;color:#becdeb;font-size:13px}td{font-size:14px}tbody tr:nth-child(2n){background:#101b30}.sym{font-weight:750}a{color:#a8c4ff;text-decoration:none}a:hover{text-decoration:underline}
+#diag{white-space:pre-wrap;font:12px/1.5 Consolas,monospace;background:#0b1428;border:1px solid #2d4167;border-radius:10px;color:#98aecf;padding:12px;min-height:58px;max-height:170px;overflow:auto}
+footer{margin:14px 0;color:#99a6c4;font-size:12px}
+@media(max-width:700px){body{padding:12px}.stats{grid-template-columns:repeat(2,1fr)}h1{font-size:18px}.criteria{font-size:13px}}
+</style>
+<script src="https://youjianchonglangshou-design.github.io/SStateMarketTerminal/monitor-engine.js?v=0.3.22"></script>
+</head>
+<body><div class="wrap">
+<h1>PIONEX 全市場雙黃掃描</h1>
+<p class="hint">TradingView Scanner 全市場清單 → 逐檔 PIONEX 1D K 線 → 原版 SStateMonitorEngine 指標 → 三條件同時成立</p>
+<div class="toolbar">
+<button id="run">立即掃描全部</button><button id="stop" class="secondary" disabled>停止</button><button id="csv" class="secondary" disabled>匯出符合清單 CSV</button>
+<span id="stamp" class="hint"></span>
+</div>
+<div class="criteria">中軌：<span class="green">↑ 上斜</span> ／ → 平緩 ／ <span class="orange">↘ 下降走平</span>　　平均K：<span class="yellow">黃</span>　　CCI-SMA：<span class="yellow">黃</span>　　週期：1D（台灣 08:00 換日）</div>
+<div class="stats">
+<div class="stat"><small>TradingView 清單</small><strong id="total">—</strong></div>
+<div class="stat"><small>已判讀</small><strong id="done">0</strong></div>
+<div class="stat"><small>符合三條件</small><strong id="matched">0</strong></div>
+<div class="stat"><small>資料過期</small><strong id="stale">0</strong></div>
+<div class="stat"><small>取得失敗</small><strong id="failed">0</strong></div>
+</div>
+<progress id="bar" max="100" value="0"></progress><div class="progress" id="status">尚未執行掃描</div>
+<div class="tablewrap"><table><thead><tr><th>幣種</th><th>S 狀態</th><th>中軌斜率</th><th>平均K</th><th>CCI-SMA</th><th>價格（1D 收盤更新值）</th><th>K 線時間</th></tr></thead><tbody id="rows"><tr><td colspan="7" style="color:#8296b9">點「立即掃描全部」</td></tr></tbody></table></div>
+<details style="margin-top:16px"><summary>連線紀錄／未取得資料</summary><pre id="diag">尚無紀錄</pre></details>
+<footer>只列出「日線資料包含今天且符合三條件」的結果，不以快取替代。資料源依既有雷達優先順序：PIONEX 的 TradingView 1D，失敗後嘗試派網官方 1D。</footer>
+</div>
+<script>
+(()=>{'use strict';
+const SCAN_URL='https://scanner.tradingview.com/crypto/scan';
+const WORKER='https://white-meadow-16bc.youjianchonglangshou.workers.dev';
+const $=id=>document.getElementById(id), DAY=86400000, FR='~m~';
+const state={cancel:false,run:false,done:0,stale:0,failed:0,all:[],matches:[],diag:[],sockets:new Set()};
+const time=t=>new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
+function log(s){state.diag.push(`${time(Date.now())} ${s}`);if(state.diag.length>150)state.diag.shift();$('diag').textContent=state.diag.join('\n');}
+function status(s){$('status').textContent=s;}
+function refresh(){ $('done').textContent=state.done;$('matched').textContent=state.matches.length;$('stale').textContent=state.stale;$('failed').textContent=state.failed;$('bar').max=Math.max(1,state.all.length);$('bar').value=state.done; }
+function todayStart(){return Math.floor(Date.now()/DAY)*DAY;}
+function assertEngine(){if(!window.SStateMonitorEngine?.analyze)throw Error('尚未載入原版 SStateMonitorEngine。確認網路可開啟 monitor-engine.js。');}
+async function requestJSON(url,options={},ms=18000){const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),ms);try{const r=await fetch(url,{...options,cache:'no-store',signal:ctrl.signal});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}finally{clearTimeout(timer);}}
+async function fetchUniverse(){
+ const all=new Map(),page=400;let total=Infinity,offset=0;
+ while(offset<total&&!state.cancel){
+   const body={filter:[{left:'exchange',operation:'equal',right:'PIONEX'}],options:{lang:'en'},columns:['name','description','exchange','close'],range:[offset,offset+page-1]};
+   const r=await requestJSON(SCAN_URL,{method:'POST',mode:'cors',headers:{Accept:'application/json','Content-Type':'text/plain'},body:JSON.stringify(body)},24000);
+   if(!Array.isArray(r.data))throw Error('TradingView Scanner 回傳內容沒有 data 陣列');
+   const n=Number(r.totalCount);total=Number.isFinite(n)?n:offset+r.data.length;
+   for(const item of r.data){const ticker=String(item.s||'').toUpperCase();if(ticker.startsWith('PIONEX:')&&ticker.endsWith('USDT.P')){
+     const base=ticker.slice('PIONEX:'.length,-'USDT.P'.length);if(/^[A-Z0-9]{1,30}$/.test(base))all.set(ticker,{ticker,base,pionex:(base==='CL'?'WTI':base)+'_USDT_PERP'});
+   }}
+   offset+=r.data.length;
+   status(`TradingView PIONEX 清單：${offset} / ${total}，USDT 永續 ${all.size} 檔`);
+   if(!r.data.length)break;
+ }
+ return [...all.values()];
+}
+const byteLength=x=>new TextEncoder().encode(String(x)).length;
+const frame=s=>{const p=typeof s==='string'?s:JSON.stringify(s);return FR+byteLength(p)+FR+p;};
+const pkt=(m,p)=>frame(JSON.stringify({m,p}));
+function unframe(raw){const out=[];let pos=0;while(pos<raw.length){const a=raw.indexOf(FR,pos);if(a<0)break;const b=raw.indexOf(FR,a+FR.length);if(b<0)break;const len=+raw.slice(a+FR.length,b);if(!Number.isFinite(len)||len>10000000||len<0)break;let i=b+FR.length,n=0;while(i<raw.length&&n<len){const cp=raw.codePointAt(i),ch=String.fromCodePoint(cp);i+=ch.length;n+=byteLength(ch);}if(n!==len)break;out.push(raw.slice(b+FR.length,i));pos=i;}return out;}
+function asBar(item){const a=Array.isArray(item)?item:item?.v;if(!Array.isArray(a)||a.length<6)return null;const d=a.length>=7?1:0;let t=+a[d];if(t>0&&t<1e12)t*=1000;const o=+a[d+1],h=+a[d+2],l=+a[d+3],c=+a[d+4],v=+a[d+5]||0;if(![t,o,h,l,c].every(Number.isFinite)||o<=0||l<=0||h<l||h<o||h<c||c<=0)return null;return {t,o,h,l,c,v};}
+function uniqueBars(data){return [...new Map(data.filter(x=>x&&x.t).map(x=>[x.t,x])).values()].sort((a,b)=>a.t-b.t);}
+function tvBatch(items,deadline=19000){return new Promise((resolve)=>{
+  if(state.cancel){resolve(new Map());return;}
+  let sock;const bySeries=new Map(),doneSeries=new Set(),stores=new Map(),expected=items.length;let complete=false;
+  let url=new URL(WORKER);url.protocol='wss:';url.pathname='/api/monitor/tv-chart-ws';url.search='';
+  const sid='cs_'+Math.random().toString(36).slice(2),saveResult=()=>new Map(items.map((item,i)=>[item.ticker,uniqueBars([...(stores.get('ser'+i)||new Map()).values()])]));
+  function end(){if(complete)return;complete=true;clearTimeout(tm);if(sock){state.sockets.delete(sock);try{sock.close();}catch{}}resolve(saveResult());}
+  const tm=setTimeout(end,deadline);
+  try{sock=new WebSocket(url.toString());state.sockets.add(sock);}catch(e){log('TV WS 建立失敗 '+e.message);end();return;}
+  sock.onopen=()=>{try{sock.send(pkt('set_auth_token',['unauthorized_user_token']));sock.send(pkt('chart_create_session',[sid,'']));sock.send(pkt('switch_timezone',[sid,'Etc/UTC']));
+    items.forEach((item,i)=>{const symbolId='sym'+i,seriesId='ser'+i;bySeries.set(seriesId,item.ticker);stores.set(seriesId,new Map());sock.send(pkt('resolve_symbol',[sid,symbolId,'='+JSON.stringify({symbol:item.ticker,adjustment:'splits',session:'regular'})]));sock.send(pkt('create_series',[sid,seriesId,'s'+i,symbolId,'1D',95,'']));});
+  }catch(e){log('TV WS 發送錯誤 '+e.message);end();}};
+  sock.onmessage=async e=>{try{const str=typeof e.data==='string'?e.data:e.data instanceof Blob?await e.data.text():new TextDecoder().decode(e.data);for(const part of unframe(str)){
+    if(part.startsWith('~h~')){sock.send(frame(part));continue;}let msg;try{msg=JSON.parse(part);}catch{continue;}const p=msg.p||[];
+    if(msg.m==='timescale_update'&&p[0]===sid){for(const [ser] of bySeries){for(const raw of p[1]?.[ser]?.s||[]){const bar=asBar(raw);if(bar)stores.get(ser).set(bar.t,bar);}}}
+    if(msg.m==='series_completed'&&p[0]===sid){doneSeries.add(p[1]);if(doneSeries.size>=expected){end();return;}}
+    if(['critical_error','protocol_error'].includes(msg.m)){log('TV WS '+msg.m);end();return;}
+    if(msg.m==='symbol_error'||msg.m==='series_error'){log('TV WS 個別幣種 '+JSON.stringify(p).slice(0,100));}
+  }}catch(e){log('TV WS 訊息 '+e.message);}};
+  sock.onerror=()=>{};sock.onclose=()=>end();
+ });}
+function parseRest(j){const a=j?.data?.klines||j?.klines||[];if(!Array.isArray(a))return [];
+ return uniqueBars(a.map(r=>{let t=Number(Array.isArray(r)?r[0]:r.time??r.ts??r.t);if(t>0&&t<1e12)t*=1000;const x=Array.isArray(r)?r.slice(1):[r.open,r.high,r.low,r.close,r.volume];const o=+x[0],h=+x[1],l=+x[2],c=+x[3],v=+x[4]||0;return [t,o,h,l,c].every(Number.isFinite)&&o>0&&l>0&&h>=l&&h>=o&&h>=c&&c>0?{t,o,h,l,c,v}:null;}).filter(Boolean));}
+async function restBars(item){
+ const tries=[new URL('https://api.pionex.com/api/v1/market/klines'),new URL('/api/monitor/klines',WORKER)];
+ for(let i=0;i<tries.length;i++){
+  let u=tries[i];u.searchParams.set('symbol',item.pionex);u.searchParams.set('interval','1D');u.searchParams.set('limit','95');
+  try{const j=await requestJSON(u.toString(),{headers:{Accept:'application/json'}},12500);const bars=parseRest(j);if(bars.length>=40)return bars;}catch(e){if(i===tries.length-1)log(item.base+' REST '+e.message);}
+ }
+ return [];
+}
+function evaluate(item,bars){if(state.cancel)return;
+ state.done++;
+ if(bars.length<40){state.failed++;log(item.base+' 歷史K線不足 '+bars.length);refresh();return;}
+ if(bars.at(-1).t<todayStart()){state.stale++;log(item.base+' 最新1D不是今天 '+time(bars.at(-1).t));refresh();return;}
+ try{
+  const row=window.SStateMonitorEngine.analyze(bars.map(b=>({time:b.t,open:b.o,high:b.h,low:b.l,close:b.c,volume:b.v})));
+  if(!row?.midline){state.failed++;refresh();return;}
+  if(['rising','flat','flattening'].includes(row.midline.state)&&row.average_k==='yellow'&&row.cci_sma==='yellow'){
+   const display={...item,s:row.s_state||'OTHER',mid:row.midline.label||row.midline.state,midState:row.midline.state,price:row.price,asof:bars.at(-1).t};
+   state.matches.push(display);render();
+  }
+ }catch(e){state.failed++;log(item.base+' 指標計算失敗：'+e.message);}
+ refresh();
+}
+function render(){const ordered=[...state.matches].sort((a,b)=>({rising:0,flat:1,flattening:2}[a.midState]??9)-({rising:0,flat:1,flattening:2}[b.midState]??9)||a.base.localeCompare(b.base));
+ $('rows').replaceChildren();if(!ordered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=7;td.textContent='目前沒有符合的最新結果';tr.append(td);$('rows').append(tr);return;}
+ for(const m of ordered){const tr=document.createElement('tr');const items=[m.base,m.s,({rising:'↑ 上斜',flat:'→ 平緩',flattening:'↘ 下降走平'}[m.midState]||m.mid),'🟡 黃','🟡 黃',String(m.price),time(m.asof)];items.forEach((val,i)=>{const td=document.createElement('td');if(i===0){const a=document.createElement('a');a.href='https://www.tradingview.com/chart/?symbol='+encodeURIComponent(m.ticker);a.target='_blank';a.rel='noopener noreferrer';a.textContent=val;td.append(a);td.className='sym';}else{td.textContent=val;if(i===2)td.className=m.midState==='rising'?'green':m.midState==='flattening'?'orange':'';if(i===3||i===4)td.className='yellow';}tr.append(td)});$('rows').append(tr);}
+ $('csv').disabled=false;
+}
+async function workers(items,concurrency,fn){let next=0;await Promise.all(Array.from({length:concurrency},async()=>{while(!state.cancel){const index=next++;if(index>=items.length)break;await fn(items[index],index);}}));}
+async function run(){if(state.run)return;state.cancel=false;state.run=true;state.done=0;state.failed=0;state.stale=0;state.matches=[];state.diag=[];state.all=[];$('rows').innerHTML='<tr><td colspan="7">正在抓取 TradingView Scanner 清單…</td></tr>';$('run').disabled=true;$('stop').disabled=false;$('csv').disabled=true;$('stamp').textContent='啟動 '+time(Date.now());$('total').textContent='—';refresh();
+ try{
+  assertEngine();status('正在透過 TradingView Scanner 查詢 exchange = PIONEX…');
+  state.all=await fetchUniverse();$('total').textContent=String(state.all.length);if(!state.all.length)throw Error('TradingView 沒有回傳任何 PIONEX USDT 永續標的，未用其他交易所替代');
+  const batches=[];for(let i=0;i<state.all.length;i+=8)batches.push(state.all.slice(i,i+8));
+  status(`掃描 ${state.all.length} 檔 PIONEX；使用原版 SState 日線引擎…`);
+  await workers(batches,4,async(group)=>{
+   const byTicker=await tvBatch(group);
+   for(const item of group){if(state.cancel)break;let bars=byTicker.get(item.ticker)||[];if(bars.length<40||bars.at(-1).t<todayStart()){const fallback=await restBars(item);if(fallback.length>=40)bars=fallback;}evaluate(item,bars);}
+   status(`完成 ${state.done}/${state.all.length}｜符合 ${state.matches.length}｜過期 ${state.stale}｜失敗 ${state.failed}`);
+  });
+  status(state.cancel?`已停止，完成 ${state.done}/${state.all.length}`:`掃描結束：${state.all.length} 檔，符合 ${state.matches.length}，過期 ${state.stale}，取得失敗 ${state.failed}`);
+  if(state.matches.length===0&&state.done===state.all.length)render();
+ }catch(e){status('掃描未完成：'+e.message);log('停止原因：'+e.message);}
+ finally{state.run=false;$('run').disabled=false;$('stop').disabled=true;refresh();}
+}
+$('run').addEventListener('click',run);$('stop').addEventListener('click',()=>{state.cancel=true;for(const ws of state.sockets)try{ws.close();}catch{}});
+$('csv').addEventListener('click',()=>{if(!state.matches.length)return;const rows=[['幣種','S狀態','中軌斜率','平均K','CCI-SMA','價格','資料時間'],...state.matches.map(m=>[m.base,m.s,m.mid,'黃','黃',m.price,time(m.asof)])];const csv='\ufeff'+rows.map(row=>row.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='PIONEX_DoubleYellow_'+new Date().toISOString().slice(0,10)+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),3000);});
+})();
+</script>
+</body></html>

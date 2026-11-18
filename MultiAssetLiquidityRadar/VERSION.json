@@ -1,26 +1,22 @@
 {
-  "version": "2.1.37",
-  "releaseDate": "2026-11-10",
-  "baseVersion": "2.1.36",
-  "title": "1W weekly candlestick chart composed from PIONEX 1D TradingView WebSocket",
+  "version": "2.1.38",
+  "releaseDate": "2026-11-18",
+  "baseVersion": "2.1.37",
+  "title": "Optional magenta MA3 overlay per chart window",
   "changes": [
-    "Add 1W to every floating chart timeframe selector with persistent workspace state.",
-    "Use the same existing SState Worker TV chart WebSocket PIONEX:<symbol> 1D and request_more_data with unlimited cumulative history.",
-    "Aggregate verified 1D OHLCV into UTC Monday 00:00 weekly OHLCV (Taiwan Monday 08:00).",
-    "Keep Pionex Worker 1D as first-failure fallback; no native 1W or other-exchange weekly sources.",
-    "Implement 1W logarithmic chart, weekly HA/BB, weekly timeframe coordinates, year/month scale, scrolling and drawings.",
-    "Keep 4H/1D data and 1D-powered watchlist S/HA/CCI/RR calculations unchanged."
+    "Add MA3 toggle after S / slope / HA / CCI capsules. Default off, per-window local persistence.",
+    "4H and 1D use SMA3 of daily closes; 1W uses SMA3 of weekly closes from the existing weekly series.",
+    "Compute over full loaded history before viewport slicing and draw inside existing clipped price layer.",
+    "No additional network requests or Worker changes; existing signals, daily indicators, drawings and data sources unchanged."
   ],
   "modifiedFiles": [
-    "MultiAssetLiquidityRadar/weekly-history.js",
-    "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/chart4h.js",
     "MultiAssetLiquidityRadar/workspace.js",
-    "MultiAssetLiquidityRadar/drawing-workspace.js",
+    "MultiAssetLiquidityRadar/style.css",
     "MultiAssetLiquidityRadar/index.html",
+    "MultiAssetLiquidityRadar/app.js",
     "MultiAssetLiquidityRadar/VERSION.json",
     "MultiAssetLiquidityRadar/README.md"
   ],
-  "deploy": "Only GitHub Pages MultiAssetLiquidityRadar files; no Cloudflare Worker changes.",
-  "validationNote": "Browser tests use simulated TV/Worker responses; actual per-symbol availability needs post-deployment verification."
+  "deploy": "GitHub Pages only; no Worker changes."
 }

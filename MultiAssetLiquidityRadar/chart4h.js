@@ -71,7 +71,12 @@
    else if(!d||dayOf(d.t)<day)days.push(row);
    return days;
  }
- function series(bars,daily,now,nowTime){
+ // SMA of three actual K-line closes, computed before viewport slicing.
+ // The first two bars have no value; never substitute HA or 4H closes.
+ function ma3(rows){
+   return rows.map((b,i)=>i<2?null:(rows[i-2].c+rows[i-1].c+b.c)/3);
+ }
+ function series(bars,daily,now,nowTime,showMA3=false){
    const all=normalized(bars);
    const liveStart=Math.floor(nowTime/H4)*H4;
    if(valid(now)){
@@ -81,9 +86,11 @@
    }
    const days=projectDaily(daily,all,now,nowTime),ha=dailyHA(days),bb=bollinger(days),bbByDay=new Map();
    days.forEach((d,i)=>{const band=bb[i];if(Number.isFinite(band?.mid))bbByDay.set(dayOf(d.t),band);});
-   return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null}));
+   const maByDay=new Map();
+   if(showMA3){const values=ma3(days);days.forEach((d,i)=>maByDay.set(dayOf(d.t),values[i]));}
+   return all.map(b=>({...b,bb:bbByDay.get(dayOf(b.t))||null,ha:ha.get(dayOf(b.t))||null,ma3:maByDay.get(dayOf(b.t))??null}));
  }
- function render(target,{bars=[],daily=[],weekly=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,priceView=null,showBB=true,showHA=true}={}){
+ function render(target,{bars=[],daily=[],weekly=[],price=null,upper=null,lower=null,updatedAt=Date.now(),priceScale=1,onPriceScaleChange=null,onPriceScaleCommit=null,selectedTimestamp=null,onSelectionChange=null,timeframe='4H',displayMode='candles',viewCount=84,viewOffset=0,pricePan=0,priceView=null,showBB=true,showHA=true,showMA3=false}={}){
    if(!target)return;
    const tf=timeframe==='1W'?'1W':timeframe==='1D'?'1D':'4H';
    const source=tf==='1W'?normalized(weekly):tf==='1D'?normalized(projectDaily(daily,bars,price,updatedAt)):normalized(bars);
@@ -92,9 +99,9 @@
    if(tf==='1D'||tf==='1W'){
      // Weekly BB(20,2) and Heikin-Ashi are computed from actual aggregated
      // weekly OHLC, never by repeating daily bands on a 1W candle.
-     const ha=dailyHA(source),bb=bollinger(source);
-     complete=source.map((r,i)=>({...r,ha:ha.get(dayOf(r.t)),bb:bb[i]}));
-   }else complete=series(bars,daily,price,updatedAt);
+     const ha=dailyHA(source),bb=bollinger(source),ma=showMA3?ma3(source):[];
+     complete=source.map((r,i)=>({...r,ha:ha.get(dayOf(r.t)),bb:bb[i],ma3:ma[i]??null}));
+   }else complete=series(bars,daily,price,updatedAt,showMA3);
    const n=clamp(Math.round(Number(viewCount)||84),21,270); // Both 1D and 4H can show up to 270 bars.
    // Negative offset represents empty FUTURE space to the right of the latest candle.
    // Keep the slot width fixed at viewCount even at a history/future boundary.
@@ -118,7 +125,7 @@
    const visible=rows.slice(drawStart,drawEnd).map((r,j)=>({r,i:drawStart+j}));
    const scaleRows=visible.filter(({i})=>x(i)>=L-stride&&x(i)<=plotR+stride).map(({r})=>r);
    const vals=[];
-   for(const r of (scaleRows.length?scaleRows:rows.slice(-21))){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);}
+   for(const r of (scaleRows.length?scaleRows:rows.slice(-21))){vals.push(r.h,r.l);if(showBB&&r.bb)vals.push(r.bb.upper,r.bb.lower);if(showHA&&r.ha)vals.push(r.ha.price);if(showMA3&&valid(r.ma3))vals.push(r.ma3);}
    for(const v of [price,upper,lower])if(valid(v))vals.push(v);
    // A single logarithmic projection drives the axis, OHLC, Fib, drawings and snap coordinates.
    const clean=vals.filter(valid),rawMin=Math.min(...clean),rawMax=Math.max(...clean);
@@ -190,7 +197,7 @@
    visible.forEach(({r,i})=>{
      const date=dayOf(r.t),entry=daysShown.at(-1);
      if(entry?.date===date){entry.last=i;return;}
-     daysShown.push({date,first:i,last:i,bb:r.bb});
+     daysShown.push({date,first:i,last:i,bb:r.bb,ma3:r.ma3});
    });
    // Clip off-scale candles and historical bands instead of letting them run over
    // the right price axis or title. Grid/axis and price badges stay unclipped.
@@ -211,6 +218,19 @@
      if(d)svg.push(`<path class="${cls}" d="${d.trim()}"/>`);
    }
    svg.push('</g>');
+   // MA3 shares BB's daily sampling/projection. On 1W, each sample is a weekly SMA3.
+   // Kept inside the same clipped, translated price plot as the candles and BB.
+   if(showMA3){
+     let d='',active=false,prevDate=null;
+     for(const day of daysShown){
+       if(!valid(day.ma3)){active=false;continue;}
+       const xx=day.last===rows.length-1?x(day.last):(x(day.first)+x(day.last))/2;
+       const contiguous=prevDate===null||day.date-prevDate===(tf==='1W'?WEEK:DAY);
+       d+=`${active&&contiguous?' L':' M'}${fmt(xx)},${fmt(y(day.ma3))}`;
+       active=true;prevDate=day.date;
+     }
+     if(d)svg.push(`<path class="rc-ma3" data-timeframe="${tf==='1W'?'1W':'1D'}" d="${d.trim()}" fill="none" stroke="#ff36b5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+   }
    // TradingView-style hollow OHLC. Two distinct wicks stop at the body edges:
    // neither wick crosses its hollow (transparent) candle body.
    const w=clamp(stride*.60,3.2,10);

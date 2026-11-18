@@ -1175,3 +1175,15 @@ body.radar-workspace{font-size:12px;background:#061523}
 .radar-workspace [data-chart-plot].dw-is-panning .dw-fixed-label-layer,
 .radar-workspace [data-chart-plot].dw-is-panning .rc-ha-plot,
 .radar-workspace [data-chart-plot].dw-is-panning .rc-ha-axis{will-change:transform}
+
+
+/* v2.1.38: MA3 window toggle, next to the existing semantic capsules. */
+.radar-workspace .floating-chart .chart-indicator-group{display:flex;align-items:center;gap:7px;flex:1 1 auto;min-width:0;overflow:hidden}
+.radar-workspace .floating-chart .chart-indicator-group .chart-inline-capsules{flex:0 1 auto;margin:0}
+.radar-workspace .floating-chart .chart-ma3-toggle{flex:none;white-space:nowrap;cursor:pointer;border:1px solid #974068;border-radius:999px;background:#242233;color:#ff8cce;font-family:inherit;font-size:10px;font-weight:700;line-height:1.1;padding:3px 8px;min-height:18px;box-shadow:none}
+.radar-workspace .floating-chart .chart-ma3-toggle[aria-pressed="true"]{background:linear-gradient(#ff83d0,#cf207e);border-color:#ff9bda;color:#fff;box-shadow:0 0 5px #ff36b54d}
+.radar-workspace .floating-chart .chart-ma3-toggle:focus-visible{outline:2px solid #ff9bda;outline-offset:1px}
+@container (max-width:470px){
+ .radar-workspace .floating-chart .chart-indicator-group{gap:3px}
+ .radar-workspace .floating-chart .chart-ma3-toggle{font-size:9px;padding:2px 5px}
+}
